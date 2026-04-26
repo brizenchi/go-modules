@@ -66,6 +66,41 @@ func TestIssuer_DebugReturnsCode(t *testing.T) {
 	}
 }
 
+// failingMailer always returns an error from SendProviderTemplate.
+type failingMailer struct{ err error }
+
+func (m *failingMailer) SendProviderTemplate(ctx context.Context, ref string, to []EmailAddress, vars map[string]any) error {
+	return m.err
+}
+
+// In debug mode, mailer failure must NOT fail Issue — the code is in the response.
+// Without this behavior, restricted-IP or provider-down environments can't run E2E tests.
+func TestIssuer_DebugTolerates_DeliveryFailure(t *testing.T) {
+	store := memstore.NewCodeStore()
+	mailer := &failingMailer{err: errors.New("brevo: 401 IP not whitelisted")}
+	issuer := NewIssuer(Config{Debug: true, TemplateRef: "tpl-3"}, store, mailer)
+
+	res, err := issuer.Issue(context.Background(), "a@b")
+	if err != nil {
+		t.Fatalf("debug mode should tolerate delivery failure, got %v", err)
+	}
+	if res.DebugCode == "" {
+		t.Error("expected DebugCode set even when delivery fails in debug mode")
+	}
+}
+
+// In production (debug=false), mailer failure must surface to the caller.
+func TestIssuer_NonDebugFails_DeliveryFailure(t *testing.T) {
+	store := memstore.NewCodeStore()
+	mailer := &failingMailer{err: errors.New("smtp down")}
+	issuer := NewIssuer(Config{Debug: false, TemplateRef: "tpl-3"}, store, mailer)
+
+	_, err := issuer.Issue(context.Background(), "a@b")
+	if err == nil {
+		t.Fatal("expected delivery failure to surface in non-debug mode")
+	}
+}
+
 func TestIssuer_RejectsInvalidEmail(t *testing.T) {
 	issuer := NewIssuer(Config{}, memstore.NewCodeStore(), nil)
 	_, err := issuer.Issue(context.Background(), "not-an-email")

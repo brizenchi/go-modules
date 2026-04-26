@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"strings"
 	"time"
@@ -127,7 +128,17 @@ func (i *Issuer) Issue(ctx context.Context, email string) (*domain.CodeIssueResu
 				"year": fmt.Sprintf("%d", now.Year()),
 			},
 		); err != nil {
-			return nil, fmt.Errorf("emailcode: deliver: %w", err)
+			// In debug mode the code is returned in the response anyway,
+			// so a delivery failure (provider down, IP not allow-listed,
+			// missing credentials, ...) shouldn't fail the call. We log
+			// the underlying error and continue.
+			if !i.cfg.Debug {
+				return nil, fmt.Errorf("emailcode: deliver: %w", err)
+			}
+			slog.WarnContext(ctx, "emailcode: delivery failed in debug mode, returning code anyway",
+				"email", email,
+				"error", err,
+			)
 		}
 	}
 
