@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      foundation_slog: ${{ steps.filter.outputs.foundation_slog }}
+      foundation_jwt: ${{ steps.filter.outputs.foundation_jwt }}
+      foundation_httpresp: ${{ steps.filter.outputs.foundation_httpresp }}
+      foundation_ginx: ${{ steps.filter.outputs.foundation_ginx }}
+      foundation_config: ${{ steps.filter.outputs.foundation_config }}
+      foundation_pgx: ${{ steps.filter.outputs.foundation_pgx }}
+      foundation_rdx: ${{ steps.filter.outputs.foundation_rdx }}
+      auth: ${{ steps.filter.outputs.auth }}
+      billing: ${{ steps.filter.outputs.billing }}
+      email: ${{ steps.filter.outputs.email }}
+      referral: ${{ steps.filter.outputs.referral }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            foundation_slog:     ['foundation/slog/**']
+            foundation_jwt:      ['foundation/jwt/**']
+            foundation_httpresp: ['foundation/httpresp/**']
+            foundation_ginx:     ['foundation/ginx/**']
+            foundation_config:   ['foundation/config/**']
+            foundation_pgx:      ['foundation/pgx/**']
+            foundation_rdx:      ['foundation/rdx/**']
+            auth:                ['auth/**']
+            billing:             ['billing/**']
+            email:               ['email/**']
+            referral:            ['referral/**']
+
+  test:
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - foundation/slog
+          - foundation/jwt
+          - foundation/httpresp
+          - foundation/ginx
+          - foundation/config
+          - foundation/pgx
+          - foundation/rdx
+          - auth
+          - billing
+          - email
+          - referral
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - name: Build + test
+        working-directory: ${{ matrix.module }}
+        run: |
+          go build ./...
+          go test -race -cover ./...
+
+  purity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make purity-check
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '1.22' }
+      - name: Check gofmt
+        run: |
+          out=$(gofmt -s -l .)
+          if [ -n "$out" ]; then
+            echo "Files need gofmt:"
+            echo "$out"
+            exit 1
+          fi

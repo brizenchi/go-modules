@@ -1,0 +1,7 @@
+.idea/
+.vscode/
+*.test
+*.out
+*.log
+.DS_Store
+coverage.txt

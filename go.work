@@ -1,0 +1,15 @@
+go 1.25.0
+
+use (
+	./auth
+	./billing
+	./email
+	./foundation/config
+	./foundation/ginx
+	./foundation/httpresp
+	./foundation/jwt
+	./foundation/pgx
+	./foundation/rdx
+	./foundation/slog
+	./referral
+)
