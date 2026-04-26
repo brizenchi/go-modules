@@ -86,6 +86,20 @@ git tag auth/v1.0.0
 
 See [VERSIONING.md](VERSIONING.md) for the full policy.
 
+## Status
+
+🟢 **v0.2.0 — verified by `clawmesh-backend` in production.** All 26 test
+packages pass with `-race`; full E2E (18/18) passes against a live
+Postgres + Brevo integration.
+
+| Module | Latest tag |
+|---|---|
+| `foundation/{slog,jwt,httpresp,ginx,config,pgx,rdx}` | `v0.1.0` |
+| `auth` | `v0.1.1` (patch: debug-mode tolerates mailer failure) |
+| `billing` | `v0.1.0` |
+| `email` | `v0.1.0` |
+| `referral` | `v0.1.0` |
+
 ## Local development
 
 This repo uses Go workspaces. `go.work` declares all 11 modules so cross-module
