@@ -1,0 +1,4 @@
+/quickstart
+*.log
+deploy/config.yaml
+.env

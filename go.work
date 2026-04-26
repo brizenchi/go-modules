@@ -12,4 +12,5 @@ use (
 	./foundation/rdx
 	./foundation/slog
 	./referral
+	./templates/quickstart
 )

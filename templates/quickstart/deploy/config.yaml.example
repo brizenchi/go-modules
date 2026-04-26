@@ -1,0 +1,53 @@
+server:
+  name: quickstart        # appears as "service" field in every log record
+  port: 8080
+
+log:
+  level: info             # debug | info | warn | error
+  format: json            # json | text — text is human-readable for dev
+
+db:
+  dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC"
+
+# ---------- auth ----------
+auth:
+  user_jwt_secret: "CHANGE-ME-32-RANDOM-CHARS"
+  user_jwt_expire_hours: 168       # 7 days
+  admin_emails: []                 # users with these emails get role=admin
+  frontend_redirect: "http://localhost:3000/login"  # Google OAuth callback redirect
+
+  email:
+    debug: false                   # if true, send-code response leaks the code (dev only)
+    brevo_api_key: ""              # leave empty → log sender (no real email)
+    sender_email: ""
+    sender_name: "quickstart"
+
+  google:
+    client_id: ""                  # leave empty → Google login disabled
+    client_secret: ""
+    redirect_url: "http://localhost:8080/api/v1/auth/google/callback"
+    state_secret: "ANOTHER-CHANGE-ME-32-CHARS"
+    scope: "openid email profile"
+
+# ---------- billing ----------
+billing:
+  stripe:
+    enabled: false                 # set true after providing creds
+    secret_key: ""
+    publishable_key: ""
+    webhook_secret: ""
+    trial_days: 0
+    prices:
+      starter_monthly: ""
+      starter_yearly: ""
+      pro_monthly: ""
+      pro_yearly: ""
+      credits: []                  # list of one-time credit price IDs
+    credits:
+      per_package: 100             # credits granted per credits-package unit
+
+# ---------- referral ----------
+referral:
+  prefix: "INV"                    # invitation code prefix
+  base_link: "https://app.example.com/invite?ref="
+  activation_reward: 50            # credits granted to referrer on referee subscription
