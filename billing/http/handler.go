@@ -90,13 +90,14 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 // --- Checkout (authenticated) -------------------------------------------
 
 type createCheckoutRequest struct {
-	Plan        string `json:"plan"`
-	Interval    string `json:"interval"`
-	ProductType string `json:"product_type"`
-	PriceID     string `json:"price_id"`
-	Quantity    int64  `json:"quantity"`
-	SuccessURL  string `json:"success_url"`
-	CancelURL   string `json:"cancel_url"`
+	Plan        string            `json:"plan"`
+	Interval    string            `json:"interval"`
+	ProductType string            `json:"product_type"`
+	PriceID     string            `json:"price_id"`
+	Quantity    int64             `json:"quantity"`
+	SuccessURL  string            `json:"success_url"`
+	CancelURL   string            `json:"cancel_url"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 // CreateCheckoutSession opens a hosted checkout session.
@@ -128,6 +129,39 @@ func (h *Handler) CreateCheckoutSession(c *gin.Context) {
 	})
 }
 
+// maxMetadataEntries caps client-supplied metadata size to keep request
+// payloads bounded. Stripe itself allows 50 keys per object.
+const maxMetadataEntries = 20
+
+// sanitizeMetadata trims keys/values, drops empty pairs and reserved keys,
+// and caps the size. Reserved keys are populated by the billing layer
+// itself — silently ignoring them prevents request bodies from spoofing
+// system fields like user_id.
+func sanitizeMetadata(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		if domain.IsReservedMetadataKey(k) {
+			continue
+		}
+		out[k] = v
+		if len(out) >= maxMetadataEntries {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutInput, error) {
 	in := app.CheckoutInput{
 		UserID:     userID,
@@ -135,6 +169,7 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 		Quantity:   req.Quantity,
 		SuccessURL: strings.TrimSpace(req.SuccessURL),
 		CancelURL:  strings.TrimSpace(req.CancelURL),
+		Metadata:   sanitizeMetadata(req.Metadata),
 	}
 
 	productType := strings.ToLower(strings.TrimSpace(req.ProductType))

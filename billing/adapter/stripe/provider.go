@@ -21,6 +21,25 @@ type Provider struct {
 	cfg Config
 }
 
+// buildCheckoutMetadata merges caller-supplied metadata with billing's
+// system fields. System fields are written last and therefore win on
+// collision — this prevents request bodies that pass-through Metadata
+// (e.g. for Rewardful) from spoofing user_id / email / plan.
+func buildCheckoutMetadata(in domain.CheckoutInput, priceID string, quantity int64) map[string]string {
+	m := make(map[string]string, len(in.Metadata)+8)
+	for k, v := range in.Metadata {
+		m[k] = v
+	}
+	m["user_id"] = in.UserID
+	m["email"] = in.Email
+	m["plan"] = string(in.Plan)
+	m["interval"] = string(in.Interval)
+	m["product_type"] = string(in.ProductType)
+	m["price_id"] = priceID
+	m["quantity"] = strconv.FormatInt(quantity, 10)
+	return m
+}
+
 // NewProvider builds a Stripe provider. If cfg.Enabled is true and
 // cfg.SecretKey is set, the global stripesdk.Key is initialized.
 func NewProvider(cfg Config) *Provider {
@@ -136,14 +155,7 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		params.CustomerEmail = stripesdk.String(in.Email)
 	}
 
-	params.AddMetadata("user_id", in.UserID)
-	params.AddMetadata("email", in.Email)
-	params.AddMetadata("plan", string(in.Plan))
-	params.AddMetadata("interval", string(in.Interval))
-	params.AddMetadata("product_type", string(in.ProductType))
-	params.AddMetadata("price_id", priceID)
-	params.AddMetadata("quantity", strconv.FormatInt(quantity, 10))
-	for k, v := range in.Metadata {
+	for k, v := range buildCheckoutMetadata(in, priceID, quantity) {
 		params.AddMetadata(k, v)
 	}
 
