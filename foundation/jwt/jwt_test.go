@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -57,7 +58,25 @@ func TestSign_RequiresTTL(t *testing.T) {
 func TestParse_RejectsTampered(t *testing.T) {
 	s, _ := NewHS256("x", Options{})
 	tok, _ := s.Sign(Claims{Subject: "u", TTL: time.Hour})
-	bad := tok[:len(tok)-1] + "A"
+	// Tamper a char IN the payload segment (between the two dots).
+	// Mutating the last sig char is unreliable: base64url's last char
+	// encodes only 4 bits, so swapping characters that share the high
+	// 2 bits leaves the decoded signature bytes unchanged.
+	parts := strings.SplitN(tok, ".", 3)
+	if len(parts) != 3 {
+		t.Fatalf("malformed jwt: %q", tok)
+	}
+	mid := []byte(parts[1])
+	// Flip one byte in the middle of the payload to a different valid
+	// base64url char. The payload is JSON, so any unequal char produces
+	// a different signed content and will fail HMAC verification.
+	idx := len(mid) / 2
+	if mid[idx] == 'A' {
+		mid[idx] = 'B'
+	} else {
+		mid[idx] = 'A'
+	}
+	bad := parts[0] + "." + string(mid) + "." + parts[2]
 	_, err := s.Parse(bad)
 	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
@@ -75,9 +94,13 @@ func TestParse_RejectsWrongSecret(t *testing.T) {
 }
 
 func TestParse_RejectsExpired(t *testing.T) {
+	// JWT exp is second-precision; sub-second TTLs don't reliably push
+	// the expiry past now until we cross a full second boundary, which
+	// made earlier 2ms-sleep variants flaky under -race. Sleep 1.1s to
+	// guarantee we cross.
 	s, _ := NewHS256("x", Options{})
-	tok, _ := s.Sign(Claims{Subject: "u", TTL: time.Nanosecond})
-	time.Sleep(2 * time.Millisecond)
+	tok, _ := s.Sign(Claims{Subject: "u", TTL: 100 * time.Millisecond})
+	time.Sleep(1100 * time.Millisecond)
 	_, err := s.Parse(tok)
 	if !errors.Is(err, ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
@@ -88,10 +111,12 @@ func TestParse_RejectsExpired(t *testing.T) {
 }
 
 func TestParse_LeewayTolerates(t *testing.T) {
-	// Leeway is enforced in seconds resolution by jwt/v5; use a 1s window.
-	s, _ := NewHS256("x", Options{Leeway: time.Second})
-	tok, _ := s.Sign(Claims{Subject: "u", TTL: time.Nanosecond})
-	time.Sleep(50 * time.Millisecond)
+	// We need to assert: token expired by wall clock, but still accepted
+	// thanks to leeway. Both exp and now are second-precision, so use
+	// a real-second TTL + sleep past it + leeway clearly larger than the gap.
+	s, _ := NewHS256("x", Options{Leeway: 5 * time.Second})
+	tok, _ := s.Sign(Claims{Subject: "u", TTL: 500 * time.Millisecond})
+	time.Sleep(1500 * time.Millisecond) // past TTL by ~1s, well within 5s leeway
 	if _, err := s.Parse(tok); err != nil {
 		t.Errorf("expected leeway to tolerate, got %v", err)
 	}

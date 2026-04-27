@@ -43,13 +43,23 @@ func TestSigner_RoundTrip(t *testing.T) {
 func TestSigner_RejectsTamperedToken(t *testing.T) {
 	s := newTestSigner(t)
 	tok, _ := s.Issue(domain.Identity{UserID: "u1", Role: domain.RoleUser}, time.Hour)
-	// Pick a char that's guaranteed different from the last sig char.
-	last := tok.Value[len(tok.Value)-1]
-	swap := byte('A')
-	if last == swap {
-		swap = 'B'
+	// Mutate a char in the payload segment of the JWT (between the two
+	// dots). Mutating the last sig char is unreliable: base64url's
+	// trailing char encodes only 4 bits, so swapping to a value sharing
+	// the high 2 bits leaves the decoded signature unchanged → HMAC
+	// verify still passes.
+	parts := splitDots(tok.Value)
+	if len(parts) != 3 {
+		t.Fatalf("malformed jwt: %q", tok.Value)
 	}
-	bad := tok.Value[:len(tok.Value)-1] + string(swap)
+	mid := []byte(parts[1])
+	idx := len(mid) / 2
+	if mid[idx] == 'A' {
+		mid[idx] = 'B'
+	} else {
+		mid[idx] = 'A'
+	}
+	bad := parts[0] + "." + string(mid) + "." + parts[2]
 	_, err := s.Parse(bad)
 	if !errors.Is(err, domain.ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
@@ -57,12 +67,14 @@ func TestSigner_RejectsTamperedToken(t *testing.T) {
 }
 
 func TestSigner_RejectsExpiredToken(t *testing.T) {
+	// JWT exp is second-precision; sleep past a full second to avoid
+	// flake when nanosecond TTLs round to the same second as now.
 	s := newTestSigner(t)
-	tok, err := s.Issue(domain.Identity{UserID: "u1"}, time.Nanosecond)
+	tok, err := s.Issue(domain.Identity{UserID: "u1"}, 100*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(2 * time.Millisecond)
+	time.Sleep(1100 * time.Millisecond)
 	_, err = s.Parse(tok.Value)
 	if !errors.Is(err, domain.ErrInvalidToken) {
 		t.Errorf("expected ErrInvalidToken (expired), got %v", err)
@@ -123,11 +135,11 @@ func TestTicketSigner_RoundTripPreservesScope(t *testing.T) {
 
 func TestTicketSigner_RejectsExpired(t *testing.T) {
 	ts, _ := NewTicketSigner(Config{Secret: "s", TicketTTL: time.Minute})
-	ticket, err := ts.Issue("u1", nil, time.Nanosecond)
+	ticket, err := ts.Issue("u1", nil, 100*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(2 * time.Millisecond)
+	time.Sleep(1100 * time.Millisecond)
 	_, err = ts.Parse(ticket.Value)
 	if !errors.Is(err, domain.ErrInvalidWSTicket) {
 		t.Errorf("expected ErrInvalidWSTicket, got %v", err)

@@ -50,14 +50,23 @@ func TestProvider_VerifyStateRejectsEmpty(t *testing.T) {
 func TestProvider_VerifyStateRejectsTampered(t *testing.T) {
 	p := newTestProvider(t)
 	state, _ := p.IssueState()
-	// Pick a char guaranteed different from the last sig char — base64url
-	// alphabet means just toggling case isn't enough (charset includes both).
-	last := state[len(state)-1]
-	swap := byte('A')
-	if last == swap {
-		swap = 'B'
+	// Mutate a char in the payload segment of the JWT (between the two
+	// dots). Mutating the last sig char is unreliable: base64url's
+	// trailing char encodes only 4 bits, so swapping to a value sharing
+	// the high 2 bits leaves the decoded signature unchanged → HMAC verify
+	// still passes.
+	parts := strings.SplitN(state, ".", 3)
+	if len(parts) != 3 {
+		t.Fatalf("malformed jwt state: %q", state)
 	}
-	tampered := state[:len(state)-1] + string(swap)
+	mid := []byte(parts[1])
+	idx := len(mid) / 2
+	if mid[idx] == 'A' {
+		mid[idx] = 'B'
+	} else {
+		mid[idx] = 'A'
+	}
+	tampered := parts[0] + "." + string(mid) + "." + parts[2]
 	if err := p.VerifyState(tampered); !errors.Is(err, domain.ErrInvalidState) {
 		t.Errorf("expected ErrInvalidState, got %v", err)
 	}
