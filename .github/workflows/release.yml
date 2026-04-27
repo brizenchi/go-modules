@@ -1,0 +1,68 @@
+name: release
+
+# Triggered when any per-module tag of the form `<module>/v<X.Y.Z>` is
+# pushed. Creates a GitHub Release for that tag, populating the body
+# from the matching CHANGELOG.md section.
+#
+# To release: bump CHANGELOG.md under a new version heading, commit on
+# main, then `git tag <module>/vX.Y.Z && git push origin <tag>`.
+
+on:
+  push:
+    tags:
+      - '*/v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse tag
+        id: parse
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          # Tag format: <module>/v<X.Y.Z>  (e.g. auth/v0.1.1, foundation/jwt/v0.1.0)
+          module="${tag%/*}"
+          version="${tag##*/}"
+          echo "module=${module}"   >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}"         >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog section
+        id: notes
+        run: |
+          module="${{ steps.parse.outputs.module }}"
+          version="${{ steps.parse.outputs.version }}"
+          changelog="${module}/CHANGELOG.md"
+          if [ ! -f "$changelog" ]; then
+            echo "no CHANGELOG.md at $changelog — release notes will be empty" >&2
+            echo "body=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Pull the section between "## [version]" and the next "## [" heading.
+          notes=$(awk -v ver="$version" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            flag && /^## \[/ {exit}
+            flag {print}
+          ' "$changelog")
+          if [ -z "$notes" ]; then
+            echo "no section for ${version} found in $changelog" >&2
+          fi
+          {
+            echo 'body<<__END_OF_NOTES__'
+            echo "$notes"
+            echo '__END_OF_NOTES__'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.parse.outputs.tag }}
+          name: ${{ steps.parse.outputs.module }} ${{ steps.parse.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+          draft: false
+          prerelease: ${{ contains(steps.parse.outputs.version, '-') }}

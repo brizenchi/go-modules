@@ -34,7 +34,10 @@ func Acquire(ctx context.Context, client *redis.Client, key string, ttl time.Dur
 	if err != nil {
 		return nil, false, err
 	}
-	ok, err := client.SetNX(ctx, key, value, ttl).Result()
+	// SetNX with TTL maps to SET NX PX in go-redis/v9. The SA1019
+	// notice on staticcheck refers to the Redis protocol command
+	// "SETNX" (which has no TTL), not this go-redis helper.
+	ok, err := client.SetNX(ctx, key, value, ttl).Result() //nolint:staticcheck // SA1019: see comment above
 	if err != nil {
 		return nil, false, err
 	}

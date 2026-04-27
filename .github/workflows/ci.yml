@@ -5,41 +5,12 @@ on:
     branches: [main]
   pull_request:
 
-jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      foundation_slog: ${{ steps.filter.outputs.foundation_slog }}
-      foundation_jwt: ${{ steps.filter.outputs.foundation_jwt }}
-      foundation_httpresp: ${{ steps.filter.outputs.foundation_httpresp }}
-      foundation_ginx: ${{ steps.filter.outputs.foundation_ginx }}
-      foundation_config: ${{ steps.filter.outputs.foundation_config }}
-      foundation_pgx: ${{ steps.filter.outputs.foundation_pgx }}
-      foundation_rdx: ${{ steps.filter.outputs.foundation_rdx }}
-      auth: ${{ steps.filter.outputs.auth }}
-      billing: ${{ steps.filter.outputs.billing }}
-      email: ${{ steps.filter.outputs.email }}
-      referral: ${{ steps.filter.outputs.referral }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            foundation_slog:     ['foundation/slog/**']
-            foundation_jwt:      ['foundation/jwt/**']
-            foundation_httpresp: ['foundation/httpresp/**']
-            foundation_ginx:     ['foundation/ginx/**']
-            foundation_config:   ['foundation/config/**']
-            foundation_pgx:      ['foundation/pgx/**']
-            foundation_rdx:      ['foundation/rdx/**']
-            auth:                ['auth/**']
-            billing:             ['billing/**']
-            email:               ['email/**']
-            referral:            ['referral/**']
+env:
+  GO_VERSION: '1.25'
 
+jobs:
   test:
-    needs: changes
+    name: test (${{ matrix.module }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,31 +35,104 @@ jobs:
           # Bumping setup-go to install 1.25 directly avoids GOTOOLCHAIN
           # auto-fetching a partial toolchain that's missing `covdata`,
           # which broke `go test -race -cover` in earlier runs.
-          go-version: '1.25'
+          go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ${{ matrix.module }}/go.sum
       - name: Build + test
         working-directory: ${{ matrix.module }}
         run: |
           go build ./...
           go test -race -cover ./...
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+  fmt:
+    name: gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '${{ env.GO_VERSION }}' }
+      - run: make fmt-check
+
+  tidy:
+    name: go mod tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: '${{ env.GO_VERSION }}' }
+      - run: make tidy-check
 
   purity:
+    name: pkg purity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: make purity-check
 
-  fmt:
+  lint:
+    name: golangci-lint (${{ matrix.module }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - foundation/slog
+          - foundation/jwt
+          - foundation/httpresp
+          - foundation/ginx
+          - foundation/config
+          - foundation/pgx
+          - foundation/rdx
+          - auth
+          - billing
+          - email
+          - referral
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.25' }
-      - name: Check gofmt
-        run: |
-          out=$(gofmt -s -l .)
-          if [ -n "$out" ]; then
-            echo "Files need gofmt:"
-            echo "$out"
-            exit 1
-          fi
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64
+          working-directory: ${{ matrix.module }}
+          args: --config=${{ github.workspace }}/.golangci.yml
+
+# govulncheck — informational only.
+  #
+  # Reports CVEs in the stdlib + dependency tree but does NOT fail the
+  # build. Reason: stdlib CVEs are surfaced for every Go release until
+  # the next patch ships and we pull it in via `go-version: '1.25'`,
+  # which would make every transient CVE a red CI. Maintainers should
+  # eyeball the output on each release and bump deps when applicable.
+  vuln:
+    name: govulncheck (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - foundation/slog
+          - foundation/jwt
+          - foundation/httpresp
+          - foundation/ginx
+          - foundation/config
+          - foundation/pgx
+          - foundation/rdx
+          - auth
+          - billing
+          - email
+          - referral
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: ${{ matrix.module }}/go.sum
+      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - working-directory: ${{ matrix.module }}
+        run: govulncheck ./...

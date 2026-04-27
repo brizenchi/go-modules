@@ -1,0 +1,54 @@
+# golangci-lint configuration (v1.x format) for the go-modules monorepo.
+#
+# Goals:
+#   - Catch real bugs (govet, staticcheck, errcheck, ineffassign).
+#   - Enforce consistent style (gofmt, goimports).
+#   - Keep noise low — avoid stylistic linters that fight godoc-friendly code.
+#
+# Run locally: `make lint`. Run a single module: `cd <module> && golangci-lint run --config=$ROOT/.golangci.yml`.
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck       # unchecked errors
+    - govet          # bugs the compiler can't catch
+    - ineffassign    # ineffective assignments
+    - staticcheck    # broad static analysis
+    - unused         # dead code (gentle on this — exported APIs might look unused)
+    - gosec          # security smells
+    - misspell       # English spelling
+    - unconvert      # superfluous type conversions
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
+      - fmt.Fprint
+      - fmt.Fprintln
+      - fmt.Fprintf
+  staticcheck:
+    checks: ["all", "-ST1000", "-ST1003"]
+  gosec:
+    excludes:
+      - G101 # hardcoded credentials — too noisy on URL constants like OAuth endpoints
+      - G104 # errcheck handles this
+      - G304 # file inclusion via variable — repos handle path validation themselves
+      - G402 # TLS InsecureSkipVerify in tests is fine
+      - G404 # math/rand for non-crypto use is fine
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - templates/quickstart
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec

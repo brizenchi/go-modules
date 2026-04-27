@@ -144,7 +144,7 @@ func writeHeader(buf *bytes.Buffer, name, value string) {
 
 func writePart(mw *multipart.Writer, contentType, body string) {
 	w, _ := mw.CreatePart(map[string][]string{"Content-Type": {contentType}})
-	w.Write([]byte(body))
+	_, _ = w.Write([]byte(body))
 }
 
 func formatAddr(a domain.Address) string {
