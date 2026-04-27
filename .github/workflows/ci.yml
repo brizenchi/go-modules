@@ -97,7 +97,13 @@ jobs:
           cache-dependency-path: ${{ matrix.module }}/go.sum
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64
+          version: v1.64.5
+          # install-mode: goinstall builds golangci-lint with the runner's
+          # Go (1.25) instead of pulling a binary compiled against an older
+          # Go release. Required because Go 1.25 syntax is unrecognised by
+          # binaries built with Go 1.24 — yields "go language version (go1.24)
+          # used to build golangci-lint is lower than the targeted Go version".
+          install-mode: goinstall
           working-directory: ${{ matrix.module }}
           args: --config=${{ github.workspace }}/.golangci.yml
 
