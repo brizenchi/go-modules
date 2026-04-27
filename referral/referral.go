@@ -15,10 +15,10 @@
 //
 // The host project provides:
 //
-//	1. CodeRepository + ReferralRepository (GORM impl ships in adapter/gormrepo)
-//	2. CodeGenerator (deterministic or random; in adapter/codegen)
-//	3. UserIDFunc — extract authenticated user from Gin context (host's auth scheme)
-//	4. event listeners — react to ReferralActivated to grant rewards
+//  1. CodeRepository + ReferralRepository (GORM impl ships in adapter/gormrepo)
+//  2. CodeGenerator (deterministic or random; in adapter/codegen)
+//  3. UserIDFunc — extract authenticated user from Gin context (host's auth scheme)
+//  4. event listeners — react to ReferralActivated to grant rewards
 //
 // Two integration points the host calls explicitly:
 //

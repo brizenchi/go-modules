@@ -44,8 +44,8 @@ type Message struct {
 	TemplateRef string
 	Variables   map[string]any
 
-	Headers []Header
-	Tags    []string
+	Headers     []Header
+	Tags        []string
 	Attachments []Attachment
 
 	// ScheduledAt, if set, requests delayed delivery (provider-supported only).

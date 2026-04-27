@@ -60,7 +60,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          # Match the toolchain declared in every module's go.mod (1.25).
+          # Bumping setup-go to install 1.25 directly avoids GOTOOLCHAIN
+          # auto-fetching a partial toolchain that's missing `covdata`,
+          # which broke `go test -race -cover` in earlier runs.
+          go-version: '1.25'
           cache-dependency-path: ${{ matrix.module }}/go.sum
       - name: Build + test
         working-directory: ${{ matrix.module }}
@@ -79,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
-        with: { go-version: '1.22' }
+        with: { go-version: '1.25' }
       - name: Check gofmt
         run: |
           out=$(gofmt -s -l .)

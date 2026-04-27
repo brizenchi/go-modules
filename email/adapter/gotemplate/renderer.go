@@ -24,9 +24,9 @@ import (
 
 // Renderer holds the registered templates.
 type Renderer struct {
-	mu        sync.RWMutex
-	htmlTpls  map[string]*template.Template     // name -> tpl with blocks
-	textTpls  map[string]*texttemplate.Template // name -> tpl with subject+text blocks
+	mu       sync.RWMutex
+	htmlTpls map[string]*template.Template     // name -> tpl with blocks
+	textTpls map[string]*texttemplate.Template // name -> tpl with subject+text blocks
 }
 
 func New() *Renderer {

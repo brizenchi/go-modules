@@ -15,8 +15,8 @@ import (
 // Flow:
 //  1. provider.VerifyAndParseWebhook  → verify signature, parse, derive events
 //  2. repo.CreateIfAbsent             → idempotency: insert event row by unique
-//                                       (provider, provider_event_id). On duplicate,
-//                                       skip processing.
+//     (provider, provider_event_id). On duplicate,
+//     skip processing.
 //  3. resolver.Resolve                → fill UserID for each envelope when missing
 //  4. bus.Publish                     → dispatch domain events to listeners
 //  5. repo.MarkProcessed              → mark the event row as handled

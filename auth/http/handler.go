@@ -25,10 +25,10 @@ type Handler struct {
 
 // Deps gathers handler dependencies.
 type Deps struct {
-	Login          *app.LoginService
-	OAuth          *app.OAuthService
-	Session        *app.SessionService
-	FrontendURL    string // when set, OAuthCallback redirects browser to this URL with #code=...
+	Login       *app.LoginService
+	OAuth       *app.OAuthService
+	Session     *app.SessionService
+	FrontendURL string // when set, OAuthCallback redirects browser to this URL with #code=...
 }
 
 func NewHandler(d Deps) *Handler {
@@ -189,12 +189,12 @@ func verifyResultToJSON(res *app.VerifyResult) gin.H {
 		"token":      res.Token.Value,
 		"expires_at": res.Token.ExpiresAt,
 		"user": gin.H{
-			"id":        res.Identity.UserID,
-			"email":     res.Identity.Email,
-			"username":  res.Identity.Username,
-			"avatar":    res.Identity.AvatarURL,
-			"role":      res.Identity.Role,
-			"is_new":    res.Identity.IsNew,
+			"id":       res.Identity.UserID,
+			"email":    res.Identity.Email,
+			"username": res.Identity.Username,
+			"avatar":   res.Identity.AvatarURL,
+			"role":     res.Identity.Role,
+			"is_new":   res.Identity.IsNew,
 		},
 	}
 }

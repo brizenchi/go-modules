@@ -23,17 +23,17 @@ import (
 // ReferralActivated event fires for downstream listeners (granting
 // rewards via pkg/billing's credit ledger, sending notifications).
 type AttributeService struct {
-	codes        *CodeService
-	referrals    port.ReferralRepository
-	bus          port.EventBus
+	codes         *CodeService
+	referrals     port.ReferralRepository
+	bus           port.EventBus
 	defaultExpiry time.Duration // 0 = no deadline
 }
 
 // AttributeDeps gathers the dependencies AttributeService needs.
 type AttributeDeps struct {
-	Codes        *CodeService
-	Referrals    port.ReferralRepository
-	Bus          port.EventBus
+	Codes            *CodeService
+	Referrals        port.ReferralRepository
+	Bus              port.EventBus
 	ActivationWindow time.Duration // 0 = no activation deadline
 }
 

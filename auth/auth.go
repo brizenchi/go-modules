@@ -21,10 +21,10 @@
 //	auth.go   Module wiring
 //
 // The host project provides:
-//   1. port.UserStore         — read/write the host's user table
-//   2. port.RoleResolver      — assign roles to identities
-//   3. port.ExchangeCodeStore — persist OAuth callback codes
-//   4. event listeners        — react to UserSignedUp / UserLoggedIn
+//  1. port.UserStore         — read/write the host's user table
+//  2. port.RoleResolver      — assign roles to identities
+//  3. port.ExchangeCodeStore — persist OAuth callback codes
+//  4. event listeners        — react to UserSignedUp / UserLoggedIn
 //
 // Auth never imports project-specific models.
 package auth

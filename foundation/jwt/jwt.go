@@ -75,10 +75,10 @@ type Parsed struct {
 
 // Signer mints and verifies tokens. Use NewHS256 or NewRS256 to construct.
 type Signer struct {
-	method  jwtv5.SigningMethod
-	signKey any
+	method    jwtv5.SigningMethod
+	signKey   any
 	verifyKey any
-	opts    Options
+	opts      Options
 }
 
 // NewHS256 returns a Signer using HMAC-SHA256.

@@ -25,24 +25,24 @@ import (
 // in UserStore, assigning a Role, issuing a Token, and publishing
 // UserSignedUp / UserLoggedIn.
 type LoginService struct {
-	issuer    port.EmailCodeIssuer
-	verifier  port.EmailCodeVerifier
-	users     port.UserStore
-	roles     port.RoleResolver
-	signer    port.TokenSigner
-	bus       port.EventBus
-	tokenTTL  time.Duration
+	issuer   port.EmailCodeIssuer
+	verifier port.EmailCodeVerifier
+	users    port.UserStore
+	roles    port.RoleResolver
+	signer   port.TokenSigner
+	bus      port.EventBus
+	tokenTTL time.Duration
 }
 
 // LoginDeps gathers the dependencies LoginService needs.
 type LoginDeps struct {
-	Issuer    port.EmailCodeIssuer
-	Verifier  port.EmailCodeVerifier
-	Users     port.UserStore
-	Roles     port.RoleResolver
-	Signer    port.TokenSigner
-	Bus       port.EventBus
-	TokenTTL  time.Duration
+	Issuer   port.EmailCodeIssuer
+	Verifier port.EmailCodeVerifier
+	Users    port.UserStore
+	Roles    port.RoleResolver
+	Signer   port.TokenSigner
+	Bus      port.EventBus
+	TokenTTL time.Duration
 }
 
 func NewLoginService(d LoginDeps) *LoginService {

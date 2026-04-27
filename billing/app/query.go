@@ -20,11 +20,11 @@ func NewQueryService(p port.Provider, c port.CustomerStore) *QueryService {
 
 // SubscriptionView is a flattened view for HTTP responses.
 type SubscriptionView struct {
-	Plan              domain.PlanType         `json:"plan"`
+	Plan              domain.PlanType           `json:"plan"`
 	Status            domain.SubscriptionStatus `json:"status"`
-	Interval          domain.BillingInterval  `json:"billing_cycle"`
-	CurrentPeriodEnd  string                  `json:"current_period_end,omitempty"`
-	CancelAtPeriodEnd bool                    `json:"cancel_at_period_end"`
+	Interval          domain.BillingInterval    `json:"billing_cycle"`
+	CurrentPeriodEnd  string                    `json:"current_period_end,omitempty"`
+	CancelAtPeriodEnd bool                      `json:"cancel_at_period_end"`
 	PaymentMethod     *domain.PaymentMethodCard `json:"payment_method,omitempty"`
 }
 

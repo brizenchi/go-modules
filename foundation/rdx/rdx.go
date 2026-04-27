@@ -25,11 +25,11 @@ type Config struct {
 	DB       int
 
 	// Pool tuning. Sane defaults applied if zero.
-	PoolSize       int           // default 10
-	MinIdleConns   int           // default 2
-	DialTimeout    time.Duration // default 5s
-	ReadTimeout    time.Duration // default 3s
-	WriteTimeout   time.Duration // default 3s
+	PoolSize     int           // default 10
+	MinIdleConns int           // default 2
+	DialTimeout  time.Duration // default 5s
+	ReadTimeout  time.Duration // default 3s
+	WriteTimeout time.Duration // default 3s
 
 	// KeyPrefix is prepended to every key by Lock helpers and by the
 	// caller via Prefix(). Empty disables prefixing. Useful when one

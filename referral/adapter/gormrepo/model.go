@@ -9,8 +9,8 @@ import (
 
 // codeRow is the GORM row for referral_codes.
 type codeRow struct {
-	UserID    string    `gorm:"primaryKey;type:varchar(36)"`
-	Value     string    `gorm:"uniqueIndex;type:varchar(64);not null"`
+	UserID    string `gorm:"primaryKey;type:varchar(36)"`
+	Value     string `gorm:"uniqueIndex;type:varchar(64);not null"`
 	CreatedAt time.Time
 }
 
@@ -22,11 +22,11 @@ func (r codeRow) toDomain() domain.Code {
 
 // referralRow is the GORM row for referrals.
 type referralRow struct {
-	ID            uint64    `gorm:"primaryKey;autoIncrement"`
-	Code          string    `gorm:"type:varchar(64);index;not null"`
-	ReferrerID    string    `gorm:"type:varchar(36);index;not null"`
-	RefereeID     string    `gorm:"type:varchar(36);uniqueIndex;not null"` // a referee has at most one referrer
-	Status        string    `gorm:"type:varchar(16);index;not null;default:'pending'"`
+	ID            uint64 `gorm:"primaryKey;autoIncrement"`
+	Code          string `gorm:"type:varchar(64);index;not null"`
+	ReferrerID    string `gorm:"type:varchar(36);index;not null"`
+	RefereeID     string `gorm:"type:varchar(36);uniqueIndex;not null"` // a referee has at most one referrer
+	Status        string `gorm:"type:varchar(16);index;not null;default:'pending'"`
 	ActivatedAt   *time.Time
 	ExpiresAt     *time.Time
 	RewardCredits int `gorm:"not null;default:0"`

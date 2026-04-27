@@ -10,12 +10,12 @@ import (
 
 // SessionService handles refreshing tokens and issuing WebSocket tickets.
 type SessionService struct {
-	users          port.UserStore
-	roles          port.RoleResolver
-	signer         port.TokenSigner
-	ticketSigner   port.WSTicketSigner
-	tokenTTL       time.Duration
-	defaultWSTTL   time.Duration
+	users        port.UserStore
+	roles        port.RoleResolver
+	signer       port.TokenSigner
+	ticketSigner port.WSTicketSigner
+	tokenTTL     time.Duration
+	defaultWSTTL time.Duration
 }
 
 type SessionDeps struct {

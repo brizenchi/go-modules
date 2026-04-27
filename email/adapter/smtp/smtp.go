@@ -21,9 +21,9 @@ import (
 
 // Config holds the SMTP server settings.
 type Config struct {
-	Host     string         // e.g. "smtp.sendgrid.net"
-	Port     int            // e.g. 587
-	Username string         // optional (no AUTH if empty)
+	Host     string // e.g. "smtp.sendgrid.net"
+	Port     int    // e.g. 587
+	Username string // optional (no AUTH if empty)
 	Password string
 	Sender   domain.Address // default From
 }

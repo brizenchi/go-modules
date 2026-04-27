@@ -96,7 +96,7 @@ func (m *mockProvider) MapPriceToPlan(priceID string) (domain.PlanType, domain.B
 	return domain.PlanFree, ""
 }
 
-func (m *mockProvider) CreditsPerUnit() int64       { return 40 }
+func (m *mockProvider) CreditsPerUnit() int64        { return 40 }
 func (m *mockProvider) IsCreditsPriceID(string) bool { return false }
 
 // --- mockRepo ----------------------------------------------------------

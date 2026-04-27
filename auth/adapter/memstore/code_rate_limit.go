@@ -15,17 +15,17 @@ import (
 )
 
 type codeEntry struct {
-	code       string
-	expiresAt  time.Time
-	lastSent   time.Time
-	attempts   int
+	code      string
+	expiresAt time.Time
+	lastSent  time.Time
+	attempts  int
 }
 
 // CodeStore is an in-memory CodeRateLimitStore.
 type CodeStore struct {
-	mu     sync.Mutex
-	codes  map[string]*codeEntry  // key: email
-	daily  map[string]int         // key: email|day_bucket
+	mu    sync.Mutex
+	codes map[string]*codeEntry // key: email
+	daily map[string]int        // key: email|day_bucket
 }
 
 func NewCodeStore() *CodeStore {

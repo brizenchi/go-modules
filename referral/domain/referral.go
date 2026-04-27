@@ -35,9 +35,9 @@ const (
 // activated when the host's billing/business logic calls ActivateReferral.
 type Referral struct {
 	ID            uint64
-	Code          string    // the code value used for attribution (denormalized)
-	ReferrerID    string    // user who shared the code
-	RefereeID     string    // user who used the code
+	Code          string // the code value used for attribution (denormalized)
+	ReferrerID    string // user who shared the code
+	RefereeID     string // user who used the code
 	Status        Status
 	ActivatedAt   *time.Time
 	ExpiresAt     *time.Time // host-defined activation deadline

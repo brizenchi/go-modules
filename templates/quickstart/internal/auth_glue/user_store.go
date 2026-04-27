@@ -15,16 +15,16 @@ import (
 // already have. Only `ID` and `Email` are needed by the auth module;
 // other fields are project-specific and the auth module never reads them.
 type User struct {
-	ID         string     `gorm:"primaryKey;type:varchar(36)"`
-	Email      string     `gorm:"uniqueIndex;type:varchar(255);not null"`
-	Username   string     `gorm:"type:varchar(64)"`
-	AvatarURL  string     `gorm:"type:varchar(512)"`
-	Provider   string     `gorm:"type:varchar(32)"`
-	Subject    string     `gorm:"type:varchar(255);index"`
-	Role       string     `gorm:"type:varchar(16);default:user"`
+	ID          string `gorm:"primaryKey;type:varchar(36)"`
+	Email       string `gorm:"uniqueIndex;type:varchar(255);not null"`
+	Username    string `gorm:"type:varchar(64)"`
+	AvatarURL   string `gorm:"type:varchar(512)"`
+	Provider    string `gorm:"type:varchar(32)"`
+	Subject     string `gorm:"type:varchar(255);index"`
+	Role        string `gorm:"type:varchar(16);default:user"`
 	LastLoginAt *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // userStore implements auth.port.UserStore. Adapt the bodies if your

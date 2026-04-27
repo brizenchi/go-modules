@@ -31,7 +31,7 @@ type CodeIssueRequest struct {
 
 // CodeIssueResult reports rate-limit status to the caller.
 type CodeIssueResult struct {
-	Email           string
-	ExpiresAt       time.Time
-	DebugCode       string // populated only when running in debug mode
+	Email     string
+	ExpiresAt time.Time
+	DebugCode string // populated only when running in debug mode
 }

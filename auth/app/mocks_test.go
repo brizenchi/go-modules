@@ -15,10 +15,10 @@ import (
 // --- mockUserStore ----------------------------------------------------
 
 type mockUserStore struct {
-	mu       sync.Mutex
-	byEmail  map[string]*domain.Identity
-	byID     map[string]*domain.Identity
-	logins   map[string]int
+	mu      sync.Mutex
+	byEmail map[string]*domain.Identity
+	byID    map[string]*domain.Identity
+	logins  map[string]int
 }
 
 func newMockUserStore() *mockUserStore {
@@ -183,7 +183,7 @@ func newMockProvider() *mockProvider {
 	}
 }
 
-func (p *mockProvider) Name() domain.Provider                     { return p.name }
+func (p *mockProvider) Name() domain.Provider { return p.name }
 func (p *mockProvider) AuthorizeURL(state string, _ url.Values) (string, error) {
 	return "https://provider/authz?state=" + state, nil
 }

@@ -37,7 +37,7 @@ func (p *Provider) MapPriceToPlan(priceID string) (domain.PlanType, domain.Billi
 	return p.cfg.PlanForPrice(priceID)
 }
 
-func (p *Provider) CreditsPerUnit() int64       { return p.cfg.CreditsPerUnit }
+func (p *Provider) CreditsPerUnit() int64           { return p.cfg.CreditsPerUnit }
 func (p *Provider) IsCreditsPriceID(id string) bool { return p.cfg.IsCreditsPriceID(id) }
 
 // EnsureCustomer returns a Stripe customer ID, creating one if needed.
@@ -335,4 +335,3 @@ func unixToTimePtr(ts int64) *time.Time {
 	t := time.Unix(ts, 0).UTC()
 	return &t
 }
-

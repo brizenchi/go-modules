@@ -34,9 +34,9 @@ type Config struct {
 	TokenURL     string
 	UserInfoURL  string
 
-	StateSecret  string        // HS256 secret for state JWT
-	StateTTL     time.Duration // default 10m
-	HTTPTimeout  time.Duration // default 15s
+	StateSecret string        // HS256 secret for state JWT
+	StateTTL    time.Duration // default 10m
+	HTTPTimeout time.Duration // default 15s
 }
 
 const (

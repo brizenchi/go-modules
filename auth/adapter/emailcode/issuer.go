@@ -40,13 +40,13 @@ type EmailAddress struct {
 
 // Config bundles the rate-limit + delivery options.
 type Config struct {
-	CodeLength       int           // default 6
-	TTL              time.Duration // default 10 minutes
-	MinResendGap     time.Duration // default 60 seconds (per-email throttle)
-	DailyCap         int           // default 10 codes per email per day
-	MaxAttempts      int           // default 5 failed verifications before invalidating
-	TemplateRef      string        // provider-side template id (e.g. Brevo template id)
-	Debug            bool          // when true, returned CodeIssueResult.DebugCode contains the code
+	CodeLength   int           // default 6
+	TTL          time.Duration // default 10 minutes
+	MinResendGap time.Duration // default 60 seconds (per-email throttle)
+	DailyCap     int           // default 10 codes per email per day
+	MaxAttempts  int           // default 5 failed verifications before invalidating
+	TemplateRef  string        // provider-side template id (e.g. Brevo template id)
+	Debug        bool          // when true, returned CodeIssueResult.DebugCode contains the code
 }
 
 func (c Config) withDefaults() Config {

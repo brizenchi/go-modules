@@ -13,13 +13,13 @@ import (
 
 // OAuthService coordinates an OAuth login round-trip.
 //
-//	1. StartOAuth(name) → returns a redirect URL the browser follows
-//	2. provider redirects back to the callback URL with ?code=...&state=...
-//	3. OAuthCallback(name, query) → verifies state, fetches profile,
-//	   creates/links the user, mints an exchange code, returns it
-//	4. ExchangeToken(code) → consumes the exchange code, mints a token,
-//	   publishes events. This is what the SPA calls after the callback
-//	   redirects the browser back to the frontend.
+//  1. StartOAuth(name) → returns a redirect URL the browser follows
+//  2. provider redirects back to the callback URL with ?code=...&state=...
+//  3. OAuthCallback(name, query) → verifies state, fetches profile,
+//     creates/links the user, mints an exchange code, returns it
+//  4. ExchangeToken(code) → consumes the exchange code, mints a token,
+//     publishes events. This is what the SPA calls after the callback
+//     redirects the browser back to the frontend.
 type OAuthService struct {
 	providers     map[string]port.IdentityProvider
 	users         port.UserStore
