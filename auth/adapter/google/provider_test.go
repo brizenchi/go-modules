@@ -50,7 +50,14 @@ func TestProvider_VerifyStateRejectsEmpty(t *testing.T) {
 func TestProvider_VerifyStateRejectsTampered(t *testing.T) {
 	p := newTestProvider(t)
 	state, _ := p.IssueState()
-	tampered := state[:len(state)-1] + "X"
+	// Pick a char guaranteed different from the last sig char — base64url
+	// alphabet means just toggling case isn't enough (charset includes both).
+	last := state[len(state)-1]
+	swap := byte('A')
+	if last == swap {
+		swap = 'B'
+	}
+	tampered := state[:len(state)-1] + string(swap)
 	if err := p.VerifyState(tampered); !errors.Is(err, domain.ErrInvalidState) {
 		t.Errorf("expected ErrInvalidState, got %v", err)
 	}
