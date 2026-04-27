@@ -14,24 +14,24 @@ imported as `github.com/brizenchi/go-modules/<MODULE>`.
 
 ### foundation/ — boring, stable, project-agnostic
 
-| Module | Path | What |
+| Module | Latest | What |
 |---|---|---|
-| `slog` | `foundation/slog` | `slog.SetDefault` setup + Gin context helper |
-| `jwt` | `foundation/jwt` | HS256/RS256 signer with leeway + alg-confusion guard |
-| `httpresp` | `foundation/httpresp` | Uniform `{code, msg, data}` Gin response helpers |
-| `ginx` | `foundation/ginx` | CORS, RequestID, Recover, AccessLog, Secure, NoCache middleware |
-| `config` | `foundation/config` | viper-backed config loader (file + env) |
-| `pgx` | `foundation/pgx` | GORM-postgres connection helper with slog-backed query logger |
-| `rdx` | `foundation/rdx` | Redis client + simple distributed lock |
+| [`foundation/slog`](./foundation/slog/) | v0.1.0 | `log/slog` Setup + Gin context helper |
+| [`foundation/jwt`](./foundation/jwt/) | v0.1.0 | HS256/RS256 signer with leeway + alg-confusion guard |
+| [`foundation/httpresp`](./foundation/httpresp/) | v0.1.0 | Uniform `{code, msg, data}` Gin response helpers |
+| [`foundation/ginx`](./foundation/ginx/) | v0.1.0 | CORS, RequestID, Recover, AccessLog, Secure, NoCache middleware |
+| [`foundation/config`](./foundation/config/) | v0.1.0 | viper-backed config loader (file + env) |
+| [`foundation/pgx`](./foundation/pgx/) | v0.1.0 | GORM-postgres connection helper with slog-backed query logger |
+| [`foundation/rdx`](./foundation/rdx/) | v0.1.0 | Redis client + simple distributed lock |
 
 ### Business modules — DDD-shaped, project-portable
 
-| Module | What |
-|---|---|
-| `auth` | Email-code + Google OAuth + JWT sessions + WS tickets. Pluggable UserStore. |
-| `billing` | Stripe subscriptions/checkout/credits + webhooks. Pluggable CustomerStore + listeners. |
-| `email` | Provider-agnostic transactional email (Brevo/SMTP/log/template). |
-| `referral` | Referrer→referee codes + activation events. |
+| Module | Latest | What |
+|---|---|---|
+| [`auth`](./auth/) | v0.1.1 | Email-code + Google OAuth + JWT sessions + WS tickets. Pluggable UserStore. |
+| [`billing`](./billing/) | v0.2.0 | Stripe subscriptions/checkout/credits + webhooks. Caller metadata pass-through (Rewardful). |
+| [`email`](./email/) | v0.2.0 | Provider-agnostic transactional email (Brevo / Resend / SMTP / log / template). |
+| [`referral`](./referral/) | v0.1.0 | C2C referral codes + attribution + activation events. |
 
 Each business module follows the same layering — see its README:
 
@@ -88,17 +88,21 @@ See [VERSIONING.md](VERSIONING.md) for the full policy.
 
 ## Status
 
-🟢 **v0.2.0 — verified by `clawmesh-backend` in production.** All 26 test
-packages pass with `-race`; full E2E (18/18) passes against a live
-Postgres + Brevo integration.
+🟢 **Verified by `clawmesh-backend` in production.** All 26+ test packages
+pass with `-race`; full E2E (18/18) passes against a live Postgres + Brevo
+integration. See each module's CHANGELOG.md for version history.
 
-| Module | Latest tag |
+Per-module test coverage (latest):
+
+| Module | Coverage highlights |
 |---|---|
-| `foundation/{slog,jwt,httpresp,ginx,config,pgx,rdx}` | `v0.1.0` |
-| `auth` | `v0.1.1` (patch: debug-mode tolerates mailer failure) |
-| `billing` | `v0.1.0` |
-| `email` | `v0.1.0` |
-| `referral` | `v0.1.0` |
+| `auth/domain` | 100% |
+| `auth/adapter/{memstore, emailcode}` | 97.7% / 87.1% |
+| `billing/adapter/{eventbus, stripe}` | 100% / 76.1% |
+| `billing/domain` | 75% |
+| `email/adapter/{log, resend, brevo, smtp}` | 100% / 85% / 68.2% / 68.9% |
+| `email/app` | 94.1% |
+| `referral/{app, adapter/codegen}` | 78% / 84% |
 
 ## Local development
 
@@ -114,8 +118,12 @@ make purity-check # ensure pkg/* doesn't leak project-specific imports
 
 ## Contributing
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide. TL;DR:
+
 - One module per PR when possible — keeps blast radius small.
-- Foundation modules require deprecation cycle for breaking changes (one minor version).
+- Foundation modules require a deprecation cycle for breaking changes
+  (one minor version).
 - Business modules can break majors freely (semver).
-- Every module ships its own README + tests; CI enforces.
-- New module? Drop a `go.mod` + add to `go.work` + add to Makefile loops.
+- Every module ships its own README + CHANGELOG + tests; CI enforces.
+- New module? Drop a `go.mod`, add to `go.work`, add to the Makefile
+  loops, and add to the CI matrix in `.github/workflows/ci.yml`.
