@@ -18,15 +18,23 @@ jobs:
         module:
           - foundation/slog
           - foundation/jwt
+          - foundation/ossx
           - foundation/httpresp
           - foundation/ginx
           - foundation/config
+          - foundation/httpx
+          - foundation/tracing
           - foundation/pgx
+          - foundation/randx
           - foundation/rdx
-          - auth
-          - billing
-          - email
-          - referral
+          - foundation/resilience
+          - modules/auth
+          - modules/billing
+          - modules/email
+          - modules/referral
+          - modules/user
+          - stacks/saascore
+          - templates/quickstart
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -45,6 +53,22 @@ jobs:
       - name: Vet
         working-directory: ${{ matrix.module }}
         run: go vet ./...
+
+  template-nextjs:
+    name: template-nextjs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: templates/quickstart-nextjs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: templates/quickstart-nextjs/package-lock.json
+      - run: npm ci
+      - run: npm run verify
 
   fmt:
     name: gofmt
@@ -80,15 +104,23 @@ jobs:
         module:
           - foundation/slog
           - foundation/jwt
+          - foundation/ossx
           - foundation/httpresp
           - foundation/ginx
           - foundation/config
+          - foundation/httpx
+          - foundation/tracing
           - foundation/pgx
+          - foundation/randx
           - foundation/rdx
-          - auth
-          - billing
-          - email
-          - referral
+          - foundation/resilience
+          - modules/auth
+          - modules/billing
+          - modules/email
+          - modules/referral
+          - modules/user
+          - stacks/saascore
+          - templates/quickstart
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -124,15 +156,23 @@ jobs:
         module:
           - foundation/slog
           - foundation/jwt
+          - foundation/ossx
           - foundation/httpresp
           - foundation/ginx
           - foundation/config
+          - foundation/httpx
+          - foundation/tracing
           - foundation/pgx
+          - foundation/randx
           - foundation/rdx
-          - auth
-          - billing
-          - email
-          - referral
+          - foundation/resilience
+          - modules/auth
+          - modules/billing
+          - modules/email
+          - modules/referral
+          - modules/user
+          - stacks/saascore
+          - templates/quickstart
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -6,28 +6,53 @@ log:
   level: info             # debug | info | warn | error
   format: json            # json | text — text is human-readable for dev
 
+tracing:
+  endpoint: ""            # e.g. localhost:4318 ; empty disables exporter
+  protocol: http          # http | grpc
+  insecure: true          # true for local collectors without TLS
+  sample_rate: 1.0        # 0..1
+
 db:
-  dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC"
+  host: localhost
+  port: 5432
+  user: app
+  password: app
+  name: quickstart
+  ssl_mode: disable
+  time_zone: UTC
+  # Optional legacy escape hatch if you still prefer a single connection string:
+  # dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC"
 
 # ---------- auth ----------
 auth:
   user_jwt_secret: "CHANGE-ME-32-RANDOM-CHARS"
   user_jwt_expire_hours: 168       # 7 days
+  ws_ticket_ttl_seconds: 300       # 5 minutes
   admin_emails: []                 # users with these emails get role=admin
-  frontend_redirect: "http://localhost:3000/login"  # Google OAuth callback redirect
+  frontend_redirect: "http://localhost:3000/login"  # browser landing after backend Google callback
 
   email:
     debug: false                   # if true, send-code response leaks the code (dev only)
-    brevo_api_key: ""              # leave empty → log sender (no real email)
-    sender_email: ""
-    sender_name: "quickstart"
-
+    verification_template_ref: "3"
+    code:
+      ttl_minutes: 10
+      min_resend_gap_seconds: 60
+      daily_cap: 10
+      max_attempts: 5
   google:
     client_id: ""                  # leave empty → Google login disabled
     client_secret: ""
     redirect_url: "http://localhost:8080/api/v1/auth/google/callback"
     state_secret: "ANOTHER-CHANGE-ME-32-CHARS"
     scope: "openid email profile"
+
+# ---------- email ----------
+email:
+  provider: log                    # log | brevo
+  brevo:
+    api_key: ""                    # required when provider=brevo
+    sender_email: ""
+    sender_name: "quickstart"
 
 # ---------- billing ----------
 billing:
@@ -49,5 +74,5 @@ billing:
 # ---------- referral ----------
 referral:
   prefix: "INV"                    # invitation code prefix
-  base_link: "https://app.example.com/invite?ref="
+  base_link: "http://localhost:3000/invite?ref="
   activation_reward: 50            # credits granted to referrer on referee subscription

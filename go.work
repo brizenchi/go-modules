@@ -1,16 +1,23 @@
 go 1.25.0
 
 use (
-	./auth
-	./billing
-	./email
 	./foundation/config
 	./foundation/ginx
 	./foundation/httpresp
+	./foundation/httpx
 	./foundation/jwt
+	./foundation/ossx
 	./foundation/pgx
+	./foundation/randx
 	./foundation/rdx
+	./foundation/resilience
 	./foundation/slog
-	./referral
+	./foundation/tracing
+	./modules/auth
+	./modules/billing
+	./modules/email
+	./modules/referral
+	./modules/user
+	./stacks/saascore
 	./templates/quickstart
 )

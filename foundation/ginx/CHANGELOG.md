@@ -7,6 +7,11 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `RequestIDFromContext(*gin.Context)` helper for retrieving the
+  propagated request id from handlers and middleware.
+
 ## [v0.1.0] — 2025
 
 ### Added

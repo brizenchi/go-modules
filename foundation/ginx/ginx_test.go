@@ -65,9 +65,11 @@ func TestRequestID_GeneratedAndEchoed(t *testing.T) {
 func TestRequestID_HonorsIncoming(t *testing.T) {
 	r := newRouter()
 	var captured string
+	var helper string
 	r.Use(RequestID())
 	r.GET("/x", func(c *gin.Context) {
 		captured = c.GetString(string(RequestIDKey))
+		helper = RequestIDFromContext(c)
 		c.String(200, "ok")
 	})
 
@@ -77,6 +79,9 @@ func TestRequestID_HonorsIncoming(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if captured != "rid-explicit" {
 		t.Errorf("captured = %q", captured)
+	}
+	if helper != "rid-explicit" {
+		t.Errorf("helper = %q", helper)
 	}
 	if w.Header().Get(HeaderRequestID) != "rid-explicit" {
 		t.Errorf("response header = %q", w.Header().Get(HeaderRequestID))

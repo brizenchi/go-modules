@@ -10,6 +10,7 @@ package rdx
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"time"
@@ -20,9 +21,10 @@ import (
 // Config configures the client.
 type Config struct {
 	// Addr: "host:port". Required.
-	Addr     string
-	Password string
-	DB       int
+	Addr      string
+	Password  string
+	DB        int
+	EnableTLS bool
 
 	// Pool tuning. Sane defaults applied if zero.
 	PoolSize     int           // default 10
@@ -42,7 +44,18 @@ func Open(ctx context.Context, cfg Config) (*redis.Client, error) {
 	if cfg.Addr == "" {
 		return nil, fmt.Errorf("rdx: addr required")
 	}
-	cli := redis.NewClient(&redis.Options{
+	cli := redis.NewClient(newOptions(cfg))
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := cli.Ping(pingCtx).Err(); err != nil {
+		_ = cli.Close()
+		return nil, fmt.Errorf("rdx: ping: %w", err)
+	}
+	return cli, nil
+}
+
+func newOptions(cfg Config) *redis.Options {
+	options := &redis.Options{
 		Addr:         cfg.Addr,
 		Password:     cfg.Password,
 		DB:           cfg.DB,
@@ -51,14 +64,11 @@ func Open(ctx context.Context, cfg Config) (*redis.Client, error) {
 		DialTimeout:  nonZeroDur(cfg.DialTimeout, 5*time.Second),
 		ReadTimeout:  nonZeroDur(cfg.ReadTimeout, 3*time.Second),
 		WriteTimeout: nonZeroDur(cfg.WriteTimeout, 3*time.Second),
-	})
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := cli.Ping(pingCtx).Err(); err != nil {
-		_ = cli.Close()
-		return nil, fmt.Errorf("rdx: ping: %w", err)
 	}
-	return cli, nil
+	if cfg.EnableTLS {
+		options.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	return options
 }
 
 // HealthCheck pings the server with a short timeout.

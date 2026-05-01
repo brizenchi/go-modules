@@ -10,14 +10,15 @@ CHANGELOG stays accurate).
 
 ```
 foundation/<name>/   pure infra: stdlib + one-or-two common libs only
-<business>/          DDD-layered business modules
+modules/<name>/      DDD-layered business modules
+docs/                host integration and migration guides
 templates/quickstart/ runnable boot example consuming all modules
 scripts/             one-off helpers (extraction, migration)
 ```
 
 Every directory listed in `go.work` is its own Go module with its own
 `go.mod`. Modules are tagged independently as `<name>/v<x.y.z>` (e.g.
-`auth/v0.2.1`).
+`modules/auth/v0.2.1`).
 
 ## Local setup
 
@@ -32,7 +33,8 @@ make tidy          # go mod tidy every module
 ```
 
 `go.work` makes cross-module changes work without `replace` directives —
-edit `auth` and `billing` together and `go test` sees the changes.
+edit `modules/auth` and `modules/billing` together and `go test` sees
+the changes.
 
 ## Design principles
 
@@ -76,7 +78,7 @@ in the CHANGELOG.
 
 ## Adding a new module
 
-1. Create `<tier>/<name>/` (e.g. `foundation/retry/` or `business/sms/`)
+1. Create `<tier>/<name>/` (e.g. `foundation/retry/` or `modules/sms/`)
 2. `go mod init github.com/brizenchi/go-modules/<tier>/<name>`
 3. Add the module path to `go.work`
 4. Write package doc on the entry-point file (`<name>.go`)
@@ -84,11 +86,28 @@ in the CHANGELOG.
 6. Write `CHANGELOG.md` with an "Unreleased" section
 7. Add tests; aim for 70% coverage at minimum
 8. Run `make purity-check` to catch accidental imports
-9. Add the new path to `.github/workflows/ci.yml` matrix
+9. Add the new path to the `MODULES` list in `Makefile`
+10. Add the new path to `.github/workflows/ci.yml` matrix
+
+If one module depends on another module in this repo, keep both:
+
+- a semver `require github.com/brizenchi/go-modules/modules/<module> vX.Y.Z`
+- a local `replace github.com/brizenchi/go-modules/modules/<module> => ../<module>`
+
+That combination keeps external consumers on proper versions while letting
+`go mod tidy` pass inside the monorepo before the dependency tag exists.
 
 Foundation modules should be tiny and self-contained. Business modules
-follow the DDD layering used by `auth/`, `billing/`, `email/`,
-`referral/`.
+follow the DDD layering used by `modules/auth/`, `modules/billing/`,
+`modules/email/`, `modules/referral/`.
+
+If you add a new module under `foundation/`, `modules/`, or `stacks/`,
+add it to:
+
+- `go.work`
+- the `MODULES` list in `Makefile`
+- the matrices in `.github/workflows/ci.yml`
+- the top-level `README.md`
 
 ## Pull request checklist
 

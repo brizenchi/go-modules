@@ -36,3 +36,19 @@ func RequestID() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequestIDFromContext returns the request id stored by RequestID(), or "".
+func RequestIDFromContext(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if rid := c.GetString(string(RequestIDKey)); rid != "" {
+		return rid
+	}
+	if c.Request != nil {
+		if rid, _ := c.Request.Context().Value(RequestIDKey).(string); rid != "" {
+			return rid
+		}
+	}
+	return ""
+}

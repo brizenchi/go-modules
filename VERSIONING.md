@@ -1,82 +1,114 @@
-# Versioning policy
+# Versioning Policy
 
-This is a multi-module Go repo. Each module is versioned independently
-via tag prefixes.
+This is a multi-module Go repo. Every module is tagged independently
+using its directory path as the tag prefix.
 
-## Tags
+## Current module paths
 
-```
-foundation/slog/v1.0.0
-foundation/jwt/v1.0.0
-foundation/httpresp/v1.0.0
-foundation/ginx/v1.0.0
-foundation/config/v1.0.0
-foundation/pgx/v1.0.0
-foundation/rdx/v1.0.0
-auth/v1.0.0
-billing/v1.0.0
-email/v1.0.0
-referral/v1.0.0
-```
-
-`git tag <module>/vX.Y.Z` (matches the directory path). DO NOT use a
-top-level `vX.Y.Z` tag — Go's module proxy treats it as ambiguous in a
-multi-module repo.
-
-## SemVer
-
-| Change | Bump | Example |
-|---|---|---|
-| Bug fix, perf, internal refactor | Patch | `v1.0.0 → v1.0.1` |
-| New API surface (additive) | Minor | `v1.0.0 → v1.1.0` |
-| Removing/renaming exported names, changing signatures | Major | `v1.0.0 → v2.0.0` |
-
-## Major version requirements (Go modules)
-
-For v2+, the module path itself MUST include the major:
-
-```
-require github.com/brizenchi/go-modules/auth/v2 v2.0.0
+```text
+foundation/config
+foundation/ginx
+foundation/httpresp
+foundation/httpx
+foundation/jwt
+foundation/ossx
+foundation/pgx
+foundation/randx
+foundation/rdx
+foundation/resilience
+foundation/slog
+foundation/tracing
+modules/auth
+modules/billing
+modules/email
+modules/referral
+modules/user
+stacks/saascore
 ```
 
-That means major bumps require:
-1. Renaming the directory: `auth/` → `auth/v2/` (or use a v2 subdirectory).
-2. Updating the `module` line in go.mod.
-3. Updating import paths inside the module.
+Tag format:
 
-Avoid this if possible — prefer additive minor releases.
+```bash
+git tag foundation/slog/v0.1.0
+git tag modules/auth/v0.1.0
+git tag stacks/saascore/v0.1.0
+```
+
+Do not create a top-level `vX.Y.Z` tag. In a multi-module repo, Go's
+module tooling needs the module-path prefix.
+
+## SemVer rules
+
+| Change | Bump |
+|---|---|
+| Bug fix, perf, internal refactor | Patch |
+| New API surface, additive config, new helpers | Minor |
+| Removed or changed exported API | Major |
+
+## `v0.x` policy
+
+Some modules are still pre-`v1.0.0`.
+
+Rule:
+
+- while a module is on `v0.x`, breaking changes may still happen in a
+  minor release
+- every breaking change still must be called out in that module's
+  `CHANGELOG.md`
+- once a module reaches `v1.0.0`, normal SemVer compatibility rules
+  apply
+
+## `v2+` Go module rule
+
+For `v2+`, the module path itself must include the major version:
+
+```go
+require github.com/brizenchi/go-modules/modules/auth/v2 v2.0.0
+```
+
+That means a major release requires:
+
+1. moving to a `v2/` subdirectory or equivalent path
+2. updating the module path in `go.mod`
+3. updating imports inside the module and its consumers
+
+Avoid major bumps unless the API break is worth the migration cost.
 
 ## Foundation policy
 
-Foundation modules are public API for everything that depends on them.
-Breaking changes in foundation cascade to every business module.
+`foundation/*` is the lowest shared API layer. Breaking changes there
+fan out into every dependent module.
 
-Rule: **breaking changes in foundation require a deprecation period of
-at least one minor version.**
+Rule:
 
-Process:
-1. Add the new API; mark the old one with `// Deprecated: ...` comment.
-2. Release a minor (e.g. `foundation/slog/v1.2.0`).
-3. Update business modules to use the new API.
-4. After at least one release, remove the old API in the next major.
+- after `v1.0.0`, breaking foundation changes require at least one minor
+  release of deprecation first
 
-## Business module policy
+Expected flow:
 
-Business modules can release majors more freely. Each business module
-is consumed by exactly the projects that opt-in, not by other modules
-in this repo, so blast radius is bounded.
+1. add the replacement API
+2. mark the old API with `// Deprecated: ...`
+3. release a minor version
+4. update dependent modules
+5. remove the old API in the next major release
 
-## Release process
+## Business and stack policy
+
+`modules/*` and `stacks/*` can evolve faster than foundation, but they
+still need:
+
+- scoped CHANGELOG entries
+- explicit upgrade notes when host app wiring changes
+- tag names that match the real module path
+
+## Release checklist
 
 ```bash
-# 1. Make sure tests pass for the module:
-cd auth && go test ./...
+cd modules/auth
+go test ./...
 
-# 2. Update CHANGELOG.md inside the module.
+# update CHANGELOG.md
 
-# 3. Tag from the main branch:
-git tag auth/v1.1.0
-git push origin auth/v1.1.0
-
-# 4. The Go module proxy picks it up within minutes.
+git tag modules/auth/v0.1.1
+git push origin modules/auth/v0.1.1
 ```

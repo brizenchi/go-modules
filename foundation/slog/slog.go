@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Format selects the slog handler.
@@ -93,19 +94,45 @@ const RequestIDKey ctxKey = "request_id"
 
 type ctxKey string
 
-// With returns a logger with request-scoped attributes (request_id, etc).
+// With returns a logger with request-scoped attributes (request_id,
+// trace_id, span_id).
 //
-// Pass a Gin context — RequestIDKey is read from c.Request.Context().
+// Pass a Gin context — RequestIDKey is read from c.Request.Context(),
+// trace/span IDs from the active OpenTelemetry span.
 // Returns slog.Default() when no fields are present, so it's always
 // safe to call.
 func With(c *gin.Context) *slog.Logger {
 	if c == nil {
 		return slog.Default()
 	}
+	var attrs []any
 	if rid := requestID(c); rid != "" {
-		return slog.Default().With("request_id", rid)
+		attrs = append(attrs, "request_id", rid)
 	}
-	return slog.Default()
+	if tid := traceID(c); tid != "" {
+		attrs = append(attrs, "trace_id", tid)
+		attrs = append(attrs, "span_id", spanID(c))
+	}
+	if len(attrs) == 0 {
+		return slog.Default()
+	}
+	return slog.Default().With(attrs...)
+}
+
+func traceID(c *gin.Context) string {
+	sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
+	if sc.HasTraceID() {
+		return sc.TraceID().String()
+	}
+	return ""
+}
+
+func spanID(c *gin.Context) string {
+	sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
+	if sc.HasSpanID() {
+		return sc.SpanID().String()
+	}
+	return ""
 }
 
 func requestID(c *gin.Context) string {

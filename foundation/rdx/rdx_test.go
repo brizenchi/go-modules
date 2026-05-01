@@ -3,6 +3,8 @@ package rdx
 import (
 	"testing"
 	"time"
+
+	"crypto/tls"
 )
 
 func TestPrefix(t *testing.T) {
@@ -40,5 +42,20 @@ func TestRandomTokenLengthAndCharset(t *testing.T) {
 	tok2, _ := randomToken()
 	if tok == tok2 {
 		t.Error("two random tokens collided — entropy broken")
+	}
+}
+
+func TestNewOptionsTLS(t *testing.T) {
+	opts := newOptions(Config{Addr: "127.0.0.1:6379", EnableTLS: true})
+	if opts.TLSConfig == nil {
+		t.Fatal("TLSConfig is nil")
+	}
+	if opts.TLSConfig.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("MinVersion = %v, want %v", opts.TLSConfig.MinVersion, tls.VersionTLS12)
+	}
+
+	plain := newOptions(Config{Addr: "127.0.0.1:6379"})
+	if plain.TLSConfig != nil {
+		t.Fatal("TLSConfig should be nil when EnableTLS is false")
 	}
 }
