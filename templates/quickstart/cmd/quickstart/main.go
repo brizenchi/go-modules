@@ -186,11 +186,18 @@ type GoogleConfig struct {
 }
 
 type EmailPlatformConfig struct {
-	Provider string      `mapstructure:"provider"`
-	Brevo    BrevoConfig `mapstructure:"brevo"`
+	Provider string       `mapstructure:"provider"`
+	Brevo    BrevoConfig  `mapstructure:"brevo"`
+	Resend   ResendConfig `mapstructure:"resend"`
 }
 
 type BrevoConfig struct {
+	APIKey      string `mapstructure:"api_key"`
+	SenderEmail string `mapstructure:"sender_email"`
+	SenderName  string `mapstructure:"sender_name"`
+}
+
+type ResendConfig struct {
 	APIKey      string `mapstructure:"api_key"`
 	SenderEmail string `mapstructure:"sender_email"`
 	SenderName  string `mapstructure:"sender_name"`
@@ -340,7 +347,7 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 			AdminEmails:      c.Auth.AdminEmails,
 			EmailCode: saascore.EmailCodeConfig{
 				Debug:                c.Auth.Email.Debug,
-				VerificationTemplate: firstNonEmpty(c.Auth.Email.VerificationTemplateRef, "3"),
+				VerificationTemplate: c.Auth.Email.VerificationTemplateRef,
 				TTL:                  time.Duration(intWithDefault(c.Auth.Email.Code.TTLMinutes, 10)) * time.Minute,
 				MinResendGap:         time.Duration(intWithDefault(c.Auth.Email.Code.MinResendGapSeconds, 60)) * time.Second,
 				DailyCap:             intWithDefault(c.Auth.Email.Code.DailyCap, 10),
@@ -360,6 +367,11 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 				APIKey:      c.Email.Brevo.APIKey,
 				SenderEmail: c.Email.Brevo.SenderEmail,
 				SenderName:  c.Email.Brevo.SenderName,
+			},
+			Resend: saascore.ResendConfig{
+				APIKey:      c.Email.Resend.APIKey,
+				SenderEmail: c.Email.Resend.SenderEmail,
+				SenderName:  c.Email.Resend.SenderName,
 			},
 		},
 		Billing: saascore.BillingConfig{

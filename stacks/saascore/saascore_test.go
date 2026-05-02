@@ -123,6 +123,21 @@ func TestNewStackRejectsBrevoWithoutSender(t *testing.T) {
 	}
 }
 
+func TestNewStackRejectsResendWithoutSender(t *testing.T) {
+	db := newTestDB(t)
+	_, err := New(db, Config{
+		Auth: AuthConfig{
+			UserJWTSecret: "super-secret",
+		},
+		Email: EmailConfig{
+			Provider: "resend",
+		},
+	}, HostHooks{}, PolicyHooks{})
+	if err == nil || !strings.Contains(err.Error(), "email resend api key and sender email required") {
+		t.Fatalf("expected resend validation error, got %v", err)
+	}
+}
+
 func TestBillingReactivatedSyncsUserState(t *testing.T) {
 	db := newTestDB(t)
 	stack, err := New(db, Config{

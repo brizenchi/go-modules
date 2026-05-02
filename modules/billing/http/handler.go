@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
 	"github.com/brizenchi/go-modules/modules/billing/app"
@@ -220,6 +221,22 @@ type cancelSubscriptionRequest struct {
 	CancelType string `json:"cancel_type"`
 }
 
+type changeSubscriptionRequest struct {
+	Plan       string `json:"plan"`
+	Interval   string `json:"interval"`
+	ChangeMode string `json:"change_mode"`
+}
+
+type previewSubscriptionChangeRequest struct {
+	Plan       string `json:"plan"`
+	Interval   string `json:"interval"`
+	ChangeMode string `json:"change_mode"`
+}
+
+type portalSessionRequest struct {
+	ReturnURL string `json:"return_url"`
+}
+
 // CancelSubscription schedules cancellation.
 func (h *Handler) CancelSubscription(c *gin.Context) {
 	userID, ok := h.userID(c)
@@ -253,6 +270,118 @@ func (h *Handler) CancelSubscription(c *gin.Context) {
 	httpresp.OK(c, resp)
 }
 
+// ChangeSubscription changes the active paid plan in-place.
+func (h *Handler) ChangeSubscription(c *gin.Context) {
+	userID, ok := h.userID(c)
+	if !ok {
+		return
+	}
+	var req changeSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	plan := domain.PlanType(strings.ToLower(strings.TrimSpace(req.Plan)))
+	if !plan.Valid() || plan == domain.PlanFree {
+		respondError(c, http.StatusBadRequest, "plan must be starter, pro, or premium")
+		return
+	}
+
+	var interval domain.BillingInterval
+	switch strings.ToLower(strings.TrimSpace(req.Interval)) {
+	case "monthly", "month":
+		interval = domain.IntervalMonthly
+	case "yearly", "year":
+		interval = domain.IntervalYearly
+	default:
+		respondError(c, http.StatusBadRequest, "interval must be monthly or yearly")
+		return
+	}
+
+	mode := domain.SubscriptionChangeMode(strings.TrimSpace(req.ChangeMode))
+	if req.ChangeMode != "" && !mode.Valid() {
+		respondError(c, http.StatusBadRequest, "change_mode must be immediate_prorated, immediate_reset_cycle, or period_end")
+		return
+	}
+
+	res, err := h.subscription.Change(c.Request.Context(), userID, domain.SubscriptionChangeInput{
+		Plan:     plan,
+		Interval: interval,
+		Mode:     mode,
+	})
+	if err != nil {
+		respondAppError(c, err)
+		return
+	}
+	httpresp.OK(c, gin.H{
+		"status":                   res.Snapshot.Status,
+		"plan":                     res.Snapshot.Plan,
+		"billing_cycle":            res.Snapshot.Interval,
+		"change_mode":              res.Mode,
+		"provider_subscription_id": res.ProviderSubscriptionID,
+		"message":                  "subscription changed",
+	})
+}
+
+// PreviewSubscriptionChange previews how a plan change will be billed.
+func (h *Handler) PreviewSubscriptionChange(c *gin.Context) {
+	userID, ok := h.userID(c)
+	if !ok {
+		return
+	}
+	var req previewSubscriptionChangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	plan := domain.PlanType(strings.ToLower(strings.TrimSpace(req.Plan)))
+	if !plan.Valid() || plan == domain.PlanFree {
+		respondError(c, http.StatusBadRequest, "plan must be starter, pro, or premium")
+		return
+	}
+
+	var interval domain.BillingInterval
+	switch strings.ToLower(strings.TrimSpace(req.Interval)) {
+	case "monthly", "month":
+		interval = domain.IntervalMonthly
+	case "yearly", "year":
+		interval = domain.IntervalYearly
+	default:
+		respondError(c, http.StatusBadRequest, "interval must be monthly or yearly")
+		return
+	}
+
+	mode := domain.SubscriptionChangeMode(strings.TrimSpace(req.ChangeMode))
+	if req.ChangeMode != "" && !mode.Valid() {
+		respondError(c, http.StatusBadRequest, "change_mode must be immediate_prorated, immediate_reset_cycle, or period_end")
+		return
+	}
+
+	res, err := h.subscription.PreviewChange(c.Request.Context(), userID, domain.SubscriptionPreviewInput{
+		Plan:     plan,
+		Interval: interval,
+		Mode:     mode,
+	})
+	if err != nil {
+		respondAppError(c, err)
+		return
+	}
+	httpresp.OK(c, gin.H{
+		"currency":                 res.Currency,
+		"amount_due_now":           res.AmountDueNow,
+		"current_period_end":       formatTimePtr(res.CurrentPeriodEnd),
+		"next_billing_at":          formatTimePtr(res.NextBillingAt),
+		"target_plan":              res.TargetPlan,
+		"target_interval":          res.TargetInterval,
+		"change_mode":              res.Mode,
+		"immediate_charge":         res.ImmediateCharge,
+		"effective_at_period_end":  res.EffectiveAtPeriodEnd,
+		"message":                  res.Message,
+	})
+}
+
 // ReactivateSubscription clears a pending cancellation.
 func (h *Handler) ReactivateSubscription(c *gin.Context) {
 	userID, ok := h.userID(c)
@@ -266,6 +395,28 @@ func (h *Handler) ReactivateSubscription(c *gin.Context) {
 	httpresp.OK(c, gin.H{
 		"status":  "active",
 		"message": "subscription has been reactivated",
+	})
+}
+
+// CreateBillingPortalSession opens Stripe's hosted customer portal.
+func (h *Handler) CreateBillingPortalSession(c *gin.Context) {
+	userID, ok := h.userID(c)
+	if !ok {
+		return
+	}
+	var req portalSessionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		respondError(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	res, err := h.subscription.OpenBillingPortal(c.Request.Context(), userID, req.ReturnURL)
+	if err != nil {
+		respondAppError(c, err)
+		return
+	}
+	httpresp.OK(c, gin.H{
+		"url": res.URL,
 	})
 }
 
@@ -334,12 +485,20 @@ func respondError(c *gin.Context, status int, msg string) {
 	}
 }
 
+func formatTimePtr(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.UTC().Format("2006-01-02T15:04:05Z07:00")
+}
+
 func respondAppError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidInput),
 		errors.Is(err, domain.ErrInvalidPriceID),
 		errors.Is(err, domain.ErrInvalidCancelMode),
 		errors.Is(err, domain.ErrPriceNotFound),
+		errors.Is(err, domain.ErrNoBillingCustomer),
 		errors.Is(err, domain.ErrNoActiveSubscription),
 		errors.Is(err, domain.ErrNoSubscriptionToReactive):
 		respondError(c, http.StatusBadRequest, err.Error())

@@ -9,11 +9,13 @@ import (
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/port"
+	billingportalsession "github.com/stripe/stripe-go/v76/billingportal/session"
 	stripesdk "github.com/stripe/stripe-go/v76"
 	"github.com/stripe/stripe-go/v76/checkout/session"
 	"github.com/stripe/stripe-go/v76/customer"
 	"github.com/stripe/stripe-go/v76/invoice"
 	"github.com/stripe/stripe-go/v76/subscription"
+	"github.com/stripe/stripe-go/v76/subscriptionschedule"
 )
 
 // Provider implements port.Provider for Stripe.
@@ -192,6 +194,145 @@ func (p *Provider) CancelSubscription(ctx context.Context, subID string, mode do
 	return nil
 }
 
+func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in domain.SubscriptionChangeInput) (*domain.SubscriptionSnapshot, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	if subID == "" {
+		return nil, fmt.Errorf("%w: subscription_id required", domain.ErrInvalidInput)
+	}
+	if !in.Plan.Valid() || in.Plan == domain.PlanFree {
+		return nil, fmt.Errorf("%w: paid plan required", domain.ErrInvalidInput)
+	}
+	if !in.Interval.Valid() {
+		return nil, fmt.Errorf("%w: billing interval required", domain.ErrInvalidInput)
+	}
+
+	priceID := p.cfg.PriceFor(in.Plan, in.Interval)
+	if priceID == "" {
+		return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
+	}
+
+	current, err := subscription.Get(subID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
+	}
+	if current == nil || len(current.Items.Data) == 0 || current.Items.Data[0] == nil {
+		return nil, fmt.Errorf("%w: missing subscription item", domain.ErrInvalidInput)
+	}
+
+	item := current.Items.Data[0]
+	params := &stripesdk.SubscriptionParams{
+		Items: []*stripesdk.SubscriptionItemsParams{
+			{
+				ID:    stripesdk.String(item.ID),
+				Price: stripesdk.String(priceID),
+			},
+		},
+		ProrationBehavior: stripesdk.String("always_invoice"),
+		PaymentBehavior:   stripesdk.String("pending_if_incomplete"),
+	}
+	if in.Mode == domain.ChangeModeImmediateResetCycle {
+		params.BillingCycleAnchorNow = stripesdk.Bool(true)
+	} else {
+		params.BillingCycleAnchorUnchanged = stripesdk.Bool(true)
+	}
+
+	updated, err := subscription.Update(subID, params)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: change subscription: %w", err)
+	}
+	slog.Info(
+		"stripe: subscription changed",
+		"subscription_id", subID,
+		"plan", in.Plan,
+		"interval", in.Interval,
+		"change_mode", in.Mode,
+	)
+	return p.snapshotFromSubscription(updated), nil
+}
+
+func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string, in domain.SubscriptionChangeInput) (*domain.SubscriptionSnapshot, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	if subID == "" {
+		return nil, fmt.Errorf("%w: subscription_id required", domain.ErrInvalidInput)
+	}
+
+	priceID := p.cfg.PriceFor(in.Plan, in.Interval)
+	if priceID == "" {
+		return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
+	}
+
+	current, err := subscription.Get(subID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
+	}
+	if current == nil || current.Schedule == nil || current.Schedule.ID == "" {
+		schedule, err := subscriptionschedule.New(&stripesdk.SubscriptionScheduleParams{
+			FromSubscription: stripesdk.String(subID),
+			EndBehavior:      stripesdk.String(string(stripesdk.SubscriptionScheduleEndBehaviorRelease)),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("stripe: create subscription schedule: %w", err)
+		}
+		current.Schedule = schedule
+	}
+
+	scheduleID := current.Schedule.ID
+	schedule, err := subscriptionschedule.Get(scheduleID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: get subscription schedule: %w", err)
+	}
+	if schedule == nil || schedule.CurrentPhase == nil || schedule.Subscription == nil {
+		return nil, fmt.Errorf("%w: active subscription schedule required", domain.ErrInvalidInput)
+	}
+
+	start := schedule.CurrentPhase.StartDate
+	end := schedule.CurrentPhase.EndDate
+	if end <= 0 {
+		return nil, fmt.Errorf("%w: current phase end required", domain.ErrInvalidInput)
+	}
+
+	params := &stripesdk.SubscriptionScheduleParams{
+		EndBehavior:       stripesdk.String(string(stripesdk.SubscriptionScheduleEndBehaviorRelease)),
+		ProrationBehavior: stripesdk.String("none"),
+		Phases: []*stripesdk.SubscriptionSchedulePhaseParams{
+			{
+				StartDate: stripesdk.Int64(start),
+				EndDate:   stripesdk.Int64(end),
+				Items: []*stripesdk.SubscriptionSchedulePhaseItemParams{
+					{
+						Price:    stripesdk.String(current.Items.Data[0].Price.ID),
+						Quantity: stripesdk.Int64(current.Items.Data[0].Quantity),
+					},
+				},
+			},
+			{
+				StartDate: stripesdk.Int64(end),
+				Items: []*stripesdk.SubscriptionSchedulePhaseItemParams{
+					{
+						Price:    stripesdk.String(priceID),
+						Quantity: stripesdk.Int64(current.Items.Data[0].Quantity),
+					},
+				},
+				ProrationBehavior: stripesdk.String("none"),
+			},
+		},
+	}
+
+	if _, err := subscriptionschedule.Update(scheduleID, params); err != nil {
+		return nil, fmt.Errorf("stripe: schedule subscription change: %w", err)
+	}
+
+	snap := p.snapshotFromSubscription(current)
+	if snap != nil {
+		snap.CancelAtPeriodEnd = false
+	}
+	return snap, nil
+}
+
 func (p *Provider) ReactivateSubscription(ctx context.Context, subID string) error {
 	if !p.cfg.Enabled {
 		return domain.ErrProviderDisabled
@@ -294,6 +435,113 @@ func (p *Provider) ListInvoices(ctx context.Context, customerID string, page, li
 		return nil, 0, fmt.Errorf("stripe: list invoices: %w", err)
 	}
 	return items, total, nil
+}
+
+func (p *Provider) CreateBillingPortalSession(ctx context.Context, customerID, returnURL string) (*domain.PortalSessionResult, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	if customerID == "" {
+		return nil, domain.ErrNoBillingCustomer
+	}
+	if returnURL == "" {
+		return nil, fmt.Errorf("%w: return_url required", domain.ErrInvalidInput)
+	}
+
+	params := &stripesdk.BillingPortalSessionParams{
+		Customer:  stripesdk.String(customerID),
+		ReturnURL: stripesdk.String(returnURL),
+	}
+	sess, err := billingportalsession.New(params)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: create billing portal session: %w", err)
+	}
+	return &domain.PortalSessionResult{URL: sess.URL}, nil
+}
+
+func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, subID string, in domain.SubscriptionPreviewInput) (*domain.SubscriptionPreview, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	if subID == "" {
+		return &domain.SubscriptionPreview{
+			Currency:         "usd",
+			AmountDueNow:     0,
+			TargetPlan:       in.Plan,
+			TargetInterval:   in.Interval,
+			Mode:             in.Mode,
+			ImmediateCharge:  true,
+			Message:          "new subscription will be created through checkout",
+		}, nil
+	}
+
+	current, err := subscription.Get(subID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
+	}
+	if current == nil || len(current.Items.Data) == 0 || current.Items.Data[0] == nil {
+		return nil, fmt.Errorf("%w: missing subscription item", domain.ErrInvalidInput)
+	}
+
+	targetPriceID := p.cfg.PriceFor(in.Plan, in.Interval)
+	if targetPriceID == "" {
+		return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
+	}
+
+	preview := &domain.SubscriptionPreview{
+		Currency:       string(current.Currency),
+		TargetPlan:     in.Plan,
+		TargetInterval: in.Interval,
+		Mode:           in.Mode,
+	}
+	if end := unixToTimePtr(current.CurrentPeriodEnd); end != nil {
+		preview.CurrentPeriodEnd = end
+	}
+
+	if in.Mode == domain.ChangeModePeriodEnd {
+		preview.ImmediateCharge = false
+		preview.EffectiveAtPeriodEnd = true
+		preview.NextBillingAt = unixToTimePtr(current.CurrentPeriodEnd)
+		preview.Message = "change will take effect at the next renewal"
+		return preview, nil
+	}
+
+	params := &stripesdk.InvoiceUpcomingParams{
+		Customer:     stripesdk.String(customerID),
+		Subscription: stripesdk.String(subID),
+		SubscriptionItems: []*stripesdk.SubscriptionItemsParams{
+			{
+				ID:    stripesdk.String(current.Items.Data[0].ID),
+				Price: stripesdk.String(targetPriceID),
+			},
+		},
+		SubscriptionProrationBehavior: stripesdk.String("always_invoice"),
+	}
+	if in.Mode == domain.ChangeModeImmediateResetCycle {
+		params.SubscriptionBillingCycleAnchorNow = stripesdk.Bool(true)
+	} else {
+		params.SubscriptionBillingCycleAnchorUnchanged = stripesdk.Bool(true)
+	}
+
+	upcoming, err := invoice.Upcoming(params)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: preview subscription change: %w", err)
+	}
+
+	preview.AmountDueNow = float64(upcoming.AmountDue) / 100.0
+	preview.ImmediateCharge = true
+	if upcoming.NextPaymentAttempt > 0 {
+		preview.NextBillingAt = unixToTimePtr(upcoming.NextPaymentAttempt)
+	}
+	if preview.NextBillingAt == nil {
+		preview.NextBillingAt = unixToTimePtr(current.CurrentPeriodEnd)
+	}
+	if in.Mode == domain.ChangeModeImmediateResetCycle {
+		preview.Message = "subscription will switch now and restart the billing cycle"
+	} else {
+		preview.Message = "subscription will switch now with prorated billing"
+	}
+	return preview, nil
 }
 
 // snapshotFromSubscription maps a stripe.Subscription to a domain snapshot.

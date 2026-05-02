@@ -94,9 +94,9 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	cfg.Server.Name = "quickstart"
 	cfg.Auth.UserJWTSecret = "jwt-secret"
 	cfg.Auth.Email.VerificationTemplateRef = "tpl-1"
-	cfg.Email.Provider = "brevo"
-	cfg.Email.Brevo.APIKey = "api-key"
-	cfg.Email.Brevo.SenderEmail = "noreply@example.com"
+	cfg.Email.Provider = "resend"
+	cfg.Email.Resend.APIKey = "api-key"
+	cfg.Email.Resend.SenderEmail = "noreply@example.com"
 	cfg.Billing.Stripe.Enabled = true
 	cfg.Billing.Stripe.SecretKey = "sk_test_123"
 	cfg.Billing.Stripe.WebhookSecret = "whsec_123"
@@ -108,8 +108,11 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	if sc.Auth.UserJWTSecret != "jwt-secret" {
 		t.Fatalf("jwt secret mismatch: %q", sc.Auth.UserJWTSecret)
 	}
-	if sc.Email.Provider != "brevo" {
-		t.Fatalf("email provider = %q, want brevo", sc.Email.Provider)
+	if sc.Email.Provider != "resend" {
+		t.Fatalf("email provider = %q, want resend", sc.Email.Provider)
+	}
+	if sc.Email.Resend.SenderEmail != "noreply@example.com" {
+		t.Fatalf("resend sender email mismatch: %q", sc.Email.Resend.SenderEmail)
 	}
 	if sc.Billing.Stripe.ProMonthlyPriceID != "price_pro_month" {
 		t.Fatalf("pro monthly price mismatch: %q", sc.Billing.Stripe.ProMonthlyPriceID)

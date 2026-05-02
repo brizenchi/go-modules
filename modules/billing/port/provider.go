@@ -29,6 +29,15 @@ type Provider interface {
 	// CancelSubscription cancels a subscription according to the given mode.
 	CancelSubscription(ctx context.Context, providerSubscriptionID string, mode domain.CancelMode) error
 
+	// ChangeSubscription mutates the active subscription in-place.
+	ChangeSubscription(ctx context.Context, providerSubscriptionID string, in domain.SubscriptionChangeInput) (*domain.SubscriptionSnapshot, error)
+
+	// ScheduleSubscriptionChange applies a period-end switch.
+	ScheduleSubscriptionChange(ctx context.Context, providerSubscriptionID string, in domain.SubscriptionChangeInput) (*domain.SubscriptionSnapshot, error)
+
+	// PreviewSubscriptionChange estimates how the provider will bill the switch.
+	PreviewSubscriptionChange(ctx context.Context, providerCustomerID, providerSubscriptionID string, in domain.SubscriptionPreviewInput) (*domain.SubscriptionPreview, error)
+
 	// ReactivateSubscription clears any pending cancellation.
 	ReactivateSubscription(ctx context.Context, providerSubscriptionID string) error
 
@@ -40,6 +49,9 @@ type Provider interface {
 
 	// ListInvoices returns paginated invoices for the customer.
 	ListInvoices(ctx context.Context, providerCustomerID string, page, limit int) ([]domain.InvoiceItem, int, error)
+
+	// CreateBillingPortalSession opens a hosted customer billing portal.
+	CreateBillingPortalSession(ctx context.Context, providerCustomerID, returnURL string) (*domain.PortalSessionResult, error)
 
 	// VerifyAndParseWebhook verifies the signature, parses the payload,
 	// and returns: (a) the raw event id/type for idempotency, (b) the

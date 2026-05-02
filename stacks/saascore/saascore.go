@@ -25,6 +25,7 @@ import (
 	"github.com/brizenchi/go-modules/modules/email"
 	"github.com/brizenchi/go-modules/modules/email/adapter/brevo"
 	logsender "github.com/brizenchi/go-modules/modules/email/adapter/log"
+	"github.com/brizenchi/go-modules/modules/email/adapter/resend"
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 	"github.com/brizenchi/go-modules/modules/referral"
 	"github.com/brizenchi/go-modules/modules/referral/adapter/codegen"
@@ -38,6 +39,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+const defaultEmailCodeTemplateName = "auth_email_code"
 
 type Stack struct {
 	Config   Config
@@ -156,6 +159,11 @@ func validateConfig(cfg Config) error {
 			return fmt.Errorf("saascore: email brevo api key and sender email required when provider=brevo")
 		}
 	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Email.Provider), "resend") {
+		if strings.TrimSpace(cfg.Email.Resend.APIKey) == "" || strings.TrimSpace(cfg.Email.Resend.SenderEmail) == "" {
+			return fmt.Errorf("saascore: email resend api key and sender email required when provider=resend")
+		}
+	}
 	if strings.TrimSpace(cfg.Auth.Google.ClientID) != "" ||
 		strings.TrimSpace(cfg.Auth.Google.ClientSecret) != "" {
 		if strings.TrimSpace(cfg.Auth.Google.ClientID) == "" ||
@@ -186,6 +194,19 @@ func initEmail(cfg EmailConfig) (*email.Module, error) {
 		}
 		slog.Info("saascore: email provider registered", "provider", "brevo")
 		return email.New(sender, nil), nil
+	case "resend":
+		sender, err := resend.New(resend.Config{
+			APIKey: cfg.Resend.APIKey,
+			Sender: emaildomain.Address{
+				Email: cfg.Resend.SenderEmail,
+				Name:  cfg.Resend.SenderName,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("saascore: init resend sender: %w", err)
+		}
+		slog.Info("saascore: email provider registered", "provider", "resend")
+		return email.New(sender, nil), nil
 	default:
 		return nil, fmt.Errorf("saascore: unsupported email provider %q", cfg.Provider)
 	}
@@ -215,9 +236,9 @@ func (s *Stack) initAuth() (*auth.Module, error) {
 		MinResendGap: s.Config.Auth.EmailCode.MinResendGap,
 		DailyCap:     s.Config.Auth.EmailCode.DailyCap,
 		MaxAttempts:  s.Config.Auth.EmailCode.MaxAttempts,
-		TemplateRef:  s.Config.Auth.EmailCode.VerificationTemplate,
+		TemplateRef:  resolveEmailCodeTemplateRef(s.Config.Email.Provider, s.Config.Auth.EmailCode.VerificationTemplate),
 		Debug:        s.Config.Auth.EmailCode.Debug,
-	}, store, mailerWrapper{mod: s.Email})
+	}, store, mailerWrapper{mod: s.Email, serviceName: s.Config.ServiceName})
 	verifier := emailcode.NewVerifier(emailcode.Config{
 		MaxAttempts: s.Config.Auth.EmailCode.MaxAttempts,
 	}, store)
@@ -554,13 +575,52 @@ func (s *Stack) userIDFromGin(c *gin.Context) (string, bool) {
 	return id.UserID, true
 }
 
-type mailerWrapper struct{ mod *email.Module }
+type mailerWrapper struct {
+	mod         *email.Module
+	serviceName string
+}
 
 func (w mailerWrapper) SendProviderTemplate(ctx context.Context, ref string, to []emailcode.EmailAddress, vars map[string]any) error {
 	addrs := make([]emaildomain.Address, len(to))
 	for i, a := range to {
 		addrs[i] = emaildomain.Address{Name: a.Name, Email: a.Email}
 	}
-	_, err := w.mod.SendProviderTemplate(ctx, ref, addrs, vars)
+	if w.mod == nil || w.mod.Sender == nil {
+		return fmt.Errorf("saascore: email module not configured")
+	}
+	if strings.EqualFold(w.mod.Sender.Name(), "brevo") {
+		_, err := w.mod.SendProviderTemplate(ctx, ref, addrs, vars)
+		return err
+	}
+	subject, htmlBody, textBody := buildEmailCodeMessage(w.serviceName, vars)
+	_, err := w.mod.Send(ctx, &emaildomain.Message{
+		To:       addrs,
+		Subject:  subject,
+		HTMLBody: htmlBody,
+		TextBody: textBody,
+	})
 	return err
+}
+
+func resolveEmailCodeTemplateRef(provider, configured string) string {
+	if strings.TrimSpace(configured) != "" {
+		return configured
+	}
+	if strings.EqualFold(strings.TrimSpace(provider), "brevo") {
+		return "3"
+	}
+	return defaultEmailCodeTemplateName
+}
+
+func buildEmailCodeMessage(serviceName string, vars map[string]any) (subject, htmlBody, textBody string) {
+	code, _ := vars["code"].(string)
+	year, _ := vars["year"].(string)
+	product := strings.TrimSpace(serviceName)
+	if product == "" {
+		product = "your account"
+	}
+	subject = fmt.Sprintf("%s verification code", product)
+	textBody = fmt.Sprintf("Your verification code is %s. It expires soon. If you did not request this code, you can ignore this email.", code)
+	htmlBody = fmt.Sprintf("<p>Your verification code is <strong>%s</strong>.</p><p>It expires soon. If you did not request this code, you can ignore this email.</p><p>%s</p>", code, year)
+	return subject, htmlBody, textBody
 }

@@ -42,10 +42,17 @@ type GoogleOAuthConfig struct {
 type EmailConfig struct {
 	Provider string
 
-	Brevo BrevoConfig
+	Brevo  BrevoConfig
+	Resend ResendConfig
 }
 
 type BrevoConfig struct {
+	APIKey      string
+	SenderEmail string
+	SenderName  string
+}
+
+type ResendConfig struct {
 	APIKey      string
 	SenderEmail string
 	SenderName  string

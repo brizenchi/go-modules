@@ -19,7 +19,7 @@ the same glue.
 
 - `modules/user` schema migration
 - `modules/auth` wired to the shared user repo
-- email-code auth with provider-template email delivery
+- email-code auth with Brevo provider templates or Resend/local fallback delivery
 - optional Google OAuth
 - `modules/billing` wired to the shared user repo
 - billing webhook idempotency persistence

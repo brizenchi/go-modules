@@ -34,6 +34,24 @@ export type SubscriptionView = {
   } | null;
 };
 
+export type SubscriptionChangeMode =
+  | "immediate_prorated"
+  | "immediate_reset_cycle"
+  | "period_end";
+
+export type SubscriptionPreview = {
+  currency: string;
+  amount_due_now: number;
+  current_period_end?: string;
+  next_billing_at?: string;
+  target_plan: string;
+  target_interval: string;
+  change_mode: SubscriptionChangeMode;
+  immediate_charge: boolean;
+  effective_at_period_end: boolean;
+  message: string;
+};
+
 export type InvoiceItem = {
   id: string;
   amount_usd: number;
@@ -204,6 +222,46 @@ export async function createCheckoutSession(token: string, payload: CheckoutPayl
     method: "POST",
     authToken: token,
     json: payload
+  });
+}
+
+export async function changeSubscription(
+  token: string,
+  payload: { plan: string; interval: string; change_mode?: SubscriptionChangeMode }
+): Promise<{
+  status: string;
+  plan: string;
+  billing_cycle: string;
+  change_mode: SubscriptionChangeMode;
+  provider_subscription_id: string;
+  message: string;
+}> {
+  return apiRequest("/stripe/subscription/change", {
+    method: "POST",
+    authToken: token,
+    json: payload
+  });
+}
+
+export async function previewSubscriptionChange(
+  token: string,
+  payload: { plan: string; interval: string; change_mode?: SubscriptionChangeMode }
+): Promise<SubscriptionPreview> {
+  return apiRequest("/stripe/subscription/preview", {
+    method: "POST",
+    authToken: token,
+    json: payload
+  });
+}
+
+export async function createBillingPortalSession(
+  token: string,
+  returnURL: string
+): Promise<{ url: string }> {
+  return apiRequest("/stripe/portal/session", {
+    method: "POST",
+    authToken: token,
+    json: { return_url: returnURL }
   });
 }
 

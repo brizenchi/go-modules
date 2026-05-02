@@ -12,8 +12,11 @@ import "github.com/gin-gonic/gin"
 //
 //	POST  {public}/stripe/webhook
 //	POST  {user}/stripe/checkout/session
+//	POST  {user}/stripe/subscription/preview
+//	POST  {user}/stripe/subscription/change
 //	POST  {user}/stripe/subscription/cancel
 //	POST  {user}/stripe/subscription/reactivate
+//	POST  {user}/stripe/portal/session
 //	GET   {user}/stripe/subscription
 //	GET   {user}/stripe/invoices
 //
@@ -23,8 +26,11 @@ func Mount(h *Handler, publicGroup, userGroup *gin.RouterGroup) {
 	publicGroup.POST("/stripe/webhook", h.HandleWebhook)
 
 	userGroup.POST("/stripe/checkout/session", h.CreateCheckoutSession)
+	userGroup.POST("/stripe/subscription/preview", h.PreviewSubscriptionChange)
+	userGroup.POST("/stripe/subscription/change", h.ChangeSubscription)
 	userGroup.POST("/stripe/subscription/cancel", h.CancelSubscription)
 	userGroup.POST("/stripe/subscription/reactivate", h.ReactivateSubscription)
+	userGroup.POST("/stripe/portal/session", h.CreateBillingPortalSession)
 	userGroup.GET("/stripe/subscription", h.GetSubscription)
 	userGroup.GET("/stripe/invoices", h.ListInvoices)
 }

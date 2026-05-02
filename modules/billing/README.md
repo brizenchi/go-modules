@@ -1,6 +1,6 @@
 # billing
 
-> Portable, payment-provider-agnostic billing: Stripe-backed checkout, subscriptions, credits, webhooks.
+> Portable, payment-provider-agnostic billing: Stripe-backed checkout, subscriptions, subscription changes, billing portal, credits, webhooks.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/brizenchi/go-modules/modules/billing.svg)](https://pkg.go.dev/github.com/brizenchi/go-modules/modules/billing)
 
@@ -22,7 +22,7 @@ event/    domain events (subscription.activated, ...)
 port/     interfaces (Provider, EventBus, Repository, CustomerStore,
           UserResolver)
 adapter/  concrete implementations
-  stripe/      Stripe checkout + webhooks (stripe-go/v76)
+  stripe/      Stripe checkout + subscription changes + portal + webhooks (stripe-go/v76)
   repo/        GORM BillingEvent repository (idempotency)
   eventbus/    in-process synchronous bus
 app/      use cases (Checkout, Cancel, Reactivate, Webhook, Query)
@@ -94,6 +94,24 @@ Reserved keys (`user_id`, `email`, `plan`, `interval`, `product_type`,
 `price_id`, `quantity`) are written by the billing layer itself and
 **always win** over caller metadata — frontend can't spoof them. See
 `domain.ReservedMetadataKeys` and `domain.IsReservedMetadataKey`.
+
+## Professional subscription management
+
+The Stripe adapter now covers the core SaaS subscription-management flow:
+
+- first paid subscription via hosted Checkout
+- in-place plan change for active subscriptions
+- prorated charging on upgrades and interval changes
+- Stripe Billing Portal session for card updates, self-serve invoices, and subscription management
+- cancel at period end
+- reactivate pending cancellation
+
+Recommended host policy:
+
+- upgrade: immediate plan change with proration
+- downgrade: either use the same change API or push users into Billing Portal if you want stricter Stripe-managed rules
+- cancel: `cancel_at_period_end`
+- card and invoice management: Billing Portal
 
 ## Idempotent webhooks
 

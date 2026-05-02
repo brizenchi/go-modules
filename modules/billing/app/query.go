@@ -70,3 +70,12 @@ func (s *QueryService) ListInvoices(ctx context.Context, userID string, page, li
 	}
 	return s.provider.ListInvoices(ctx, cust.ProviderCustomerID, page, limit)
 }
+
+// PreviewSubscriptionChange returns a commercial preview for the requested switch.
+func (s *QueryService) PreviewSubscriptionChange(ctx context.Context, userID string, in domain.SubscriptionPreviewInput) (*domain.SubscriptionPreview, error) {
+	cust, err := s.customers.LoadCustomer(ctx, strings.TrimSpace(userID))
+	if err != nil {
+		return nil, err
+	}
+	return s.provider.PreviewSubscriptionChange(ctx, cust.ProviderCustomerID, cust.ProviderSubscriptionID, in)
+}

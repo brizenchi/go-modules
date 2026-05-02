@@ -453,3 +453,92 @@ func TestReactivateSubscription(t *testing.T) {
 		t.Errorf("cancel_at_period_end = %q", got)
 	}
 }
+
+func TestChangeSubscription(t *testing.T) {
+	requests := 0
+	var updateForm url.Values
+	p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		switch requests {
+		case 1:
+			if r.Method != "GET" || !strings.HasPrefix(r.URL.Path, "/v1/subscriptions/sub_1") {
+				t.Errorf("unexpected first request: %s %s", r.Method, r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id":"sub_1",
+				"object":"subscription",
+				"customer":"cus_1",
+				"items":{"object":"list","data":[{"id":"si_1","price":{"id":"price_starter_m","product":"prod_starter","recurring":{"interval":"month"}}}]}
+			}`))
+		case 2:
+			if r.Method != "POST" || !strings.HasPrefix(r.URL.Path, "/v1/subscriptions/sub_1") {
+				t.Errorf("unexpected second request: %s %s", r.Method, r.URL.Path)
+			}
+			updateForm = readForm(t, r)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"id":"sub_1",
+				"object":"subscription",
+				"customer":"cus_1",
+				"status":"active",
+				"cancel_at_period_end":false,
+				"items":{"object":"list","data":[{"id":"si_1","price":{"id":"price_pro_m","product":"prod_pro","recurring":{"interval":"month"}}}]}
+			}`))
+		default:
+			t.Fatalf("unexpected extra request %d", requests)
+		}
+	})
+
+	snap, err := p.ChangeSubscription(context.Background(), "sub_1", domain.SubscriptionChangeInput{
+		Plan:     domain.PlanPro,
+		Interval: domain.IntervalMonthly,
+	})
+	if err != nil {
+		t.Fatalf("ChangeSubscription: %v", err)
+	}
+	if got := updateForm.Get("items[0][id]"); got != "si_1" {
+		t.Errorf("item id = %q", got)
+	}
+	if got := updateForm.Get("items[0][price]"); got != "price_pro_m" {
+		t.Errorf("price = %q", got)
+	}
+	if got := updateForm.Get("proration_behavior"); got != "always_invoice" {
+		t.Errorf("proration_behavior = %q", got)
+	}
+	if got := updateForm.Get("payment_behavior"); got != "pending_if_incomplete" {
+		t.Errorf("payment_behavior = %q", got)
+	}
+	if got := updateForm.Get("billing_cycle_anchor"); got != "unchanged" {
+		t.Errorf("billing_cycle_anchor = %q", got)
+	}
+	if snap.Plan != domain.PlanPro || snap.Interval != domain.IntervalMonthly {
+		t.Errorf("unexpected snapshot: %+v", snap)
+	}
+}
+
+func TestCreateBillingPortalSession(t *testing.T) {
+	var captured url.Values
+	p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" || r.URL.Path != "/v1/billing_portal/sessions" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+		captured = readForm(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"billing_portal.session","url":"https://billing.stripe.test/session_123"}`))
+	})
+
+	res, err := p.CreateBillingPortalSession(context.Background(), "cus_1", "https://app.test/billing")
+	if err != nil {
+		t.Fatalf("CreateBillingPortalSession: %v", err)
+	}
+	if got := captured.Get("customer"); got != "cus_1" {
+		t.Errorf("customer = %q", got)
+	}
+	if got := captured.Get("return_url"); got != "https://app.test/billing" {
+		t.Errorf("return_url = %q", got)
+	}
+	if res.URL != "https://billing.stripe.test/session_123" {
+		t.Errorf("url = %q", res.URL)
+	}
+}

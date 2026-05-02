@@ -26,14 +26,7 @@ type NavItem = {
 const topNav: NavItem[] = [
   { href: "/", label: { en: "Overview", zh: "总览" } },
   { href: "/pricing", label: { en: "Pricing", zh: "价格" } },
-  { href: "/docs", label: { en: "Docs", zh: "文档" } },
-  { href: "/billing", label: { en: "Billing", zh: "订阅" } },
-  { href: "/referrals", label: { en: "Referrals", zh: "推荐" } }
-];
-
-const accountNav: NavItem[] = [
-  { href: "/login", label: { en: "Login", zh: "登录" } },
-  { href: "/account", label: { en: "Account", zh: "账户" } }
+  { href: "/docs", label: { en: "Docs", zh: "文档" } }
 ];
 
 type TOCItem = {
@@ -328,7 +321,7 @@ export function SiteShell(props: SiteShellProps) {
     [pathname, props.breadcrumbs]
   );
 
-  const navItems = useMemo(() => [...topNav, ...accountNav], []);
+  const navItems = useMemo(() => topNav, []);
   const mergedAccountDetails: AccountMenuData = {
     subscription: props.accountMenuData?.subscription ?? accountDetails?.subscription ?? null,
     referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats ?? null

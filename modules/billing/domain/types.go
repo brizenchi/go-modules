@@ -24,6 +24,37 @@ type CheckoutResult struct {
 	CheckoutURL string
 }
 
+// SubscriptionChangeInput describes a professional in-place plan change.
+//
+// Providers should keep the billing cycle unchanged by default and use
+// prorated charging unless the host explicitly asks to reset the cycle.
+type SubscriptionChangeInput struct {
+	Plan     PlanType
+	Interval BillingInterval
+	Mode     SubscriptionChangeMode
+}
+
+// SubscriptionPreviewInput previews a subscription mutation before applying it.
+type SubscriptionPreviewInput struct {
+	Plan     PlanType
+	Interval BillingInterval
+	Mode     SubscriptionChangeMode
+}
+
+// SubscriptionPreview summarizes the expected commercial effect.
+type SubscriptionPreview struct {
+	Currency              string
+	AmountDueNow          float64
+	CurrentPeriodEnd      *time.Time
+	NextBillingAt         *time.Time
+	TargetPlan            PlanType
+	TargetInterval        BillingInterval
+	Mode                  SubscriptionChangeMode
+	ImmediateCharge       bool
+	EffectiveAtPeriodEnd  bool
+	Message               string
+}
+
 // SubscriptionSnapshot is a provider-agnostic view of a subscription.
 type SubscriptionSnapshot struct {
 	ProviderSubscriptionID string
@@ -45,6 +76,11 @@ type PaymentMethodCard struct {
 	Last4    string
 	ExpMonth int64
 	ExpYear  int64
+}
+
+// PortalSessionResult is the result of opening a hosted billing portal.
+type PortalSessionResult struct {
+	URL string
 }
 
 // InvoiceItem is a provider-agnostic invoice line.

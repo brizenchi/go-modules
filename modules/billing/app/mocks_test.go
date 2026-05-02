@@ -19,12 +19,20 @@ type mockProvider struct {
 	checkoutResult    *domain.CheckoutResult
 	checkoutErr       error
 	cancelErr         error
+	changeErr         error
+	scheduleErr       error
 	reactivateErr     error
 	ensureCustomerID  string
 	ensureCustomerErr error
 	subSnapshot       *domain.SubscriptionSnapshot
+	portalResult      *domain.PortalSessionResult
+	portalErr         error
+	previewResult     *domain.SubscriptionPreview
+	previewErr        error
 
 	cancelCalls     int
+	changeCalls     int
+	scheduleCalls   int
 	reactivateCalls int
 	checkoutCalls   int
 }
@@ -65,6 +73,38 @@ func (m *mockProvider) CancelSubscription(ctx context.Context, subID string, mod
 	return m.cancelErr
 }
 
+func (m *mockProvider) ChangeSubscription(ctx context.Context, subID string, in domain.SubscriptionChangeInput) (*domain.SubscriptionSnapshot, error) {
+	m.changeCalls++
+	if m.changeErr != nil {
+		return nil, m.changeErr
+	}
+	if m.subSnapshot != nil {
+		return m.subSnapshot, nil
+	}
+	return &domain.SubscriptionSnapshot{
+		ProviderSubscriptionID: subID,
+		Plan:                   in.Plan,
+		Interval:               in.Interval,
+		Status:                 domain.StatusActive,
+	}, nil
+}
+
+func (m *mockProvider) ScheduleSubscriptionChange(ctx context.Context, subID string, in domain.SubscriptionChangeInput) (*domain.SubscriptionSnapshot, error) {
+	m.scheduleCalls++
+	if m.scheduleErr != nil {
+		return nil, m.scheduleErr
+	}
+	if m.subSnapshot != nil {
+		return m.subSnapshot, nil
+	}
+	return &domain.SubscriptionSnapshot{
+		ProviderSubscriptionID: subID,
+		Plan:                   in.Plan,
+		Interval:               in.Interval,
+		Status:                 domain.StatusActive,
+	}, nil
+}
+
 func (m *mockProvider) ReactivateSubscription(ctx context.Context, subID string) error {
 	m.reactivateCalls++
 	return m.reactivateErr
@@ -83,6 +123,35 @@ func (m *mockProvider) GetDefaultPaymentMethod(ctx context.Context, customerID s
 
 func (m *mockProvider) ListInvoices(ctx context.Context, customerID string, page, limit int) ([]domain.InvoiceItem, int, error) {
 	return nil, 0, nil
+}
+
+func (m *mockProvider) CreateBillingPortalSession(ctx context.Context, customerID, returnURL string) (*domain.PortalSessionResult, error) {
+	if m.portalErr != nil {
+		return nil, m.portalErr
+	}
+	if m.portalResult != nil {
+		return m.portalResult, nil
+	}
+	return &domain.PortalSessionResult{URL: "https://billing.stripe.test/session_123"}, nil
+}
+
+func (m *mockProvider) PreviewSubscriptionChange(ctx context.Context, customerID, subscriptionID string, in domain.SubscriptionPreviewInput) (*domain.SubscriptionPreview, error) {
+	if m.previewErr != nil {
+		return nil, m.previewErr
+	}
+	if m.previewResult != nil {
+		return m.previewResult, nil
+	}
+	return &domain.SubscriptionPreview{
+		Currency:             "usd",
+		AmountDueNow:         30,
+		TargetPlan:           in.Plan,
+		TargetInterval:       in.Interval,
+		Mode:                 in.Mode,
+		ImmediateCharge:      in.Mode != domain.ChangeModePeriodEnd,
+		EffectiveAtPeriodEnd: in.Mode == domain.ChangeModePeriodEnd,
+		Message:              "preview ready",
+	}, nil
 }
 
 func (m *mockProvider) VerifyAndParseWebhook(payload []byte, signature string) (*port.WebhookParseResult, error) {

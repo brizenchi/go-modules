@@ -6,11 +6,16 @@ import { EmptyState, Notice, Panel, DetailRows } from "@/components/ui";
 import {
   ApiError,
   cancelSubscription,
+  changeSubscription,
+  createBillingPortalSession,
   createCheckoutSession,
   getSubscription,
   listInvoices,
+  previewSubscriptionChange,
   reactivateSubscription,
   type InvoiceItem,
+  type SubscriptionChangeMode,
+  type SubscriptionPreview,
   type SubscriptionView
 } from "@/lib/api";
 import {
@@ -40,16 +45,18 @@ const defaultInterval = appEnv.defaultInterval === "yearly" ? "yearly" : "monthl
 
 export default function BillingPage() {
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
-  const [busy, setBusy] = useState<"" | "load" | "subscription" | "credits" | "cancel" | "reactivate">("");
+  const [busy, setBusy] = useState<"" | "load" | "subscription" | "change" | "portal" | "credits" | "cancel" | "reactivate">("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [subscription, setSubscription] = useState<SubscriptionView | null>(null);
+  const [preview, setPreview] = useState<SubscriptionPreview | null>(null);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [plan, setPlan] = useState(defaultSubscriptionPlan);
   const [interval, setInterval] = useState(defaultInterval);
   const [creditsPriceID, setCreditsPriceID] = useState(appEnv.creditsPriceId);
   const [creditsQuantity, setCreditsQuantity] = useState(String(appEnv.defaultCreditsQuantity));
   const [referralCode, setReferralCode] = useState("");
+  const currentPlan = subscription?.plan || "";
 
   useEffect(() => {
     const syncSession = () => setSession(readSession());
@@ -72,6 +79,30 @@ export default function BillingPage() {
     }
     void loadBillingState(session.token);
   }, [session]);
+
+  useEffect(() => {
+    if (!session || !currentPlan || currentPlan === "free") {
+      setPreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    void previewSubscriptionChange(session.token, { plan, interval })
+      .then((data) => {
+        if (!cancelled) {
+          setPreview(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreview(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, currentPlan, plan, interval]);
 
   async function loadBillingState(token: string) {
     setBusy("load");
@@ -111,6 +142,61 @@ export default function BillingPage() {
       });
       setStatus(`Checkout session created. Redirecting to Stripe: ${res.session_id}`);
       window.location.href = res.checkout_url;
+    } catch (err) {
+      setError(messageFromError(err));
+      setBusy("");
+    }
+  }
+
+  async function handleChangeSubscription() {
+    if (!session) {
+      setError("sign in first");
+      return;
+    }
+    setBusy("change");
+    setError("");
+    setStatus("");
+
+    try {
+      const res = await changeSubscription(session.token, {
+        plan,
+        interval,
+        change_mode: preview?.change_mode
+      });
+      setStatus(res.message);
+      await loadBillingState(session.token);
+    } catch (err) {
+      setError(messageFromError(err));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function changeModeLabel(mode?: SubscriptionChangeMode): string {
+    switch (mode) {
+      case "immediate_reset_cycle":
+        return "Immediate switch, restart billing cycle";
+      case "period_end":
+        return "Takes effect next billing cycle";
+      case "immediate_prorated":
+        return "Immediate switch with proration";
+      default:
+        return "-";
+    }
+  }
+
+  async function handleOpenPortal() {
+    if (!session) {
+      setError("sign in first");
+      return;
+    }
+    setBusy("portal");
+    setError("");
+    setStatus("");
+
+    try {
+      const res = await createBillingPortalSession(session.token, `${appEnv.appUrl}/billing`);
+      window.location.href = res.url;
     } catch (err) {
       setError(messageFromError(err));
       setBusy("");
@@ -214,14 +300,14 @@ export default function BillingPage() {
         />
       }
       toc={[
-        { id: "subscription-checkout", label: "Subscription checkout" },
+        { id: "subscription-checkout", label: "Subscription management" },
         { id: "credits-checkout", label: "Credits checkout" },
         { id: "subscription-state", label: "Subscription state" },
         { id: "invoices", label: "Invoices" }
       ]}
     >
       <div className="page-grid">
-        <Panel className="span-7" title="Create subscription checkout" subtitle="Matches POST /stripe/checkout/session for product_type=subscription.">
+        <Panel className="span-7" title="Subscription management" subtitle="First purchase uses Checkout. Existing subscriptions should change plan in-place.">
           <div id="subscription-checkout" />
           <div className="field-grid">
             <div className="field">
@@ -248,10 +334,37 @@ export default function BillingPage() {
             Optional referral metadata carried from browser: <span className="inline-code">{referralCode || "-"}</span>
           </Notice>
           <div className="button-row">
-            <button className="button primary" disabled={busy !== ""} onClick={handleSubscriptionCheckout}>
-              {busy === "subscription" ? "Creating..." : "Start Subscription Checkout"}
-            </button>
+            {subscription && subscription.plan !== "free" ? (
+              <>
+                <button className="button primary" disabled={busy !== ""} onClick={handleChangeSubscription}>
+                  {busy === "change" ? "Updating..." : "Change Plan"}
+                </button>
+                <button className="button" disabled={busy !== ""} onClick={handleOpenPortal}>
+                  {busy === "portal" ? "Opening..." : "Open Billing Portal"}
+                </button>
+              </>
+            ) : (
+              <button className="button primary" disabled={busy !== ""} onClick={handleSubscriptionCheckout}>
+                {busy === "subscription" ? "Creating..." : "Start Subscription Checkout"}
+              </button>
+            )}
           </div>
+          {preview ? (
+            <Notice>
+              Mode: <span className="inline-code">{changeModeLabel(preview.change_mode)}</span>
+              <br />
+              Amount due now: <span className="inline-code">{formatCurrencyUSD(preview.amount_due_now)}</span>
+              <br />
+              Current period end: <span className="inline-code">{formatDate(preview.current_period_end)}</span>
+              <br />
+              Next billing: <span className="inline-code">{formatDate(preview.next_billing_at)}</span>
+              <br />
+              {preview.message}
+            </Notice>
+          ) : null}
+          <p className="footer-note">
+            Professional default: existing subscriptions change in place with proration; card updates and invoice self-service go through Stripe Billing Portal.
+          </p>
         </Panel>
 
         <Panel className="span-5" title="Create credits checkout" subtitle="Matches POST /stripe/checkout/session for product_type=credits.">

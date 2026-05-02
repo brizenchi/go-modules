@@ -38,6 +38,7 @@ Already included:
 Read:
 
 1. [quickstart-nextjs/README.md](./quickstart-nextjs/README.md)
+2. [docs/TEMPLATE_DAOBANG_PROVIDER_SETUP_ZH.md](../docs/TEMPLATE_DAOBANG_PROVIDER_SETUP_ZH.md)
 
 Verify:
 

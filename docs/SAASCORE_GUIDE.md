@@ -84,9 +84,11 @@ Backend requires at minimum:
 Optional integrations:
 
 - email
-  - `email.provider=brevo`
+  - `email.provider=brevo|resend`
   - `email.brevo.api_key`
   - `email.brevo.sender_email`
+  - `email.resend.api_key`
+  - `email.resend.sender_email`
 - Google OAuth
   - `auth.google.client_id`
   - `auth.google.client_secret`

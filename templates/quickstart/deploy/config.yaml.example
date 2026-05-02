@@ -33,7 +33,7 @@ auth:
 
   email:
     debug: false                   # if true, send-code response leaks the code (dev only)
-    verification_template_ref: "3"
+    verification_template_ref: "" # Brevo template id; leave empty for Resend/log fallback template
     code:
       ttl_minutes: 10
       min_resend_gap_seconds: 60
@@ -48,9 +48,13 @@ auth:
 
 # ---------- email ----------
 email:
-  provider: log                    # log | brevo
+  provider: log                    # log | brevo | resend
   brevo:
     api_key: ""                    # required when provider=brevo
+    sender_email: ""
+    sender_name: "quickstart"
+  resend:
+    api_key: ""                    # required when provider=resend
     sender_email: ""
     sender_name: "quickstart"
 

@@ -163,6 +163,89 @@ test("getSubscription maps provider payment fields into frontend shape", async (
   });
 });
 
+test("preview/change subscription and billing portal hit the new billing endpoints", async () => {
+  const api = loadApiModule();
+  const calls: Array<{ url: string; body: unknown }> = [];
+
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : String(input);
+    const body = init?.body ? JSON.parse(String(init.body)) : null;
+    calls.push({ url, body });
+
+    if (url.endsWith("/stripe/subscription/preview")) {
+      return jsonResponse(200, {
+        code: 200,
+        msg: "ok",
+        data: {
+          currency: "usd",
+          amount_due_now: 30,
+          current_period_end: "2030-02-01T00:00:00Z",
+          next_billing_at: "2030-02-01T00:00:00Z",
+          target_plan: "pro",
+          target_interval: "monthly",
+          change_mode: "immediate_prorated",
+          immediate_charge: true,
+          effective_at_period_end: false,
+          message: "preview ready"
+        }
+      });
+    }
+
+    if (url.endsWith("/stripe/subscription/change")) {
+      return jsonResponse(200, {
+        code: 200,
+        msg: "ok",
+        data: {
+          status: "active",
+          plan: "pro",
+          billing_cycle: "monthly",
+          change_mode: "immediate_prorated",
+          provider_subscription_id: "sub_1",
+          message: "subscription changed"
+        }
+      });
+    }
+
+    return jsonResponse(200, {
+      code: 200,
+      msg: "ok",
+      data: {
+        url: "https://billing.stripe.test/session_123"
+      }
+    });
+  }) as typeof fetch;
+
+  const preview = await api.previewSubscriptionChange("jwt-token", {
+    plan: "pro",
+    interval: "monthly"
+  });
+  const change = await api.changeSubscription("jwt-token", {
+    plan: "pro",
+    interval: "monthly",
+    change_mode: "immediate_prorated"
+  });
+  const portal = await api.createBillingPortalSession("jwt-token", "https://app.example.com/billing");
+
+  assert.equal(calls[0]?.url, "https://api.example.com/api/v1/stripe/subscription/preview");
+  assert.deepEqual(calls[0]?.body, {
+    plan: "pro",
+    interval: "monthly"
+  });
+  assert.equal(calls[1]?.url, "https://api.example.com/api/v1/stripe/subscription/change");
+  assert.deepEqual(calls[1]?.body, {
+    plan: "pro",
+    interval: "monthly",
+    change_mode: "immediate_prorated"
+  });
+  assert.equal(calls[2]?.url, "https://api.example.com/api/v1/stripe/portal/session");
+  assert.deepEqual(calls[2]?.body, {
+    return_url: "https://app.example.com/billing"
+  });
+  assert.equal(preview.change_mode, "immediate_prorated");
+  assert.equal(change.message, "subscription changed");
+  assert.equal(portal.url, "https://billing.stripe.test/session_123");
+});
+
 test("invoice, referral, and user helpers map backend payloads correctly", async () => {
   const api = loadApiModule();
   let callIndex = 0;

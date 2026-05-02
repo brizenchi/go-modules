@@ -9,6 +9,7 @@ var (
 	ErrPriceNotFound            = errors.New("billing: price not configured")
 	ErrInvalidPriceID           = errors.New("billing: invalid price id")
 	ErrInvalidCancelMode        = errors.New("billing: invalid cancel mode")
+	ErrNoBillingCustomer        = errors.New("billing: no billing customer")
 	ErrNoActiveSubscription     = errors.New("billing: no active subscription")
 	ErrNoSubscriptionToReactive = errors.New("billing: no subscription to reactivate")
 	ErrSignatureInvalid         = errors.New("billing: webhook signature invalid")

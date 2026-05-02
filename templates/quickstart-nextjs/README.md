@@ -39,6 +39,8 @@ surfaces.
 - `/login`: email-code login and Google OAuth entry
 - `/account`: settings, session refresh, logout, WS ticket
 - `/billing`: checkout, subscription, invoices, cancel, reactivate
+- `/billing`: checkout, subscription change, Stripe Billing Portal, invoices, cancel, reactivate
+- `/billing`: checkout, subscription preview, subscription change rules for monthly/yearly switches, Stripe Billing Portal, invoices, cancel, reactivate
 - `/referrals`: referral link, stats, history
 - `/invite`: capture `?ref=...` before signup
 
@@ -112,6 +114,8 @@ Before treating the frontend template as ready, confirm:
 2. `/login` completes email-code login
 3. Google OAuth round-trip works when configured
 4. `/pricing` routes users into `/billing`
-5. `/billing` loads live subscription and invoice data
-6. `/referrals` loads live referral code, stats, and history
-7. signed-in avatar menu shows settings, subscription, referral, and logout entry points
+5. `/billing` can start first subscription checkout when user has no paid plan
+6. `/billing` can change active subscription plan in place
+7. `/billing` can open Stripe Billing Portal
+8. `/referrals` loads live referral code, stats, and history
+9. signed-in avatar menu shows settings, subscription, referral, and logout entry points
