@@ -5,8 +5,8 @@
 //	logger → config → DB → email → auth → billing → referral → routes → listen
 //
 // Each step is small enough to read top-to-bottom. To make this your
-// project, copy this directory, rename the module path, and replace the
-// host-specific reward / business hooks.
+// project, copy this directory, initialize your own module, and replace
+// the host-specific reward / business hooks.
 package main
 
 import (
@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -43,23 +44,27 @@ func main() {
 	fslog.Setup(fslog.Config{
 		Level:    cfg.Log.Level,
 		Format:   fslog.Format(cfg.Log.Format),
-		Defaults: map[string]any{"service": cfg.Server.Name},
+		Defaults: logDefaults(cfg),
 	})
 
 	traceShutdown, err := tracing.Setup(tracing.Config{
 		ServiceName: cfg.Server.Name,
+		Project:     cfg.Project,
+		Environment: cfg.Env,
 		Endpoint:    cfg.Tracing.Endpoint,
 		Protocol:    cfg.Tracing.Protocol,
 		Insecure:    cfg.Tracing.Insecure,
 		SampleRate:  cfg.Tracing.SampleRate,
+		Headers:     cfg.Tracing.headers(),
+		URLPath:     cfg.Tracing.URLPath,
 	})
 	if err != nil {
 		log.Fatalf("tracing.Setup: %v", err)
 	}
 	defer tracing.Shutdown(context.Background(), traceShutdown)
 
-	// 2. DB — every module that persists takes *gorm.DB.
-	db, err := pgx.Open(cfg.DB.PGXConfig())
+	// 2. DB — every shared package that persists takes *gorm.DB.
+	db, err := pgx.Open(cfg.DB.PGXConfig(cfg.Project, cfg.Env))
 	if err != nil {
 		log.Fatalf("pgx.Open: %v", err)
 	}
@@ -131,7 +136,9 @@ func buildRouter(cfg AppConfig, stack routeStack) *gin.Engine {
 
 // AppConfig is the project-specific config shape.
 type AppConfig struct {
-	Server struct {
+	Project string `mapstructure:"project"`
+	Env     string `mapstructure:"env"`
+	Server  struct {
 		Name string `mapstructure:"name"`
 		Port int    `mapstructure:"port"`
 	} `mapstructure:"server"`
@@ -139,7 +146,7 @@ type AppConfig struct {
 		Level  string `mapstructure:"level"`
 		Format string `mapstructure:"format"`
 	} `mapstructure:"log"`
-	Tracing TracingConfig        `mapstructure:"tracing"`
+	Tracing  TracingConfig         `mapstructure:"tracing"`
 	DB       DBConfig              `mapstructure:"db"`
 	Auth     AuthConfig            `mapstructure:"auth"`
 	Email    EmailPlatformConfig   `mapstructure:"email"`
@@ -148,10 +155,13 @@ type AppConfig struct {
 }
 
 type TracingConfig struct {
-	Endpoint   string  `mapstructure:"endpoint"`
-	Protocol   string  `mapstructure:"protocol"`
-	Insecure   bool    `mapstructure:"insecure"`
-	SampleRate float64 `mapstructure:"sample_rate"`
+	Endpoint      string            `mapstructure:"endpoint"`
+	Protocol      string            `mapstructure:"protocol"`
+	Insecure      bool              `mapstructure:"insecure"`
+	SampleRate    float64           `mapstructure:"sample_rate"`
+	Authorization string            `mapstructure:"authorization"`
+	Headers       map[string]string `mapstructure:"headers"`
+	URLPath       string            `mapstructure:"url_path"`
 }
 
 type AuthConfig struct {
@@ -236,28 +246,50 @@ type ReferralConfig struct {
 }
 
 type DBConfig struct {
-	DSN      string `mapstructure:"dsn"`
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	Name     string `mapstructure:"name"`
-	SSLMode  string `mapstructure:"ssl_mode"`
-	TimeZone string `mapstructure:"time_zone"`
+	DSN                string `mapstructure:"dsn"`
+	Host               string `mapstructure:"host"`
+	Port               int    `mapstructure:"port"`
+	User               string `mapstructure:"user"`
+	Password           string `mapstructure:"password"`
+	Name               string `mapstructure:"name"`
+	SSLMode            string `mapstructure:"ssl_mode"`
+	TimeZone           string `mapstructure:"time_zone"`
+	LogLevel           string `mapstructure:"log_level"`
+	SlowQueryMS        int    `mapstructure:"slow_query_ms"`
+	SlowQueryThreshold string `mapstructure:"slow_query_threshold"`
 }
 
-func (c DBConfig) PGXConfig() pgx.Config {
+func (c DBConfig) PGXConfig(project, env string) pgx.Config {
+	slow := 0 * time.Millisecond
+	switch {
+	case c.SlowQueryMS > 0:
+		slow = time.Duration(c.SlowQueryMS) * time.Millisecond
+	case strings.TrimSpace(c.SlowQueryThreshold) != "":
+		if d, err := time.ParseDuration(strings.TrimSpace(c.SlowQueryThreshold)); err == nil {
+			slow = d
+		}
+	}
 	if strings.TrimSpace(c.DSN) != "" {
-		return pgx.Config{DSN: c.DSN}
+		return pgx.Config{
+			DSN:                c.DSN,
+			LogLevel:           c.LogLevel,
+			SlowQueryThreshold: slow,
+			Project:            project,
+			Environment:        env,
+		}
 	}
 	return pgx.Config{
-		Host:     c.Host,
-		Port:     c.Port,
-		User:     c.User,
-		Password: c.Password,
-		Database: c.Name,
-		SSLMode:  c.SSLMode,
-		TimeZone: c.TimeZone,
+		Host:               c.Host,
+		Port:               c.Port,
+		User:               c.User,
+		Password:           c.Password,
+		Database:           c.Name,
+		SSLMode:            c.SSLMode,
+		TimeZone:           c.TimeZone,
+		LogLevel:           c.LogLevel,
+		SlowQueryThreshold: slow,
+		Project:            project,
+		Environment:        env,
 	}
 }
 
@@ -309,6 +341,12 @@ func loadConfig() AppConfig {
 	if cfg.Server.Port == 0 {
 		cfg.Server.Port = 8080
 	}
+	if cfg.Project == "" {
+		cfg.Project = cfg.Server.Name
+	}
+	if cfg.Env == "" {
+		cfg.Env = "dev"
+	}
 	if cfg.Log.Format == "" {
 		cfg.Log.Format = "json"
 	}
@@ -318,8 +356,20 @@ func loadConfig() AppConfig {
 	if cfg.Server.Name == "" {
 		cfg.Server.Name = "quickstart"
 	}
+	if cfg.Project == "" {
+		cfg.Project = cfg.Server.Name
+	}
 	if cfg.Tracing.Protocol == "" {
 		cfg.Tracing.Protocol = "http"
+	}
+	if cfg.Tracing.SampleRate == 0 {
+		cfg.Tracing.SampleRate = parseSampleRate(os.Getenv("APP_TRACING_SAMPLE_RATE"), cfg.Tracing.SampleRate)
+	}
+	if cfg.DB.LogLevel == "" {
+		cfg.DB.LogLevel = "warn"
+	}
+	if cfg.DB.SlowQueryMS == 0 {
+		cfg.DB.SlowQueryMS = 200
 	}
 	return cfg
 }
@@ -334,6 +384,44 @@ func loadDotEnv(path string) {
 	if err := gotenv.Load(path); err != nil {
 		log.Fatalf("dotenv: %v", err)
 	}
+}
+
+func (c TracingConfig) headers() map[string]string {
+	headers := make(map[string]string, len(c.Headers)+1)
+	for k, v := range c.Headers {
+		headers[k] = v
+	}
+	if strings.TrimSpace(c.Authorization) != "" {
+		headers["Authorization"] = strings.TrimSpace(c.Authorization)
+	}
+	if len(headers) == 0 {
+		return nil
+	}
+	return headers
+}
+
+func logDefaults(cfg AppConfig) map[string]any {
+	defaults := map[string]any{
+		"service": cfg.Server.Name,
+	}
+	if cfg.Project != "" {
+		defaults["project"] = cfg.Project
+	}
+	if cfg.Env != "" {
+		defaults["env"] = cfg.Env
+	}
+	return defaults
+}
+
+func parseSampleRate(raw string, fallback float64) float64 {
+	if strings.TrimSpace(raw) == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 func (c AppConfig) SaaSCoreConfig() saascore.Config {

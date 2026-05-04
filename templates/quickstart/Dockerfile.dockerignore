@@ -1,0 +1,12 @@
+**
+!go.mod
+!go.sum
+!foundation/**
+!modules/**
+!stacks/**
+!templates/quickstart/**
+
+templates/quickstart/.env
+templates/quickstart/.env.*
+templates/quickstart/deploy/config.yaml
+templates/quickstart/quickstart

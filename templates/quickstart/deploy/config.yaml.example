@@ -1,3 +1,6 @@
+project: quickstart
+env: dev
+
 server:
   name: quickstart        # appears as "service" field in every log record
   port: 8080
@@ -11,6 +14,9 @@ tracing:
   protocol: http          # http | grpc
   insecure: true          # true for local collectors without TLS
   sample_rate: 1.0        # 0..1
+  authorization: ""       # e.g. Basic <base64> for OpenObserve
+  headers: {}             # e.g. { Authorization: "Basic <base64>" } for OpenObserve
+  url_path: ""            # e.g. /api/default/v1/traces for OpenObserve
 
 db:
   host: localhost
@@ -20,6 +26,8 @@ db:
   name: quickstart
   ssl_mode: disable
   time_zone: UTC
+  log_level: warn
+  slow_query_ms: 200
   # Optional legacy escape hatch if you still prefer a single connection string:
   # dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC"
 

@@ -22,6 +22,7 @@ Read first:
 - Stripe checkout routes, webhook parsing, and idempotency handling
 - referral attribution, activation, and user-facing referral routes
 - structured logging, request id middleware, trace-aware HTTP setup
+- standard observability fields: `service`, `project`, `env`, `request_id`, `trace_id`, `span_id`
 
 ## Template files
 
@@ -30,16 +31,13 @@ quickstart/
 ├── .dockerignore
 ├── .env.example
 ├── Dockerfile
-├── Dockerfile.demo
-├── go.mod
+├── Dockerfile.standalone.example
 ├── cmd/quickstart/
 │   ├── main.go
 │   ├── main_test.go
 │   └── reward.go
-├── deploy/
-│   └── config.yaml.example
-└── scripts/
-    └── use-remote-go-modules.sh
+└── deploy/
+    └── config.yaml.example
 ```
 
 ## Copy and run
@@ -48,10 +46,9 @@ quickstart/
 cp -R templates/quickstart ~/code/your-new-service
 cd ~/code/your-new-service
 
-NEW_MOD=github.com/yourname/yournewservice
-find . -name '*.go' -o -name 'go.mod' | xargs sed -i '' \
-  "s|github.com/brizenchi/go-modules/templates/quickstart|$NEW_MOD|g"
-go mod edit -module "$NEW_MOD"
+go mod init github.com/yourname/yournewservice
+go get github.com/brizenchi/go-modules@latest
+go mod tidy
 
 cp .env.example .env
 cp deploy/config.yaml.example deploy/config.yaml
@@ -69,45 +66,59 @@ environment variables still win over `.env`.
 
 Default copied state:
 
-- `go.mod` keeps local `replace` directives for repo-local iteration
+- the copied service depends on the published
+  `github.com/brizenchi/go-modules` root module
+- no `replace` directives are required
 
-If the new repo should switch to published GitHub module tags:
+If you want to pin a specific shared repo release:
 
 ```bash
-bash scripts/use-remote-go-modules.sh
+go get github.com/brizenchi/go-modules@v0.3.0
 ```
 
-That only works after the required `foundation/*`, `modules/*`, and
-`stacks/*` tags have been published.
+If you need to iterate against local unpublished changes in this repo,
+add a temporary replace in the copied service:
+
+```bash
+go mod edit -replace github.com/brizenchi/go-modules=/absolute/path/to/go-modules
+go mod tidy
+```
 
 ## Docker
 
-This template now includes two Docker build modes.
+### In This Monorepo
 
-For current `go-modules` repo demo usage:
+This Dockerfile is designed for monorepo-root build context.
+
+From this repo root:
 
 ```bash
-docker build -f templates/quickstart/Dockerfile.demo -t quickstart-demo .
-docker run --rm -p 8080:8080 --env-file templates/quickstart/.env quickstart-demo
+docker build -f templates/quickstart/Dockerfile -t quickstart .
+docker run --rm -p 8080:8080 --env-file templates/quickstart/.env quickstart
 ```
 
 Notes:
 
-- build context is the repo root
-- uses the current workspace code and local `replace` directives
-- use this when you want a quick online demo from the monorepo snapshot
+- build context must be the repo root `.`
+- `templates/quickstart/Dockerfile.dockerignore` trims the monorepo
+  context down to the files this image actually needs
+- the image bakes in `templates/quickstart/deploy/config.yaml.example`
+  as `/app/deploy/config.yaml`
+- runtime env vars still override YAML at boot
 
-Build after copying the template into a new backend repo:
+### After Copying The Template Out
+
+If you copied `templates/quickstart` into its own backend repo and ran
+`go mod init` + `go mod tidy`, use this Dockerfile shape instead:
 
 ```bash
+cp Dockerfile.standalone.example Dockerfile
 docker build -t your-new-service .
 docker run --rm -p 8080:8080 --env-file .env your-new-service
 ```
 
 Notes:
 
-- the image build automatically drops the template's local `replace`
-  directives and resolves published `go-modules` tags instead
 - the runtime image bundles `deploy/config.yaml.example` as
   `/app/deploy/config.yaml`
 - set real deployment values through environment variables; env still
@@ -117,8 +128,28 @@ Notes:
 Recommended split:
 
 - local debug: `go run ./cmd/quickstart`
-- monorepo demo image: `Dockerfile.demo`
-- copied project image: `Dockerfile`
+- monorepo image: `templates/quickstart/Dockerfile`
+- copied project image: `Dockerfile.standalone.example`
+
+## Dokploy
+
+For Dokploy monorepo deployment, configure:
+
+- `Dockerfile Path`: `templates/quickstart/Dockerfile`
+- `Docker Context Path`: `.`
+- `Port`: `8080`
+
+Recommended environment setup:
+
+- set `CONFIG=/app/deploy/config.yaml`
+- provide production values with Dokploy env vars such as
+  `APP_DB_HOST`, `APP_DB_USER`, `APP_DB_PASSWORD`,
+  `APP_DB_NAME`, `APP_AUTH_USER_JWT_SECRET`
+
+Do not set Docker context to `templates/quickstart`, because this
+template imports packages from the repo root module and needs
+`foundation/`, `modules/`, `stacks/`, and the root `go.mod` during the
+build.
 
 ## Minimum config
 
@@ -137,6 +168,15 @@ Common optional groups:
 - `billing.stripe.*`
 - `referral.*`
 - `tracing.*`
+- `project` / `env`
+
+Observability-focused env keys:
+
+- `APP_PROJECT`
+- `APP_ENV`
+- `APP_TRACING_AUTHORIZATION`
+- `APP_DB_LOG_LEVEL`
+- `APP_DB_SLOW_QUERY_MS`
 
 Email provider defaults:
 

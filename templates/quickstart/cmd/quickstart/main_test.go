@@ -43,12 +43,15 @@ func TestDBConfigPGXConfigFromFields(t *testing.T) {
 		TimeZone: "UTC",
 	}
 
-	pgxCfg := cfg.PGXConfig()
+	pgxCfg := cfg.PGXConfig("daobang", "prod")
 	if pgxCfg.DSN != "" {
 		t.Fatalf("expected empty DSN, got %q", pgxCfg.DSN)
 	}
 	if pgxCfg.Host != "localhost" || pgxCfg.Port != 5432 || pgxCfg.User != "app" || pgxCfg.Database != "quickstart" {
 		t.Fatalf("unexpected PGX config: %+v", pgxCfg)
+	}
+	if pgxCfg.Project != "daobang" || pgxCfg.Environment != "prod" {
+		t.Fatalf("project/env mismatch: %+v", pgxCfg)
 	}
 }
 
@@ -58,7 +61,7 @@ func TestDBConfigPGXConfigPrefersDSN(t *testing.T) {
 		Host: "ignored",
 	}
 
-	pgxCfg := cfg.PGXConfig()
+	pgxCfg := cfg.PGXConfig("daobang", "prod")
 	if pgxCfg.DSN != cfg.DSN {
 		t.Fatalf("expected DSN %q, got %q", cfg.DSN, pgxCfg.DSN)
 	}
@@ -128,6 +131,8 @@ func TestTracingConfigFields(t *testing.T) {
 	cfg.Tracing.Protocol = "grpc"
 	cfg.Tracing.Insecure = true
 	cfg.Tracing.SampleRate = 0.5
+	cfg.Tracing.Authorization = "Basic abc"
+	cfg.Tracing.Headers = map[string]string{"X-Test": "ok"}
 
 	if cfg.Tracing.Endpoint != "localhost:4318" {
 		t.Fatalf("endpoint mismatch: %q", cfg.Tracing.Endpoint)
@@ -140,6 +145,10 @@ func TestTracingConfigFields(t *testing.T) {
 	}
 	if cfg.Tracing.SampleRate != 0.5 {
 		t.Fatalf("sample rate mismatch: %v", cfg.Tracing.SampleRate)
+	}
+	headers := cfg.Tracing.headers()
+	if headers["Authorization"] != "Basic abc" || headers["X-Test"] != "ok" {
+		t.Fatalf("headers mismatch: %+v", headers)
 	}
 }
 
