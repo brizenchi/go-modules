@@ -232,6 +232,8 @@ type StripePricesConfig struct {
 	StarterYearly  string   `mapstructure:"starter_yearly"`
 	ProMonthly     string   `mapstructure:"pro_monthly"`
 	ProYearly      string   `mapstructure:"pro_yearly"`
+	PremiumMonthly string   `mapstructure:"premium_monthly"`
+	PremiumYearly  string   `mapstructure:"premium_yearly"`
 	Credits        []string `mapstructure:"credits"`
 }
 
@@ -473,6 +475,8 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 				StarterYearlyPriceID:  c.Billing.Stripe.Prices.StarterYearly,
 				ProMonthlyPriceID:     c.Billing.Stripe.Prices.ProMonthly,
 				ProYearlyPriceID:      c.Billing.Stripe.Prices.ProYearly,
+				PremiumMonthlyPriceID: c.Billing.Stripe.Prices.PremiumMonthly,
+				PremiumYearlyPriceID:  c.Billing.Stripe.Prices.PremiumYearly,
 				CreditsPriceIDs:       c.Billing.Stripe.Prices.Credits,
 				CreditsPerPackage:     c.Billing.Stripe.Credits.PerPackage,
 			},

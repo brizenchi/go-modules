@@ -5,12 +5,8 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY foundation ./foundation
-COPY modules ./modules
-COPY stacks ./stacks
-COPY templates/quickstart ./templates/quickstart
-
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/quickstart ./templates/quickstart/cmd/quickstart
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/quickstart ./cmd/quickstart
 
 FROM alpine:3.20
 
@@ -21,7 +17,7 @@ WORKDIR /app
 
 COPY --from=builder /out/quickstart /app/quickstart
 RUN mkdir -p /app/deploy
-COPY --from=builder /src/templates/quickstart/deploy/config.yaml.example /app/deploy/config.yaml
+COPY deploy/config.yaml.example /app/deploy/config.yaml
 
 ENV CONFIG=/app/deploy/config.yaml
 

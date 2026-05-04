@@ -73,6 +73,8 @@ NEXT_PUBLIC_STRIPE_SUCCESS_PATH=/billing?checkout=success
 NEXT_PUBLIC_STRIPE_CANCEL_PATH=/billing?checkout=cancelled
 ```
 
+`NEXT_PUBLIC_DEFAULT_PLAN` should be one of `starter`, `pro`, or `premium`.
+
 ## Required backend mapping
 
 When frontend origin or route paths change, keep these backend values

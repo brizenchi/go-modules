@@ -101,10 +101,13 @@ For a custom host shape:
 
 ## Local development
 
-This repo is a single Go module rooted at
-`github.com/brizenchi/go-modules`. `foundation/*`, `modules/*`,
-`stacks/*`, and `templates/quickstart` are packages inside that module,
-so cross-package refactors work without `replace` directives.
+This repo's shared library surface is the root Go module
+`github.com/brizenchi/go-modules`.
+
+`templates/quickstart` is a separate deployable Go module that consumes
+the shared library as a real downstream app. A local `go.work` keeps
+root-module development and template iteration aligned inside this
+repository.
 
 ```bash
 make test

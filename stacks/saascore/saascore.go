@@ -297,6 +297,10 @@ func (s *Stack) initBilling() *billing.Module {
 					billingdomain.IntervalMonthly: s.Config.Billing.Stripe.ProMonthlyPriceID,
 					billingdomain.IntervalYearly:  s.Config.Billing.Stripe.ProYearlyPriceID,
 				},
+				billingdomain.PlanPremium: {
+					billingdomain.IntervalMonthly: s.Config.Billing.Stripe.PremiumMonthlyPriceID,
+					billingdomain.IntervalYearly:  s.Config.Billing.Stripe.PremiumYearlyPriceID,
+				},
 			},
 			CreditsPriceIDs: s.Config.Billing.Stripe.CreditsPriceIDs,
 			CreditsPerUnit:  s.Config.Billing.Stripe.CreditsPerPackage,

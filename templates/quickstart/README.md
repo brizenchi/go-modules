@@ -31,7 +31,8 @@ quickstart/
 ├── .dockerignore
 ├── .env.example
 ├── Dockerfile
-├── Dockerfile.standalone.example
+├── go.mod
+├── go.sum
 ├── cmd/quickstart/
 │   ├── main.go
 │   ├── main_test.go
@@ -45,10 +46,6 @@ quickstart/
 ```bash
 cp -R templates/quickstart ~/code/your-new-service
 cd ~/code/your-new-service
-
-go mod init github.com/yourname/yournewservice
-go get github.com/brizenchi/go-modules@latest
-go mod tidy
 
 cp .env.example .env
 cp deploy/config.yaml.example deploy/config.yaml
@@ -66,78 +63,43 @@ environment variables still win over `.env`.
 
 Default copied state:
 
-- the copied service depends on the published
-  `github.com/brizenchi/go-modules` root module
-- no `replace` directives are required
-
-If you want to pin a specific shared repo release:
-
-```bash
-go get github.com/brizenchi/go-modules@v0.3.0
-```
-
-If you need to iterate against local unpublished changes in this repo,
-add a temporary replace in the copied service:
-
-```bash
-go mod edit -replace github.com/brizenchi/go-modules=/absolute/path/to/go-modules
-go mod tidy
-```
+- this template is already a standalone Go module
+- it depends on published `github.com/brizenchi/go-modules` versions
+- no extra `go mod init` step is required
 
 ## Docker
 
-### In This Monorepo
+### In This Directory
 
-This Dockerfile is designed for monorepo-root build context.
+This Dockerfile is designed for `templates/quickstart` as its own build
+context.
 
-From this repo root:
+From this directory:
 
 ```bash
-docker build -f templates/quickstart/Dockerfile -t quickstart .
-docker run --rm -p 8080:8080 --env-file templates/quickstart/.env quickstart
+docker build -t quickstart .
+docker run --rm -p 8080:8080 --env-file .env quickstart
 ```
 
 Notes:
 
-- build context must be the repo root `.`
-- `templates/quickstart/Dockerfile.dockerignore` trims the monorepo
-  context down to the files this image actually needs
-- the image bakes in `templates/quickstart/deploy/config.yaml.example`
-  as `/app/deploy/config.yaml` via the builder stage, so runtime stage
-  does not need to re-read that file from the build context
-- runtime env vars still override YAML at boot
-
-### After Copying The Template Out
-
-If you copied `templates/quickstart` into its own backend repo and ran
-`go mod init` + `go mod tidy`, use this Dockerfile shape instead:
-
-```bash
-cp Dockerfile.standalone.example Dockerfile
-docker build -t your-new-service .
-docker run --rm -p 8080:8080 --env-file .env your-new-service
-```
-
-Notes:
-
-- the runtime image bundles `deploy/config.yaml.example` as
+- build context is this template directory
+- the image bakes in `deploy/config.yaml.example` as
   `/app/deploy/config.yaml`
-- set real deployment values through environment variables; env still
-  overrides YAML at boot
-- default container port is `8080`
+- runtime env vars still override YAML at boot
 
 Recommended split:
 
 - local debug: `go run ./cmd/quickstart`
-- monorepo image: `templates/quickstart/Dockerfile`
-- copied project image: `Dockerfile.standalone.example`
+- deploy image: `Dockerfile`
 
 ## Dokploy
 
-For Dokploy monorepo deployment, configure:
+For Dokploy deployment, use Dockerfile build type with:
 
-- `Dockerfile Path`: `templates/quickstart/Dockerfile`
-- `Docker Context Path`: `.`
+- `Dockerfile Path`: `Dockerfile`
+- `Docker Context Path`: `templates/quickstart`
+- `Docker Build Stage`: leave empty
 - `Port`: `8080`
 
 Recommended environment setup:
@@ -147,10 +109,8 @@ Recommended environment setup:
   `APP_DB_HOST`, `APP_DB_USER`, `APP_DB_PASSWORD`,
   `APP_DB_NAME`, `APP_AUTH_USER_JWT_SECRET`
 
-Do not set Docker context to `templates/quickstart`, because this
-template imports packages from the repo root module and needs
-`foundation/`, `modules/`, `stacks/`, and the root `go.mod` during the
-build.
+This template is intended to build and deploy directly from
+`templates/quickstart`.
 
 ## Minimum config
 
@@ -170,6 +130,16 @@ Common optional groups:
 - `referral.*`
 - `tracing.*`
 - `project` / `env`
+
+Stripe quickstart price slots:
+
+- `billing.stripe.prices.starter_monthly`
+- `billing.stripe.prices.starter_yearly`
+- `billing.stripe.prices.pro_monthly`
+- `billing.stripe.prices.pro_yearly`
+- `billing.stripe.prices.premium_monthly`
+- `billing.stripe.prices.premium_yearly`
+- `billing.stripe.prices.credits[]`
 
 Observability-focused env keys:
 

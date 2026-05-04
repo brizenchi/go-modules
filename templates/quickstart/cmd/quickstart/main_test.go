@@ -104,6 +104,8 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	cfg.Billing.Stripe.SecretKey = "sk_test_123"
 	cfg.Billing.Stripe.WebhookSecret = "whsec_123"
 	cfg.Billing.Stripe.Prices.ProMonthly = "price_pro_month"
+	cfg.Billing.Stripe.Prices.PremiumMonthly = "price_premium_month"
+	cfg.Billing.Stripe.Prices.PremiumYearly = "price_premium_year"
 	cfg.Referral.BaseLink = "http://localhost:3000/invite?ref="
 	cfg.Referral.ActivationReward = 50
 
@@ -119,6 +121,12 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	}
 	if sc.Billing.Stripe.ProMonthlyPriceID != "price_pro_month" {
 		t.Fatalf("pro monthly price mismatch: %q", sc.Billing.Stripe.ProMonthlyPriceID)
+	}
+	if sc.Billing.Stripe.PremiumMonthlyPriceID != "price_premium_month" {
+		t.Fatalf("premium monthly price mismatch: %q", sc.Billing.Stripe.PremiumMonthlyPriceID)
+	}
+	if sc.Billing.Stripe.PremiumYearlyPriceID != "price_premium_year" {
+		t.Fatalf("premium yearly price mismatch: %q", sc.Billing.Stripe.PremiumYearlyPriceID)
 	}
 	if sc.Referral.ActivationReward != 50 {
 		t.Fatalf("activation reward mismatch: %d", sc.Referral.ActivationReward)

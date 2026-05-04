@@ -1,7 +1,7 @@
 .PHONY: help test test-race tidy tidy-check fmt fmt-check vet build purity-check lint vuln list verify-templates
 
-PACKAGE_ROOTS := foundation modules stacks templates/quickstart
-GO_PACKAGES := ./foundation/... ./modules/... ./stacks/... ./templates/quickstart/...
+PACKAGE_ROOTS := foundation modules stacks
+GO_PACKAGES := ./foundation/... ./modules/... ./stacks/...
 GO := GOWORK=off GOCACHE=$(CURDIR)/.cache/go-build GOMODCACHE=$(CURDIR)/.cache/gomod go
 
 help: ## Show targets
@@ -12,8 +12,7 @@ list: ## List tracked Go package roots
 
 verify-templates: ## verify backend and frontend starter templates
 	@echo "==> templates/quickstart"
-	@$(GO) test ./templates/quickstart/...
-	@$(GO) build ./templates/quickstart/...
+	@(cd templates/quickstart && go test ./... && go build ./...)
 	@echo "==> templates/quickstart-nextjs"
 	@(cd templates/quickstart-nextjs && npm run verify)
 

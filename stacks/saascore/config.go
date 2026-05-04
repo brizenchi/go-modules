@@ -73,6 +73,8 @@ type StripeConfig struct {
 	StarterYearlyPriceID  string
 	ProMonthlyPriceID     string
 	ProYearlyPriceID      string
+	PremiumMonthlyPriceID string
+	PremiumYearlyPriceID  string
 
 	CreditsPriceIDs   []string
 	CreditsPerPackage int64

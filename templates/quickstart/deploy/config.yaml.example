@@ -79,6 +79,8 @@ billing:
       starter_yearly: ""
       pro_monthly: ""
       pro_yearly: ""
+      premium_monthly: ""
+      premium_yearly: ""
       credits: []                  # list of one-time credit price IDs
     credits:
       per_package: 100             # credits granted per credits-package unit
