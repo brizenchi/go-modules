@@ -1,6 +1,6 @@
 # go-modules
 
-Reusable Go modules for shared SaaS backends.
+Reusable Go packages for shared SaaS backends.
 
 This repo is for teams that do not want every new project to rebuild the
 same auth, billing, email, referral, logging, and HTTP wiring from
@@ -11,7 +11,7 @@ scratch.
 ```text
 foundation/   infrastructure-only packages
 modules/      reusable business modules
-stacks/       opinionated multi-module compositions
+stacks/       opinionated shared compositions
 templates/    runnable backend/frontend starters
 docs/         integration and onboarding guides
 ```
@@ -101,8 +101,10 @@ For a custom host shape:
 
 ## Local development
 
-This repo uses `go.work` so local modules resolve to local paths during
-development.
+This repo is a single Go module rooted at
+`github.com/brizenchi/go-modules`. `foundation/*`, `modules/*`,
+`stacks/*`, and `templates/quickstart` are packages inside that module,
+so cross-package refactors work without `replace` directives.
 
 ```bash
 make test
@@ -116,12 +118,17 @@ make vuln
 
 ## Versioning
 
-This is a multi-module repo. Tags must use the module path prefix:
+This is a single-module repo. One repo tag versions every package:
 
 ```bash
-git tag foundation/slog/v1.0.0
-git tag modules/auth/v1.0.0
-git tag stacks/saascore/v1.0.0
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+Consumers can pin any package path at that shared repo tag:
+
+```bash
+go get github.com/brizenchi/go-modules/modules/auth@v0.3.0
 ```
 
 Read [VERSIONING.md](./VERSIONING.md) before publishing tags or making

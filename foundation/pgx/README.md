@@ -64,6 +64,8 @@ pgx.Config{
 | `ConnMaxIdleTime`     | 5m      |  |
 | `SlowQueryThreshold`  | 200ms   | Set 0 to disable slow log |
 | `LogLevel`            | `warn`  | `silent` / `error` / `warn` / `info` |
+| `Project`             | `""`    | Optional project field added to DB logs |
+| `Environment`         | `""`    | Optional env field added to DB logs |
 
 ## Slow query logging
 

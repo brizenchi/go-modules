@@ -43,11 +43,11 @@ func (b *InProc) Publish(ctx context.Context, env event.Envelope) {
 func (b *InProc) run(ctx context.Context, env event.Envelope, fn port.Listener) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("referral: listener panic", "kind", env.Kind, "recover", r)
+			slog.ErrorContext(ctx, "referral: listener panic", "kind", env.Kind, "recover", r)
 		}
 	}()
 	if err := fn(ctx, env); err != nil {
-		slog.Error("referral: listener returned error", "kind", env.Kind, "error", err)
+		slog.ErrorContext(ctx, "referral: listener returned error", "kind", env.Kind, "error", err)
 	}
 }
 

@@ -68,6 +68,8 @@ That order ensures `request_id` is tagged onto the active span and
 | Field | Meaning |
 |---|---|
 | `ServiceName` | Required service name reported to the trace backend |
+| `Project` | Optional SaaS/project grouping; exported as `service.namespace` |
+| `Environment` | Optional environment; exported as `deployment.environment` |
 | `Endpoint` | OTLP collector host:port; empty disables exporter |
 | `Protocol` | `"http"` (default) or `"grpc"` |
 | `Insecure` | Disable TLS for local collectors |

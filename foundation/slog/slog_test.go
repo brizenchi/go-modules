@@ -8,7 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	tracingpkg "github.com/brizenchi/go-modules/foundation/tracing"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 func TestSetup_JSONOutput(t *testing.T) {
@@ -96,4 +99,53 @@ func TestWith_NilContextSafe(t *testing.T) {
 	var buf bytes.Buffer
 	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf})
 	With(nil).Info("hi") // must not panic
+}
+
+func TestSetup_ContextAttrsInjectedAutomatically(t *testing.T) {
+	var buf bytes.Buffer
+	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf})
+
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, RequestIDKey, "rid-ctx")
+	ctx = context.WithValue(ctx, ProjectKey, "proj-1")
+	ctx = context.WithValue(ctx, EnvKey, "prod")
+	ctx = context.WithValue(ctx, TenantIDKey, "tenant-9")
+	ctx = context.WithValue(ctx, UserIDKey, "user-7")
+
+	slog.InfoContext(ctx, "hello")
+	out := buf.String()
+	for _, want := range []string{
+		`"request_id":"rid-ctx"`,
+		`"project":"proj-1"`,
+		`"env":"prod"`,
+		`"tenant_id":"tenant-9"`,
+		`"user_id":"user-7"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %s in %q", want, out)
+		}
+	}
+}
+
+func TestSetup_ContextAttrsIncludeTraceAndSpan(t *testing.T) {
+	var buf bytes.Buffer
+	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf})
+
+	shutdown, err := tracingpkg.Setup(tracingpkg.Config{ServiceName: "svc", SampleRate: 1})
+	if err != nil {
+		t.Fatalf("tracing.Setup: %v", err)
+	}
+	defer tracingpkg.Shutdown(context.Background(), shutdown)
+
+	ctx, span := otel.GetTracerProvider().Tracer("svc").Start(context.Background(), "test", oteltrace.WithSpanKind(oteltrace.SpanKindInternal))
+	defer span.End()
+
+	slog.InfoContext(ctx, "hello")
+	out := buf.String()
+	if !strings.Contains(out, `"trace_id":"`) {
+		t.Fatalf("missing trace_id in %q", out)
+	}
+	if !strings.Contains(out, `"span_id":"`) {
+		t.Fatalf("missing span_id in %q", out)
+	}
 }

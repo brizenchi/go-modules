@@ -52,17 +52,19 @@ func (b *InProc) Publish(ctx context.Context, env event.Envelope) {
 func (b *InProc) run(ctx context.Context, env event.Envelope, fn port.Listener) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("billing: listener panic",
+			slog.ErrorContext(ctx, "billing: listener panic",
 				"kind", env.Kind,
 				"event_id", env.ProviderEventID,
+				"user_id", env.UserID,
 				"recover", r,
 			)
 		}
 	}()
 	if err := fn(ctx, env); err != nil {
-		slog.Error("billing: listener returned error",
+		slog.ErrorContext(ctx, "billing: listener returned error",
 			"kind", env.Kind,
 			"event_id", env.ProviderEventID,
+			"user_id", env.UserID,
 			"error", err,
 		)
 	}

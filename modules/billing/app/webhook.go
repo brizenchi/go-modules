@@ -70,7 +70,7 @@ func (s *WebhookService) Process(ctx context.Context, payload []byte, signature 
 		return nil, err
 	}
 	if !inserted && stored.Processed {
-		slog.Info("billing: skip duplicate webhook",
+		slog.InfoContext(ctx, "billing: skip duplicate webhook",
 			"provider", s.provider.Name(),
 			"event_id", parsed.ProviderEventID,
 			"type", parsed.Type,

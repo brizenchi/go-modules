@@ -20,7 +20,8 @@ RUN apk --no-cache add ca-certificates tzdata \
 WORKDIR /app
 
 COPY --from=builder /out/quickstart /app/quickstart
-COPY templates/quickstart/deploy/config.yaml.example /app/deploy/config.yaml
+RUN mkdir -p /app/deploy
+COPY --from=builder /src/templates/quickstart/deploy/config.yaml.example /app/deploy/config.yaml
 
 ENV CONFIG=/app/deploy/config.yaml
 

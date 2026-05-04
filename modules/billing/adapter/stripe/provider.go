@@ -9,8 +9,8 @@ import (
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/port"
-	billingportalsession "github.com/stripe/stripe-go/v76/billingportal/session"
 	stripesdk "github.com/stripe/stripe-go/v76"
+	billingportalsession "github.com/stripe/stripe-go/v76/billingportal/session"
 	"github.com/stripe/stripe-go/v76/checkout/session"
 	"github.com/stripe/stripe-go/v76/customer"
 	"github.com/stripe/stripe-go/v76/invoice"
@@ -70,7 +70,7 @@ func (p *Provider) EnsureCustomer(ctx context.Context, userID, email, existingID
 		if cust, err := customer.Get(existingID, nil); err == nil && cust != nil {
 			return cust.ID, nil
 		}
-		slog.Warn("stripe: existing customer not found, creating new", "customer_id", existingID, "user_id", userID)
+		slog.WarnContext(ctx, "stripe: existing customer not found, creating new", "customer_id", existingID, "user_id", userID)
 	}
 	params := &stripesdk.CustomerParams{Email: stripesdk.String(email)}
 	params.AddMetadata("user_id", userID)
@@ -78,7 +78,7 @@ func (p *Provider) EnsureCustomer(ctx context.Context, userID, email, existingID
 	if err != nil {
 		return "", fmt.Errorf("stripe: create customer: %w", err)
 	}
-	slog.Info("stripe: customer created", "customer_id", cust.ID, "user_id", userID)
+	slog.InfoContext(ctx, "stripe: customer created", "customer_id", cust.ID, "user_id", userID)
 	return cust.ID, nil
 }
 
@@ -165,7 +165,7 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 	if err != nil {
 		return nil, fmt.Errorf("stripe: create checkout: %w", err)
 	}
-	slog.Info("stripe: checkout created", "session_id", sess.ID, "user_id", in.UserID, "plan", in.Plan)
+	slog.InfoContext(ctx, "stripe: checkout created", "session_id", sess.ID, "user_id", in.UserID, "plan", in.Plan)
 	return &domain.CheckoutResult{SessionID: sess.ID, CheckoutURL: sess.URL}, nil
 }
 
@@ -190,7 +190,7 @@ func (p *Provider) CancelSubscription(ctx context.Context, subID string, mode do
 	if _, err := subscription.Update(subID, params); err != nil {
 		return fmt.Errorf("stripe: cancel subscription: %w", err)
 	}
-	slog.Info("stripe: subscription cancellation scheduled", "subscription_id", subID, "mode", mode)
+	slog.InfoContext(ctx, "stripe: subscription cancellation scheduled", "subscription_id", subID, "mode", mode)
 	return nil
 }
 
@@ -242,7 +242,8 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 	if err != nil {
 		return nil, fmt.Errorf("stripe: change subscription: %w", err)
 	}
-	slog.Info(
+	slog.InfoContext(
+		ctx,
 		"stripe: subscription changed",
 		"subscription_id", subID,
 		"plan", in.Plan,
@@ -347,7 +348,7 @@ func (p *Provider) ReactivateSubscription(ctx context.Context, subID string) err
 	if _, err := subscription.Update(subID, params); err != nil {
 		return fmt.Errorf("stripe: reactivate subscription: %w", err)
 	}
-	slog.Info("stripe: subscription reactivated", "subscription_id", subID)
+	slog.InfoContext(ctx, "stripe: subscription reactivated", "subscription_id", subID)
 	return nil
 }
 
@@ -465,13 +466,13 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 	}
 	if subID == "" {
 		return &domain.SubscriptionPreview{
-			Currency:         "usd",
-			AmountDueNow:     0,
-			TargetPlan:       in.Plan,
-			TargetInterval:   in.Interval,
-			Mode:             in.Mode,
-			ImmediateCharge:  true,
-			Message:          "new subscription will be created through checkout",
+			Currency:        "usd",
+			AmountDueNow:    0,
+			TargetPlan:      in.Plan,
+			TargetInterval:  in.Interval,
+			Mode:            in.Mode,
+			ImmediateCharge: true,
+			Message:         "new subscription will be created through checkout",
 		}, nil
 	}
 

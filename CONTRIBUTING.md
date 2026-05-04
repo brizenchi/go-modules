@@ -1,24 +1,25 @@
 # Contributing to go-modules
 
 Thanks for your interest. This monorepo holds the org's reusable Go
-modules. Every change should hold the line on three things: **purity**
+packages. Every change should hold the line on three things: **purity**
 (no project-specific imports leak in), **stability** (additive changes
-within a major), and **discoverability** (each module's README +
+within a major), and **discoverability** (each package's README +
 CHANGELOG stays accurate).
 
 ## Repo layout
 
 ```
 foundation/<name>/   pure infra: stdlib + one-or-two common libs only
-modules/<name>/      DDD-layered business modules
+modules/<name>/      DDD-layered business packages
 docs/                host integration and migration guides
 templates/quickstart/ runnable boot example consuming all modules
 scripts/             one-off helpers (extraction, migration)
 ```
 
-Every directory listed in `go.work` is its own Go module with its own
-`go.mod`. Modules are tagged independently as `<name>/v<x.y.z>` (e.g.
-`modules/auth/v0.2.1`).
+This repo is one Go module rooted at
+`github.com/brizenchi/go-modules`. Packages live under
+`foundation/*`, `modules/*`, `stacks/*`, and `templates/quickstart`.
+They ship together under one repo tag such as `v0.3.0`.
 
 ## Local setup
 
@@ -28,13 +29,13 @@ cd go-modules
 make test          # all modules, no -race
 make test-race     # all modules with -race
 make purity-check  # ensure no host-app imports leaked
-make fmt           # gofmt every module
-make tidy          # go mod tidy every module
+make fmt           # gofmt the repo
+make tidy          # go mod tidy at the repo root
 ```
 
-`go.work` makes cross-module changes work without `replace` directives —
-edit `modules/auth` and `modules/billing` together and `go test` sees
-the changes.
+Because the repo is a single Go module, cross-package changes work
+without `replace` directives — edit `modules/auth` and
+`modules/billing` together and root `go test` sees the changes.
 
 ## Design principles
 
@@ -44,24 +45,24 @@ the changes.
 deps: stdlib + a small set of common libraries (`gin`, `gorm`,
 `stripe-go/v76`, `golang-jwt/v5`, `go-redis/v9`, `viper`, `mapstructure`).
 
-Project-specific glue (e.g. wiring viper config to a module's `Config`
+Project-specific glue (e.g. wiring viper config to a package's `Config`
 struct, mapping the host's user table to `port.UserStore`) lives in the
-**host project**, not here. The host adapter pattern is shown in
-`templates/quickstart/internal/*_glue/`.
+**host project**, not here. The reference bootstrap wiring lives in
+`templates/quickstart/cmd/quickstart`.
 
 `make purity-check` enforces this — CI fails on violations.
 
 ### 2. Ports + adapters
 
-Business modules expose a `port/` package with the interfaces they
+Business packages expose a `port/` package with the interfaces they
 depend on, and one or more `adapter/` implementations. Adding a new
-provider for an existing module = new adapter + tests. **Don't**
+provider for an existing package = new adapter + tests. **Don't**
 modify the port to fit a single provider's quirks — use an adapter
 or extend `domain/` if the concept is universal.
 
 ### 3. Domain events
 
-Cross-module integration goes through `event/` packages and an
+Cross-package integration goes through `event/` packages and an
 `EventBus` port. Hosts subscribe in their boot code. Never import
 another business module directly; route through the bus.
 
@@ -76,38 +77,22 @@ Within a major version (`v0.x.y`):
 Breaking changes require a major bump (`v1.x.y`) with a migration note
 in the CHANGELOG.
 
-## Adding a new module
+## Adding a new package
 
 1. Create `<tier>/<name>/` (e.g. `foundation/retry/` or `modules/sms/`)
-2. `go mod init github.com/brizenchi/go-modules/<tier>/<name>`
-3. Add the module path to `go.work`
-4. Write package doc on the entry-point file (`<name>.go`)
-5. Write `README.md` (use any existing module as a template)
-6. Write `CHANGELOG.md` with an "Unreleased" section
-7. Add tests; aim for 70% coverage at minimum
-8. Run `make purity-check` to catch accidental imports
-9. Add the new path to the `MODULES` list in `Makefile`
-10. Add the new path to `.github/workflows/ci.yml` matrix
+2. Write package doc on the entry-point file (`<name>.go`)
+3. Write `README.md` (use any existing package as a template)
+4. Write `CHANGELOG.md` with an "Unreleased" section
+5. Add tests; aim for 70% coverage at minimum
+6. Run `make purity-check` to catch accidental imports
+7. Add the new path to the top-level `README.md` when it is part of the public surface
 
-If one module depends on another module in this repo, keep both:
+Do not add a nested `go.mod` or `go.sum`. New code should join the root
+module.
 
-- a semver `require github.com/brizenchi/go-modules/modules/<module> vX.Y.Z`
-- a local `replace github.com/brizenchi/go-modules/modules/<module> => ../<module>`
-
-That combination keeps external consumers on proper versions while letting
-`go mod tidy` pass inside the monorepo before the dependency tag exists.
-
-Foundation modules should be tiny and self-contained. Business modules
-follow the DDD layering used by `modules/auth/`, `modules/billing/`,
-`modules/email/`, `modules/referral/`.
-
-If you add a new module under `foundation/`, `modules/`, or `stacks/`,
-add it to:
-
-- `go.work`
-- the `MODULES` list in `Makefile`
-- the matrices in `.github/workflows/ci.yml`
-- the top-level `README.md`
+Foundation packages should be tiny and self-contained. Business
+packages follow the DDD layering used by `modules/auth/`,
+`modules/billing/`, `modules/email/`, `modules/referral/`.
 
 ## Pull request checklist
 
@@ -116,7 +101,7 @@ add it to:
 - [ ] `make purity-check` clean
 - [ ] CHANGELOG updated under "Unreleased"
 - [ ] README updated if public API changed
-- [ ] Test coverage didn't drop (CI shows per-module % — adding tests
+- [ ] Test coverage didn't drop (CI shows repo-wide coverage — adding tests
       is welcome even when not strictly required)
 - [ ] If adding a new export, it has a doc comment
 
@@ -125,18 +110,18 @@ add it to:
 See [VERSIONING.md](./VERSIONING.md) for the full policy. Quick steps:
 
 ```bash
-# 1. Move "Unreleased" entries in <module>/CHANGELOG.md under a new
-#    version + date heading
+# 1. Move "Unreleased" entries in the touched package CHANGELOG.md
+#    files under a new version + date heading
 # 2. Commit on main
-git tag <module>/v<x.y.z>
-git push origin <module>/v<x.y.z>
+git tag v<x.y.z>
+git push origin v<x.y.z>
 ```
 
 Tags push to GitHub → Go proxy picks the version up within minutes.
 
 ## Code style
 
-- Go 1.25 (see `go.work`).
+- Go 1.25 (see the root `go.mod`).
 - `slog` for logging — never `fmt.Println` or `log.Print*` in library code.
 - Errors: prefer `fmt.Errorf("...: %w", err)` for wrapping; use sentinel
   errors (e.g. `ErrInvalidInput`) for branchable categories.
@@ -148,7 +133,7 @@ Tags push to GitHub → Go proxy picks the version up within minutes.
 
 Open a GitHub issue with:
 
-- Module + version (e.g. `auth v0.1.1`)
+- Package + version (e.g. `modules/auth @ v0.3.0`)
 - Minimal reproducer (Go playground link or short snippet)
 - Expected vs actual behavior
 

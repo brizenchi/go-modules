@@ -103,7 +103,8 @@ Notes:
 - `templates/quickstart/Dockerfile.dockerignore` trims the monorepo
   context down to the files this image actually needs
 - the image bakes in `templates/quickstart/deploy/config.yaml.example`
-  as `/app/deploy/config.yaml`
+  as `/app/deploy/config.yaml` via the builder stage, so runtime stage
+  does not need to re-read that file from the build context
 - runtime env vars still override YAML at boot
 
 ### After Copying The Template Out

@@ -2,9 +2,11 @@
 package http
 
 import (
+	"context"
 	"strings"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
+	fslog "github.com/brizenchi/go-modules/foundation/slog"
 	"github.com/brizenchi/go-modules/modules/auth/app"
 	"github.com/brizenchi/go-modules/modules/auth/domain"
 	"github.com/gin-gonic/gin"
@@ -42,6 +44,7 @@ func RequireUser(session *app.SessionService) gin.HandlerFunc {
 			return
 		}
 		SetIdentity(c, id)
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), fslog.UserIDKey, id.UserID))
 		c.Next()
 	}
 }

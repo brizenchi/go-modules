@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -43,6 +44,14 @@ type Config struct {
 	// ServiceName identifies this service in the trace backend.
 	// Required — Setup returns an error when empty.
 	ServiceName string
+
+	// Project identifies the SaaS/application grouping across services.
+	// When set, it is exported as service.namespace.
+	Project string
+
+	// Environment identifies the deployment environment.
+	// When set, it is exported as deployment.environment.
+	Environment string
 
 	// Endpoint is the OTLP collector host:port (no scheme).
 	//   "localhost:4318" — OTLP/HTTP (default protocol)
@@ -60,6 +69,16 @@ type Config struct {
 	// SampleRate is the fraction of traces to record.
 	// 0 = trace nothing (default), 1 = trace everything.
 	SampleRate float64
+
+	// Headers are extra key-value pairs sent with every OTLP request.
+	// Typical use: Authorization for backends like OpenObserve.
+	Headers map[string]string
+
+	// URLPath overrides the default OTLP HTTP trace path ("/v1/traces").
+	// Required for backends with a custom path prefix, e.g.
+	// "/api/default/v1/traces" for OpenObserve.
+	// Ignored when Protocol is "grpc".
+	URLPath string
 }
 
 // Setup initialises the global TracerProvider and returns a shutdown
@@ -70,10 +89,19 @@ func Setup(cfg Config) (shutdown func(context.Context) error, err error) {
 		return nil, fmt.Errorf("tracing: service name is required")
 	}
 	otel.SetTextMapPropagator(propagation.TraceContext{})
+	resourceAttrs := []attribute.KeyValue{
+		semconv.ServiceNameKey.String(cfg.ServiceName),
+	}
+	if cfg.Project != "" {
+		resourceAttrs = append(resourceAttrs, semconv.ServiceNamespace(cfg.Project))
+	}
+	if cfg.Environment != "" {
+		resourceAttrs = append(resourceAttrs, semconv.DeploymentEnvironment(cfg.Environment))
+	}
 	opts := []tracesdk.TracerProviderOption{
 		tracesdk.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(cfg.ServiceName),
+			resourceAttrs...,
 		)),
 		tracesdk.WithSampler(tracesdk.TraceIDRatioBased(cfg.SampleRate)),
 	}
@@ -121,6 +149,9 @@ func newExporter(cfg Config) (tracesdk.SpanExporter, error) {
 		if cfg.Insecure {
 			opts = append(opts, otlptracegrpc.WithInsecure())
 		}
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracegrpc.WithHeaders(cfg.Headers))
+		}
 		return otlptracegrpc.New(context.Background(), opts...)
 	default:
 		opts := []otlptracehttp.Option{otlptracehttp.WithEndpoint(cfg.Endpoint)}
@@ -128,6 +159,12 @@ func newExporter(cfg Config) (tracesdk.SpanExporter, error) {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		} else {
 			opts = append(opts, otlptracehttp.WithTLSClientConfig(&tls.Config{}))
+		}
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(cfg.Headers))
+		}
+		if cfg.URLPath != "" {
+			opts = append(opts, otlptracehttp.WithURLPath(cfg.URLPath))
 		}
 		return otlptracehttp.New(context.Background(), opts...)
 	}

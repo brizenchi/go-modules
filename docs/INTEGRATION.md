@@ -33,7 +33,7 @@ Keep these in `go-modules`:
 - reusable business flows
 - provider adapters
 - event contracts
-- standard multi-module compositions
+- standard shared compositions
 - shared schemas that are intentionally identical across projects
 - reusable HTTP helpers and middleware
 
@@ -146,8 +146,9 @@ The paired frontend reference is
 
 While iterating locally across this repo and a host app:
 
-- prefer this repo's `go.work`
-- or add temporary `replace` directives in the host app
+- prefer a temporary host-side replace:
+  `replace github.com/brizenchi/go-modules => /absolute/path/to/go-modules`
+- or create a host-side `go.work` that includes both repos
 
 That is a development convenience, not the production integration
 contract.

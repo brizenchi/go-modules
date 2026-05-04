@@ -37,23 +37,23 @@ It also already wires:
 ## New backend checklist
 
 1. Copy `templates/quickstart`
-2. Rename the module path
-3. Decide dependency mode
-   - inside `go-modules` local iteration: keep the local `replace` directives
-   - copied service using published modules: run `bash scripts/use-remote-go-modules.sh`
-4. Seed config files
+2. Initialize your own module
+   - `go mod init github.com/yourname/yournewservice`
+   - `go get github.com/brizenchi/go-modules@latest`
+   - `go mod tidy`
+3. Seed config files
    - `cp .env.example .env`
    - `cp deploy/config.yaml.example deploy/config.yaml`
-5. Set the minimum required config
+4. Set the minimum required config
    - DB config
    - `auth.user_jwt_secret`
-6. Verify structure
+5. Verify structure
    - `go test ./...`
    - `go build ./...`
-7. Run locally
+6. Run locally
    - `set -a; source .env; set +a`
    - `go run ./cmd/quickstart`
-8. Replace only host-specific business hooks
+7. Replace only host-specific business hooks
 
 ## What you should change
 

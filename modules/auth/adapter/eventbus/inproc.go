@@ -49,11 +49,11 @@ func (b *InProc) Publish(ctx context.Context, env event.Envelope) {
 func (b *InProc) run(ctx context.Context, env event.Envelope, fn port.Listener) {
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("auth: listener panic", "kind", env.Kind, "user_id", env.UserID, "recover", r)
+			slog.ErrorContext(ctx, "auth: listener panic", "kind", env.Kind, "user_id", env.UserID, "recover", r)
 		}
 	}()
 	if err := fn(ctx, env); err != nil {
-		slog.Error("auth: listener returned error", "kind", env.Kind, "user_id", env.UserID, "error", err)
+		slog.ErrorContext(ctx, "auth: listener returned error", "kind", env.Kind, "user_id", env.UserID, "error", err)
 	}
 }
 

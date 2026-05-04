@@ -77,7 +77,7 @@ func (h *Handler) HandleWebhook(c *gin.Context) {
 			respondError(c, http.StatusBadRequest, "invalid signature")
 			return
 		}
-		slog.Error("billing: webhook processing failed", "error", err)
+		slog.ErrorContext(c.Request.Context(), "billing: webhook processing failed", "error", err)
 		respondError(c, http.StatusInternalServerError, "event handling failed")
 		return
 	}
@@ -369,16 +369,16 @@ func (h *Handler) PreviewSubscriptionChange(c *gin.Context) {
 		return
 	}
 	httpresp.OK(c, gin.H{
-		"currency":                 res.Currency,
-		"amount_due_now":           res.AmountDueNow,
-		"current_period_end":       formatTimePtr(res.CurrentPeriodEnd),
-		"next_billing_at":          formatTimePtr(res.NextBillingAt),
-		"target_plan":              res.TargetPlan,
-		"target_interval":          res.TargetInterval,
-		"change_mode":              res.Mode,
-		"immediate_charge":         res.ImmediateCharge,
-		"effective_at_period_end":  res.EffectiveAtPeriodEnd,
-		"message":                  res.Message,
+		"currency":                res.Currency,
+		"amount_due_now":          res.AmountDueNow,
+		"current_period_end":      formatTimePtr(res.CurrentPeriodEnd),
+		"next_billing_at":         formatTimePtr(res.NextBillingAt),
+		"target_plan":             res.TargetPlan,
+		"target_interval":         res.TargetInterval,
+		"change_mode":             res.Mode,
+		"immediate_charge":        res.ImmediateCharge,
+		"effective_at_period_end": res.EffectiveAtPeriodEnd,
+		"message":                 res.Message,
 	})
 }
 
@@ -505,7 +505,7 @@ func respondAppError(c *gin.Context, err error) {
 	case errors.Is(err, domain.ErrProviderDisabled):
 		respondError(c, http.StatusServiceUnavailable, err.Error())
 	default:
-		slog.Error("billing: internal error", "error", err)
+		slog.ErrorContext(c.Request.Context(), "billing: internal error", "error", err)
 		respondError(c, http.StatusInternalServerError, err.Error())
 	}
 }

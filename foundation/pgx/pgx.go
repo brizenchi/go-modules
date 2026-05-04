@@ -45,6 +45,11 @@ type Config struct {
 
 	// LogLevel: silent | error | warn | info. Default warn.
 	LogLevel string
+
+	// Project and Environment are copied onto DB log records so external
+	// log backends can partition data without guessing from service names.
+	Project     string
+	Environment string
 }
 
 func (c Config) effectiveDSN() string {
@@ -114,6 +119,8 @@ func buildLogger(cfg Config) gormlogger.Interface {
 	return &slogLogger{
 		level:     level,
 		threshold: threshold,
+		project:   cfg.Project,
+		env:       cfg.Environment,
 	}
 }
 
@@ -133,6 +140,8 @@ func parseLevel(s string) gormlogger.LogLevel {
 type slogLogger struct {
 	level     gormlogger.LogLevel
 	threshold time.Duration
+	project   string
+	env       string
 }
 
 func (l *slogLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
@@ -143,17 +152,17 @@ func (l *slogLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
 
 func (l *slogLogger) Info(ctx context.Context, msg string, args ...any) {
 	if l.level >= gormlogger.Info {
-		slog.InfoContext(ctx, msg, "args", args)
+		slog.InfoContext(ctx, msg, l.appendCommonAttrs("db_log", "info", "args", args)...)
 	}
 }
 func (l *slogLogger) Warn(ctx context.Context, msg string, args ...any) {
 	if l.level >= gormlogger.Warn {
-		slog.WarnContext(ctx, msg, "args", args)
+		slog.WarnContext(ctx, msg, l.appendCommonAttrs("db_log", "warn", "args", args)...)
 	}
 }
 func (l *slogLogger) Error(ctx context.Context, msg string, args ...any) {
 	if l.level >= gormlogger.Error {
-		slog.ErrorContext(ctx, msg, "args", args)
+		slog.ErrorContext(ctx, msg, l.appendCommonAttrs("db_log", "error", "args", args)...)
 	}
 }
 
@@ -163,17 +172,46 @@ func (l *slogLogger) Trace(ctx context.Context, begin time.Time, fc func() (stri
 	case err != nil && l.level >= gormlogger.Error:
 		sql, rows := fc()
 		slog.ErrorContext(ctx, "gorm error",
-			"error", err, "sql", sql, "rows", rows, "elapsed_ms", elapsed.Milliseconds())
+			l.appendCommonAttrs("error", "error",
+				"error", err,
+				"sql", sql,
+				"rows", rows,
+				"elapsed_ms", elapsed.Milliseconds(),
+			)...)
 	case elapsed > l.threshold && l.threshold > 0 && l.level >= gormlogger.Warn:
 		sql, rows := fc()
 		slog.WarnContext(ctx, "gorm slow query",
-			"sql", sql, "rows", rows, "elapsed_ms", elapsed.Milliseconds(),
-			"threshold_ms", l.threshold.Milliseconds())
+			l.appendCommonAttrs("slow_query", "warn",
+				"sql", sql,
+				"rows", rows,
+				"elapsed_ms", elapsed.Milliseconds(),
+				"threshold_ms", l.threshold.Milliseconds(),
+			)...)
 	case l.level >= gormlogger.Info:
 		sql, rows := fc()
 		slog.InfoContext(ctx, "gorm query",
-			"sql", sql, "rows", rows, "elapsed_ms", elapsed.Milliseconds())
+			l.appendCommonAttrs("query", "info",
+				"sql", sql,
+				"rows", rows,
+				"elapsed_ms", elapsed.Milliseconds(),
+			)...)
 	}
+}
+
+func (l *slogLogger) appendCommonAttrs(operation, severity string, attrs ...any) []any {
+	base := []any{
+		"component", "db",
+		"db_system", "postgres",
+		"operation", operation,
+		"severity", severity,
+	}
+	if l.project != "" {
+		base = append(base, "project", l.project)
+	}
+	if l.env != "" {
+		base = append(base, "env", l.env)
+	}
+	return append(base, attrs...)
 }
 
 func nonZeroInt(v, def int) int {

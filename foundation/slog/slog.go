@@ -74,6 +74,7 @@ func Setup(cfg Config) *slog.Logger {
 	default:
 		handler = slog.NewJSONHandler(out, opts)
 	}
+	handler = contextHandler{next: handler}
 
 	if len(cfg.Defaults) > 0 {
 		attrs := make([]slog.Attr, 0, len(cfg.Defaults))
@@ -92,7 +93,42 @@ func Setup(cfg Config) *slog.Logger {
 // (and pulled back out by With). Compatible with foundation/ginx.
 const RequestIDKey ctxKey = "request_id"
 
+// ProjectKey is the context key under which a project id/name may be stored.
+const ProjectKey ctxKey = "project"
+
+// EnvKey is the context key under which an environment name may be stored.
+const EnvKey ctxKey = "env"
+
+// TenantIDKey is the context key under which a tenant/workspace id may be stored.
+const TenantIDKey ctxKey = "tenant_id"
+
+// UserIDKey is the context key under which an authenticated user id may be stored.
+const UserIDKey ctxKey = "user_id"
+
 type ctxKey string
+
+type contextHandler struct {
+	next slog.Handler
+}
+
+func (h contextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.next.Enabled(ctx, level)
+}
+
+func (h contextHandler) Handle(ctx context.Context, r slog.Record) error {
+	for _, attr := range attrsFromContext(ctx) {
+		r.AddAttrs(attr)
+	}
+	return h.next.Handle(ctx, r)
+}
+
+func (h contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return contextHandler{next: h.next.WithAttrs(attrs)}
+}
+
+func (h contextHandler) WithGroup(name string) slog.Handler {
+	return contextHandler{next: h.next.WithGroup(name)}
+}
 
 // With returns a logger with request-scoped attributes (request_id,
 // trace_id, span_id).
@@ -105,18 +141,34 @@ func With(c *gin.Context) *slog.Logger {
 	if c == nil {
 		return slog.Default()
 	}
-	var attrs []any
+	attrs := attrsFromContext(c.Request.Context())
+	seen := make(map[string]struct{}, len(attrs))
+	for _, attr := range attrs {
+		seen[attr.Key] = struct{}{}
+	}
 	if rid := requestID(c); rid != "" {
-		attrs = append(attrs, "request_id", rid)
+		if _, ok := seen["request_id"]; !ok {
+			attrs = append(attrs, slog.String("request_id", rid))
+		}
 	}
 	if tid := traceID(c); tid != "" {
-		attrs = append(attrs, "trace_id", tid)
-		attrs = append(attrs, "span_id", spanID(c))
+		if _, ok := seen["trace_id"]; !ok {
+			attrs = append(attrs, slog.String("trace_id", tid))
+		}
+		if sid := spanID(c); sid != "" {
+			if _, ok := seen["span_id"]; !ok {
+				attrs = append(attrs, slog.String("span_id", sid))
+			}
+		}
 	}
 	if len(attrs) == 0 {
 		return slog.Default()
 	}
-	return slog.Default().With(attrs...)
+	args := make([]any, 0, len(attrs))
+	for _, attr := range attrs {
+		args = append(args, attr)
+	}
+	return slog.Default().With(args...)
 }
 
 func traceID(c *gin.Context) string {
@@ -146,6 +198,36 @@ func requestID(c *gin.Context) string {
 		return v
 	}
 	return ""
+}
+
+func attrsFromContext(ctx context.Context) []slog.Attr {
+	if ctx == nil {
+		return nil
+	}
+	attrs := make([]slog.Attr, 0, 6)
+	if rid, ok := ctx.Value(RequestIDKey).(string); ok && rid != "" {
+		attrs = append(attrs, slog.String("request_id", rid))
+	}
+	if project, ok := ctx.Value(ProjectKey).(string); ok && project != "" {
+		attrs = append(attrs, slog.String("project", project))
+	}
+	if env, ok := ctx.Value(EnvKey).(string); ok && env != "" {
+		attrs = append(attrs, slog.String("env", env))
+	}
+	if tenantID, ok := ctx.Value(TenantIDKey).(string); ok && tenantID != "" {
+		attrs = append(attrs, slog.String("tenant_id", tenantID))
+	}
+	if userID, ok := ctx.Value(UserIDKey).(string); ok && userID != "" {
+		attrs = append(attrs, slog.String("user_id", userID))
+	}
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if sc.HasTraceID() {
+		attrs = append(attrs, slog.String("trace_id", sc.TraceID().String()))
+	}
+	if sc.HasSpanID() {
+		attrs = append(attrs, slog.String("span_id", sc.SpanID().String()))
+	}
+	return attrs
 }
 
 func parseLevel(s string) slog.Level {
