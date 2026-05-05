@@ -83,6 +83,10 @@ billing:
       credits: []                  # list of one-time credit price IDs
     credits:
       per_package: 100             # credits granted per credits-package unit
+    topup:
+      min_amount_usd: 5            # minimum custom recharge amount in USD
+      max_amount_usd: 10000        # maximum custom recharge amount in USD
+      credits_per_usd: 100         # credits granted per 1 USD in custom recharge flow
 
 # ---------- referral ----------
 referral:

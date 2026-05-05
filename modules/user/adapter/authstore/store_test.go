@@ -61,4 +61,3 @@ func TestFindOrCreateFromOAuth(t *testing.T) {
 		t.Fatalf("provider = %q, want google", id.Provider)
 	}
 }
-

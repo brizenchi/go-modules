@@ -217,13 +217,13 @@ func (s *SubscriptionService) PreviewChange(ctx context.Context, userID string, 
 	}
 	if strings.TrimSpace(cust.ProviderSubscriptionID) == "" {
 		return &domain.SubscriptionPreview{
-			Currency:         "usd",
-			AmountDueNow:     0,
-			TargetPlan:       in.Plan,
-			TargetInterval:   in.Interval,
-			Mode:             domain.ChangeModeImmediateResetCycle,
-			ImmediateCharge:  true,
-			Message:          "new subscription will be created through checkout",
+			Currency:        "usd",
+			AmountDueNow:    0,
+			TargetPlan:      in.Plan,
+			TargetInterval:  in.Interval,
+			Mode:            domain.ChangeModeImmediateResetCycle,
+			ImmediateCharge: true,
+			Message:         "new subscription will be created through checkout",
 		}, nil
 	}
 

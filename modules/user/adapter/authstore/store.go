@@ -168,4 +168,3 @@ func toIdentity(u *userdomain.User, isNew bool) *authdomain.Identity {
 }
 
 var _ authport.UserStore = (*Store)(nil)
-

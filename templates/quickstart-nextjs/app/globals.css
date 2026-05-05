@@ -760,6 +760,19 @@ button {
   margin-top: 16px;
 }
 
+.payment-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.payment-element-shell {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

@@ -217,8 +217,33 @@ export type CheckoutPayload = {
   metadata?: Record<string, string>;
 };
 
+export type CreateTopUpPaymentIntentPayload = {
+  amount: number;
+  metadata?: Record<string, string>;
+};
+
+export type TopUpPaymentIntentResult = {
+  payment_intent_id: string;
+  client_secret: string;
+  amount_cents: number;
+  amount_usd: number;
+  currency: string;
+  credits: number;
+};
+
 export async function createCheckoutSession(token: string, payload: CheckoutPayload): Promise<{ session_id: string; checkout_url: string }> {
   return apiRequest<{ session_id: string; checkout_url: string }>("/stripe/checkout/session", {
+    method: "POST",
+    authToken: token,
+    json: payload
+  });
+}
+
+export async function createTopUpPaymentIntent(
+  token: string,
+  payload: CreateTopUpPaymentIntentPayload
+): Promise<TopUpPaymentIntentResult> {
+  return apiRequest<TopUpPaymentIntentResult>("/stripe/topup/payment-intent", {
     method: "POST",
     authToken: token,
     json: payload

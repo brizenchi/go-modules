@@ -4,10 +4,10 @@ package domain
 type PlanType string
 
 const (
-	PlanFree    PlanType = "free"
-	PlanStarter PlanType = "starter"
-	PlanPro     PlanType = "pro"
-	PlanPremium PlanType = "premium"
+	PlanFree     PlanType = "free"
+	PlanStarter  PlanType = "starter"
+	PlanPro      PlanType = "pro"
+	PlanPremium  PlanType = "premium"
 	PlanLifetime PlanType = "lifetime"
 )
 
@@ -77,9 +77,9 @@ func (m CancelMode) Valid() bool {
 type SubscriptionChangeMode string
 
 const (
-	ChangeModeImmediateProrated  SubscriptionChangeMode = "immediate_prorated"
+	ChangeModeImmediateProrated   SubscriptionChangeMode = "immediate_prorated"
 	ChangeModeImmediateResetCycle SubscriptionChangeMode = "immediate_reset_cycle"
-	ChangeModePeriodEnd          SubscriptionChangeMode = "period_end"
+	ChangeModePeriodEnd           SubscriptionChangeMode = "period_end"
 )
 
 func (m SubscriptionChangeMode) Valid() bool {

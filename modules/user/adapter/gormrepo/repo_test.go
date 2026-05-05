@@ -76,4 +76,3 @@ func TestRepoAddCredits(t *testing.T) {
 		t.Fatalf("credits = %d, want 25", got.Credits)
 	}
 }
-

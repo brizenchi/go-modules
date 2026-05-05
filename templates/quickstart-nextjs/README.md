@@ -64,16 +64,25 @@ Default local pairing:
 ```dotenv
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_APP_NAME=Clawmesh Quickstart Frontend
 NEXT_PUBLIC_DEFAULT_PLAN=pro
 NEXT_PUBLIC_DEFAULT_INTERVAL=monthly
 NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY=1
+NEXT_PUBLIC_DEFAULT_TOPUP_AMOUNT_USD=25
 NEXT_PUBLIC_CREDITS_PRICE_ID=
 NEXT_PUBLIC_STRIPE_SUCCESS_PATH=/billing?checkout=success
 NEXT_PUBLIC_STRIPE_CANCEL_PATH=/billing?checkout=cancelled
 ```
 
 `NEXT_PUBLIC_DEFAULT_PLAN` should be one of `starter`, `pro`, `premium`, or `lifetime`.
+
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is optional for the current hosted
+Checkout flow, but should be configured once you add Stripe.js /
+Payment Element flows such as custom-amount top-ups.
+
+`NEXT_PUBLIC_DEFAULT_TOPUP_AMOUNT_USD` seeds the custom recharge form on
+`/billing`.
 
 ## Required backend mapping
 
@@ -120,5 +129,6 @@ Before treating the frontend template as ready, confirm:
 6. `/billing` can start lifetime buyout checkout when configured
 7. `/billing` can change active subscription plan in place
 8. `/billing` can open Stripe Billing Portal
-9. `/referrals` loads live referral code, stats, and history
-10. signed-in avatar menu shows settings, subscription, referral, and logout entry points
+9. `/billing` can create and confirm a custom-amount Stripe top-up with Payment Element
+10. `/referrals` loads live referral code, stats, and history
+11. signed-in avatar menu shows settings, subscription, referral, and logout entry points

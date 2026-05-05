@@ -43,16 +43,16 @@ type SubscriptionPreviewInput struct {
 
 // SubscriptionPreview summarizes the expected commercial effect.
 type SubscriptionPreview struct {
-	Currency              string
-	AmountDueNow          float64
-	CurrentPeriodEnd      *time.Time
-	NextBillingAt         *time.Time
-	TargetPlan            PlanType
-	TargetInterval        BillingInterval
-	Mode                  SubscriptionChangeMode
-	ImmediateCharge       bool
-	EffectiveAtPeriodEnd  bool
-	Message               string
+	Currency             string
+	AmountDueNow         float64
+	CurrentPeriodEnd     *time.Time
+	NextBillingAt        *time.Time
+	TargetPlan           PlanType
+	TargetInterval       BillingInterval
+	Mode                 SubscriptionChangeMode
+	ImmediateCharge      bool
+	EffectiveAtPeriodEnd bool
+	Message              string
 }
 
 // SubscriptionSnapshot is a provider-agnostic view of a subscription.

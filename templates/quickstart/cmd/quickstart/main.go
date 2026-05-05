@@ -86,9 +86,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("saascore.New: %v", err)
 	}
+	if err := db.AutoMigrate(&StripeTopUpEvent{}); err != nil {
+		log.Fatalf("migrate stripe top-up events: %v", err)
+	}
 
 	// 8. HTTP.
-	r := buildRouter(cfg, stack)
+	r := buildRouter(cfg, newQuickstartRouteStack(stack, cfg))
 
 	// 9. Listen + graceful shutdown.
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.Server.Port), Handler: r}
@@ -223,6 +226,7 @@ type StripeConfig struct {
 	TrialDays      int64               `mapstructure:"trial_days"`
 	Prices         StripePricesConfig  `mapstructure:"prices"`
 	Credits        StripeCreditsConfig `mapstructure:"credits"`
+	TopUp          StripeTopUpConfig   `mapstructure:"topup"`
 }
 
 type StripePricesConfig struct {
@@ -238,6 +242,12 @@ type StripePricesConfig struct {
 
 type StripeCreditsConfig struct {
 	PerPackage int64 `mapstructure:"per_package"`
+}
+
+type StripeTopUpConfig struct {
+	MinAmountUSD  float64 `mapstructure:"min_amount_usd"`
+	MaxAmountUSD  float64 `mapstructure:"max_amount_usd"`
+	CreditsPerUSD int64   `mapstructure:"credits_per_usd"`
 }
 
 type ReferralConfig struct {

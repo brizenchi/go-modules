@@ -9,7 +9,7 @@ export default function HomePage() {
     <SiteShell
       eyebrow="Universal SaaS Shell"
       title="A reusable frontend template for product marketing, docs, pricing, auth, billing, and referral flows."
-      description="This template no longer behaves like a single-purpose test harness. It is a starter shell for real SaaS products: a public-facing home, navigation system, docs experience, pricing page, multilingual-ready layout, and authenticated account surfaces all wired to the shared go-modules backend contract."
+      description="This template no longer behaves like a single-purpose test harness. It is a starter shell for real SaaS products: a public-facing home, navigation system, docs experience, pricing page, multilingual-ready layout, and authenticated account surfaces all wired to the shared go-modules backend contract, including starter, pro, premium, lifetime, package credits, and custom amount top-up."
       sideTitle="Contract map"
       sideBody={
         <DetailRows
@@ -71,7 +71,7 @@ export default function HomePage() {
       >
         <div className="page-grid">
           <Panel className="span-4" title="/pricing" subtitle="Plan comparison and checkout entry">
-            <p>Use for subscription entry, upgrade framing, credits explanation, and plan differentiation before redirecting into Checkout.</p>
+            <p>Use for the six billing lanes: starter, pro, premium, lifetime, package credits, and custom amount top-up before redirecting into Checkout or Payment Element.</p>
           </Panel>
           <Panel className="span-4" title="/docs" subtitle="Onboarding and product documentation">
             <p>Use for integration docs, getting-started flows, technical setup guides, and feature explanation pages with table-of-contents support.</p>
@@ -83,7 +83,7 @@ export default function HomePage() {
             <p>Identity, refresh, logout, current token/session view, and ticket issue flow. This is the base for a settings or workspace page.</p>
           </Panel>
           <Panel className="span-4" title="/billing" subtitle="Subscription and invoice management">
-            <p>Checkout creation, subscription lifecycle, invoice list, cancel, and reactivate. This doubles as the management page behind the avatar menu.</p>
+            <p>Subscription lifecycle, lifetime buyout, fixed package checkout, custom amount recharge, invoice list, cancel, and reactivate. This doubles as the management page behind the avatar menu.</p>
           </Panel>
           <Panel className="span-4" title="/referrals" subtitle="Referral center">
             <p>Share link, stats, history, and the consumer-facing part of the referral system, suitable for a growth or rewards area.</p>
@@ -104,8 +104,8 @@ export default function HomePage() {
           />
           <MetricCard
             label="Billing"
-            value="Checkout + invoices"
-            detail="Creates Stripe sessions in the browser but keeps webhook truth and subscription state on the backend."
+            value="6 billing lanes"
+            detail="Starter, Pro, Premium, Lifetime, Package, and Custom Amount all enter from the frontend, while webhook truth and subscription state stay on the backend."
           />
           <MetricCard
             label="Referral"

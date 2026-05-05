@@ -149,7 +149,7 @@ func (s handlerTestCustomerStore) SaveCustomerID(ctx context.Context, userID, pr
 type handlerTestBus struct{}
 
 func (handlerTestBus) Subscribe(kind event.Kind, listener port.Listener) {}
-func (handlerTestBus) Publish(ctx context.Context, env event.Envelope)    {}
+func (handlerTestBus) Publish(ctx context.Context, env event.Envelope)   {}
 
 func TestChangeSubscriptionHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)

@@ -13,4 +13,3 @@
 // table. Those hosts can continue implementing auth/billing ports
 // directly against their own schema.
 package user
-

@@ -44,4 +44,3 @@ func isAdminEmail(email string) bool {
 }
 
 var _ authport.RoleResolver = (*ConfigRoleResolver)(nil)
-

@@ -6,10 +6,10 @@ const (
 	RoleUser  = "user"
 	RoleAdmin = "admin"
 
-	PlanFree    = "free"
-	PlanStarter = "starter"
-	PlanPro     = "pro"
-	PlanPremium = "premium"
+	PlanFree     = "free"
+	PlanStarter  = "starter"
+	PlanPro      = "pro"
+	PlanPremium  = "premium"
 	PlanLifetime = "lifetime"
 )
 

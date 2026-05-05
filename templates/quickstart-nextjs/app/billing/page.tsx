@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { StripeTopUpForm } from "@/components/stripe-topup-form";
 import { SiteShell } from "@/components/site-shell";
 import { EmptyState, Notice, Panel, DetailRows } from "@/components/ui";
 import {
@@ -9,6 +10,7 @@ import {
   changeSubscription,
   createBillingPortalSession,
   createCheckoutSession,
+  createTopUpPaymentIntent,
   getSubscription,
   listInvoices,
   previewSubscriptionChange,
@@ -16,7 +18,8 @@ import {
   type InvoiceItem,
   type SubscriptionChangeMode,
   type SubscriptionPreview,
-  type SubscriptionView
+  type SubscriptionView,
+  type TopUpPaymentIntentResult
 } from "@/lib/api";
 import {
   readReferralCode,
@@ -37,7 +40,7 @@ function messageFromError(error: unknown): string {
   return "unexpected error";
 }
 
-const defaultSubscriptionPlan = ["starter", "pro", "premium"].includes(appEnv.defaultPlan)
+const defaultPlan = ["starter", "pro", "premium", "lifetime"].includes(appEnv.defaultPlan)
   ? appEnv.defaultPlan
   : "pro";
 
@@ -45,19 +48,22 @@ const defaultInterval = appEnv.defaultInterval === "yearly" ? "yearly" : "monthl
 
 export default function BillingPage() {
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
-  const [busy, setBusy] = useState<"" | "load" | "subscription" | "change" | "portal" | "credits" | "cancel" | "reactivate">("");
+  const [busy, setBusy] = useState<"" | "load" | "subscription" | "change" | "portal" | "credits" | "topup" | "cancel" | "reactivate">("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [subscription, setSubscription] = useState<SubscriptionView | null>(null);
   const [preview, setPreview] = useState<SubscriptionPreview | null>(null);
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
-  const [plan, setPlan] = useState(defaultSubscriptionPlan);
+  const [plan, setPlan] = useState(defaultPlan);
   const [interval, setInterval] = useState(defaultInterval);
   const [creditsPriceID, setCreditsPriceID] = useState(appEnv.creditsPriceId);
   const [creditsQuantity, setCreditsQuantity] = useState(String(appEnv.defaultCreditsQuantity));
+  const [topUpAmount, setTopUpAmount] = useState(String(appEnv.defaultTopUpAmountUSD));
+  const [topUpIntent, setTopUpIntent] = useState<TopUpPaymentIntentResult | null>(null);
   const [referralCode, setReferralCode] = useState("");
   const currentPlan = subscription?.plan || "";
   const hasLifetime = currentPlan === "lifetime";
+  const selectedLifetime = plan === "lifetime";
 
   useEffect(() => {
     const syncSession = () => setSession(readSession());
@@ -82,7 +88,7 @@ export default function BillingPage() {
   }, [session]);
 
   useEffect(() => {
-    if (!session || !currentPlan || currentPlan === "free") {
+    if (!session || !currentPlan || currentPlan === "free" || selectedLifetime) {
       setPreview(null);
       return;
     }
@@ -103,7 +109,7 @@ export default function BillingPage() {
     return () => {
       cancelled = true;
     };
-  }, [session, currentPlan, plan, interval]);
+  }, [session, currentPlan, plan, interval, selectedLifetime]);
 
   async function loadBillingState(token: string) {
     setBusy("load");
@@ -231,6 +237,31 @@ export default function BillingPage() {
     }
   }
 
+  async function handleCreateTopUpIntent() {
+    if (!session) {
+      setError("sign in first");
+      return;
+    }
+    setBusy("topup");
+    setError("");
+    setStatus("");
+    setTopUpIntent(null);
+
+    try {
+      const amount = Number.parseFloat(topUpAmount);
+      const result = await createTopUpPaymentIntent(session.token, {
+        amount,
+        metadata: referralCode ? { referral_code: referralCode } : undefined
+      });
+      setTopUpIntent(result);
+      setStatus(`PaymentIntent ready: ${result.payment_intent_id}`);
+    } catch (err) {
+      setError(messageFromError(err));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function handleLifetimeCheckout() {
     if (!session) {
       setError("sign in first");
@@ -298,8 +329,8 @@ export default function BillingPage() {
   return (
     <SiteShell
       eyebrow="Subscription Console"
-      title="Use one page for upgrades, billing management, invoices, and usage top-ups."
-      description="This page is the operational billing console behind the pricing page and avatar menu. It creates Checkout sessions from the browser, then treats the backend and webhook flow as the only source of billing truth."
+      title="Operate six billing lanes from one console."
+      description="This page is the operational billing console behind the pricing page and avatar menu. It separates starter, pro, premium, lifetime, package credits, and custom amount top-up while still treating the backend and webhooks as the only billing truth."
       accountMenuData={{ subscription }}
       sideTitle="Stripe callback split"
       sideBody={
@@ -325,14 +356,15 @@ export default function BillingPage() {
         />
       }
       toc={[
-        { id: "subscription-checkout", label: "Subscription management" },
-        { id: "credits-checkout", label: "Credits checkout" },
+        { id: "subscription-checkout", label: "Subscriptions" },
+        { id: "credits-topup", label: "Custom amount" },
+        { id: "credits-checkout", label: "Package" },
         { id: "subscription-state", label: "Subscription state" },
         { id: "invoices", label: "Invoices" }
       ]}
     >
       <div className="page-grid">
-        <Panel className="span-7" title="Subscription management" subtitle="First purchase uses Checkout. Existing subscriptions should change plan in-place.">
+        <Panel className="span-7" title="Subscription tiers" subtitle="Starter, Pro, Premium, and Lifetime. First purchase uses Checkout; existing recurring subscriptions change in-place.">
           <div id="subscription-checkout" />
           <div className="field-grid">
             <div className="field">
@@ -341,25 +373,41 @@ export default function BillingPage() {
                 <option value="starter">starter</option>
                 <option value="pro">pro</option>
                 <option value="premium">premium</option>
+                <option value="lifetime">lifetime</option>
               </select>
             </div>
-            <div className="field">
-              <label htmlFor="interval">Interval</label>
-              <select id="interval" value={interval} onChange={(event) => setInterval(event.target.value)}>
-                <option value="monthly">monthly</option>
-                <option value="yearly">yearly</option>
-              </select>
-            </div>
+            {!selectedLifetime ? (
+              <div className="field">
+                <label htmlFor="interval">Interval</label>
+                <select id="interval" value={interval} onChange={(event) => setInterval(event.target.value)}>
+                  <option value="monthly">monthly</option>
+                  <option value="yearly">yearly</option>
+                </select>
+              </div>
+            ) : null}
           </div>
           <Notice>
             Success URL: <span className="inline-code">{appUrl(appEnv.stripeSuccessPath)}</span>
             <br />
             Cancel URL: <span className="inline-code">{appUrl(appEnv.stripeCancelPath)}</span>
             <br />
+            Supported here: <span className="inline-code">starter / pro / premium / lifetime</span>
+            <br />
             Optional referral metadata carried from browser: <span className="inline-code">{referralCode || "-"}</span>
           </Notice>
           <div className="button-row">
-            {subscription && subscription.plan !== "free" && !hasLifetime ? (
+            {selectedLifetime && !hasLifetime ? (
+              <div className="button-row">
+                <button className="button primary" disabled={busy !== ""} onClick={handleLifetimeCheckout}>
+                  {busy === "subscription" ? "Creating..." : "Buy Lifetime"}
+                </button>
+                {subscription && subscription.plan !== "free" ? (
+                  <button className="button" disabled={busy !== ""} onClick={handleOpenPortal}>
+                    {busy === "portal" ? "Opening..." : "Open Billing Portal"}
+                  </button>
+                ) : null}
+              </div>
+            ) : subscription && subscription.plan !== "free" && !hasLifetime ? (
               <>
                 <button className="button primary" disabled={busy !== ""} onClick={handleChangeSubscription}>
                   {busy === "change" ? "Updating..." : "Change Plan"}
@@ -385,7 +433,11 @@ export default function BillingPage() {
               </div>
             )}
           </div>
-          {preview ? (
+          {selectedLifetime ? (
+            <Notice>
+              Lifetime is a one-time buyout flow. Interval and subscription proration preview do not apply.
+            </Notice>
+          ) : preview ? (
             <Notice>
               Mode: <span className="inline-code">{changeModeLabel(preview.change_mode)}</span>
               <br />
@@ -403,11 +455,57 @@ export default function BillingPage() {
           </p>
         </Panel>
 
-        <Panel className="span-5" title="Create credits checkout" subtitle="Matches POST /stripe/checkout/session for product_type=credits.">
+        <Panel
+          className="span-7"
+          title="Custom amount top-up"
+          subtitle="自由充值数额: dynamic USD amount -> backend PaymentIntent -> Stripe Payment Element -> webhook grants credits."
+        >
+          <div id="credits-topup" />
+          <div className="input-row">
+            <div className="field">
+              <label htmlFor="topup-amount">Amount (USD)</label>
+              <input
+                id="topup-amount"
+                inputMode="decimal"
+                value={topUpAmount}
+                placeholder="25"
+                onChange={(event) => setTopUpAmount(event.target.value)}
+              />
+            </div>
+          </div>
+          <Notice>
+            This flow does not use a Stripe Price ID. The backend creates a one-off PaymentIntent and returns a
+            client secret for the browser.
+            <br />
+            Publishable key in frontend env:{" "}
+            <span className="inline-code">{appEnv.stripePublishableKey || "(missing)"}</span>
+          </Notice>
+          <div className="button-row">
+            <button className="button primary" disabled={busy !== ""} onClick={handleCreateTopUpIntent}>
+              {busy === "topup" ? "Preparing..." : "Create Top-Up Payment"}
+            </button>
+          </div>
+          {topUpIntent ? (
+            <StripeTopUpForm
+              clientSecret={topUpIntent.client_secret}
+              amountUSD={topUpIntent.amount_usd}
+              credits={topUpIntent.credits}
+              onBusyChange={(isBusy) => {
+                setBusy(isBusy ? "topup" : "");
+              }}
+              onError={setError}
+            />
+          ) : null}
+          <p className="footer-note">
+            This is the flexible recharge path. Credits are added only after the backend webhook confirms <span className="inline-code">payment_intent.succeeded</span>.
+          </p>
+        </Panel>
+
+        <Panel className="span-5" title="Package credits checkout" subtitle="Fixed package: hosted Checkout with product_type=credits, price_id, and optional quantity.">
           <div id="credits-checkout" />
           <div className="input-row">
             <div className="field">
-              <label htmlFor="credits-price">Credits price ID</label>
+              <label htmlFor="credits-price">Package price ID</label>
               <input
                 id="credits-price"
                 value={creditsPriceID}
@@ -416,7 +514,7 @@ export default function BillingPage() {
               />
             </div>
             <div className="field">
-              <label htmlFor="credits-qty">Quantity</label>
+              <label htmlFor="credits-qty">Package quantity</label>
               <input
                 id="credits-qty"
                 value={creditsQuantity}
@@ -426,11 +524,11 @@ export default function BillingPage() {
           </div>
           <div className="button-row">
             <button className="button" disabled={busy !== ""} onClick={handleCreditsCheckout}>
-              {busy === "credits" ? "Creating..." : "Buy Credits"}
+              {busy === "credits" ? "Creating..." : "Buy Package Credits"}
             </button>
           </div>
           <p className="footer-note">
-            Leave the price ID blank only if the backend Stripe config already has exactly one default credits price configured.
+            Use this when the package amount is fixed in Stripe ahead of time. For arbitrary recharge amounts, use the custom amount panel above. Leave the price ID blank only if the backend Stripe config already has exactly one default credits price configured.
           </p>
         </Panel>
 

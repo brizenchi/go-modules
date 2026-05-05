@@ -141,6 +141,9 @@ Stripe quickstart price slots:
 - `billing.stripe.prices.premium_yearly`
 - `billing.stripe.prices.lifetime`
 - `billing.stripe.prices.credits[]`
+- `billing.stripe.topup.min_amount_usd`
+- `billing.stripe.topup.max_amount_usd`
+- `billing.stripe.topup.credits_per_usd`
 
 Observability-focused env keys:
 
@@ -184,7 +187,8 @@ Before calling this template production-ready, confirm:
 2. Google OAuth works when configured
 3. protected routes reject missing bearer tokens
 4. Stripe checkout and webhook flow work against a public backend URL
-5. referral signup with `?ref=` activates after paid subscription
+5. custom-amount top-up can create a PaymentIntent and add credits after webhook confirmation
+6. referral signup with `?ref=` activates after paid subscription
 
 ## When not to use this template
 

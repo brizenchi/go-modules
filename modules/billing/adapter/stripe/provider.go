@@ -52,8 +52,8 @@ func NewProvider(cfg Config) *Provider {
 	return &Provider{cfg: cfg}
 }
 
-func (p *Provider) Name() string  { return "stripe" }
-func (p *Provider) Enabled() bool { return p.cfg.Enabled }
+func (p *Provider) Name() string            { return "stripe" }
+func (p *Provider) Enabled() bool           { return p.cfg.Enabled }
 func (p *Provider) LifetimePriceID() string { return p.cfg.LifetimePriceID }
 
 func (p *Provider) MapPriceToPlan(priceID string) (domain.PlanType, domain.BillingInterval) {
