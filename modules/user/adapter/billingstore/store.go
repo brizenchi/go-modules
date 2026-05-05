@@ -28,6 +28,7 @@ func (s *CustomerStore) LoadCustomer(ctx context.Context, userID string) (billin
 	return billingport.Customer{
 		UserID:                 user.ID,
 		Email:                  user.Email,
+		Plan:                   user.Plan,
 		ProviderCustomerID:     user.StripeCustomerID,
 		ProviderSubscriptionID: user.StripeSubscriptionID,
 	}, nil
@@ -91,16 +92,27 @@ func ApplyFreePlan(ctx context.Context, users *gormrepo.Repo, userID string) err
 }
 
 func ApplySubscriptionSnapshot(ctx context.Context, users *gormrepo.Repo, userID string, snapshot domain.SubscriptionSnapshot) error {
+	providerSubscriptionID := snapshot.ProviderSubscriptionID
+	billingPeriodStart := snapshot.PeriodStart
+	billingPeriodEnd := snapshot.PeriodEnd
+	cancelEffectiveAt := snapshot.CancelEffectiveAt
+	if snapshot.Plan == domain.PlanLifetime || snapshot.ProductType == domain.ProductLifetime {
+		providerSubscriptionID = ""
+		billingPeriodStart = nil
+		billingPeriodEnd = nil
+		cancelEffectiveAt = nil
+	}
+
 	return users.UpdateFields(ctx, userID, map[string]any{
 		"plan":                   string(snapshot.Plan),
 		"billing_status":         string(snapshot.Status),
-		"stripe_subscription_id": snapshot.ProviderSubscriptionID,
+		"stripe_subscription_id": providerSubscriptionID,
 		"stripe_customer_id":     snapshot.ProviderCustomerID,
 		"stripe_price_id":        snapshot.ProviderPriceID,
 		"stripe_product_id":      snapshot.ProviderProductID,
-		"billing_period_start":   snapshot.PeriodStart,
-		"billing_period_end":     snapshot.PeriodEnd,
-		"cancel_effective_at":    snapshot.CancelEffectiveAt,
+		"billing_period_start":   billingPeriodStart,
+		"billing_period_end":     billingPeriodEnd,
+		"cancel_effective_at":    cancelEffectiveAt,
 	})
 }
 
@@ -134,4 +146,3 @@ var (
 	_ billingport.CustomerStore = (*CustomerStore)(nil)
 	_ billingport.UserResolver  = (*UserResolver)(nil)
 )
-

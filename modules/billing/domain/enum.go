@@ -8,11 +8,12 @@ const (
 	PlanStarter PlanType = "starter"
 	PlanPro     PlanType = "pro"
 	PlanPremium PlanType = "premium"
+	PlanLifetime PlanType = "lifetime"
 )
 
 func (p PlanType) Valid() bool {
 	switch p {
-	case PlanFree, PlanStarter, PlanPro, PlanPremium:
+	case PlanFree, PlanStarter, PlanPro, PlanPremium, PlanLifetime:
 		return true
 	}
 	return false
@@ -40,6 +41,7 @@ type ProductType string
 const (
 	ProductSubscription ProductType = "subscription"
 	ProductCredits      ProductType = "credits"
+	ProductLifetime     ProductType = "lifetime"
 )
 
 // SubscriptionStatus is the lifecycle state of a subscription.

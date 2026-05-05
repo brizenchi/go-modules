@@ -139,6 +139,7 @@ Stripe quickstart price slots:
 - `billing.stripe.prices.pro_yearly`
 - `billing.stripe.prices.premium_monthly`
 - `billing.stripe.prices.premium_yearly`
+- `billing.stripe.prices.lifetime`
 - `billing.stripe.prices.credits[]`
 
 Observability-focused env keys:

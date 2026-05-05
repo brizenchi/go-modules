@@ -78,3 +78,10 @@ type CreditsPurchased struct {
 	TotalCredits   int64
 	PriceID        string
 }
+
+// LifetimePurchased is emitted on a successful one-time lifetime buyout.
+type LifetimePurchased struct {
+	PriceID            string
+	ProviderCustomerID string
+	ProviderProductID  string
+}

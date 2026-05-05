@@ -223,6 +223,51 @@ func TestVerifyAndParseWebhook_CheckoutCompleted_Subscription(t *testing.T) {
 	}
 }
 
+func TestVerifyAndParseWebhook_CheckoutCompleted_Lifetime(t *testing.T) {
+	p := newWebhookTestProvider()
+	payload := []byte(`{
+		"id": "evt_checkout_lifetime",
+		"type": "checkout.session.completed",
+		"created": 1700000000,
+		"data": {
+			"object": {
+				"id": "cs_lifetime",
+				"mode": "payment",
+				"customer": "cus_life",
+				"client_reference_id": "user_life",
+				"metadata": {
+					"user_id": "user_life",
+					"email": "life@example.com",
+					"product_type": "lifetime",
+					"plan": "lifetime",
+					"price_id": "price_lifetime"
+				}
+			}
+		}
+	}`)
+	sig := signTestPayload(t, payload, testWebhookSecret)
+	res, err := p.VerifyAndParseWebhook(payload, sig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res.Envelopes) != 1 {
+		t.Fatalf("expected 1 envelope, got %d", len(res.Envelopes))
+	}
+	if res.Envelopes[0].Kind != event.KindSubscriptionActivated {
+		t.Fatalf("kind = %s", res.Envelopes[0].Kind)
+	}
+	activated := res.Envelopes[0].Payload.(event.SubscriptionActivated)
+	if activated.Snapshot.Plan != domain.PlanLifetime {
+		t.Fatalf("plan = %s", activated.Snapshot.Plan)
+	}
+	if activated.Snapshot.ProductType != domain.ProductLifetime {
+		t.Fatalf("product_type = %s", activated.Snapshot.ProductType)
+	}
+	if activated.Snapshot.ProviderPriceID != "price_lifetime" {
+		t.Fatalf("price_id = %s", activated.Snapshot.ProviderPriceID)
+	}
+}
+
 func TestVerifyAndParseWebhook_PaymentFailed(t *testing.T) {
 	p := newWebhookTestProvider()
 	payload := []byte(`{

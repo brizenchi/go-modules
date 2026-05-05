@@ -73,7 +73,7 @@ NEXT_PUBLIC_STRIPE_SUCCESS_PATH=/billing?checkout=success
 NEXT_PUBLIC_STRIPE_CANCEL_PATH=/billing?checkout=cancelled
 ```
 
-`NEXT_PUBLIC_DEFAULT_PLAN` should be one of `starter`, `pro`, or `premium`.
+`NEXT_PUBLIC_DEFAULT_PLAN` should be one of `starter`, `pro`, `premium`, or `lifetime`.
 
 ## Required backend mapping
 
@@ -117,7 +117,8 @@ Before treating the frontend template as ready, confirm:
 3. Google OAuth round-trip works when configured
 4. `/pricing` routes users into `/billing`
 5. `/billing` can start first subscription checkout when user has no paid plan
-6. `/billing` can change active subscription plan in place
-7. `/billing` can open Stripe Billing Portal
-8. `/referrals` loads live referral code, stats, and history
-9. signed-in avatar menu shows settings, subscription, referral, and logout entry points
+6. `/billing` can start lifetime buyout checkout when configured
+7. `/billing` can change active subscription plan in place
+8. `/billing` can open Stripe Billing Portal
+9. `/referrals` loads live referral code, stats, and history
+10. signed-in avatar menu shows settings, subscription, referral, and logout entry points

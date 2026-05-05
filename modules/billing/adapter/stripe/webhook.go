@@ -94,6 +94,17 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, mk func(event.Kind, 
 	productType := getString(metadata, "product_type")
 
 	if mode == "payment" || productType == string(domain.ProductCredits) {
+		if productType == string(domain.ProductLifetime) || getString(metadata, "plan") == string(domain.PlanLifetime) {
+			return []event.Envelope{mk(event.KindSubscriptionActivated, event.SubscriptionActivated{
+				Snapshot: domain.SubscriptionSnapshot{
+					ProviderCustomerID: getString(data, "customer"),
+					ProviderPriceID:    getString(metadata, "price_id"),
+					ProductType:        domain.ProductLifetime,
+					Plan:               domain.PlanLifetime,
+					Status:             domain.StatusActive,
+				},
+			})}
+		}
 		quantity := p.extractCheckoutQuantity(data)
 		creditsPerUnit := p.cfg.CreditsPerUnit
 		return []event.Envelope{mk(event.KindCreditsPurchased, event.CreditsPurchased{
@@ -110,6 +121,7 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, mk func(event.Kind, 
 	snap := domain.SubscriptionSnapshot{
 		ProviderSubscriptionID: getString(data, "subscription"),
 		ProviderCustomerID:     getString(data, "customer"),
+		ProductType:            domain.ProductSubscription,
 	}
 	if priceID := getString(metadata, "price_id"); priceID != "" {
 		snap.ProviderPriceID = priceID

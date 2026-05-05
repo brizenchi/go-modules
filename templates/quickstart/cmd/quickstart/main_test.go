@@ -96,11 +96,9 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	cfg := AppConfig{}
 	cfg.Server.Name = "quickstart"
 	cfg.Auth.UserJWTSecret = "jwt-secret"
-	cfg.Auth.Email.VerificationTemplateRef = "tpl-1"
 	cfg.Email.Provider = "resend"
 	cfg.Email.Resend.APIKey = "api-key"
 	cfg.Email.Resend.SenderEmail = "noreply@example.com"
-	cfg.Billing.Stripe.Enabled = true
 	cfg.Billing.Stripe.SecretKey = "sk_test_123"
 	cfg.Billing.Stripe.WebhookSecret = "whsec_123"
 	cfg.Billing.Stripe.Prices.ProMonthly = "price_pro_month"

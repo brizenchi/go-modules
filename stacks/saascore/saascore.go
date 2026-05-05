@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -39,8 +40,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
-
-const defaultEmailCodeTemplateName = "auth_email_code"
 
 type Stack struct {
 	Config   Config
@@ -236,9 +235,9 @@ func (s *Stack) initAuth() (*auth.Module, error) {
 		MinResendGap: s.Config.Auth.EmailCode.MinResendGap,
 		DailyCap:     s.Config.Auth.EmailCode.DailyCap,
 		MaxAttempts:  s.Config.Auth.EmailCode.MaxAttempts,
-		TemplateRef:  resolveEmailCodeTemplateRef(s.Config.Email.Provider, s.Config.Auth.EmailCode.VerificationTemplate),
+		TemplateRef:  defaultEmailCodeTemplateRef(s.Config.Auth.EmailCode.VerificationTemplate),
 		Debug:        s.Config.Auth.EmailCode.Debug,
-	}, store, mailerWrapper{mod: s.Email, serviceName: s.Config.ServiceName})
+	}, store, mailerWrapper{mod: s.Email, serviceName: s.Config.ServiceName, emailCfg: s.Config.Email})
 	verifier := emailcode.NewVerifier(emailcode.Config{
 		MaxAttempts: s.Config.Auth.EmailCode.MaxAttempts,
 	}, store)
@@ -302,6 +301,7 @@ func (s *Stack) initBilling() *billing.Module {
 					billingdomain.IntervalYearly:  s.Config.Billing.Stripe.PremiumYearlyPriceID,
 				},
 			},
+			LifetimePriceID: s.Config.Billing.Stripe.LifetimePriceID,
 			CreditsPriceIDs: s.Config.Billing.Stripe.CreditsPriceIDs,
 			CreditsPerUnit:  s.Config.Billing.Stripe.CreditsPerPackage,
 			TrialDays:       s.Config.Billing.Stripe.TrialDays,
@@ -582,6 +582,7 @@ func (s *Stack) userIDFromGin(c *gin.Context) (string, bool) {
 type mailerWrapper struct {
 	mod         *email.Module
 	serviceName string
+	emailCfg    EmailConfig
 }
 
 func (w mailerWrapper) SendProviderTemplate(ctx context.Context, ref string, to []emailcode.EmailAddress, vars map[string]any) error {
@@ -592,11 +593,7 @@ func (w mailerWrapper) SendProviderTemplate(ctx context.Context, ref string, to 
 	if w.mod == nil || w.mod.Sender == nil {
 		return fmt.Errorf("saascore: email module not configured")
 	}
-	if strings.EqualFold(w.mod.Sender.Name(), "brevo") {
-		_, err := w.mod.SendProviderTemplate(ctx, ref, addrs, vars)
-		return err
-	}
-	subject, htmlBody, textBody := buildEmailCodeMessage(w.serviceName, vars)
+	subject, htmlBody, textBody := buildEmailCodeMessage(w.serviceName, w.senderIdentity(), vars)
 	_, err := w.mod.Send(ctx, &emaildomain.Message{
 		To:       addrs,
 		Subject:  subject,
@@ -606,25 +603,155 @@ func (w mailerWrapper) SendProviderTemplate(ctx context.Context, ref string, to 
 	return err
 }
 
-func resolveEmailCodeTemplateRef(provider, configured string) string {
+func (w mailerWrapper) senderIdentity() emailSenderIdentity {
+	from := emaildomain.Address{}
+	switch strings.ToLower(strings.TrimSpace(w.emailCfg.Provider)) {
+	case "brevo":
+		from = emaildomain.Address{
+			Name:  strings.TrimSpace(w.emailCfg.Brevo.SenderName),
+			Email: strings.TrimSpace(w.emailCfg.Brevo.SenderEmail),
+		}
+	case "resend":
+		from = emaildomain.Address{
+			Name:  strings.TrimSpace(w.emailCfg.Resend.SenderName),
+			Email: strings.TrimSpace(w.emailCfg.Resend.SenderEmail),
+		}
+	}
+	return newEmailSenderIdentity(w.serviceName, from)
+}
+
+func defaultEmailCodeTemplateRef(configured string) string {
 	if strings.TrimSpace(configured) != "" {
 		return configured
 	}
-	if strings.EqualFold(strings.TrimSpace(provider), "brevo") {
-		return "3"
-	}
-	return defaultEmailCodeTemplateName
+	return "auth_email_code"
 }
 
-func buildEmailCodeMessage(serviceName string, vars map[string]any) (subject, htmlBody, textBody string) {
-	code, _ := vars["code"].(string)
-	year, _ := vars["year"].(string)
-	product := strings.TrimSpace(serviceName)
-	if product == "" {
-		product = "your account"
+type emailSenderIdentity struct {
+	BrandName    string
+	SupportEmail string
+	WebsiteURL   string
+	WebsiteHost  string
+}
+
+func newEmailSenderIdentity(serviceName string, from emaildomain.Address) emailSenderIdentity {
+	brandName := strings.TrimSpace(from.Name)
+	if brandName == "" {
+		brandName = strings.TrimSpace(serviceName)
 	}
-	subject = fmt.Sprintf("%s verification code", product)
-	textBody = fmt.Sprintf("Your verification code is %s. It expires soon. If you did not request this code, you can ignore this email.", code)
-	htmlBody = fmt.Sprintf("<p>Your verification code is <strong>%s</strong>.</p><p>It expires soon. If you did not request this code, you can ignore this email.</p><p>%s</p>", code, year)
+	if brandName == "" {
+		brandName = "Your Account"
+	}
+
+	supportEmail := strings.TrimSpace(from.Email)
+	websiteURL := ""
+	websiteHost := ""
+	if i := strings.Index(supportEmail, "@"); i >= 0 && i+1 < len(supportEmail) {
+		domain := strings.TrimSpace(supportEmail[i+1:])
+		if domain != "" {
+			websiteURL = "https://" + domain
+			websiteHost = domain
+		}
+	}
+	if websiteURL != "" {
+		if parsed, err := url.Parse(websiteURL); err == nil {
+			websiteHost = parsed.Host
+		}
+	}
+
+	return emailSenderIdentity{
+		BrandName:    brandName,
+		SupportEmail: supportEmail,
+		WebsiteURL:   websiteURL,
+		WebsiteHost:  websiteHost,
+	}
+}
+
+func buildEmailCodeMessage(serviceName string, sender emailSenderIdentity, vars map[string]any) (subject, htmlBody, textBody string) {
+	code, _ := vars["code"].(string)
+	brand := strings.TrimSpace(sender.BrandName)
+	if brand == "" {
+		brand = strings.TrimSpace(serviceName)
+	}
+	if brand == "" {
+		brand = "Your Account"
+	}
+	supportEmail := strings.TrimSpace(sender.SupportEmail)
+	if supportEmail == "" {
+		supportEmail = "support@example.com"
+	}
+	websiteURL := strings.TrimSpace(sender.WebsiteURL)
+	websiteHost := strings.TrimSpace(sender.WebsiteHost)
+	if websiteURL == "" {
+		websiteURL = "https://example.com"
+	}
+	if websiteHost == "" {
+		websiteHost = "example.com"
+	}
+
+	subject = fmt.Sprintf("%s verification code", brand)
+	textBody = fmt.Sprintf(
+		"%s verification code: %s\n\nYour verification code is valid for 10 minutes. Do not share this code with anyone.\n\nIf you didn't request this code, you can ignore this email.\nNeed help? Contact %s\n%s",
+		brand,
+		code,
+		supportEmail,
+		websiteURL,
+	)
+	htmlBody = fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Email Verification Code</title>
+</head>
+<body style="margin:0; padding:0; background:#f3f4f7; font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:600px; margin:24px auto; background:#ffffff; border-radius:24px; overflow:hidden; box-shadow:0 18px 45px rgba(99,102,241,0.12);">
+    <div style="background:linear-gradient(90deg,#6366f1,#8b5cf6); padding:28px 32px;">
+      <span style="font-size:22px; font-weight:600; letter-spacing:0.08em; color:#fff; text-transform:uppercase;">%s</span>
+    </div>
+    <div style="padding:42px 36px; text-align:center; color:#0b2545;">
+      <p style="margin:0 0 12px; font-size:14px; letter-spacing:0.35em; text-transform:uppercase; color:#94a3b8;">Verification Code</p>
+      <h2 style="margin:0 0 18px; font-size:28px; font-weight:700;">Email Verification</h2>
+      <div style="margin:28px auto; max-width:320px; padding:18px; border-radius:18px; background:#e0e7ff; color:#4338ca; font-size:34px; font-weight:700; letter-spacing:6px; font-family:'Courier New',monospace;">%s</div>
+      <p style="margin:18px 0; font-size:16px; line-height:1.7; color:#536079;">
+        Your verification code is valid for <strong>10 minutes</strong>. Please use it promptly. For your account security, do not share this code with anyone.
+      </p>
+      <p style="margin:30px 0 0; font-size:14px; color:#94a3b8; line-height:1.6;">
+        If you didn't request this code, please ignore this email.<br/>
+        Need help? Contact <a href="mailto:%s" style="color:#6366f1; text-decoration:none;">%s</a>
+      </p>
+    </div>
+    <div style="background:#f7f9fa; border-top:2px solid #e9eff4; border-bottom:2px solid #e9eff4; padding:18px 24px; text-align:center; font-size:12px; color:#94a3b8;">
+      &copy; %s. All rights reserved.<br />
+      <a href="%s" style="color:#6366f1; text-decoration:none;">%s</a>
+    </div>
+  </div>
+  <style>
+    @media (max-width:600px) {
+      div[style*="padding:28px 32px"] {
+        padding:22px !important;
+      }
+      span[style*="letter-spacing:0.08em"] {
+        font-size:18px !important;
+        letter-spacing:0.06em !important;
+      }
+      div[style*="padding:42px 36px"] {
+        padding:32px 20px !important;
+      }
+      div[style*="letter-spacing:6px"] {
+        font-size:26px !important;
+      }
+    }
+  </style>
+</body>
+</html>`,
+		brand,
+		code,
+		supportEmail,
+		supportEmail,
+		brand,
+		websiteURL,
+		websiteHost,
+	)
 	return subject, htmlBody, textBody
 }

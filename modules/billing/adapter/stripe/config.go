@@ -23,6 +23,9 @@ type Config struct {
 	// Missing entries are treated as "not offered".
 	SubscriptionPrices map[domain.PlanType]map[domain.BillingInterval]string
 
+	// LifetimePriceID is the one-time Stripe price ID for the lifetime buyout plan.
+	LifetimePriceID string
+
 	// CreditsPriceIDs lists Stripe price IDs that represent credits SKUs.
 	CreditsPriceIDs []string
 
@@ -50,6 +53,9 @@ func (c Config) PriceFor(plan domain.PlanType, interval domain.BillingInterval) 
 func (c Config) PlanForPrice(priceID string) (domain.PlanType, domain.BillingInterval) {
 	if priceID == "" {
 		return domain.PlanFree, ""
+	}
+	if c.LifetimePriceID != "" && priceID == c.LifetimePriceID {
+		return domain.PlanLifetime, ""
 	}
 	for plan, intervals := range c.SubscriptionPrices {
 		for interval, id := range intervals {

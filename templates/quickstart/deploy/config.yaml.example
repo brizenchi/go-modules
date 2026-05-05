@@ -41,7 +41,6 @@ auth:
 
   email:
     debug: false                   # if true, send-code response leaks the code (dev only)
-    verification_template_ref: "" # Brevo template id; leave empty for Resend/log fallback template
     code:
       ttl_minutes: 10
       min_resend_gap_seconds: 60
@@ -69,7 +68,6 @@ email:
 # ---------- billing ----------
 billing:
   stripe:
-    enabled: false                 # set true after providing creds
     secret_key: ""
     publishable_key: ""
     webhook_secret: ""
@@ -81,6 +79,7 @@ billing:
       pro_yearly: ""
       premium_monthly: ""
       premium_yearly: ""
+      lifetime: ""
       credits: []                  # list of one-time credit price IDs
     credits:
       per_package: 100             # credits granted per credits-package unit

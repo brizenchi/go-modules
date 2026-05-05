@@ -133,6 +133,7 @@ func (handlerTestProvider) CreditsPerUnit() int64 { return 40 }
 func (handlerTestProvider) IsCreditsPriceID(priceID string) bool {
 	return false
 }
+func (handlerTestProvider) LifetimePriceID() string { return "price_lifetime" }
 
 type handlerTestCustomerStore struct {
 	customer port.Customer

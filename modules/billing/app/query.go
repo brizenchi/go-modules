@@ -47,6 +47,9 @@ func (s *QueryService) GetSubscription(ctx context.Context, userID string) (*Sub
 				view.CurrentPeriodEnd = snap.PeriodEnd.UTC().Format("2006-01-02T15:04:05Z07:00")
 			}
 		}
+	} else if customerLifetimePlan(cust) {
+		view.Plan = domain.PlanLifetime
+		view.Status = domain.StatusActive
 	}
 	if cust.ProviderCustomerID != "" {
 		if card, err := s.provider.GetDefaultPaymentMethod(ctx, cust.ProviderCustomerID); err == nil {
@@ -57,6 +60,10 @@ func (s *QueryService) GetSubscription(ctx context.Context, userID string) (*Sub
 		view.Plan = domain.PlanFree
 	}
 	return view, nil
+}
+
+func customerLifetimePlan(cust port.Customer) bool {
+	return strings.EqualFold(strings.TrimSpace(cust.Plan), string(domain.PlanLifetime))
 }
 
 // ListInvoices returns paginated invoices.

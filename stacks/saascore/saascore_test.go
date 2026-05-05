@@ -10,6 +10,7 @@ import (
 	authevent "github.com/brizenchi/go-modules/modules/auth/event"
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/event"
+	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 	referraldomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	referralevent "github.com/brizenchi/go-modules/modules/referral/event"
 	userdomain "github.com/brizenchi/go-modules/modules/user/domain"
@@ -135,6 +136,46 @@ func TestNewStackRejectsResendWithoutSender(t *testing.T) {
 	}, HostHooks{}, PolicyHooks{})
 	if err == nil || !strings.Contains(err.Error(), "email resend api key and sender email required") {
 		t.Fatalf("expected resend validation error, got %v", err)
+	}
+}
+
+func TestBuildEmailCodeMessageUsesEmbeddedTemplate(t *testing.T) {
+	subject, htmlBody, textBody := buildEmailCodeMessage("quickstart", emailSenderIdentity{
+		BrandName:    "ClawMesh",
+		SupportEmail: "support@clawmesh.app",
+		WebsiteURL:   "https://clawmesh.app",
+		WebsiteHost:  "clawmesh.app",
+	}, map[string]any{
+		"code": "123456",
+	})
+
+	if !strings.Contains(subject, "ClawMesh verification code") {
+		t.Fatalf("unexpected subject: %q", subject)
+	}
+	if !strings.Contains(htmlBody, "<!DOCTYPE html>") {
+		t.Fatalf("expected embedded html template, got %q", htmlBody)
+	}
+	if !strings.Contains(htmlBody, ">123456<") {
+		t.Fatalf("expected code in html body, got %q", htmlBody)
+	}
+	if !strings.Contains(htmlBody, "support@clawmesh.app") {
+		t.Fatalf("expected support email in html body, got %q", htmlBody)
+	}
+	if !strings.Contains(textBody, "123456") {
+		t.Fatalf("expected code in text body, got %q", textBody)
+	}
+	if !strings.Contains(textBody, "https://clawmesh.app") {
+		t.Fatalf("expected site url in text body, got %q", textBody)
+	}
+}
+
+func TestNewEmailSenderIdentityFallsBackToServiceName(t *testing.T) {
+	identity := newEmailSenderIdentity("quickstart", emaildomain.Address{})
+	if identity.BrandName != "quickstart" {
+		t.Fatalf("brand name = %q, want quickstart", identity.BrandName)
+	}
+	if identity.SupportEmail != "" {
+		t.Fatalf("support email = %q, want empty", identity.SupportEmail)
 	}
 }
 

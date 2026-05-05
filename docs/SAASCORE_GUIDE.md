@@ -95,7 +95,6 @@ Optional integrations:
   - `auth.google.redirect_url`
   - `auth.google.state_secret`
 - Stripe
-  - `billing.stripe.enabled=true`
   - `billing.stripe.secret_key`
   - `billing.stripe.webhook_secret`
 

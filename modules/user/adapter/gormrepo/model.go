@@ -126,6 +126,8 @@ func NormalizePlan(plan string) string {
 		return domain.PlanPro
 	case domain.PlanPremium:
 		return domain.PlanPremium
+	case domain.PlanLifetime:
+		return domain.PlanLifetime
 	default:
 		return domain.PlanFree
 	}
@@ -144,4 +146,3 @@ func normalizeRow(user *UserRow) {
 		user.ProviderSubject = user.Email
 	}
 }
-

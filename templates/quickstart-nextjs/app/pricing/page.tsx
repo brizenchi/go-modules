@@ -71,6 +71,19 @@ export default function PricingPage() {
             href="/billing"
             cta="Buy Credits"
           />
+          <PricingCard
+            tier="Lifetime"
+            price="$499"
+            subtitle="For demo buyout flows where one payment unlocks the top plan permanently."
+            features={[
+              "One-time Stripe checkout",
+              "No recurring billing cycle",
+              "Useful for founder deals or launch promos",
+              "Maps to lifetime entitlement in the backend"
+            ]}
+            href="/billing"
+            cta="Buy Lifetime"
+          />
         </div>
       </PageSection>
 
@@ -88,7 +101,7 @@ export default function PricingPage() {
           <article className="feature-card">
             <span className="panel-kicker">Plan copy</span>
             <h3>Replace names, not route structure</h3>
-            <p>You should absolutely replace Starter / Pro / Credits copy, but it is useful to keep `/pricing` and `/billing` as stable product routes.</p>
+            <p>You should absolutely replace Starter / Pro / Credits / Lifetime copy, but it is useful to keep `/pricing` and `/billing` as stable product routes.</p>
           </article>
           <article className="feature-card">
             <span className="panel-kicker">Referral-aware checkout</span>

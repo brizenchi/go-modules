@@ -175,9 +175,8 @@ type AuthConfig struct {
 }
 
 type AuthEmailConfig struct {
-	Debug                   bool                `mapstructure:"debug"`
-	VerificationTemplateRef string              `mapstructure:"verification_template_ref"`
-	Code                    AuthEmailCodeConfig `mapstructure:"code"`
+	Debug bool                `mapstructure:"debug"`
+	Code  AuthEmailCodeConfig `mapstructure:"code"`
 }
 
 type AuthEmailCodeConfig struct {
@@ -218,7 +217,6 @@ type BillingPlatformConfig struct {
 }
 
 type StripeConfig struct {
-	Enabled        bool                `mapstructure:"enabled"`
 	SecretKey      string              `mapstructure:"secret_key"`
 	PublishableKey string              `mapstructure:"publishable_key"`
 	WebhookSecret  string              `mapstructure:"webhook_secret"`
@@ -234,6 +232,7 @@ type StripePricesConfig struct {
 	ProYearly      string   `mapstructure:"pro_yearly"`
 	PremiumMonthly string   `mapstructure:"premium_monthly"`
 	PremiumYearly  string   `mapstructure:"premium_yearly"`
+	Lifetime       string   `mapstructure:"lifetime"`
 	Credits        []string `mapstructure:"credits"`
 }
 
@@ -427,6 +426,9 @@ func parseSampleRate(raw string, fallback float64) float64 {
 }
 
 func (c AppConfig) SaaSCoreConfig() saascore.Config {
+	stripeEnabled := strings.TrimSpace(c.Billing.Stripe.SecretKey) != "" &&
+		strings.TrimSpace(c.Billing.Stripe.WebhookSecret) != ""
+
 	return saascore.Config{
 		ServiceName: c.Server.Name,
 		Auth: saascore.AuthConfig{
@@ -436,12 +438,11 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 			WSTicketTTL:      time.Duration(intWithDefault(c.Auth.WSTicketTTLSeconds, 300)) * time.Second,
 			AdminEmails:      c.Auth.AdminEmails,
 			EmailCode: saascore.EmailCodeConfig{
-				Debug:                c.Auth.Email.Debug,
-				VerificationTemplate: c.Auth.Email.VerificationTemplateRef,
-				TTL:                  time.Duration(intWithDefault(c.Auth.Email.Code.TTLMinutes, 10)) * time.Minute,
-				MinResendGap:         time.Duration(intWithDefault(c.Auth.Email.Code.MinResendGapSeconds, 60)) * time.Second,
-				DailyCap:             intWithDefault(c.Auth.Email.Code.DailyCap, 10),
-				MaxAttempts:          intWithDefault(c.Auth.Email.Code.MaxAttempts, 5),
+				Debug:        c.Auth.Email.Debug,
+				TTL:          time.Duration(intWithDefault(c.Auth.Email.Code.TTLMinutes, 10)) * time.Minute,
+				MinResendGap: time.Duration(intWithDefault(c.Auth.Email.Code.MinResendGapSeconds, 60)) * time.Second,
+				DailyCap:     intWithDefault(c.Auth.Email.Code.DailyCap, 10),
+				MaxAttempts:  intWithDefault(c.Auth.Email.Code.MaxAttempts, 5),
 			},
 			Google: saascore.GoogleOAuthConfig{
 				ClientID:     c.Auth.Google.ClientID,
@@ -466,7 +467,7 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 		},
 		Billing: saascore.BillingConfig{
 			Stripe: saascore.StripeConfig{
-				Enabled:               c.Billing.Stripe.Enabled,
+				Enabled:               stripeEnabled,
 				SecretKey:             c.Billing.Stripe.SecretKey,
 				PublishableKey:        c.Billing.Stripe.PublishableKey,
 				WebhookSecret:         c.Billing.Stripe.WebhookSecret,
@@ -477,6 +478,7 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 				ProYearlyPriceID:      c.Billing.Stripe.Prices.ProYearly,
 				PremiumMonthlyPriceID: c.Billing.Stripe.Prices.PremiumMonthly,
 				PremiumYearlyPriceID:  c.Billing.Stripe.Prices.PremiumYearly,
+				LifetimePriceID:       c.Billing.Stripe.Prices.Lifetime,
 				CreditsPriceIDs:       c.Billing.Stripe.Prices.Credits,
 				CreditsPerPackage:     c.Billing.Stripe.Credits.PerPackage,
 			},

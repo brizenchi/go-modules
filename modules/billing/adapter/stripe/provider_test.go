@@ -225,6 +225,44 @@ func TestCreateCheckout_Credits(t *testing.T) {
 	}
 }
 
+func TestCreateCheckout_Lifetime(t *testing.T) {
+	var captured url.Values
+	p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
+		captured = readForm(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"cs_lifetime","url":"https://stripe.test/lifetime","object":"checkout.session"}`))
+	})
+
+	res, err := p.CreateCheckout(context.Background(), domain.CheckoutInput{
+		UserID:      "u",
+		Email:       "e@x",
+		ProductType: domain.ProductLifetime,
+		SuccessURL:  "https://app.test/ok",
+		CancelURL:   "https://app.test/cancel",
+	})
+	if err != nil {
+		t.Fatalf("CreateCheckout: %v", err)
+	}
+	if res.SessionID != "cs_lifetime" {
+		t.Fatalf("session id = %q", res.SessionID)
+	}
+	if got := captured.Get("mode"); got != "payment" {
+		t.Errorf("mode = %q", got)
+	}
+	if got := captured.Get("line_items[0][price]"); got != "price_lifetime" {
+		t.Errorf("price = %q", got)
+	}
+	if got := captured.Get("line_items[0][quantity]"); got != "1" {
+		t.Errorf("quantity = %q", got)
+	}
+	if got := captured.Get("metadata[plan]"); got != "lifetime" {
+		t.Errorf("plan metadata = %q", got)
+	}
+	if got := captured.Get("metadata[product_type]"); got != "lifetime" {
+		t.Errorf("product_type metadata = %q", got)
+	}
+}
+
 func TestCreateCheckout_DisabledProvider(t *testing.T) {
 	p := NewProvider(Config{Enabled: false})
 	_, err := p.CreateCheckout(context.Background(), domain.CheckoutInput{})

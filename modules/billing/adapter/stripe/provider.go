@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
@@ -53,6 +54,7 @@ func NewProvider(cfg Config) *Provider {
 
 func (p *Provider) Name() string  { return "stripe" }
 func (p *Provider) Enabled() bool { return p.cfg.Enabled }
+func (p *Provider) LifetimePriceID() string { return p.cfg.LifetimePriceID }
 
 func (p *Provider) MapPriceToPlan(priceID string) (domain.PlanType, domain.BillingInterval) {
 	return p.cfg.PlanForPrice(priceID)
@@ -109,6 +111,15 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		if !p.cfg.IsCreditsPriceID(priceID) {
 			return nil, domain.ErrInvalidPriceID
 		}
+		mode = stripesdk.CheckoutSessionModePayment
+	case domain.ProductLifetime:
+		priceID = strings.TrimSpace(p.cfg.LifetimePriceID)
+		if priceID == "" {
+			return nil, fmt.Errorf("%w: lifetime price not configured", domain.ErrPriceNotFound)
+		}
+		in.Plan = domain.PlanLifetime
+		in.Interval = ""
+		quantity = 1
 		mode = stripesdk.CheckoutSessionModePayment
 	case domain.ProductSubscription:
 		priceID = p.cfg.PriceFor(in.Plan, in.Interval)

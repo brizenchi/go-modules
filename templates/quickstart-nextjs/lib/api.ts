@@ -209,7 +209,7 @@ export async function issueWSTicket(token: string): Promise<WSTicketResult> {
 export type CheckoutPayload = {
   plan?: string;
   interval?: string;
-  product_type: "subscription" | "credits";
+  product_type: "subscription" | "credits" | "lifetime";
   price_id?: string;
   quantity?: number;
   success_url: string;

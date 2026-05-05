@@ -67,6 +67,9 @@ type Provider interface {
 
 	// IsCreditsPriceID returns true when the price id is configured as a credits SKU.
 	IsCreditsPriceID(priceID string) bool
+
+	// LifetimePriceID returns the configured one-time lifetime price ID, if any.
+	LifetimePriceID() string
 }
 
 // WebhookParseResult is the verified outcome of a webhook delivery.

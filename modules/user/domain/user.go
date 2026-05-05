@@ -10,6 +10,7 @@ const (
 	PlanStarter = "starter"
 	PlanPro     = "pro"
 	PlanPremium = "premium"
+	PlanLifetime = "lifetime"
 )
 
 // User is the standard shared user shape reused across SaaS projects.
@@ -37,4 +38,3 @@ type User struct {
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
-

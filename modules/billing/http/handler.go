@@ -183,13 +183,15 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 		in.ProductType = domain.ProductSubscription
 	case string(domain.ProductCredits):
 		in.ProductType = domain.ProductCredits
+	case string(domain.ProductLifetime):
+		in.ProductType = domain.ProductLifetime
 	default:
-		return in, errors.New("product_type must be subscription or credits")
+		return in, errors.New("product_type must be subscription, credits, or lifetime")
 	}
 
 	if in.ProductType == domain.ProductSubscription {
 		plan := domain.PlanType(strings.ToLower(strings.TrimSpace(req.Plan)))
-		if !plan.Valid() || plan == domain.PlanFree {
+		if !plan.Valid() || plan == domain.PlanFree || plan == domain.PlanLifetime {
 			return in, errors.New("plan must be starter, pro, or premium")
 		}
 		in.Plan = plan
@@ -201,7 +203,7 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 		default:
 			return in, errors.New("interval must be monthly or yearly")
 		}
-	} else {
+	} else if in.ProductType == domain.ProductCredits {
 		if in.Quantity < 0 {
 			return in, errors.New("quantity must be non-negative")
 		}
@@ -211,6 +213,9 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 		if in.Quantity > 100 {
 			return in, errors.New("quantity too large")
 		}
+	} else {
+		in.Plan = domain.PlanLifetime
+		in.Quantity = 1
 	}
 	return in, nil
 }

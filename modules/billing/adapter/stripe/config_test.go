@@ -22,6 +22,7 @@ func newTestConfig() Config {
 				domain.IntervalYearly:  "price_premium_y",
 			},
 		},
+		LifetimePriceID: "price_lifetime",
 		CreditsPriceIDs: []string{"price_credits_a", "price_credits_b"},
 		CreditsPerUnit:  40,
 	}
@@ -58,6 +59,7 @@ func TestConfig_PlanForPrice(t *testing.T) {
 		{"price_starter_y", domain.PlanStarter, domain.IntervalYearly},
 		{"price_pro_m", domain.PlanPro, domain.IntervalMonthly},
 		{"price_premium_y", domain.PlanPremium, domain.IntervalYearly},
+		{"price_lifetime", domain.PlanLifetime, ""},
 		{"unknown", domain.PlanFree, ""},
 		{"", domain.PlanFree, ""},
 	}

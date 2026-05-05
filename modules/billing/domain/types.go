@@ -61,6 +61,7 @@ type SubscriptionSnapshot struct {
 	ProviderCustomerID     string
 	ProviderPriceID        string
 	ProviderProductID      string
+	ProductType            ProductType
 	Plan                   PlanType
 	Interval               BillingInterval
 	Status                 SubscriptionStatus

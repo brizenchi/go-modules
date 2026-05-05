@@ -57,6 +57,7 @@ export default function BillingPage() {
   const [creditsQuantity, setCreditsQuantity] = useState(String(appEnv.defaultCreditsQuantity));
   const [referralCode, setReferralCode] = useState("");
   const currentPlan = subscription?.plan || "";
+  const hasLifetime = currentPlan === "lifetime";
 
   useEffect(() => {
     const syncSession = () => setSession(readSession());
@@ -230,6 +231,30 @@ export default function BillingPage() {
     }
   }
 
+  async function handleLifetimeCheckout() {
+    if (!session) {
+      setError("sign in first");
+      return;
+    }
+    setBusy("subscription");
+    setError("");
+    setStatus("");
+
+    try {
+      const res = await createCheckoutSession(session.token, {
+        product_type: "lifetime",
+        success_url: appUrl(appEnv.stripeSuccessPath),
+        cancel_url: appUrl(appEnv.stripeCancelPath),
+        metadata: referralCode ? { referral_code: referralCode } : undefined
+      });
+      setStatus(`Lifetime checkout created. Redirecting to Stripe: ${res.session_id}`);
+      window.location.href = res.checkout_url;
+    } catch (err) {
+      setError(messageFromError(err));
+      setBusy("");
+    }
+  }
+
   async function handleCancel(cancelType: "end_of_period" | "3days") {
     if (!session) {
       setError("sign in first");
@@ -334,7 +359,7 @@ export default function BillingPage() {
             Optional referral metadata carried from browser: <span className="inline-code">{referralCode || "-"}</span>
           </Notice>
           <div className="button-row">
-            {subscription && subscription.plan !== "free" ? (
+            {subscription && subscription.plan !== "free" && !hasLifetime ? (
               <>
                 <button className="button primary" disabled={busy !== ""} onClick={handleChangeSubscription}>
                   {busy === "change" ? "Updating..." : "Change Plan"}
@@ -344,9 +369,20 @@ export default function BillingPage() {
                 </button>
               </>
             ) : (
-              <button className="button primary" disabled={busy !== ""} onClick={handleSubscriptionCheckout}>
-                {busy === "subscription" ? "Creating..." : "Start Subscription Checkout"}
-              </button>
+              <div className="button-row">
+                {!hasLifetime ? (
+                  <button className="button primary" disabled={busy !== ""} onClick={handleSubscriptionCheckout}>
+                    {busy === "subscription" ? "Creating..." : "Start Subscription Checkout"}
+                  </button>
+                ) : null}
+                {!hasLifetime ? (
+                  <button className="button" disabled={busy !== ""} onClick={handleLifetimeCheckout}>
+                    {busy === "subscription" ? "Creating..." : "Buy Lifetime"}
+                  </button>
+                ) : (
+                  <Notice tone="success">This account already has lifetime access.</Notice>
+                )}
+              </div>
             )}
           </div>
           {preview ? (
@@ -363,7 +399,7 @@ export default function BillingPage() {
             </Notice>
           ) : null}
           <p className="footer-note">
-            Professional default: existing subscriptions change in place with proration; card updates and invoice self-service go through Stripe Billing Portal.
+            Professional default: existing subscriptions change in place with proration; card updates and invoice self-service go through Stripe Billing Portal. Lifetime is a separate one-time buyout path.
           </p>
         </Panel>
 
@@ -434,17 +470,21 @@ export default function BillingPage() {
           ) : (
             <EmptyState>{session ? "No subscription payload loaded yet." : "Sign in to load billing data."}</EmptyState>
           )}
-          <div className="button-row">
-            <button className="button danger" disabled={busy !== ""} onClick={() => void handleCancel("end_of_period")}>
-              Cancel End Of Period
-            </button>
-            <button className="button danger" disabled={busy !== ""} onClick={() => void handleCancel("3days")}>
-              Cancel In 3 Days
-            </button>
-            <button className="button" disabled={busy !== ""} onClick={handleReactivate}>
-              Reactivate
-            </button>
-          </div>
+          {!hasLifetime ? (
+            <div className="button-row">
+              <button className="button danger" disabled={busy !== ""} onClick={() => void handleCancel("end_of_period")}>
+                Cancel End Of Period
+              </button>
+              <button className="button danger" disabled={busy !== ""} onClick={() => void handleCancel("3days")}>
+                Cancel In 3 Days
+              </button>
+              <button className="button" disabled={busy !== ""} onClick={handleReactivate}>
+                Reactivate
+              </button>
+            </div>
+          ) : (
+            <p className="footer-note">Lifetime access has no recurring cancellation or reactivation flow.</p>
+          )}
         </Panel>
 
         <Panel className="span-6" title="Invoices" subtitle="Loaded from GET /stripe/invoices.">

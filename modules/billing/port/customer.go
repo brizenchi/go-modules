@@ -21,6 +21,7 @@ type CustomerStore interface {
 type Customer struct {
 	UserID                 string
 	Email                  string
+	Plan                   string
 	ProviderCustomerID     string
 	ProviderSubscriptionID string
 }
