@@ -31,7 +31,7 @@ function InvitePageInner() {
           rows={[
             { label: "Input query", value: <span className="inline-code">/invite?ref=INV123456</span> },
             { label: "Stored locally", value: <span className="inline-code">{savedCode || "-"}</span> },
-            { label: "Next page", value: <span className="inline-code">/login</span> }
+            { label: "Next step", value: <span>Use the top-right sign-in dialog</span> }
           ]}
         />
       }
@@ -39,8 +39,8 @@ function InvitePageInner() {
         { id: "invite-flow", label: "Invite flow" }
       ]}
       actions={
-        <Link className="button primary" href="/login">
-          Continue To Login
+        <Link className="button primary" href="/">
+          Continue To Home
         </Link>
       }
     >

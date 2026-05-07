@@ -7,9 +7,6 @@ import { Notice, Panel, DetailRows } from "@/components/ui";
 import {
   ApiError,
   exchangeToken,
-  getGoogleAuthorizeURL,
-  sendCode,
-  verifyCode
 } from "@/lib/api";
 import {
   clearReferralCode,
@@ -21,6 +18,7 @@ import {
 } from "@/lib/auth";
 import { appEnv } from "@/lib/env";
 import { formatDate, maskToken } from "@/lib/format";
+import { SignInPanel } from "@/components/sign-in-panel";
 
 function messageFromError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -35,17 +33,10 @@ function messageFromError(error: unknown): string {
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
   const [referralCode, setReferralCode] = useState("");
-  const [sendResult, setSendResult] = useState<{
-    email: string;
-    expiresAt: string;
-    debugCode?: string;
-  } | null>(null);
   const [status, setStatus] = useState<string>("");
   const [error, setError] = useState<string>("");
-  const [busy, setBusy] = useState<"" | "send" | "verify" | "google" | "exchange">("");
+  const [busy, setBusy] = useState<"" | "exchange">("");
   const [sessionToken, setSessionToken] = useState("-");
 
   useEffect(() => {
@@ -112,64 +103,6 @@ function LoginPageInner() {
 
   const googleCallbackExample = useMemo(() => `${appEnv.appUrl}/login`, []);
 
-  async function handleSendCode() {
-    setBusy("send");
-    setError("");
-    setStatus("");
-
-    try {
-      const res = await sendCode(email);
-      setSendResult({
-        email: res.email,
-        expiresAt: res.expires_at,
-        debugCode: res.debug_code
-      });
-      setStatus(`Verification code sent to ${res.email}.`);
-      if (res.debug_code) {
-        setCode(res.debug_code);
-      }
-    } catch (err) {
-      setError(messageFromError(err));
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function handleVerifyCode() {
-    setBusy("verify");
-    setError("");
-    setStatus("");
-
-    try {
-      const session = await verifyCode(email, code, referralCode);
-      clearReferralCode();
-      setReferralCode("");
-      writeSession(session);
-      setSessionToken(maskToken(session.token));
-      setStatus("Email-code login succeeded. Session saved in localStorage.");
-      router.push("/account");
-    } catch (err) {
-      setError(messageFromError(err));
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function handleGoogleLogin() {
-    setBusy("google");
-    setError("");
-    setStatus("Loading Google authorization URL...");
-
-    try {
-      const redirectURL = await getGoogleAuthorizeURL();
-      window.location.href = redirectURL;
-    } catch (err) {
-      setError(messageFromError(err));
-      setStatus("");
-      setBusy("");
-    }
-  }
-
   return (
     <SiteShell
       eyebrow="Sign In"
@@ -207,62 +140,13 @@ function LoginPageInner() {
       <div className="page-grid">
         <Panel className="span-7" title="Email-code login" subtitle="Matches POST /auth/send-code and POST /auth/verify-code.">
           <div id="email-login" />
-          <div className="field-grid">
-            <div className="field">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                placeholder="user@example.com"
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="code">Verification code</label>
-              <input
-                id="code"
-                value={code}
-                placeholder="123456"
-                onChange={(event) => setCode(event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="field" style={{ marginTop: 14 }}>
-            <label htmlFor="referral">Captured referral code</label>
-            <input
-              id="referral"
-              value={referralCode}
-              placeholder="INV123456"
-              onChange={(event) => setReferralCode(writeReferralCode(event.target.value))}
-            />
-          </div>
-
-          <div className="button-row">
-            <button className="button primary" disabled={busy !== ""} onClick={handleSendCode}>
-              {busy === "send" ? "Sending..." : "Send Code"}
-            </button>
-            <button className="button" disabled={busy !== ""} onClick={handleVerifyCode}>
-              {busy === "verify" ? "Verifying..." : "Verify Code"}
-            </button>
-          </div>
-
-          {sendResult ? (
-            <Notice tone="success">
-              Code issued for <span className="inline-code">{sendResult.email}</span>. Expires at{" "}
-              <span className="inline-code">{formatDate(sendResult.expiresAt)}</span>.
-              {sendResult.debugCode ? (
-                <>
-                  {" "}
-                  Debug code: <span className="inline-code">{sendResult.debugCode}</span>
-                </>
-              ) : null}
-            </Notice>
-          ) : null}
-
-          {status ? <Notice tone="success">{status}</Notice> : null}
-          {error ? <Notice tone="error">{error}</Notice> : null}
+          <SignInPanel
+            showReferralField
+            onSuccess={() => {
+              setStatus("Email-code login succeeded. Session saved in localStorage.");
+              router.push("/account");
+            }}
+          />
         </Panel>
 
         <Panel className="span-5" title="Google OAuth" subtitle="Matches GET /auth/google/authorize and POST /auth/exchange-token.">
@@ -272,11 +156,6 @@ function LoginPageInner() {
             <span className="inline-code">{googleCallbackExample}</span>
             {" "}with a short-lived exchange code. This page then exchanges it together with the saved referral code, so Google signup and email-code signup both preserve referral attribution.
           </p>
-          <div className="button-row">
-            <button className="button primary wide" disabled={busy !== ""} onClick={handleGoogleLogin}>
-              {busy === "google" ? "Redirecting..." : "Continue With Google"}
-            </button>
-          </div>
           <p className="footer-note">
             If this button fails locally, the usual root cause is not the frontend code. It is almost always a mismatch between backend redirect env, Google Console callback URI, and the public backend URL.
           </p>

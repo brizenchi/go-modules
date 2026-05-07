@@ -14,6 +14,7 @@ import { readSession, SESSION_EVENT, writeSession, type AuthSession } from "@/li
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { humanizeSegment } from "@/lib/locale";
+import { SignInDialog } from "@/components/sign-in-dialog";
 
 type NavItem = {
   href: string;
@@ -152,6 +153,7 @@ function AccountMenu({
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   useEffect(() => {
     setOpen(false);
@@ -178,14 +180,14 @@ function AccountMenu({
 
   if (!session) {
     return (
-      <div className="nav-actions">
-        <Link className="button" href="/pricing">
-          {t({ en: "View Pricing", zh: "查看价格" })}
-        </Link>
-        <Link className="button primary" href="/login">
-          {t({ en: "Sign In", zh: "登录" })}
-        </Link>
-      </div>
+      <>
+        <div className="nav-actions">
+          <button className="button primary" type="button" onClick={() => setSignInOpen(true)}>
+            {t({ en: "Sign In", zh: "登录" })}
+          </button>
+        </div>
+        <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
+      </>
     );
   }
 
