@@ -8,7 +8,7 @@ Use this stack when multiple projects intentionally share:
 
 - the same `users` table shape
 - the same auth model
-- the same Stripe customer/subscription linkage
+- the same billing + referral lifecycle
 - the same referral attribution and activation flow
 
 This is the canonical "full backend starter" layer in `go-modules`.
@@ -21,10 +21,10 @@ the same glue.
 - `modules/auth` wired to the shared user repo
 - email-code auth with Brevo provider templates or Resend/local fallback delivery
 - optional Google OAuth
-- `modules/billing` wired to the shared user repo
+- `modules/billing` wired to billing-owned persistence tables
 - billing webhook idempotency persistence
 - `modules/referral` wiring
-- standard cross-module listeners for signup, billing sync, and referral activation
+- standard cross-module listeners for signup, billing projection sync, and referral activation
 - standard Gin route mounting helpers
 
 ## What stays in the host app
@@ -85,6 +85,21 @@ Typical use:
   - perform the actual reward payout
 - `ResolveReferralReward`
   - decide the reward amount per project
+
+## Billing boundary
+
+`stacks/saascore` now treats provider linkage and subscription snapshots
+as billing-owned state:
+
+- `billing_customers`
+- `billing_subscriptions`
+- `billing_events`
+
+For compatibility, the stack still projects selected commercial summary
+back into the shared `users` table, and it still keeps legacy Stripe
+columns on `users` updated during the transition period. New code should
+read billing state through the billing layer, not directly from
+`users.stripe_*`.
 
 See [`templates/quickstart`](../../templates/quickstart/) for the
 complete runnable host shell and [`docs/INTEGRATION.md`](../../docs/INTEGRATION.md)

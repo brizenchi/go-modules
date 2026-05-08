@@ -1,3 +1,10 @@
+// Package billingstore contains legacy compatibility adapters that map
+// billing linkage and billing summary directly onto the shared `users`
+// table.
+//
+// Deprecated: prefer modules/billing/adapter/repo for new integrations.
+// This package remains for compatibility while saascore transitions from
+// users-table-backed Stripe linkage to billing-owned persistence tables.
 package billingstore
 
 import (
@@ -14,6 +21,8 @@ import (
 )
 
 // CustomerStore adapts the shared users table to billing.CustomerStore.
+//
+// Deprecated: prefer modules/billing/adapter/repo.CustomerStore.
 type CustomerStore struct {
 	users *gormrepo.Repo
 }
@@ -44,6 +53,8 @@ func (s *CustomerStore) SaveCustomerID(ctx context.Context, userID, provider, cu
 }
 
 // UserResolver adapts the shared users table to billing.UserResolver.
+//
+// Deprecated: prefer modules/billing/adapter/repo.UserResolver.
 type UserResolver struct {
 	users *gormrepo.Repo
 }
@@ -91,6 +102,11 @@ func ApplyFreePlan(ctx context.Context, users *gormrepo.Repo, userID string) err
 	})
 }
 
+// ApplySubscriptionSnapshot projects billing state into legacy users-table
+// summary fields.
+//
+// Deprecated: prefer billing-owned persistence plus user-summary
+// projection in saascore.
 func ApplySubscriptionSnapshot(ctx context.Context, users *gormrepo.Repo, userID string, snapshot domain.SubscriptionSnapshot) error {
 	providerSubscriptionID := snapshot.ProviderSubscriptionID
 	billingPeriodStart := snapshot.PeriodStart
@@ -116,6 +132,11 @@ func ApplySubscriptionSnapshot(ctx context.Context, users *gormrepo.Repo, userID
 	})
 }
 
+// ApplySubscriptionCanceling projects cancellation state into legacy
+// users-table summary fields.
+//
+// Deprecated: prefer billing-owned persistence plus user-summary
+// projection in saascore.
 func ApplySubscriptionCanceling(ctx context.Context, users *gormrepo.Repo, userID string, effectiveAt *time.Time) error {
 	return users.UpdateFields(ctx, userID, map[string]any{
 		"billing_status":      string(domain.StatusCanceling),
@@ -123,6 +144,11 @@ func ApplySubscriptionCanceling(ctx context.Context, users *gormrepo.Repo, userI
 	})
 }
 
+// ApplySubscriptionCanceled projects canceled state into legacy
+// users-table summary fields.
+//
+// Deprecated: prefer billing-owned persistence plus user-summary
+// projection in saascore.
 func ApplySubscriptionCanceled(ctx context.Context, users *gormrepo.Repo, userID string) error {
 	return users.UpdateFields(ctx, userID, map[string]any{
 		"plan":                   userdomain.PlanFree,
@@ -136,6 +162,11 @@ func ApplySubscriptionCanceled(ctx context.Context, users *gormrepo.Repo, userID
 	})
 }
 
+// ApplyPaymentFailed projects payment-failed state into legacy users-table
+// summary fields.
+//
+// Deprecated: prefer billing-owned persistence plus user-summary
+// projection in saascore.
 func ApplyPaymentFailed(ctx context.Context, users *gormrepo.Repo, userID string) error {
 	return users.UpdateFields(ctx, userID, map[string]any{
 		"billing_status": string(domain.StatusPaymentFailed),

@@ -9,7 +9,7 @@ Your projects intentionally share:
 
 - the same `users` table shape
 - the same JWT auth model
-- the same Stripe customer/subscription linkage
+- the same billing + referral lifecycle
 - the same referral registration and activation flow
 
 If those assumptions are not true, do not force `saascore`. Use the
@@ -30,9 +30,24 @@ It also already wires:
 - signup -> shared user creation/linking
 - signup -> free-plan initialization
 - optional `referral_code` attribution
-- Stripe subscription activation -> user billing sync
+- billing events -> billing-owned state sync
+- billing events -> user summary projection sync
 - Stripe subscription activation -> referral activation
 - shared JWT middleware for billing and referral user routes
+
+## Current billing boundary
+
+The platform boundary is transitioning to:
+
+- identity and auth summary in `users`
+- provider linkage in `billing_customers`
+- current commercial snapshot in `billing_subscriptions`
+- webhook audit/idempotency in `billing_events`
+
+`stacks/saascore` still keeps legacy billing columns on `users`
+up-to-date for compatibility, but new integrations should treat those
+columns as deprecated projections rather than source-of-truth billing
+state.
 
 ## New backend checklist
 

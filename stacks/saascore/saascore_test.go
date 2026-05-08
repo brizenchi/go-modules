@@ -8,8 +8,10 @@ import (
 
 	authdomain "github.com/brizenchi/go-modules/modules/auth/domain"
 	authevent "github.com/brizenchi/go-modules/modules/auth/event"
+	billingrepo "github.com/brizenchi/go-modules/modules/billing/adapter/repo"
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/event"
+	billingport "github.com/brizenchi/go-modules/modules/billing/port"
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 	referraldomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	referralevent "github.com/brizenchi/go-modules/modules/referral/event"
@@ -220,6 +222,14 @@ func TestBillingReactivatedSyncsUserState(t *testing.T) {
 	}
 	if got.BillingStatus != "active" || got.StripeSubscriptionID != "sub_1" {
 		t.Fatalf("unexpected billing sync result: %+v", got)
+	}
+
+	sub, err := stack.billingSubscriptions.FindByUser(ctx, "u-1")
+	if err != nil {
+		t.Fatalf("FindByUser: %v", err)
+	}
+	if sub.ProviderSubscriptionID != "sub_1" || sub.Status != "active" {
+		t.Fatalf("unexpected billing subscription sync: %+v", sub)
 	}
 }
 
@@ -496,5 +506,257 @@ func TestSubscriptionActivatedHostHookRuns(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("expected subscription activated hook to be called")
+	}
+
+	customer, err := stack.billingCustomers.LoadCustomer(ctx, "u-sub")
+	if err != nil {
+		t.Fatalf("LoadCustomer: %v", err)
+	}
+	if customer.ProviderCustomerID != "cus_activated" {
+		t.Fatalf("provider_customer_id = %q, want cus_activated", customer.ProviderCustomerID)
+	}
+
+	sub, err := stack.billingSubscriptions.FindByUser(ctx, "u-sub")
+	if err != nil {
+		t.Fatalf("FindByUser: %v", err)
+	}
+	if sub.ProviderSubscriptionID != "sub_activated" || sub.ProviderPriceID != "price_pro" {
+		t.Fatalf("unexpected billing subscription row: %+v", sub)
+	}
+}
+
+func TestInitBillingDualWritesCustomerIDToNewTable(t *testing.T) {
+	db := newTestDB(t)
+	stack, err := New(db, Config{
+		ServiceName: "test-svc",
+		Auth: AuthConfig{
+			UserJWTSecret: "super-secret",
+			EmailCode:     EmailCodeConfig{Debug: true},
+		},
+		Email: EmailConfig{Provider: "log"},
+	}, HostHooks{}, PolicyHooks{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := stack.Users.Create(ctx, &userdomain.User{
+		ID:    "u-dual",
+		Email: "dual@example.com",
+		Role:  userdomain.RoleUser,
+		Plan:  userdomain.PlanFree,
+	}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	store, ok := stack.Billing.Customers.(fallbackCustomerStore)
+	if !ok {
+		t.Fatalf("customer store type = %T, want fallbackCustomerStore", stack.Billing.Customers)
+	}
+	if err := store.SaveCustomerID(ctx, "u-dual", "stripe", "cus_dual"); err != nil {
+		t.Fatalf("SaveCustomerID: %v", err)
+	}
+
+	gotUser, err := stack.Users.FindByID(ctx, "u-dual")
+	if err != nil {
+		t.Fatalf("FindByID: %v", err)
+	}
+	if gotUser.StripeCustomerID != "cus_dual" {
+		t.Fatalf("legacy stripe_customer_id = %q, want cus_dual", gotUser.StripeCustomerID)
+	}
+
+	gotBilling, err := stack.billingCustomers.LoadCustomer(ctx, "u-dual")
+	if err != nil {
+		t.Fatalf("LoadCustomer: %v", err)
+	}
+	if gotBilling.ProviderCustomerID != "cus_dual" {
+		t.Fatalf("new provider_customer_id = %q, want cus_dual", gotBilling.ProviderCustomerID)
+	}
+}
+
+func TestPaymentFailedSyncsNewBillingSnapshotStatus(t *testing.T) {
+	db := newTestDB(t)
+	stack, err := New(db, Config{
+		ServiceName: "test-svc",
+		Auth: AuthConfig{
+			UserJWTSecret: "super-secret",
+			EmailCode:     EmailCodeConfig{Debug: true},
+		},
+		Email: EmailConfig{Provider: "log"},
+	}, HostHooks{}, PolicyHooks{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := stack.Users.Create(ctx, &userdomain.User{
+		ID:    "u-fail",
+		Email: "fail@example.com",
+		Role:  userdomain.RoleUser,
+		Plan:  userdomain.PlanFree,
+	}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := stack.billingSubscriptions.UpsertSnapshot(ctx, "u-fail", "stripe", billingdomain.SubscriptionSnapshot{
+		ProviderCustomerID:     "cus_fail",
+		ProviderSubscriptionID: "sub_fail",
+		ProviderPriceID:        "price_fail",
+		Plan:                   billingdomain.PlanPro,
+		Status:                 billingdomain.StatusActive,
+	}); err != nil {
+		t.Fatalf("UpsertSnapshot: %v", err)
+	}
+
+	if err := stack.onPaymentFailed(ctx, event.Envelope{
+		UserID:          "u-fail",
+		Provider:        "stripe",
+		ProviderEventID: "evt_fail_1",
+		OccurredAt:      time.Now().UTC(),
+		Payload: event.PaymentFailed{
+			ProviderCustomerID:     "cus_fail",
+			ProviderSubscriptionID: "sub_fail",
+		},
+	}); err != nil {
+		t.Fatalf("onPaymentFailed: %v", err)
+	}
+
+	sub, err := stack.billingSubscriptions.FindByUser(ctx, "u-fail")
+	if err != nil {
+		t.Fatalf("FindByUser: %v", err)
+	}
+	if sub.Status != string(billingdomain.StatusPaymentFailed) {
+		t.Fatalf("status = %q, want %q", sub.Status, billingdomain.StatusPaymentFailed)
+	}
+}
+
+func TestBillingRepoAutoMigrateCreatesNewTables(t *testing.T) {
+	db := newTestDB(t)
+	if err := billingrepo.AutoMigrate(db); err != nil {
+		t.Fatalf("AutoMigrate: %v", err)
+	}
+
+	if !db.Migrator().HasTable(&billingdomain.BillingCustomer{}) {
+		t.Fatal("expected billing_customers table")
+	}
+	if !db.Migrator().HasTable(&billingdomain.BillingSubscription{}) {
+		t.Fatal("expected billing_subscriptions table")
+	}
+}
+
+func TestBillingCustomersReadPrefersNewTableWithLegacyFallback(t *testing.T) {
+	db := newTestDB(t)
+	stack, err := New(db, Config{
+		ServiceName: "test-svc",
+		Auth: AuthConfig{
+			UserJWTSecret: "super-secret",
+			EmailCode:     EmailCodeConfig{Debug: true},
+		},
+		Email: EmailConfig{Provider: "log"},
+	}, HostHooks{}, PolicyHooks{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := stack.Users.Create(ctx, &userdomain.User{
+		ID:                   "u-fallback",
+		Email:                "fallback@example.com",
+		Role:                 userdomain.RoleUser,
+		Plan:                 userdomain.PlanPro,
+		StripeCustomerID:     "cus_legacy",
+		StripeSubscriptionID: "sub_legacy",
+	}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	customer, err := stack.Billing.Customers.LoadCustomer(ctx, "u-fallback")
+	if err != nil {
+		t.Fatalf("LoadCustomer legacy fallback: %v", err)
+	}
+	if customer.ProviderCustomerID != "cus_legacy" || customer.ProviderSubscriptionID != "sub_legacy" {
+		t.Fatalf("unexpected legacy fallback customer: %+v", customer)
+	}
+
+	if err := stack.billingCustomers.SaveCustomerID(ctx, "u-fallback", "stripe", "cus_new"); err != nil {
+		t.Fatalf("SaveCustomerID current: %v", err)
+	}
+	if err := stack.billingSubscriptions.UpsertSnapshot(ctx, "u-fallback", "stripe", billingdomain.SubscriptionSnapshot{
+		ProviderCustomerID:     "cus_new",
+		ProviderSubscriptionID: "sub_new",
+		Plan:                   billingdomain.PlanPremium,
+		Status:                 billingdomain.StatusActive,
+	}); err != nil {
+		t.Fatalf("UpsertSnapshot current: %v", err)
+	}
+
+	customer, err = stack.Billing.Customers.LoadCustomer(ctx, "u-fallback")
+	if err != nil {
+		t.Fatalf("LoadCustomer current: %v", err)
+	}
+	if customer.ProviderCustomerID != "cus_new" || customer.ProviderSubscriptionID != "sub_new" {
+		t.Fatalf("expected current billing table to win, got %+v", customer)
+	}
+	if customer.Email != "fallback@example.com" || customer.Plan != userdomain.PlanPro {
+		t.Fatalf("expected summary fields from users table, got %+v", customer)
+	}
+}
+
+func TestBillingUserResolverPrefersNewTablesWithLegacyFallback(t *testing.T) {
+	db := newTestDB(t)
+	stack, err := New(db, Config{
+		ServiceName: "test-svc",
+		Auth: AuthConfig{
+			UserJWTSecret: "super-secret",
+			EmailCode:     EmailCodeConfig{Debug: true},
+		},
+		Email: EmailConfig{Provider: "log"},
+	}, HostHooks{}, PolicyHooks{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := stack.Users.Create(ctx, &userdomain.User{
+		ID:                   "u-resolve",
+		Email:                "resolve2@example.com",
+		Role:                 userdomain.RoleUser,
+		Plan:                 userdomain.PlanFree,
+		StripeCustomerID:     "cus_legacy_resolve",
+		StripeSubscriptionID: "sub_legacy_resolve",
+	}); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	resolver, ok := stack.Billing.UserResolver.(fallbackUserResolver)
+	if !ok {
+		t.Fatalf("user resolver type = %T, want fallbackUserResolver", stack.Billing.UserResolver)
+	}
+
+	userID, err := resolver.Resolve(ctx, billingport.UserHint{ProviderCustomerID: "cus_legacy_resolve"})
+	if err != nil {
+		t.Fatalf("Resolve legacy fallback: %v", err)
+	}
+	if userID != "u-resolve" {
+		t.Fatalf("user_id = %q, want u-resolve", userID)
+	}
+
+	if err := stack.billingCustomers.SaveCustomerID(ctx, "u-resolve", "stripe", "cus_current_resolve"); err != nil {
+		t.Fatalf("SaveCustomerID current: %v", err)
+	}
+	if err := stack.billingSubscriptions.UpsertSnapshot(ctx, "u-resolve", "stripe", billingdomain.SubscriptionSnapshot{
+		ProviderCustomerID:     "cus_current_resolve",
+		ProviderSubscriptionID: "sub_current_resolve",
+		Plan:                   billingdomain.PlanStarter,
+		Status:                 billingdomain.StatusActive,
+	}); err != nil {
+		t.Fatalf("UpsertSnapshot current: %v", err)
+	}
+
+	userID, err = resolver.Resolve(ctx, billingport.UserHint{ProviderSubscriptionID: "sub_current_resolve"})
+	if err != nil {
+		t.Fatalf("Resolve current: %v", err)
+	}
+	if userID != "u-resolve" {
+		t.Fatalf("current user_id = %q, want u-resolve", userID)
 	}
 }

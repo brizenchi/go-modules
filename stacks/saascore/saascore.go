@@ -2,6 +2,7 @@ package saascore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	stripeadapter "github.com/brizenchi/go-modules/modules/billing/adapter/stripe"
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	billingevent "github.com/brizenchi/go-modules/modules/billing/event"
+	billingport "github.com/brizenchi/go-modules/modules/billing/port"
 	"github.com/brizenchi/go-modules/modules/email"
 	"github.com/brizenchi/go-modules/modules/email/adapter/brevo"
 	logsender "github.com/brizenchi/go-modules/modules/email/adapter/log"
@@ -50,6 +52,9 @@ type Stack struct {
 	Billing  *billing.Module
 	Referral *referral.Module
 
+	billingCustomers     *billingrepo.CustomerStore
+	billingSubscriptions *billingrepo.SubscriptionRepo
+
 	hostHooks   HostHooks
 	policyHooks PolicyHooks
 }
@@ -70,19 +75,21 @@ func New(db *gorm.DB, cfg Config, hostHooks HostHooks, policyHooks PolicyHooks) 
 	if err := autoMigrateAuthStore(db); err != nil {
 		return nil, fmt.Errorf("saascore: migrate auth store: %w", err)
 	}
-	if err := db.AutoMigrate(&billingdomain.BillingEvent{}); err != nil {
-		return nil, fmt.Errorf("saascore: migrate billing events: %w", err)
+	if err := billingrepo.AutoMigrate(db); err != nil {
+		return nil, fmt.Errorf("saascore: migrate billing: %w", err)
 	}
 	if err := db.AutoMigrate(referralgormrepo.AutoMigrateModels()...); err != nil {
 		return nil, fmt.Errorf("saascore: migrate referral: %w", err)
 	}
 
 	stack := &Stack{
-		Config:      cfg,
-		DB:          db,
-		Users:       usersRepo,
-		hostHooks:   hostHooks,
-		policyHooks: policyHooks,
+		Config:               cfg,
+		DB:                   db,
+		Users:                usersRepo,
+		billingCustomers:     billingrepo.NewCustomerStore(db),
+		billingSubscriptions: billingrepo.NewSubscriptionRepo(db),
+		hostHooks:            hostHooks,
+		policyHooks:          policyHooks,
 	}
 
 	emailMod, err := initEmail(cfg.Email)
@@ -307,9 +314,9 @@ func (s *Stack) initBilling() *billing.Module {
 			TrialDays:       s.Config.Billing.Stripe.TrialDays,
 		}),
 		Bus:          billingeventbus.NewInProc(),
-		Customers:    billingstore.NewCustomerStore(s.Users),
+		Customers:    fallbackCustomerStore{legacy: billingstore.NewCustomerStore(s.Users), current: s.billingCustomers},
 		EventRepo:    billingrepo.NewBillingEventRepo(s.DB),
-		UserResolver: billingstore.NewUserResolver(s.Users),
+		UserResolver: fallbackUserResolver{legacy: billingstore.NewUserResolver(s.Users), current: billingrepo.NewUserResolver(s.DB)},
 		GetUserID:    s.userIDFromGin,
 	})
 }
@@ -392,6 +399,9 @@ func isReferralSignupSkip(err error) bool {
 
 func (s *Stack) onSubscriptionActivated(ctx context.Context, env billingevent.Envelope) error {
 	p, _ := env.Payload.(billingevent.SubscriptionActivated)
+	if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, p.Snapshot); err != nil {
+		return err
+	}
 	if err := billingstore.ApplySubscriptionSnapshot(ctx, s.Users, env.UserID, p.Snapshot); err != nil {
 		return err
 	}
@@ -414,6 +424,9 @@ func (s *Stack) onSubscriptionActivated(ctx context.Context, env billingevent.En
 
 func (s *Stack) onSubscriptionRenewed(ctx context.Context, env billingevent.Envelope) error {
 	p, _ := env.Payload.(billingevent.SubscriptionRenewed)
+	if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, p.Snapshot); err != nil {
+		return err
+	}
 	if err := billingstore.ApplySubscriptionSnapshot(ctx, s.Users, env.UserID, p.Snapshot); err != nil {
 		return err
 	}
@@ -425,6 +438,9 @@ func (s *Stack) onSubscriptionRenewed(ctx context.Context, env billingevent.Enve
 
 func (s *Stack) onSubscriptionUpdated(ctx context.Context, env billingevent.Envelope) error {
 	p, _ := env.Payload.(billingevent.SubscriptionUpdated)
+	if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, p.Snapshot); err != nil {
+		return err
+	}
 	if err := billingstore.ApplySubscriptionSnapshot(ctx, s.Users, env.UserID, p.Snapshot); err != nil {
 		return err
 	}
@@ -436,6 +452,9 @@ func (s *Stack) onSubscriptionUpdated(ctx context.Context, env billingevent.Enve
 
 func (s *Stack) onSubscriptionReactivated(ctx context.Context, env billingevent.Envelope) error {
 	p, _ := env.Payload.(billingevent.SubscriptionReactivated)
+	if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, p.Snapshot); err != nil {
+		return err
+	}
 	if err := billingstore.ApplySubscriptionSnapshot(ctx, s.Users, env.UserID, p.Snapshot); err != nil {
 		return err
 	}
@@ -447,6 +466,9 @@ func (s *Stack) onSubscriptionReactivated(ctx context.Context, env billingevent.
 
 func (s *Stack) onSubscriptionCanceling(ctx context.Context, env billingevent.Envelope) error {
 	p, _ := env.Payload.(billingevent.SubscriptionCanceling)
+	if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, p.Snapshot); err != nil {
+		return err
+	}
 	if err := billingstore.ApplySubscriptionCanceling(ctx, s.Users, env.UserID, p.EffectiveAt); err != nil {
 		return err
 	}
@@ -465,11 +487,19 @@ func (s *Stack) onSubscriptionCanceling(ctx context.Context, env billingevent.En
 }
 
 func (s *Stack) onSubscriptionCanceled(ctx context.Context, env billingevent.Envelope) error {
+	p, _ := env.Payload.(billingevent.SubscriptionCanceled)
+	if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, billingdomain.SubscriptionSnapshot{
+		ProviderSubscriptionID: p.ProviderSubscriptionID,
+		ProviderCustomerID:     p.ProviderCustomerID,
+		Status:                 billingdomain.StatusCanceled,
+		Plan:                   billingdomain.PlanFree,
+	}); err != nil {
+		return err
+	}
 	if err := billingstore.ApplySubscriptionCanceled(ctx, s.Users, env.UserID); err != nil {
 		return err
 	}
 	if s.hostHooks.OnSubscriptionCanceled != nil {
-		p, _ := env.Payload.(billingevent.SubscriptionCanceled)
 		return s.hostHooks.OnSubscriptionCanceled(ctx, SubscriptionCanceledEvent{
 			UserID:                 env.UserID,
 			OccurredAt:             env.OccurredAt,
@@ -483,11 +513,36 @@ func (s *Stack) onSubscriptionCanceled(ctx context.Context, env billingevent.Env
 }
 
 func (s *Stack) onPaymentFailed(ctx context.Context, env billingevent.Envelope) error {
+	p, _ := env.Payload.(billingevent.PaymentFailed)
+	if existing, err := s.billingSubscriptions.FindByUser(ctx, env.UserID); err == nil {
+		snapshot := billingdomain.SubscriptionSnapshot{
+			ProviderSubscriptionID: existing.ProviderSubscriptionID,
+			ProviderCustomerID:     existing.ProviderCustomerID,
+			ProviderPriceID:        existing.ProviderPriceID,
+			ProviderProductID:      existing.ProviderProductID,
+			ProductType:            billingdomain.ProductType(existing.ProductType),
+			Plan:                   billingdomain.PlanType(existing.Plan),
+			Interval:               billingdomain.BillingInterval(existing.BillingInterval),
+			Status:                 billingdomain.StatusPaymentFailed,
+			CancelAtPeriodEnd:      existing.CancelAtPeriodEnd,
+			PeriodStart:            existing.PeriodStart,
+			PeriodEnd:              existing.PeriodEnd,
+			CancelEffectiveAt:      existing.CancelEffectiveAt,
+		}
+		if p.ProviderSubscriptionID != "" {
+			snapshot.ProviderSubscriptionID = p.ProviderSubscriptionID
+		}
+		if p.ProviderCustomerID != "" {
+			snapshot.ProviderCustomerID = p.ProviderCustomerID
+		}
+		if err := s.syncBillingSnapshot(ctx, env.UserID, env.Provider, snapshot); err != nil {
+			return err
+		}
+	}
 	if err := billingstore.ApplyPaymentFailed(ctx, s.Users, env.UserID); err != nil {
 		return err
 	}
 	if s.hostHooks.OnPaymentFailed != nil {
-		p, _ := env.Payload.(billingevent.PaymentFailed)
 		return s.hostHooks.OnPaymentFailed(ctx, PaymentFailedEvent{
 			UserID:                 env.UserID,
 			OccurredAt:             env.OccurredAt,
@@ -498,6 +553,23 @@ func (s *Stack) onPaymentFailed(ctx context.Context, env billingevent.Envelope) 
 		})
 	}
 	return nil
+}
+
+func (s *Stack) syncBillingSnapshot(ctx context.Context, userID, provider string, snapshot billingdomain.SubscriptionSnapshot) error {
+	if s.billingSubscriptions == nil {
+		return nil
+	}
+	return s.billingSubscriptions.UpsertSnapshot(ctx, userID, s.billingProviderName(provider), snapshot)
+}
+
+func (s *Stack) billingProviderName(provider string) string {
+	if strings.TrimSpace(provider) != "" {
+		return strings.TrimSpace(provider)
+	}
+	if s.Billing != nil && s.Billing.Provider != nil && strings.TrimSpace(s.Billing.Provider.Name()) != "" {
+		return strings.TrimSpace(s.Billing.Provider.Name())
+	}
+	return "stripe"
 }
 
 func (s *Stack) onCreditsPurchased(ctx context.Context, env billingevent.Envelope) error {
@@ -583,6 +655,78 @@ type mailerWrapper struct {
 	mod         *email.Module
 	serviceName string
 	emailCfg    EmailConfig
+}
+
+type fallbackCustomerStore struct {
+	legacy  *billingstore.CustomerStore
+	current *billingrepo.CustomerStore
+}
+
+func (s fallbackCustomerStore) LoadCustomer(ctx context.Context, userID string) (billingport.Customer, error) {
+	switch {
+	case s.current != nil:
+		current, err := s.current.LoadCustomer(ctx, userID)
+		if err != nil {
+			return billingport.Customer{}, err
+		}
+		if s.legacy == nil {
+			return current, nil
+		}
+		legacy, err := s.legacy.LoadCustomer(ctx, userID)
+		if err != nil {
+			return current, nil
+		}
+		if current.ProviderCustomerID == "" {
+			current.ProviderCustomerID = legacy.ProviderCustomerID
+		}
+		if current.ProviderSubscriptionID == "" {
+			current.ProviderSubscriptionID = legacy.ProviderSubscriptionID
+		}
+		if current.Email == "" {
+			current.Email = legacy.Email
+		}
+		if current.Plan == "" {
+			current.Plan = legacy.Plan
+		}
+		return current, nil
+	case s.legacy != nil:
+		return s.legacy.LoadCustomer(ctx, userID)
+	default:
+		return billingport.Customer{}, fmt.Errorf("saascore: customer store not configured")
+	}
+}
+
+func (s fallbackCustomerStore) SaveCustomerID(ctx context.Context, userID, provider, customerID string) error {
+	if s.current != nil {
+		if err := s.current.SaveCustomerID(ctx, userID, provider, customerID); err != nil {
+			return err
+		}
+	}
+	if s.legacy != nil {
+		return s.legacy.SaveCustomerID(ctx, userID, provider, customerID)
+	}
+	return nil
+}
+
+type fallbackUserResolver struct {
+	legacy  *billingstore.UserResolver
+	current *billingrepo.UserResolver
+}
+
+func (r fallbackUserResolver) Resolve(ctx context.Context, hint billingport.UserHint) (string, error) {
+	if r.current != nil {
+		userID, err := r.current.Resolve(ctx, hint)
+		if err == nil {
+			return userID, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", err
+		}
+	}
+	if r.legacy != nil {
+		return r.legacy.Resolve(ctx, hint)
+	}
+	return "", gorm.ErrRecordNotFound
 }
 
 func (w mailerWrapper) SendProviderTemplate(ctx context.Context, ref string, to []emailcode.EmailAddress, vars map[string]any) error {
