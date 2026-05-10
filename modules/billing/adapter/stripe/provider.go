@@ -151,6 +151,10 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 			params.SubscriptionData = &stripesdk.CheckoutSessionSubscriptionDataParams{
 				TrialPeriodDays: stripesdk.Int64(trial),
 			}
+			params.PaymentMethodCollection = stripesdk.String("always")
+		}
+		if params.PaymentMethodCollection == nil {
+			params.PaymentMethodCollection = stripesdk.String("always")
 		}
 	}
 

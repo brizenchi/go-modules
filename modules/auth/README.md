@@ -90,6 +90,7 @@ googleProvider, err := google.New(google.Config{
 	ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 	RedirectURL:  "https://api.example.com/api/v1/auth/google/callback",
 	StateSecret:  os.Getenv("GOOGLE_STATE_SECRET"),
+	StateTTL:     20 * time.Minute,
 })
 if err == nil {
 	providers["google"] = googleProvider

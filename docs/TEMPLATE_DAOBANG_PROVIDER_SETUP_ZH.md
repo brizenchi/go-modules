@@ -62,6 +62,7 @@ APP_AUTH_GOOGLE_CLIENT_ID=YOUR_GOOGLE_CLIENT_ID
 APP_AUTH_GOOGLE_CLIENT_SECRET=YOUR_GOOGLE_CLIENT_SECRET
 APP_AUTH_GOOGLE_REDIRECT_URL=https://api.template.daobang.tech/api/v1/auth/google/callback
 APP_AUTH_GOOGLE_STATE_SECRET=CHANGE_ME_TO_ANOTHER_LONG_RANDOM_SECRET
+APP_AUTH_GOOGLE_STATE_TTL_MINUTES=20
 APP_AUTH_GOOGLE_SCOPE=openid email profile
 
 APP_EMAIL_PROVIDER=resend
@@ -170,6 +171,19 @@ Google Cloud Console 里至少配置：
 - 后端 env 里的 `APP_AUTH_GOOGLE_REDIRECT_URL`
 - Google Console 里的 redirect URI
 - 实际访问的后端域名
+
+如果报错是：
+
+```json
+{"code":400,"msg":"auth: invalid oauth state: token has invalid claims: token is expired","data":null}
+```
+
+优先排查这几项：
+
+1. 从点击 `Continue with Google` 到完成 Google 回调是否拖太久
+2. 浏览器是否复用了旧的 authorize 页面或旧标签页
+3. 后端机器系统时间是否准确
+4. `APP_AUTH_GOOGLE_STATE_TTL_MINUTES` 是否过短
 
 ## 六、Resend 测试
 

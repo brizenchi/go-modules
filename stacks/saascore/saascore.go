@@ -279,6 +279,7 @@ func buildGoogleProvider(cfg GoogleOAuthConfig) (authport.IdentityProvider, erro
 		ClientSecret: cfg.ClientSecret,
 		RedirectURL:  cfg.RedirectURL,
 		StateSecret:  cfg.StateSecret,
+		StateTTL:     cfg.StateTTL,
 		Scope:        cfg.Scope,
 	})
 	if err != nil {

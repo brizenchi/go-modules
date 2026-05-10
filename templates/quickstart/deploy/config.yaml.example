@@ -1,6 +1,9 @@
 project: quickstart
 env: dev
 
+# This file is a deploy-safe baseline. Environment variables still
+# override every field at boot.
+
 server:
   name: quickstart        # appears as "service" field in every log record
   port: 8080
@@ -40,7 +43,7 @@ auth:
   frontend_redirect: "http://localhost:3000/login"  # browser landing after backend Google callback
 
   email:
-    debug: false                   # if true, send-code response leaks the code (dev only)
+    debug: false                   # keep false outside local dev; true leaks the OTP in response
     code:
       ttl_minutes: 10
       min_resend_gap_seconds: 60
@@ -51,6 +54,7 @@ auth:
     client_secret: ""
     redirect_url: "http://localhost:8080/api/v1/auth/google/callback"
     state_secret: "ANOTHER-CHANGE-ME-32-CHARS"
+    state_ttl_minutes: 20          # allow enough time for consent screens / account switching
     scope: "openid email profile"
 
 # ---------- email ----------
@@ -68,6 +72,8 @@ email:
 # ---------- billing ----------
 billing:
   stripe:
+    # Billing is considered enabled when both secret_key and
+    # webhook_secret are non-empty.
     secret_key: ""
     publishable_key: ""
     webhook_secret: ""

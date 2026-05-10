@@ -1,6 +1,6 @@
 // Package google implements port.IdentityProvider against Google's OAuth 2.0 endpoints.
 //
-// State handling: state values are stateless signed JWTs (HS256, 10-min TTL).
+// State handling: state values are stateless signed JWTs (HS256, 20-min TTL).
 // This avoids needing a server-side state store and protects against CSRF.
 package google
 
@@ -35,7 +35,7 @@ type Config struct {
 	UserInfoURL  string
 
 	StateSecret string        // HS256 secret for state JWT
-	StateTTL    time.Duration // default 10m
+	StateTTL    time.Duration // default 20m
 	HTTPTimeout time.Duration // default 15s
 }
 
@@ -62,8 +62,8 @@ func (c Config) withDefaults() Config {
 	if c.Scope == "" {
 		c.Scope = defaultScope
 	}
-	if c.StateTTL == 0 {
-		c.StateTTL = 10 * time.Minute
+	if c.StateTTL <= 0 {
+		c.StateTTL = 20 * time.Minute
 	}
 	if c.HTTPTimeout == 0 {
 		c.HTTPTimeout = 15 * time.Second
@@ -110,7 +110,8 @@ func (p *Provider) VerifyState(state string) error {
 		return domain.ErrInvalidState
 	}
 	claims := &jwtv5.RegisteredClaims{}
-	tok, err := jwtv5.ParseWithClaims(state, claims, func(*jwtv5.Token) (any, error) {
+	parser := jwtv5.NewParser(jwtv5.WithLeeway(30 * time.Second))
+	tok, err := parser.ParseWithClaims(state, claims, func(*jwtv5.Token) (any, error) {
 		return []byte(p.cfg.StateSecret), nil
 	})
 	if err != nil || !tok.Valid {

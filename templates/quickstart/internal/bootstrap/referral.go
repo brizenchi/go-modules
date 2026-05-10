@@ -1,4 +1,4 @@
-package main
+package bootstrap
 
 import (
 	"context"
@@ -8,6 +8,6 @@ import (
 	"gorm.io/gorm"
 )
 
-func referralReward(ctx context.Context, db *gorm.DB, event saascore.ReferralActivatedEvent) error {
+func applyReferralReward(ctx context.Context, db *gorm.DB, event saascore.ReferralActivatedEvent) error {
 	return gormrepo.New(db).AddCredits(ctx, event.Referral.ReferrerID, event.Referral.RewardCredits)
 }

@@ -109,6 +109,7 @@ Optional integrations:
   - `auth.google.client_secret`
   - `auth.google.redirect_url`
   - `auth.google.state_secret`
+  - `auth.google.state_ttl_minutes`
 - Stripe
   - `billing.stripe.secret_key`
   - `billing.stripe.webhook_secret`

@@ -35,11 +35,63 @@ quickstart/
 ├── go.sum
 ├── cmd/quickstart/
 │   ├── main.go
-│   ├── main_test.go
-│   └── reward.go
+│   └── main_test.go
+├── internal/
+│   ├── bootstrap/
+│   │   ├── app.go
+│   │   ├── billing.go
+│   │   ├── config.go
+│   │   ├── referral.go
+│   │   └── saascore.go
+│   ├── http/
+│   │   ├── router.go
+│   │   ├── handler/
+│   │   │   └── billing/
+│   │   │       └── topup.go
+│   │   ├── routes/
+│   │   │   └── billing.go
+│   │   └── middleware/
+│   │       └── router.go
+│   ├── integration/
+│   │   └── stripe/
+│   │       └── topup_client.go
+│   ├── model/
+│   │   └── entity/
+│   │       └── billing/
+│   │           └── topup_event.go
+│   ├── repository/
+│   │   └── billing/
+│   │       └── topup_event.go
+│   └── service/
+│       └── billing/
+│           └── topup.go
 └── deploy/
     └── config.yaml.example
 ```
+
+Structure rules:
+
+- `cmd/quickstart` only owns process lifecycle
+- `internal/bootstrap` owns config loading and dependency assembly
+- `internal/http` owns route assembly and HTTP transport concerns
+- `internal/http/handler` owns HTTP handlers and transport-only request parsing
+- `internal/http/middleware` owns Gin middleware wiring
+- `internal/http/routes` owns feature route registration
+- `internal/service` owns business logic
+- `internal/repository` owns persistence details
+- `internal/model/entity` owns project-local table models
+- `internal/integration` owns third-party SDK interaction
+- feature code can be nested by domain inside those layers, for example `billing/*`
+- shared SaaS routes still come from `stacks/saascore`
+
+This template intentionally does not create a global `dto` package by
+default. Small request/response structs stay close to the handler first.
+Only split them into feature-local transport packages when a business
+module grows enough to justify that extra layer.
+
+Current example:
+
+- the custom Stripe credits top-up flow is grouped under the `billing` domain across handler, service, repository, and entity layers
 
 ## Copy and run
 
@@ -58,6 +110,12 @@ go run ./cmd/quickstart
 For local development, `go run ./cmd/quickstart` will auto-load `.env`
 from the current directory if the file exists. Existing process
 environment variables still win over `.env`.
+
+Config intent:
+
+- `.env.example` is the fast local-dev profile: text logs, `email.provider=log`, `auth.email.debug=true`
+- `deploy/config.yaml.example` is the safer deploy baseline: structured logs, `auth.email.debug=false`
+- Stripe becomes active automatically when both `billing.stripe.secret_key` and `billing.stripe.webhook_secret` are set; this template does not use a separate `billing.stripe.enabled` flag
 
 ## Dependency mode
 
@@ -159,16 +217,32 @@ Email provider defaults:
 - `email.provider=brevo` when using Brevo template-based delivery
 - `email.provider=resend` when using Resend API delivery
 
+Local auth defaults:
+
+- `.env.example` uses `auth.email.debug=true` so local frontend work does not require a real mailbox
+- `deploy/config.yaml.example` keeps `auth.email.debug=false` to avoid leaking OTPs in non-dev environments
+
+Google OAuth defaults:
+
+- `auth.google.state_ttl_minutes=20`
+- if you see `auth: invalid oauth state ... token is expired`, first check callback delay, stale authorize links, and backend server time
+
 ## What you usually change
 
 - `.env` and `deploy/config.yaml`
-- `cmd/quickstart/reward.go`
+- `internal/http/handler/*`
+- `internal/service/*`
+- `internal/repository/*`
+- `internal/model/entity/*`
 - host-specific routes or hooks around the shared stack
 
 Main extension surface:
 
 - `saascore.HostHooks`
 - `saascore.PolicyHooks`
+- `internal/bootstrap/*`
+- `internal/http/*`
+- `internal/service/*`
 
 ## What you should not rewrite
 

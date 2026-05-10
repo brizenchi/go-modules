@@ -6,8 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/brizenchi/go-modules/foundation/ginx"
+	"github.com/brizenchi/quickstart-template/internal/bootstrap"
+	qmiddleware "github.com/brizenchi/quickstart-template/internal/http/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,7 +36,7 @@ func (smokeStack) Mount(publicGroup, userGroup *gin.RouterGroup) {
 }
 
 func TestDBConfigPGXConfigFromFields(t *testing.T) {
-	cfg := DBConfig{
+	cfg := bootstrap.DBConfig{
 		Host:     "localhost",
 		Port:     5432,
 		User:     "app",
@@ -56,7 +59,7 @@ func TestDBConfigPGXConfigFromFields(t *testing.T) {
 }
 
 func TestDBConfigPGXConfigPrefersDSN(t *testing.T) {
-	cfg := DBConfig{
+	cfg := bootstrap.DBConfig{
 		DSN:  "host=db user=app password=secret dbname=quickstart port=5432 sslmode=disable TimeZone=UTC",
 		Host: "ignored",
 	}
@@ -68,7 +71,7 @@ func TestDBConfigPGXConfigPrefersDSN(t *testing.T) {
 }
 
 func TestDBConfigSafeStringStructured(t *testing.T) {
-	cfg := DBConfig{
+	cfg := bootstrap.DBConfig{
 		Host:     "localhost",
 		Port:     5432,
 		User:     "app",
@@ -86,19 +89,20 @@ func TestDBConfigSafeStringStructured(t *testing.T) {
 }
 
 func TestDBConfigSafeStringDSN(t *testing.T) {
-	cfg := DBConfig{DSN: "host=db user=app password=secret"}
+	cfg := bootstrap.DBConfig{DSN: "host=db user=app password=secret"}
 	if got := cfg.SafeString(); got != "<dsn-masked>" {
 		t.Fatalf("SafeString = %q, want <dsn-masked>", got)
 	}
 }
 
 func TestAppConfigSaaSCoreConfig(t *testing.T) {
-	cfg := AppConfig{}
+	cfg := bootstrap.AppConfig{}
 	cfg.Server.Name = "quickstart"
 	cfg.Auth.UserJWTSecret = "jwt-secret"
 	cfg.Email.Provider = "resend"
 	cfg.Email.Resend.APIKey = "api-key"
 	cfg.Email.Resend.SenderEmail = "noreply@example.com"
+	cfg.Auth.Google.StateTTLMin = 35
 	cfg.Billing.Stripe.SecretKey = "sk_test_123"
 	cfg.Billing.Stripe.WebhookSecret = "whsec_123"
 	cfg.Billing.Stripe.Prices.ProMonthly = "price_pro_month"
@@ -117,6 +121,9 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	if sc.Email.Resend.SenderEmail != "noreply@example.com" {
 		t.Fatalf("resend sender email mismatch: %q", sc.Email.Resend.SenderEmail)
 	}
+	if sc.Auth.Google.StateTTL != 35*time.Minute {
+		t.Fatalf("google state ttl mismatch: %v", sc.Auth.Google.StateTTL)
+	}
 	if sc.Billing.Stripe.ProMonthlyPriceID != "price_pro_month" {
 		t.Fatalf("pro monthly price mismatch: %q", sc.Billing.Stripe.ProMonthlyPriceID)
 	}
@@ -132,7 +139,7 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 }
 
 func TestTracingConfigFields(t *testing.T) {
-	cfg := AppConfig{}
+	cfg := bootstrap.AppConfig{}
 	cfg.Tracing.Endpoint = "localhost:4318"
 	cfg.Tracing.Protocol = "grpc"
 	cfg.Tracing.Insecure = true
@@ -152,7 +159,7 @@ func TestTracingConfigFields(t *testing.T) {
 	if cfg.Tracing.SampleRate != 0.5 {
 		t.Fatalf("sample rate mismatch: %v", cfg.Tracing.SampleRate)
 	}
-	headers := cfg.Tracing.headers()
+	headers := cfg.Tracing.ExporterHeaders()
 	if headers["Authorization"] != "Basic abc" || headers["X-Test"] != "ok" {
 		t.Fatalf("headers mismatch: %+v", headers)
 	}
@@ -171,7 +178,9 @@ func TestLoadDotEnvLoadsMissingVariablesOnly(t *testing.T) {
 		t.Fatalf("Unsetenv APP_DB_HOST: %v", err)
 	}
 
-	loadDotEnv(envPath)
+	if err := bootstrap.LoadDotEnv(envPath); err != nil {
+		t.Fatalf("LoadDotEnv: %v", err)
+	}
 
 	if got := os.Getenv("APP_DB_HOST"); got != "10.0.0.8" {
 		t.Fatalf("APP_DB_HOST = %q, want 10.0.0.8", got)
@@ -182,15 +191,17 @@ func TestLoadDotEnvLoadsMissingVariablesOnly(t *testing.T) {
 }
 
 func TestLoadDotEnvMissingFileDoesNothing(t *testing.T) {
-	loadDotEnv(filepath.Join(t.TempDir(), "missing.env"))
+	if err := bootstrap.LoadDotEnv(filepath.Join(t.TempDir(), "missing.env")); err != nil {
+		t.Fatalf("LoadDotEnv missing file: %v", err)
+	}
 }
 
 func TestBuildRouter_HealthAndMountedRoutes(t *testing.T) {
-	cfg := AppConfig{}
+	cfg := bootstrap.AppConfig{}
 	cfg.Server.Name = "quickstart"
 	cfg.Tracing.SampleRate = 1
 
-	router := buildRouter(cfg, smokeStack{})
+	router := qmiddleware.BuildRouter(qmiddleware.RouterConfig{ServiceName: cfg.Server.Name}, smokeStack{})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	res := httptest.NewRecorder()

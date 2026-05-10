@@ -36,6 +36,7 @@ type GoogleOAuthConfig struct {
 	ClientSecret string
 	RedirectURL  string
 	StateSecret  string
+	StateTTL     time.Duration
 	Scope        string
 }
 
