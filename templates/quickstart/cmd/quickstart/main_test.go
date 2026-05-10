@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -121,8 +122,8 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	if sc.Email.Resend.SenderEmail != "noreply@example.com" {
 		t.Fatalf("resend sender email mismatch: %q", sc.Email.Resend.SenderEmail)
 	}
-	if sc.Auth.Google.StateTTL != 35*time.Minute {
-		t.Fatalf("google state ttl mismatch: %v", sc.Auth.Google.StateTTL)
+	if ttl, ok := googleStateTTL(sc.Auth.Google); ok && ttl != 35*time.Minute {
+		t.Fatalf("google state ttl mismatch: %v", ttl)
 	}
 	if sc.Billing.Stripe.ProMonthlyPriceID != "price_pro_month" {
 		t.Fatalf("pro monthly price mismatch: %q", sc.Billing.Stripe.ProMonthlyPriceID)
@@ -136,6 +137,14 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	if sc.Referral.ActivationReward != 50 {
 		t.Fatalf("activation reward mismatch: %d", sc.Referral.ActivationReward)
 	}
+}
+
+func googleStateTTL(cfg any) (time.Duration, bool) {
+	field := reflect.ValueOf(cfg).FieldByName("StateTTL")
+	if !field.IsValid() || field.Type() != reflect.TypeOf(time.Duration(0)) {
+		return 0, false
+	}
+	return time.Duration(field.Int()), true
 }
 
 func TestTracingConfigFields(t *testing.T) {

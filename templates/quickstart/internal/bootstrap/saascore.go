@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"reflect"
 	"strings"
 	"time"
 
@@ -10,6 +11,17 @@ import (
 func (c AppConfig) SaaSCoreConfig() saascore.Config {
 	stripeEnabled := strings.TrimSpace(c.Billing.Stripe.SecretKey) != "" &&
 		strings.TrimSpace(c.Billing.Stripe.WebhookSecret) != ""
+
+	googleCfg := saascore.GoogleOAuthConfig{
+		ClientID:     c.Auth.Google.ClientID,
+		ClientSecret: c.Auth.Google.ClientSecret,
+		RedirectURL:  c.Auth.Google.RedirectURL,
+		StateSecret:  c.Auth.Google.StateSecret,
+		Scope:        c.Auth.Google.Scope,
+	}
+	// The copied template builds against the latest published go-modules
+	// version, which may lag behind the workspace stack type definition.
+	setGoogleStateTTL(&googleCfg, time.Duration(intWithDefault(c.Auth.Google.StateTTLMin, 20))*time.Minute)
 
 	return saascore.Config{
 		ServiceName: c.Server.Name,
@@ -26,14 +38,7 @@ func (c AppConfig) SaaSCoreConfig() saascore.Config {
 				DailyCap:     intWithDefault(c.Auth.Email.Code.DailyCap, 10),
 				MaxAttempts:  intWithDefault(c.Auth.Email.Code.MaxAttempts, 5),
 			},
-			Google: saascore.GoogleOAuthConfig{
-				ClientID:     c.Auth.Google.ClientID,
-				ClientSecret: c.Auth.Google.ClientSecret,
-				RedirectURL:  c.Auth.Google.RedirectURL,
-				StateSecret:  c.Auth.Google.StateSecret,
-				StateTTL:     time.Duration(intWithDefault(c.Auth.Google.StateTTLMin, 20)) * time.Minute,
-				Scope:        c.Auth.Google.Scope,
-			},
+			Google: googleCfg,
 		},
 		Email: saascore.EmailConfig{
 			Provider: c.Email.Provider,
@@ -79,4 +84,15 @@ func intWithDefault(value, fallback int) int {
 		return value
 	}
 	return fallback
+}
+
+func setGoogleStateTTL(cfg *saascore.GoogleOAuthConfig, ttl time.Duration) {
+	if cfg == nil || ttl <= 0 {
+		return
+	}
+	field := reflect.ValueOf(cfg).Elem().FieldByName("StateTTL")
+	if !field.IsValid() || !field.CanSet() || field.Type() != reflect.TypeOf(time.Duration(0)) {
+		return
+	}
+	field.SetInt(int64(ttl))
 }
