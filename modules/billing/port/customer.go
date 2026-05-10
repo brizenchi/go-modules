@@ -15,6 +15,11 @@ type CustomerStore interface {
 
 	// SaveCustomerID persists the provider customer ID for a user.
 	SaveCustomerID(ctx context.Context, userID, provider, customerID string) error
+
+	// HasUsedTrial reports whether the user has ever had a subscription
+	// in trialing or active state (i.e. has consumed their free-trial
+	// opportunity). Used to prevent granting duplicate trials.
+	HasUsedTrial(ctx context.Context, userID string) (bool, error)
 }
 
 // Customer is a minimal projection of a user for billing purposes.

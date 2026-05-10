@@ -51,6 +51,18 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (*Checko
 		return nil, fmt.Errorf("%w: email required", domain.ErrInvalidInput)
 	}
 
+	// Prevent duplicate free trials: if the user has ever had a subscription,
+	// strip trial days so they go straight to paid.
+	if in.ProductType == domain.ProductSubscription && in.TrialDays >= 0 {
+		used, err := s.customers.HasUsedTrial(ctx, in.UserID)
+		if err != nil {
+			return nil, err
+		}
+		if used {
+			in.TrialDays = -1 // signal provider to skip trial
+		}
+	}
+
 	customerID, err := s.provider.EnsureCustomer(ctx, in.UserID, in.Email, cust.ProviderCustomerID)
 	if err != nil {
 		return nil, err

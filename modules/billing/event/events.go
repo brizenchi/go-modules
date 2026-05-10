@@ -18,6 +18,7 @@ const (
 	KindSubscriptionCanceling   Kind = "subscription.canceling"   // user requested cancel, still active until effective
 	KindSubscriptionCanceled    Kind = "subscription.canceled"    // fully canceled, access revoked
 	KindSubscriptionReactivated Kind = "subscription.reactivated" // canceling -> active again
+	KindTrialConverted          Kind = "subscription.trial_converted" // trial ended, first payment succeeded
 	KindPaymentFailed           Kind = "payment.failed"
 	KindCreditsPurchased        Kind = "credits.purchased"
 )
@@ -69,6 +70,12 @@ type SubscriptionReactivated struct {
 type PaymentFailed struct {
 	ProviderSubscriptionID string
 	ProviderCustomerID     string
+}
+
+// TrialConverted is emitted when a trialing subscription transitions to
+// active after the first successful payment (trial ended, now paying).
+type TrialConverted struct {
+	Snapshot domain.SubscriptionSnapshot
 }
 
 // CreditsPurchased is emitted on a one-time credits checkout success.

@@ -143,6 +143,9 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 	}
 
 	if in.ProductType == domain.ProductSubscription {
+		// TrialDays < 0 means "explicitly skip trial" (e.g. returning user).
+		// TrialDays == 0 means "use config default".
+		// TrialDays > 0 means "override with this value".
 		trial := in.TrialDays
 		if trial == 0 {
 			trial = p.cfg.TrialDays

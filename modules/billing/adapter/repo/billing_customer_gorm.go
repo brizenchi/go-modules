@@ -89,4 +89,22 @@ func (s *CustomerStore) SaveCustomerID(ctx context.Context, userID, provider, cu
 		Create(row).Error
 }
 
+func (s *CustomerStore) HasUsedTrial(ctx context.Context, userID string) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).
+		Model(&domain.BillingSubscription{}).
+		Where("user_id = ? AND status IN ?", strings.TrimSpace(userID), []string{
+			string(domain.StatusTrialing),
+			string(domain.StatusActive),
+			string(domain.StatusCanceling),
+			string(domain.StatusCanceled),
+			string(domain.StatusPastDue),
+		}).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 var _ port.CustomerStore = (*CustomerStore)(nil)

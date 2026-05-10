@@ -709,6 +709,16 @@ func (s fallbackCustomerStore) SaveCustomerID(ctx context.Context, userID, provi
 	return nil
 }
 
+func (s fallbackCustomerStore) HasUsedTrial(ctx context.Context, userID string) (bool, error) {
+	if s.current != nil {
+		return s.current.HasUsedTrial(ctx, userID)
+	}
+	if s.legacy != nil {
+		return s.legacy.HasUsedTrial(ctx, userID)
+	}
+	return false, nil
+}
+
 type fallbackUserResolver struct {
 	legacy  *billingstore.UserResolver
 	current *billingrepo.UserResolver

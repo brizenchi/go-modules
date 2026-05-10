@@ -52,6 +52,15 @@ func (s *CustomerStore) SaveCustomerID(ctx context.Context, userID, provider, cu
 	})
 }
 
+func (s *CustomerStore) HasUsedTrial(ctx context.Context, userID string) (bool, error) {
+	user, err := s.users.FindByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	// A user has consumed trial if they ever had a subscription (any non-empty billing status).
+	return user.BillingStatus != "" || (user.Plan != "" && user.Plan != string(userdomain.PlanFree)), nil
+}
+
 // UserResolver adapts the shared users table to billing.UserResolver.
 //
 // Deprecated: prefer modules/billing/adapter/repo.UserResolver.

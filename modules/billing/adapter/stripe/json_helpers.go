@@ -1,6 +1,9 @@
 package stripe
 
 func getString(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {
 			return s

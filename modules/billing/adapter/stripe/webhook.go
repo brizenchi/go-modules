@@ -46,13 +46,13 @@ func (p *Provider) VerifyAndParseWebhook(payload []byte, signature string) (*por
 		RawPayload:      append([]byte(nil), payload...),
 	}
 
-	envs := p.translateEvent(string(ev.Type), data, ev.ID, occurredAt, hint)
+	envs := p.translateEvent(string(ev.Type), data, ev.Data.PreviousAttributes, ev.ID, occurredAt, hint)
 	out.Envelopes = envs
 	return out, nil
 }
 
 // translateEvent converts a Stripe event into zero or more domain envelopes.
-func (p *Provider) translateEvent(evtType string, data map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) []event.Envelope {
+func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) []event.Envelope {
 	mk := func(kind event.Kind, payload any) event.Envelope {
 		return event.Envelope{
 			Kind:            kind,
@@ -78,7 +78,7 @@ func (p *Provider) translateEvent(evtType string, data map[string]any, evtID str
 		snap := p.snapshotFromMap(data)
 		return []event.Envelope{mk(event.KindSubscriptionUpdated, event.SubscriptionUpdated{Snapshot: *snap})}
 	case "customer.subscription.updated":
-		return p.onSubscriptionUpdated(data, mk)
+		return p.onSubscriptionUpdated(data, prevAttrs, mk)
 	case "customer.subscription.deleted":
 		return []event.Envelope{mk(event.KindSubscriptionCanceled, event.SubscriptionCanceled{
 			ProviderSubscriptionID: getString(data, "id"),
@@ -170,7 +170,7 @@ func (p *Provider) onInvoicePaid(data map[string]any, mk func(event.Kind, any) e
 	return []event.Envelope{mk(event.KindSubscriptionRenewed, event.SubscriptionRenewed{Snapshot: snap})}
 }
 
-func (p *Provider) onSubscriptionUpdated(data map[string]any, mk func(event.Kind, any) event.Envelope) []event.Envelope {
+func (p *Provider) onSubscriptionUpdated(data map[string]any, prevAttrs map[string]any, mk func(event.Kind, any) event.Envelope) []event.Envelope {
 	snap := p.snapshotFromMap(data)
 	cancelAtPeriodEnd := getBool(data, "cancel_at_period_end")
 	cancelAt := getInt64(data, "cancel_at")
@@ -187,6 +187,11 @@ func (p *Provider) onSubscriptionUpdated(data map[string]any, mk func(event.Kind
 			Mode:        mode,
 			EffectiveAt: snap.CancelEffectiveAt,
 		})}
+	}
+
+	// Trial → paid conversion: previous status was "trialing", now "active".
+	if snap.Status == domain.StatusActive && getString(prevAttrs, "status") == "trialing" {
+		return []event.Envelope{mk(event.KindTrialConverted, event.TrialConverted{Snapshot: *snap})}
 	}
 
 	// Reactivation: was canceling, now active again. We can't see "was",

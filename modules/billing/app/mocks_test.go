@@ -254,9 +254,10 @@ func (r *mockResolver) Resolve(ctx context.Context, h port.UserHint) (string, er
 // --- mockCustomerStore --------------------------------------------------
 
 type mockCustomerStore struct {
-	customer port.Customer
-	loadErr  error
-	saved    map[string]string
+	customer     port.Customer
+	loadErr      error
+	saved        map[string]string
+	hasUsedTrial bool
 }
 
 func newMockCustomerStore(c port.Customer) *mockCustomerStore {
@@ -273,6 +274,10 @@ func (s *mockCustomerStore) LoadCustomer(ctx context.Context, userID string) (po
 func (s *mockCustomerStore) SaveCustomerID(ctx context.Context, userID, provider, customerID string) error {
 	s.saved[userID] = customerID
 	return nil
+}
+
+func (s *mockCustomerStore) HasUsedTrial(ctx context.Context, userID string) (bool, error) {
+	return s.hasUsedTrial, nil
 }
 
 // helper to satisfy unused-import warnings if any test removes uses

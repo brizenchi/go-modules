@@ -145,6 +145,9 @@ func (s handlerTestCustomerStore) LoadCustomer(ctx context.Context, userID strin
 func (s handlerTestCustomerStore) SaveCustomerID(ctx context.Context, userID, provider, customerID string) error {
 	return nil
 }
+func (s handlerTestCustomerStore) HasUsedTrial(ctx context.Context, userID string) (bool, error) {
+	return false, nil
+}
 
 type handlerTestBus struct{}
 
