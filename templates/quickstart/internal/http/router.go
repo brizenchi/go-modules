@@ -3,8 +3,6 @@ package http
 import (
 	stdhttp "net/http"
 
-	billinghandler "github.com/brizenchi/quickstart-template/internal/http/handler/billing"
-	billingroutes "github.com/brizenchi/quickstart-template/internal/http/routes"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,20 +13,24 @@ type RouteRegistrar interface {
 
 type Router struct {
 	shared RouteRegistrar
-	topUp  *billinghandler.StripeTopUpHandler
 }
 
-func NewRouter(shared RouteRegistrar, topUp *billinghandler.StripeTopUpHandler) *Router {
-	return &Router{shared: shared, topUp: topUp}
+func NewRouter(shared RouteRegistrar) *Router {
+	return &Router{shared: shared}
 }
 
 func (r *Router) RequireUser() gin.HandlerFunc {
+	if r == nil || r.shared == nil {
+		return func(c *gin.Context) { c.Next() }
+	}
 	return r.shared.RequireUser()
 }
 
 func (r *Router) Mount(publicGroup, userGroup *gin.RouterGroup) {
-	r.shared.Mount(publicGroup, userGroup)
-	billingroutes.RegisterTopUpRoutes(publicGroup, userGroup, r.topUp)
+	if r != nil && r.shared != nil {
+		r.shared.Mount(publicGroup, userGroup)
+	}
+	registerHostRoutes(publicGroup, userGroup)
 }
 
 func HealthHandler(c *gin.Context) {

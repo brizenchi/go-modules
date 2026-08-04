@@ -11,10 +11,7 @@ import (
 	"github.com/brizenchi/go-modules/foundation/tracing"
 	"github.com/brizenchi/go-modules/stacks/saascore"
 	apphttp "github.com/brizenchi/quickstart-template/internal/http"
-	billinghandler "github.com/brizenchi/quickstart-template/internal/http/handler/billing"
 	httpmiddleware "github.com/brizenchi/quickstart-template/internal/http/middleware"
-	billingentity "github.com/brizenchi/quickstart-template/internal/model/entity/billing"
-	billingservice "github.com/brizenchi/quickstart-template/internal/service/billing"
 )
 
 type App struct {
@@ -67,30 +64,14 @@ func New() (app *App, err error) {
 	stack, err := saascore.New(
 		db,
 		cfg.SaaSCoreConfig(),
-		saascore.HostHooks{
-			OnReferralActivated: func(ctx context.Context, event saascore.ReferralActivatedEvent) error {
-				return applyReferralReward(ctx, db, event)
-			},
-		},
+		buildHostHooks(db),
 		saascore.PolicyHooks{},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("saascore.New: %w", err)
 	}
-	if err := db.AutoMigrate(&billingentity.StripeTopUpEvent{}); err != nil {
-		return nil, fmt.Errorf("migrate stripe top-up events: %w", err)
-	}
 
-	topUpService := billingservice.NewStripeTopUpService(
-		cfg.StripeTopUpRuntimeConfig(),
-		stack.DB,
-		stack.Users,
-		stack.Billing.Provider,
-		stack.Billing.Customers,
-		stack.Billing.UserResolver,
-	)
-	topUpHandler := billinghandler.NewStripeTopUpHandler(topUpService)
-	router := apphttp.NewRouter(stack, topUpHandler)
+	router := apphttp.NewRouter(stack)
 	engine := httpmiddleware.BuildRouter(httpmiddleware.RouterConfig{ServiceName: cfg.Server.Name}, router)
 
 	return &App{
