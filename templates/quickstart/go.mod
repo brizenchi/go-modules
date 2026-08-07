@@ -3,7 +3,7 @@ module github.com/brizenchi/quickstart-template
 go 1.25.0
 
 require (
-	github.com/brizenchi/go-modules v0.2.1-0.20260505014021-f03c1df01c74
+	github.com/brizenchi/go-modules v0.2.1-0.20260807080018-d6a572f8ab3a
 	github.com/gin-gonic/gin v1.12.0
 	github.com/subosito/gotenv v1.6.0
 	gorm.io/gorm v1.31.1
