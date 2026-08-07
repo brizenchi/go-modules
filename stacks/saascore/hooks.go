@@ -11,6 +11,7 @@ import (
 
 type HostHooks struct {
 	OnUserSignedUp            func(ctx context.Context, event UserSignedUpEvent) error
+	OnUserLoggedIn            func(ctx context.Context, event UserLoggedInEvent) error
 	OnSubscriptionActivated   func(ctx context.Context, event SubscriptionEvent) error
 	OnSubscriptionRenewed     func(ctx context.Context, event SubscriptionEvent) error
 	OnSubscriptionUpdated     func(ctx context.Context, event SubscriptionEvent) error
@@ -31,6 +32,13 @@ type UserSignedUpEvent struct {
 	UserID     string
 	OccurredAt time.Time
 	Identity   authdomain.Identity
+}
+
+type UserLoggedInEvent struct {
+	UserID     string
+	OccurredAt time.Time
+	Identity   authdomain.Identity
+	Provider   authdomain.Provider
 }
 
 type SubscriptionEvent struct {

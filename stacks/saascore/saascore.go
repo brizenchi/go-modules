@@ -338,6 +338,7 @@ func (s *Stack) subscribeStandardListeners() {
 	s.Auth.Subscribe(authevent.KindUserSignedUp, s.onUserSignedUpBilling)
 	s.Auth.Subscribe(authevent.KindUserSignedUp, s.onUserSignedUpReferral)
 	s.Auth.Subscribe(authevent.KindUserSignedUp, s.onUserSignedUpHost)
+	s.Auth.Subscribe(authevent.KindUserLoggedIn, s.onUserLoggedInHost)
 
 	s.Billing.Subscribe(billingevent.KindSubscriptionActivated, s.onSubscriptionActivated)
 	s.Billing.Subscribe(billingevent.KindSubscriptionRenewed, s.onSubscriptionRenewed)
@@ -389,6 +390,19 @@ func (s *Stack) onUserSignedUpHost(ctx context.Context, env authevent.Envelope) 
 		UserID:     env.UserID,
 		OccurredAt: env.OccurredAt,
 		Identity:   payload.Identity,
+	})
+}
+
+func (s *Stack) onUserLoggedInHost(ctx context.Context, env authevent.Envelope) error {
+	if s.hostHooks.OnUserLoggedIn == nil {
+		return nil
+	}
+	payload, _ := env.Payload.(authevent.UserLoggedIn)
+	return s.hostHooks.OnUserLoggedIn(ctx, UserLoggedInEvent{
+		UserID:     env.UserID,
+		OccurredAt: env.OccurredAt,
+		Identity:   payload.Identity,
+		Provider:   payload.Provider,
 	})
 }
 
