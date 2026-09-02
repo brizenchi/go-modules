@@ -1,33 +1,29 @@
-// Package auth is a portable, provider-agnostic authentication module.
+// Package auth 是一个可移植、与登录供应商无关的认证模块。
 //
-// Layering (mirrors modules/billing and modules/email):
+// 分层方式与 modules/billing、modules/email 一致：
 //
-//	domain/   pure types: Identity, Token, OAuthProfile, errors
-//	event/    domain events (UserSignedUp, UserLoggedIn)
-//	port/     interfaces: IdentityProvider, EmailCodeIssuer/Verifier,
-//	          TokenSigner, WSTicketSigner, UserStore, RoleResolver,
-//	          ExchangeCodeStore, EventBus
-//	adapter/  concrete implementations
-//	  jwt/         HS256 token + WS ticket signer
-//	  google/      Google OAuth IdentityProvider
-//	  emailcode/   passwordless email-code provider (uses modules/email)
-//	  redisstore/  CodeRateLimitStore on Redis
-//	  memstore/    in-memory CodeRateLimitStore + ExchangeCodeStore (dev/tests)
-//	  gormstore/   GORM-backed ExchangeCodeStore
-//	  eventbus/    in-process synchronous bus
-//	app/      use cases: SendCode, VerifyCode, StartOAuth, OAuthCallback,
-//	          ExchangeToken, RefreshToken, IssueWSTicket
-//	http/     Gin handlers, UserAuthMiddleware, Mount()
-//	auth.go   Module wiring
+//	domain/   纯类型：Identity、Token、OAuthProfile、错误
+//	event/    领域事件：UserSignedUp、UserLoggedIn
+//	port/     接口：登录供应商、验证码、令牌、用户仓储、角色解析、事件总线
+//	adapter/  具体实现
+//	  jwt/         HS256 令牌和 WebSocket ticket
+//	  google/      Google OAuth
+//	  github/      GitHub OAuth
+//	  emailcode/   无密码邮箱验证码登录，发送能力来自 modules/email
+//	  memstore/    内存验证码限流和 OAuth 交换码，仅用于开发与测试
+//	  gormstore/   GORM 验证码、每日次数和 OAuth 交换码
+//	  eventbus/    进程内同步事件总线
+//	app/      用例：发送/校验验证码、OAuth、令牌交换与刷新、WebSocket ticket
+//	http/     Gin 处理器、认证中间件和路由挂载
+//	auth.go   模块组装
 //
-// The host project provides:
-//  1. port.UserStore         — read/write the host's user table
-//  2. port.RoleResolver      — assign roles to identities
-//  3. port.ExchangeCodeStore — persist OAuth callback codes
-//  4. event listeners        — react to UserSignedUp / UserLoggedIn
+// 宿主项目负责提供：
+//  1. port.UserStore         — 读写宿主自己的用户表
+//  2. port.RoleResolver      — 决定登录身份的角色
+//  3. port.ExchangeCodeStore — 保存 OAuth 回调交换码
+//  4. 事件监听器              — 响应 UserSignedUp / UserLoggedIn
 //
-// Auth never imports project-specific models.
+// 认证模块不会导入任何项目专属模型。
 package auth
 
-// The Module struct, Deps and New() constructor live in module.go to
-// keep this file as the package's overview.
+// Module、Deps 和 New() 位于 module.go；本文件只说明包结构。

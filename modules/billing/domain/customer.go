@@ -4,7 +4,7 @@ import "time"
 
 // BillingCustomer stores the provider-side customer identity for a user.
 //
-// One row per (user, provider) keeps the shared user schema free of
+// One row per (user, provider) keeps the host user schema free of
 // provider-specific linkage fields while still allowing fast lookups by
 // provider customer ID.
 type BillingCustomer struct {

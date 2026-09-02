@@ -1,315 +1,108 @@
-# Config Standard
+# 配置标准
 
-This document defines the recommended configuration and bootstrap split
-for projects built on top of `go-modules`.
-
-Goal:
-
-- keep shared SaaS capabilities standardized
-- keep business projects flexible
-- avoid repeating the same config wiring across many services
-- avoid hiding config behavior inside reusable modules
-
-## Core rule
-
-Only the outer application bootstrap reads config files or environment
-variables.
-
-That means:
-
-- `foundation/*` does not read `.env`
-- `modules/*` does not read `.env`
-- `stacks/*` does not read `.env`
-- only the host app startup layer loads `.env`, YAML, or deployment env
-
-Reusable packages should only receive typed config values and concrete
-dependencies.
-
-## Recommended ownership split
-
-### `go-modules` should own
-
-- shared config structs for reusable modules and stacks
-- validation rules for those shared config structs
-- mapping examples in templates
-- standard startup templates such as `templates/quickstart`
-- integration docs and configuration rules
-
-### business projects should own
-
-- actual `.env` files
-- actual `config.yaml` files
-- secrets manager / CI / container env injection
-- host-only config fields
-- final bootstrap and dependency assembly in `main.go`
-- project-specific listeners, policies, routes, and background jobs
-
-## Recommended config flow
-
-Use this order:
-
-1. code defaults
-2. `config.yaml`
-3. local `.env`
-4. real process environment variables
-5. validation
-6. typed dependency assembly
-
-Practical meaning:
-
-- YAML is the structured baseline
-- `.env` is a local development convenience layer
-- deployment env is the final authority
-
-## Recommended config layering
-
-Use two config layers.
-
-### layer 1: host app config
-
-This belongs to the business project.
-
-Example:
-
-```go
-type AppConfig struct {
-    Server   ServerConfig
-    Log      LogConfig
-    Tracing  TracingConfig
-    DB       DBConfig
-    Auth     AuthConfig
-    Email    EmailConfig
-    Billing  BillingConfig
-    Referral ReferralConfig
-}
-```
-
-This layer may include:
-
-- server name and port
-- log format and level
-- tracing exporter settings
-- DB connectivity
-- host-only feature flags
-- host-only domains and product options
-
-### layer 2: shared stack config
-
-This belongs to `go-modules`.
-
-Example:
-
-- `stacks/saascore.Config`
-- `modules/auth` typed config inputs
-- `modules/billing` typed config inputs
-
-This layer should only contain fields that the shared package actually
-needs.
-
-## Assembly rule
-
-The host app loads a full `AppConfig`, then passes smaller typed
-sub-configs into each dependency.
-
-Example:
-
-```go
-cfg := loadAppConfig()
-
-db := mustOpenDB(cfg.DB)
-traceShutdown := mustSetupTracing(cfg.Tracing)
-
-stack := mustNewSaaSCore(
-    db,
-    cfg.SaaSCoreConfig(),
-    hostHooks,
-    policyHooks,
-)
-```
-
-Important:
-
-- `main.go` may hold the full app config
-- reusable modules should only receive the config slice they need
-- do not expose a package-global mutable config object to all modules
-
-## Validation rule
-
-Validation should happen after config is fully loaded and before any
-real dependency is opened.
-
-### validate at the host layer
-
-Host should validate:
-
-- server port
-- DB connection shape
-- host-only domain settings
-- project-specific required fields
-
-### validate at the shared layer
-
-Shared stack should validate:
-
-- JWT secrets
-- Google OAuth required pairs
-- email provider requirements
-- Stripe required fields when enabled
-- referral link assumptions when needed
-
-Recommended direction:
-
-- keep host validation in the host app bootstrap
-- keep shared business validation near the shared stack or module
-
-## Logging rule
-
-At startup, print a sanitized config summary.
-
-Print:
-
-- service name
-- server port
-- DB host, DB name, DB user
-- email provider
-- Google enabled or disabled
-- Stripe enabled or disabled
-- tracing enabled or disabled
-
-Do not print:
-
-- passwords
-- JWT secrets
-- OAuth client secrets
-- Stripe secrets
-- webhook secrets
-
-## `.env` rule
-
-`.env` is a local development convenience, not a reusable module
-contract.
-
-Recommended behavior:
-
-- host bootstrap may auto-load `.env` in local development
-- `.env` must never override already-set deployment environment
-- reusable modules must not know whether config came from `.env`, YAML,
-  or a secrets manager
-
-This is why `.env` loading belongs in the template or business project,
-not in shared modules.
-
-## Recommended `go-modules` structure
-
-Keep these responsibilities:
+## 配置优先级
 
 ```text
-go-modules/
-  foundation/
-    config/          config loader helper only
-    ginx/
-    httpresp/
-    pgx/
-    slog/
-    tracing/
-  modules/
-    auth/
-    billing/
-    email/
-    referral/
-    user/
-  stacks/
-    saascore/        shared SaaS composition and its typed config
-  templates/
-    quickstart/      standard backend bootstrap shell
-    quickstart-nextjs/
-  docs/
-    INTEGRATION.md
-    SAASCORE_GUIDE.md
-    CONFIG_STANDARD.md
+进程环境变量 > .env > deploy/config.yaml
 ```
 
-### what should stay out of shared modules
-
-- direct reads from `.env`
-- direct reads from host YAML paths
-- host deployment layout assumptions
-- host-only project models
-- host-only middleware and policies
-
-## Recommended business project structure
-
-Recommended backend layout:
+后端默认读取 `deploy/config.yaml`。可以用 `CONFIG` 指向其他文件。
+环境变量统一以 `APP_` 开头，嵌套层级使用下划线：
 
 ```text
-your-backend/
-  cmd/
-    server/
-      main.go
-  internal/
-    bootstrap/       config load, validate, logger, tracing, DB, wiring
-    hooks/           host business hooks for shared lifecycle events
-    listener/        extra host listeners
-    route/           host-only routes
-  deploy/
-    config.yaml
-  .env
+auth.github.client_id  → APP_AUTH_GITHUB_CLIENT_ID
+host.welcome_email.enabled → APP_HOST_WELCOME_EMAIL_ENABLED
 ```
 
-### bootstrap package should own
+密钥只放环境变量或未提交的 `.env`；非敏感默认值放 YAML。
 
-- load `.env` if present
-- load YAML
-- apply environment overrides
-- validate final app config
-- print sanitized config summary
-- create DB / logger / tracing / stack dependencies
+## 模块开关
 
-### bootstrap package should not own
+| 配置 | 默认规则 | 结果 |
+| --- | --- | --- |
+| `auth.enabled` | 默认 true | false 时不创建 auth、不挂登录路由 |
+| `auth.email.enabled` | 默认 true | false 时不挂邮箱验证码路由 |
+| `auth.google.enabled` | 省略时根据凭据推断 | 注册或移除 Google Provider |
+| `auth.github.enabled` | 省略时根据凭据推断 | 注册或移除 GitHub Provider |
+| `billing.enabled` | 省略时根据 Stripe 凭据推断 | false 时不迁移 billing 表、不挂支付路由 |
+| `referral.enabled` | 默认 true | false 时不迁移邀请表、不挂邀请路由 |
+| `email.provider` | 默认 log | `none`、`log`、`resend`、`brevo` |
 
-- module business logic
-- domain models unrelated to startup
-- product features
+显式 `enabled: false` 的优先级高于“凭据存在”。
 
-## `quickstart` position
+## 常用组合
 
-`templates/quickstart` should be treated as:
+### 只使用 GitHub 登录
 
-- the reference implementation of the standard bootstrap path
-- the copyable starting point for greenfield services
-- the example of how `AppConfig` maps into `saascore.Config`
+```yaml
+auth:
+  enabled: true
+  email:
+    enabled: false
+  google:
+    enabled: false
+  github:
+    enabled: true
+    client_id: "..."
+    client_secret: "..."
+    redirect_url: "https://api.example.com/api/v1/auth/github/callback"
+    state_secret: "..."
 
-It should not become a dumping ground for host-specific business code.
+email:
+  provider: none
+```
 
-## Recommendation for `clawmesh-backend`
+### Google 注册后用 Resend 发欢迎邮件
 
-For a mature business project:
+```yaml
+auth:
+  google:
+    client_id: "..."
+    client_secret: "..."
 
-- keep config loading and validation in the backend repo
-- keep shared auth, billing, email, referral, and user capability in
-  `go-modules`
-- minimize custom glue where `stacks/saascore` already defines the
-  shared path
+email:
+  provider: resend
+  resend:
+    api_key: "..."
+    sender_email: "no-reply@example.com"
 
-If a project fully matches the shared SaaS assumptions, it should move
-toward:
+host:
+  welcome_email:
+    enabled: true
+    only_provider: google
+    subject: "欢迎加入"
+    text_body: "你的账号已经创建成功。"
+```
 
-- `stacks/saascore`
-- template-aligned bootstrap
-- host hooks instead of large custom glue packages
+实际发送规则在 `internal/bootstrap/host_hooks.go`，不是 auth 或 email 模块的固定行为。
 
-If a project does not match the shared assumptions, it should still keep
-the bootstrap split, but compose `modules/*` directly instead of forcing
-`saascore`.
+### 不使用支付和邀请
 
-## Decision summary
+```yaml
+billing:
+  enabled: false
 
-Use this rule of thumb:
+referral:
+  enabled: false
+```
 
-- standard capability belongs in `go-modules`
-- configuration source handling belongs in the host app
-- standard bootstrap pattern belongs in templates and docs
-- final app assembly belongs in the business project
+对应表不会创建，对应路由不会出现。
 
-That gives the best tradeoff between standardization and flexibility
-across many SaaS projects.
+## 配置归属
+
+| 配置 | 放在哪里 |
+| --- | --- |
+| 日志、数据库、追踪 | `bootstrap.AppConfig` |
+| 模块和服务商配置 | `internal/platform.Config` 及其子结构 |
+| 当前 SaaS 的业务规则 | `internal/hostcfg.Config` |
+
+产品功能新增配置时，优先加入 `hostcfg`。只有多个 SaaS 都需要并且语义一致的服务商
+参数，才加入 platform 配置。
+
+## 校验原则
+
+- 启用 auth 时必须有 `auth.user_jwt_secret`；
+- 启用邮箱登录时 `email.provider` 不能是 `none`；
+- 显式启用 OAuth 后，客户端 ID、密钥、回调地址和 state 密钥必须完整；
+- 启用 billing 时当前只支持 `provider: stripe`，并要求 secret key 和 webhook secret；
+- 不认识的 provider 直接启动失败，不静默回退。

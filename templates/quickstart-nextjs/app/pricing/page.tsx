@@ -7,8 +7,8 @@ export default function PricingPage() {
   return (
     <SiteShell
       eyebrow="Pricing"
-      title="Commercial pricing template with six explicit billing lanes."
-      description="This page keeps subscriptions, buyout, fixed packages, and flexible top-ups clearly separated. Exact money amounts should come from your actual Stripe catalog and business policy, not from fake hardcoded template prices."
+      title="Commercial pricing template with five reliable Checkout lanes."
+      description="This page keeps subscriptions, buyout, and fixed credit packages explicit. Exact money amounts should come from your Stripe catalog and product policy."
       sideTitle="Pricing contract"
       sideBody={
         <DetailRows
@@ -16,7 +16,6 @@ export default function PricingPage() {
             { label: "Default plan", value: <span className="inline-code">{appEnv.defaultPlan}</span> },
             { label: "Default interval", value: <span className="inline-code">{appEnv.defaultInterval}</span> },
             { label: "Credits quantity", value: <span className="inline-code">{String(appEnv.defaultCreditsQuantity)}</span> },
-            { label: "Default top-up USD", value: <span className="inline-code">{String(appEnv.defaultTopUpAmountUSD)}</span> },
             { label: "Price source", value: <span className="inline-code">Stripe products + business policy</span> },
             { label: "Checkout UI", value: <span className="inline-code">/billing</span> }
           ]}
@@ -30,7 +29,7 @@ export default function PricingPage() {
       <PageSection
         id="plans"
         title="Plans"
-        description="Use this structure as the public-facing commercial model: three recurring tiers, one buyout tier, one fixed package lane, and one flexible top-up lane."
+        description="Use this structure as the public-facing commercial model: three recurring tiers, one buyout tier, and one fixed credit package lane."
       >
         <div className="pricing-grid">
           <PricingCard
@@ -99,19 +98,6 @@ export default function PricingPage() {
             href="/billing"
             cta="Buy Package"
           />
-          <PricingCard
-            tier="Custom Amount"
-            price="Any amount"
-            subtitle="自由充值数额: the customer enters the amount, then the backend creates a one-off PaymentIntent."
-            features={[
-              "No Stripe Price ID required",
-              "Stripe Payment Element flow",
-              "Useful when recharge amount is not predetermined",
-              "Webhook converts paid amount into credits"
-            ]}
-            href="/billing"
-            cta="Top Up Any Amount"
-          />
         </div>
       </PageSection>
 
@@ -127,19 +113,19 @@ export default function PricingPage() {
             <p>This page now reflects the current commercial amounts you provided, but the operational source of truth still remains your Stripe catalog and backend checkout configuration.</p>
           </article>
           <article className="feature-card">
-            <span className="panel-kicker">Six lanes</span>
+            <span className="panel-kicker">Five lanes</span>
             <h3>Subscriptions and credits should be named separately</h3>
-            <p>Starter, Pro, Premium, Lifetime, Package, and Custom Amount each represent a different commercial path. Do not collapse package credits and flexible recharge into one generic credits card.</p>
+            <p>Starter, Pro, Premium, Lifetime, and Package each map to an explicit Stripe Price and Checkout path.</p>
           </article>
           <article className="feature-card">
-            <span className="panel-kicker">Package vs custom</span>
-            <h3>Fixed package and free amount are different Stripe flows</h3>
-            <p>Package credits still use hosted Checkout plus a fixed Price ID. Custom amount top-up uses PaymentIntent plus Payment Element, because the amount is created dynamically at runtime.</p>
+            <span className="panel-kicker">One payment path</span>
+            <h3>Keep credit purchases on hosted Checkout</h3>
+            <p>Fixed packages use the same signed-webhook and Checkout reliability path as subscriptions, with less frontend and PCI-sensitive code to maintain.</p>
           </article>
           <article className="feature-card">
             <span className="panel-kicker">Backend truth</span>
             <h3>Marketing copy lives here, payment truth lives there</h3>
-            <p>If a referral code was captured before signup, the billing page can still forward it as metadata when checkout is created for subscriptions, lifetime, package credits, or custom amount top-up. Checkout creation and webhook truth still stay backend-owned.</p>
+            <p>If a referral code was captured before signup, the billing page forwards it as metadata for subscriptions, lifetime, or package credits. Checkout creation and webhook truth stay backend-owned.</p>
           </article>
         </div>
       </PageSection>

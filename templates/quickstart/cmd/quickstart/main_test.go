@@ -5,12 +5,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
-	"time"
 
 	"github.com/brizenchi/go-modules/foundation/ginx"
 	"github.com/brizenchi/quickstart-template/internal/bootstrap"
+	"github.com/brizenchi/quickstart-template/internal/hostapi"
+	apphttp "github.com/brizenchi/quickstart-template/internal/http"
 	qmiddleware "github.com/brizenchi/quickstart-template/internal/http/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -21,6 +21,16 @@ func (smokeStack) RequireUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetHeader("Authorization") == "" {
 			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	}
+}
+
+func (smokeStack) RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != "Bearer admin" {
+			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
 		c.Next()
@@ -96,7 +106,7 @@ func TestDBConfigSafeStringDSN(t *testing.T) {
 	}
 }
 
-func TestAppConfigSaaSCoreConfig(t *testing.T) {
+func TestAppConfigModuleConfig(t *testing.T) {
 	cfg := bootstrap.AppConfig{}
 	cfg.Server.Name = "quickstart"
 	cfg.Auth.UserJWTSecret = "jwt-secret"
@@ -112,7 +122,7 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	cfg.Referral.BaseLink = "http://localhost:3000/invite?ref="
 	cfg.Referral.ActivationReward = 50
 
-	sc := cfg.SaaSCoreConfig()
+	sc := cfg.ModuleConfig()
 	if sc.Auth.UserJWTSecret != "jwt-secret" {
 		t.Fatalf("jwt secret mismatch: %q", sc.Auth.UserJWTSecret)
 	}
@@ -122,29 +132,21 @@ func TestAppConfigSaaSCoreConfig(t *testing.T) {
 	if sc.Email.Resend.SenderEmail != "noreply@example.com" {
 		t.Fatalf("resend sender email mismatch: %q", sc.Email.Resend.SenderEmail)
 	}
-	if ttl, ok := googleStateTTL(sc.Auth.Google); ok && ttl != 35*time.Minute {
-		t.Fatalf("google state ttl mismatch: %v", ttl)
+	if sc.Auth.Google.StateTTLMin != 35 {
+		t.Fatalf("google state ttl mismatch: %d", sc.Auth.Google.StateTTLMin)
 	}
-	if sc.Billing.Stripe.ProMonthlyPriceID != "price_pro_month" {
-		t.Fatalf("pro monthly price mismatch: %q", sc.Billing.Stripe.ProMonthlyPriceID)
+	if sc.Billing.Stripe.Prices.ProMonthly != "price_pro_month" {
+		t.Fatalf("pro monthly price mismatch: %q", sc.Billing.Stripe.Prices.ProMonthly)
 	}
-	if sc.Billing.Stripe.PremiumMonthlyPriceID != "price_premium_month" {
-		t.Fatalf("premium monthly price mismatch: %q", sc.Billing.Stripe.PremiumMonthlyPriceID)
+	if sc.Billing.Stripe.Prices.PremiumMonthly != "price_premium_month" {
+		t.Fatalf("premium monthly price mismatch: %q", sc.Billing.Stripe.Prices.PremiumMonthly)
 	}
-	if sc.Billing.Stripe.PremiumYearlyPriceID != "price_premium_year" {
-		t.Fatalf("premium yearly price mismatch: %q", sc.Billing.Stripe.PremiumYearlyPriceID)
+	if sc.Billing.Stripe.Prices.PremiumYearly != "price_premium_year" {
+		t.Fatalf("premium yearly price mismatch: %q", sc.Billing.Stripe.Prices.PremiumYearly)
 	}
 	if sc.Referral.ActivationReward != 50 {
 		t.Fatalf("activation reward mismatch: %d", sc.Referral.ActivationReward)
 	}
-}
-
-func googleStateTTL(cfg any) (time.Duration, bool) {
-	field := reflect.ValueOf(cfg).FieldByName("StateTTL")
-	if !field.IsValid() || field.Type() != reflect.TypeOf(time.Duration(0)) {
-		return 0, false
-	}
-	return time.Duration(field.Int()), true
 }
 
 func TestTracingConfigFields(t *testing.T) {
@@ -210,7 +212,10 @@ func TestBuildRouter_HealthAndMountedRoutes(t *testing.T) {
 	cfg.Server.Name = "quickstart"
 	cfg.Tracing.SampleRate = 1
 
-	router := qmiddleware.BuildRouter(qmiddleware.RouterConfig{ServiceName: cfg.Server.Name}, smokeStack{})
+	router := qmiddleware.BuildRouter(
+		qmiddleware.RouterConfig{ServiceName: cfg.Server.Name},
+		apphttp.NewRouter(smokeStack{}, hostapi.Deps{}),
+	)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	res := httptest.NewRecorder()
@@ -243,5 +248,40 @@ func TestBuildRouter_HealthAndMountedRoutes(t *testing.T) {
 	router.ServeHTTP(res, req)
 	if res.Code != http.StatusOK {
 		t.Fatalf("/api/v1/user-ping with auth status = %d, want 200", res.Code)
+	}
+}
+
+// TestBuildRouter_HostSlots asserts the host extension points are wired:
+// a host route reaches the router, the user group rejects anonymous
+// callers, and the admin group rejects non-admins.
+func TestBuildRouter_HostSlots(t *testing.T) {
+	router := qmiddleware.BuildRouter(
+		qmiddleware.RouterConfig{ServiceName: "quickstart"},
+		apphttp.NewRouter(smokeStack{}, hostapi.Deps{}),
+	)
+
+	cases := []struct {
+		name  string
+		path  string
+		token string
+		want  int
+	}{
+		{"user route without token", "/api/v1/notes", "", http.StatusUnauthorized},
+		{"admin route with user token", "/api/v1/admin/notes/count", "Bearer test", http.StatusForbidden},
+		{"admin route without token", "/api/v1/admin/notes/count", "", http.StatusForbidden},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+			res := httptest.NewRecorder()
+			router.ServeHTTP(res, req)
+			if res.Code != tc.want {
+				t.Fatalf("%s %s = %d, want %d", http.MethodGet, tc.path, res.Code, tc.want)
+			}
+		})
 	}
 }

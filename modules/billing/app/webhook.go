@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
+	"github.com/brizenchi/go-modules/modules/billing/event"
 	"github.com/brizenchi/go-modules/modules/billing/port"
 )
 
@@ -21,20 +23,20 @@ import (
 //  4. bus.Publish                     → dispatch domain events to listeners
 //  5. repo.MarkProcessed              → mark the event row as handled
 //
-// On any error after a successful CreateIfAbsent insert we return the
-// error to the caller without marking processed. The next delivery will
-// be detected as a duplicate row but will NOT be reprocessed (Processed
-// flag is false). For now we rely on Stripe's retry; for stricter
-// at-least-once semantics, swap in a worker that reads unprocessed rows.
+// On any error after a successful CreateIfAbsent insert we return the error
+// without marking processed. A later provider retry finds the unprocessed row
+// and runs it again. Every listener must therefore use an idempotency key for
+// externally visible side effects.
 type WebhookService struct {
 	provider port.Provider
 	repo     port.BillingEventRepository
+	subs     port.SubscriptionRepository
 	resolver port.UserResolver
 	bus      port.EventBus
 }
 
-func NewWebhookService(p port.Provider, r port.BillingEventRepository, ur port.UserResolver, b port.EventBus) *WebhookService {
-	return &WebhookService{provider: p, repo: r, resolver: ur, bus: b}
+func NewWebhookService(p port.Provider, r port.BillingEventRepository, sr port.SubscriptionRepository, ur port.UserResolver, b port.EventBus) *WebhookService {
+	return &WebhookService{provider: p, repo: r, subs: sr, resolver: ur, bus: b}
 }
 
 // ProcessResult summarizes what Process did. It's primarily for logging/responses.
@@ -86,7 +88,18 @@ func (s *WebhookService) Process(ctx context.Context, payload []byte, signature 
 		if env.UserID == "" {
 			env.UserID = resolvedUserID
 		}
-		s.bus.Publish(ctx, env)
+		if env.Provider == "" {
+			env.Provider = s.provider.Name()
+		}
+		if env.ProviderEventID == "" {
+			env.ProviderEventID = parsed.ProviderEventID
+		}
+		if err := s.persistSubscriptionSnapshot(ctx, env); err != nil {
+			return nil, err
+		}
+		if err := s.bus.Publish(ctx, env); err != nil {
+			return nil, fmt.Errorf("billing: publish %s: %w", env.Kind, err)
+		}
 	}
 
 	if err := s.repo.MarkProcessed(ctx, s.provider.Name(), parsed.ProviderEventID); err != nil {
@@ -97,6 +110,41 @@ func (s *WebhookService) Process(ctx context.Context, payload []byte, signature 
 		ProviderEventID: parsed.ProviderEventID,
 		Type:            parsed.Type,
 	}, nil
+}
+
+func (s *WebhookService) persistSubscriptionSnapshot(ctx context.Context, env event.Envelope) error {
+	if s.subs == nil {
+		return nil
+	}
+	var snapshot *domain.SubscriptionSnapshot
+	switch payload := env.Payload.(type) {
+	case event.SubscriptionActivated:
+		snapshot = &payload.Snapshot
+	case event.SubscriptionRenewed:
+		snapshot = &payload.Snapshot
+	case event.SubscriptionUpdated:
+		snapshot = &payload.Snapshot
+	case event.SubscriptionCanceling:
+		snapshot = &payload.Snapshot
+	case event.SubscriptionReactivated:
+		snapshot = &payload.Snapshot
+	case event.TrialConverted:
+		snapshot = &payload.Snapshot
+	case event.SubscriptionCanceled:
+		if payload.Snapshot.ProviderSubscriptionID != "" {
+			snapshot = &payload.Snapshot
+		}
+	}
+	if snapshot == nil {
+		return nil
+	}
+	if env.UserID == "" {
+		return fmt.Errorf("billing: user_id required to persist %s snapshot", env.Kind)
+	}
+	if err := s.subs.UpsertSnapshot(ctx, env.UserID, env.Provider, *snapshot); err != nil {
+		return fmt.Errorf("billing: persist %s snapshot: %w", env.Kind, err)
+	}
+	return nil
 }
 
 // IsSignatureError reports whether err originates from webhook signature verification.

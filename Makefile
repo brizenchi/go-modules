@@ -1,7 +1,8 @@
-.PHONY: help test test-race tidy tidy-check fmt fmt-check vet build purity-check lint vuln list verify-templates
+.PHONY: help test test-race tidy tidy-check fmt fmt-check vet build purity-check lint vuln list verify-templates verify-template-copy verify-template-release pin-template-version init-quickstart
 
-PACKAGE_ROOTS := foundation modules stacks
-GO_PACKAGES := ./foundation/... ./modules/... ./stacks/...
+PACKAGE_ROOTS := foundation modules
+GO_PACKAGES := ./foundation/... ./modules/...
+GO_SOURCE_DIRS := foundation modules cmd templates/quickstart
 GO := GOWORK=off GOCACHE=$(CURDIR)/.cache/go-build GOMODCACHE=$(CURDIR)/.cache/gomod go
 
 help: ## Show targets
@@ -10,25 +11,41 @@ help: ## Show targets
 list: ## List tracked Go package roots
 	@printf '%s\n' $(PACKAGE_ROOTS)
 
-verify-templates: ## verify backend and frontend starter templates
+verify-templates: ## 验证后端和前端模板
 	@echo "==> templates/quickstart"
 	@(cd templates/quickstart && go test ./... && go build ./...)
 	@echo "==> templates/quickstart-nextjs"
 	@(cd templates/quickstart-nextjs && npm run verify)
 
-build: ## go build ./... from the repo root module
+verify-template-copy: ## 脱离 go.work 验证当前 quickstart 与本地模块
+	@./scripts/verify-quickstart-release.sh local
+
+verify-template-release: ## 验证已发布版本：make verify-template-release VERSION=v0.3.0
+	@test -n "$(VERSION)" || { echo "VERSION is required"; exit 2; }
+	@./scripts/verify-quickstart-release.sh "$(VERSION)"
+
+pin-template-version: ## 新标签发布后固定模板依赖：make pin-template-version VERSION=v0.3.0
+	@test -n "$(VERSION)" || { echo "VERSION is required"; exit 2; }
+	@(cd templates/quickstart && GOWORK=off go mod download "github.com/brizenchi/go-modules@$(VERSION)")
+	@(cd templates/quickstart && GOWORK=off go mod edit -require="github.com/brizenchi/go-modules@$(VERSION)" && GOWORK=off go mod tidy)
+
+init-quickstart: ## 创建项目：make init-quickstart DEST=../app MODULE=github.com/me/app APP=app VERSION=v0.3.0
+	@test -n "$(DEST)" -a -n "$(MODULE)" -a -n "$(APP)" -a -n "$(VERSION)" || { echo "DEST, MODULE, APP and VERSION are required"; exit 2; }
+	@./scripts/init-quickstart.sh "$(DEST)" "$(MODULE)" "$(APP)" "$(VERSION)"
+
+build: ## 构建根模块
 	@$(GO) build $(GO_PACKAGES)
 
-test: ## go test ./... from the repo root module
+test: ## 测试根模块
 	@$(GO) test $(GO_PACKAGES)
 
-test-race: ## go test -race ./... from the repo root module
+test-race: ## 使用 race detector 测试根模块
 	@$(GO) test -race $(GO_PACKAGES)
 
-tidy: ## go mod tidy for the repo root module
+tidy: ## 整理根模块依赖
 	@$(GO) mod tidy
 
-tidy-check: ## fail if go.mod / go.sum would change after `go mod tidy`
+tidy-check: ## 检查 go.mod / go.sum 是否已整理
 	@cp go.mod go.mod.bak; \
 	had_sum=0; \
 	if [ -f go.sum ]; then \
@@ -64,11 +81,11 @@ tidy-check: ## fail if go.mod / go.sum would change after `go mod tidy`
 	if [ $$had_sum -eq 1 ]; then mv go.sum.bak go.sum; else rm -f go.sum; fi; \
 	echo "✓ go.mod / go.sum tidy"
 
-fmt: ## gofmt -s -w
-	@gofmt -s -w .
+fmt: ## 格式化 Go 代码
+	@gofmt -s -w $(GO_SOURCE_DIRS)
 
-fmt-check: ## fail if gofmt would change anything
-	@out=$$(gofmt -s -l .); \
+fmt-check: ## 检查 Go 代码格式
+	@out=$$(gofmt -s -l $(GO_SOURCE_DIRS)); \
 	if [ -n "$$out" ]; then \
 		echo "✗ files need gofmt:"; \
 		echo "$$out"; \
@@ -76,7 +93,7 @@ fmt-check: ## fail if gofmt would change anything
 	fi; \
 	echo "✓ gofmt clean"
 
-vet: ## go vet ./... from the repo root module
+vet: ## 静态检查根模块
 	@$(GO) vet $(GO_PACKAGES)
 
 lint: ## golangci-lint over the repo root module
@@ -89,7 +106,7 @@ vuln: ## govulncheck over the repo root module
 		echo "govulncheck not installed; run: go install golang.org/x/vuln/cmd/govulncheck@latest"; exit 1; }
 	@GOWORK=off GOCACHE=$(CURDIR)/.cache/go-build GOMODCACHE=$(CURDIR)/.cache/gomod govulncheck $(GO_PACKAGES)
 
-purity-check: ## ensure no package imports forbidden host-app paths
+purity-check: ## 检查共享包是否错误导入宿主代码
 	@bad=$$(grep -rE '"github\.com/[^"]+/(internal|pkg/models|pkg/middleware)"' \
 		$(PACKAGE_ROOTS) --include='*.go' 2>/dev/null | grep -v _test.go | wc -l | tr -d ' '); \
 	if [ "$$bad" != "0" ]; then \

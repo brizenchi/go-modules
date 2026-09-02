@@ -11,13 +11,14 @@ import (
 )
 
 // UserResolver resolves webhook hints using billing-owned tables first,
-// then falls back to the shared users table by email.
+// then delegates email lookup to the host-supplied AccountLookup.
 type UserResolver struct {
-	db *gorm.DB
+	db       *gorm.DB
+	accounts port.AccountLookup
 }
 
-func NewUserResolver(db *gorm.DB) *UserResolver {
-	return &UserResolver{db: db}
+func NewUserResolver(db *gorm.DB, accounts port.AccountLookup) *UserResolver {
+	return &UserResolver{db: db, accounts: accounts}
 }
 
 func (r *UserResolver) Resolve(ctx context.Context, h port.UserHint) (string, error) {
@@ -54,7 +55,10 @@ func (r *UserResolver) Resolve(ctx context.Context, h port.UserHint) (string, er
 	}
 
 	if email := strings.TrimSpace(h.Email); email != "" {
-		return loadUserIDByEmail(ctx, r.db, email)
+		if r.accounts == nil {
+			return "", gorm.ErrRecordNotFound
+		}
+		return r.accounts.FindUserIDByEmail(ctx, email)
 	}
 
 	return "", gorm.ErrRecordNotFound

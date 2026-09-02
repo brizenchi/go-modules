@@ -6,19 +6,35 @@ import (
 	"time"
 
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
-	usergormrepo "github.com/brizenchi/go-modules/modules/user/adapter/gormrepo"
-	userdomain "github.com/brizenchi/go-modules/modules/user/domain"
+	billingport "github.com/brizenchi/go-modules/modules/billing/port"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+type legacyUserFixture struct {
+	ID                   string `gorm:"primaryKey"`
+	Email                string
+	Plan                 string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	StripePriceID        string
+	StripeProductID      string
+	BillingStatus        string
+	BillingPeriodStart   *time.Time
+	BillingPeriodEnd     *time.Time
+	CancelEffectiveAt    *time.Time
+	CreatedAt            time.Time
+}
+
+func (legacyUserFixture) TableName() string { return "users" }
+
 func newLegacySyncTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := usergormrepo.AutoMigrate(db); err != nil {
+	if err := db.AutoMigrate(&legacyUserFixture{}); err != nil {
 		t.Fatalf("migrate users: %v", err)
 	}
 	if err := AutoMigrate(db); err != nil {
@@ -29,15 +45,14 @@ func newLegacySyncTestDB(t *testing.T) *gorm.DB {
 
 func TestBackfillLegacyStripeStateCopiesLegacyUsersFields(t *testing.T) {
 	db := newLegacySyncTestDB(t)
-	users := usergormrepo.New(db)
 	ctx := context.Background()
 
 	start := time.Now().UTC()
 	end := start.Add(30 * 24 * time.Hour)
-	user := &userdomain.User{
+	user := &legacyUserFixture{
 		ID:                   "u-backfill",
 		Email:                "backfill@example.com",
-		Plan:                 userdomain.PlanPro,
+		Plan:                 string(billingdomain.PlanPro),
 		StripeCustomerID:     "cus_backfill",
 		StripeSubscriptionID: "sub_backfill",
 		StripePriceID:        "price_backfill",
@@ -46,7 +61,7 @@ func TestBackfillLegacyStripeStateCopiesLegacyUsersFields(t *testing.T) {
 		BillingPeriodStart:   &start,
 		BillingPeriodEnd:     &end,
 	}
-	if err := users.Create(ctx, user); err != nil {
+	if err := db.WithContext(ctx).Create(user).Error; err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 
@@ -58,7 +73,8 @@ func TestBackfillLegacyStripeStateCopiesLegacyUsersFields(t *testing.T) {
 		t.Fatalf("unexpected report: %+v", report)
 	}
 
-	customer, err := NewCustomerStore(db).LoadCustomer(ctx, "u-backfill")
+	lookup := newAccountLookupStub(billingport.Account{UserID: user.ID, Email: user.Email})
+	customer, err := NewCustomerStore(db, lookup).LoadCustomer(ctx, "u-backfill")
 	if err != nil {
 		t.Fatalf("LoadCustomer: %v", err)
 	}
@@ -77,18 +93,17 @@ func TestBackfillLegacyStripeStateCopiesLegacyUsersFields(t *testing.T) {
 
 func TestCheckLegacyStripeStateReportsMissingThenPassesAfterBackfill(t *testing.T) {
 	db := newLegacySyncTestDB(t)
-	users := usergormrepo.New(db)
 	ctx := context.Background()
 
-	user := &userdomain.User{
+	user := &legacyUserFixture{
 		ID:               "u-check",
 		Email:            "check@example.com",
-		Plan:             userdomain.PlanLifetime,
+		Plan:             string(billingdomain.PlanLifetime),
 		StripeCustomerID: "cus_check",
 		StripePriceID:    "price_lifetime",
 		BillingStatus:    string(billingdomain.StatusActive),
 	}
-	if err := users.Create(ctx, user); err != nil {
+	if err := db.WithContext(ctx).Create(user).Error; err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 

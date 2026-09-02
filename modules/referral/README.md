@@ -1,116 +1,57 @@
-# referral
+# referral 邀请模块
 
-> Portable, schema-owning C2C referral module: code generation, attribution, activation events.
+提供邀请码、邀请归因、激活状态、统计和邀请领域事件。
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/brizenchi/go-modules/modules/referral.svg)](https://pkg.go.dev/github.com/brizenchi/go-modules/modules/referral)
+## 边界
 
-Owns its own database schema (`referral_codes`, `referrals`) — auto-migrated
-at boot. Hosts wire it to their auth + billing flows via two integration
-calls and an event listener.
+referral 只保存用户 ID 和邀请关系，不读取完整 User，也不决定奖励如何发放。
 
-For affiliate / B2B partner programs, prefer
-[Rewardful](https://rewardful.com/) (front-end script + Stripe metadata).
-This module is for **user-to-user** "share with a friend" referrals.
-
-## Install
-
-```bash
-go get github.com/brizenchi/go-modules/modules/referral
-```
-
-## Layering
-
-```
-domain/   Code, Referral, Status, Stats, errors
-event/    ReferralRegistered, ReferralActivated
-port/     CodeRepository, ReferralRepository, CodeGenerator, EventBus
-adapter/
-  gormrepo/   GORM impl + AutoMigrateModels()
-  codegen/    deterministic + random CodeGenerator
-  eventbus/   in-process synchronous bus
-app/      CodeService, AttributeService, QueryService
-http/     Gin handlers + Mount()
-```
-
-## Quick start
+## 组装
 
 ```go
-import (
-    "context"
-
-    billingevent "github.com/brizenchi/go-modules/modules/billing/event"
-    referraleventbus "github.com/brizenchi/go-modules/modules/referral/adapter/eventbus"
-    referralhttp "github.com/brizenchi/go-modules/modules/referral/http"
-    "github.com/brizenchi/go-modules/modules/referral"
-    "github.com/brizenchi/go-modules/modules/referral/adapter/codegen"
-    "github.com/brizenchi/go-modules/modules/referral/adapter/gormrepo"
-    "github.com/brizenchi/go-modules/modules/referral/event"
-)
-
-// Auto-migrate the module's tables.
 if err := db.AutoMigrate(gormrepo.AutoMigrateModels()...); err != nil {
-    log.Fatal(err)
+    return err
 }
 
-mod := referral.New(referral.Deps{
-    Codes:     gormrepo.NewCodeRepo(db),
-    Referrals: gormrepo.NewReferralRepo(db),
-    Generator: codegen.NewRandom("INV", 8),
-    Bus:       referraleventbus.NewInProc(),
-    GetUserID: myGinUserIDExtractor,
-    BaseLink:  "https://app.example.com/invite?ref=",
+module := referral.New(referral.Deps{
+    Codes:      gormrepo.NewCodeRepo(db),
+    Referrals:  gormrepo.NewReferralRepo(db),
+    Generator:  codegen.NewDeterministic("INV", 8),
+    Bus:        eventbus.NewInProc(),
+    GetUserID:  currentUserID,
+    BaseLink:   "https://example.com/invite?ref=",
 })
-
-user := r.Group("/api/v1", requireAuth)
-
-referralhttp.Mount(mod.Handler, user)
 ```
 
-## Two integration calls (host wires)
+## 两个宿主调用点
+
+注册成功并携带邀请码时：
 
 ```go
-// 1. After signup — only if your host registration flow captured a referral code.
-func onUserSignedUp(ctx context.Context, userID, referralCode string) error {
-    if referralCode == "" {
-        return nil
-    }
-    _, err := referralMod.Attribute.AttributeReferral(ctx, userID, referralCode)
-    return err
-}
-
-// 2. After the first qualifying paid event — typically subscription activation.
-billingMod.Subscribe(billingevent.KindSubscriptionActivated, func(ctx context.Context, env billingevent.Envelope) error {
-    _, err := referralMod.Attribute.ActivateReferral(ctx, env.UserID, 100)
-    return err
-})
-
-// 3. Reward payout hook.
-referralMod.Subscribe(event.KindReferralActivated, func(ctx context.Context, env event.Envelope) error {
-    activated, _ := env.Payload.(event.ReferralActivated)
-    return creditWallet(ctx, activated.Referral.ReferrerID, activated.Referral.RewardCredits)
-})
+_, err := module.Attribute.AttributeReferral(ctx, newUserID, referralCode)
 ```
 
-## State machine
+被邀请人满足激活条件时：
 
-```
-Code: ACTIVE → REVOKED
-Referral: PENDING → ATTRIBUTED → ACTIVATED
-                                ↓
-                              REJECTED (refund / fraud)
+```go
+_, err := module.Attribute.ActivateReferral(ctx, refereeID, rewardAmount)
 ```
 
-The `ReferralActivated` event is your reward hook — listen and grant
-credits / discount / extension to either or both parties.
+激活条件可以是首次订阅、完成订单或其他产品事件，不固定在 referral 内。
 
-## Testing
+## 事件
 
-```bash
-go test -race ./...
+```go
+module.Subscribe(referralevent.KindReferralRegistered, onRegistered)
+module.Subscribe(referralevent.KindReferralActivated, onActivated)
 ```
 
-Coverage: app 78%, codegen 84%, eventbus 83.3%.
+`ReferralActivated` 的 `RewardCredits` 只是事件中的记账数值。实际奖励可以是：
 
-## Changelog
+- 宿主 User 积分；
+- 独立 wallet/credits service；
+- 优惠券；
+- 现金返利；
+- 不发奖励，只做邀请统计。
 
-See [CHANGELOG.md](./CHANGELOG.md).
+默认 quickstart 在模板监听器中给邀请人增加 `User.Credits`，每个 SaaS 可以替换。

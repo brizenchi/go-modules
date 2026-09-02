@@ -2,12 +2,25 @@ package port
 
 import "context"
 
+// AccountLookup is the only host-user projection required by billing.
+// Implement it in the host project; billing never queries a fixed users table.
+type AccountLookup interface {
+	FindBillingAccount(ctx context.Context, userID string) (Account, error)
+	FindUserIDByEmail(ctx context.Context, email string) (string, error)
+}
+
+// Account is deliberately smaller than any host User model.
+type Account struct {
+	UserID string
+	Email  string
+}
+
 // CustomerStore persists the mapping between host-app users and
 // provider-side customer/subscription identifiers.
 //
 // This is the only "user" knowledge the billing module requires. Hosts
-// can implement it against an existing users table (e.g. by writing to
-// stripe_customer_id columns) or a dedicated billing_customers table.
+// A standard GORM implementation stores those identifiers in billing-owned
+// tables and receives AccountLookup separately for the user's email.
 type CustomerStore interface {
 	// LoadCustomer returns the user's email and any known provider
 	// customer/subscription IDs.

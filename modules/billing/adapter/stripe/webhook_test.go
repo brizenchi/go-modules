@@ -299,7 +299,12 @@ func TestVerifyAndParseWebhook_SubscriptionDeleted(t *testing.T) {
 		"type": "customer.subscription.deleted",
 		"created": 1700000000,
 		"data": {
-			"object": {"id": "sub_x", "customer": "cus_x"}
+			"object": {
+				"id": "sub_x",
+				"customer": "cus_x",
+				"status": "canceled",
+				"items": {"data": [{"price": {"id": "price_starter_m", "product": "prod_starter"}}]}
+			}
 		}
 	}`)
 	sig := signTestPayload(t, payload, testWebhookSecret)
@@ -309,6 +314,43 @@ func TestVerifyAndParseWebhook_SubscriptionDeleted(t *testing.T) {
 	}
 	if len(res.Envelopes) != 1 || res.Envelopes[0].Kind != event.KindSubscriptionCanceled {
 		t.Errorf("expected 1 SubscriptionCanceled, got %v", res.Envelopes)
+	}
+	canceled, ok := res.Envelopes[0].Payload.(event.SubscriptionCanceled)
+	if !ok {
+		t.Fatalf("payload=%T", res.Envelopes[0].Payload)
+	}
+	if canceled.Snapshot.Status != domain.StatusCanceled || canceled.Snapshot.Plan != domain.PlanStarter {
+		t.Fatalf("snapshot=%+v", canceled.Snapshot)
+	}
+}
+
+func TestCheckoutCreditsRequiresReliableQuantity(t *testing.T) {
+	p := newWebhookTestProvider()
+	mk := func(kind event.Kind, payload any) event.Envelope {
+		return event.Envelope{Kind: kind, Payload: payload}
+	}
+	_, err := p.onCheckoutCompleted(map[string]any{
+		"mode":     "payment",
+		"metadata": map[string]any{"product_type": string(domain.ProductCredits)},
+	}, mk)
+	if err == nil {
+		t.Fatal("expected missing quantity to fail instead of silently granting one package")
+	}
+
+	envelopes, err := p.onCheckoutCompleted(map[string]any{
+		"id":       "cs_123",
+		"mode":     "payment",
+		"metadata": map[string]any{"product_type": string(domain.ProductCredits)},
+		"line_items": map[string]any{"data": []any{
+			map[string]any{"quantity": float64(3)},
+		}},
+	}, mk)
+	if err != nil {
+		t.Fatalf("inline quantity: %v", err)
+	}
+	purchased := envelopes[0].Payload.(event.CreditsPurchased)
+	if purchased.Quantity != 3 {
+		t.Fatalf("quantity=%d, want 3", purchased.Quantity)
 	}
 }
 

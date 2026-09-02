@@ -18,6 +18,12 @@ type BillingEventRepository interface {
 	MarkProcessed(ctx context.Context, provider, providerEventID string) error
 }
 
+// SubscriptionRepository persists the current provider-derived subscription
+// snapshot used by query, change, cancellation and portal flows.
+type SubscriptionRepository interface {
+	UpsertSnapshot(ctx context.Context, userID, provider string, snapshot domain.SubscriptionSnapshot) error
+}
+
 // UserResolver maps webhook payload hints to a userID known to the host
 // application. The billing module is intentionally agnostic to the host's
 // user model: implementers do whatever lookup they need.

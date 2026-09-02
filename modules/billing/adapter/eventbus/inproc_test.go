@@ -3,6 +3,7 @@ package eventbus
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -76,9 +77,22 @@ func TestInProc_ListenerErrorDoesNotStopOthers(t *testing.T) {
 		atomic.AddInt32(&ran, 1)
 		return nil
 	})
-	bus.Publish(context.Background(), event.Envelope{Kind: event.KindSubscriptionActivated})
+	err := bus.Publish(context.Background(), event.Envelope{Kind: event.KindSubscriptionActivated})
 	if got := atomic.LoadInt32(&ran); got != 1 {
 		t.Errorf("second listener ran %d times, want 1", got)
+	}
+	if err == nil || !strings.Contains(err.Error(), "first failed") {
+		t.Fatalf("Publish error = %v, want listener failure", err)
+	}
+}
+
+func TestInProc_PanicIsReturnedAsError(t *testing.T) {
+	bus := NewInProc()
+	bus.Subscribe(event.KindSubscriptionActivated, func(context.Context, event.Envelope) error {
+		panic("boom")
+	})
+	if err := bus.Publish(context.Background(), event.Envelope{Kind: event.KindSubscriptionActivated}); err == nil || !strings.Contains(err.Error(), "panic") {
+		t.Fatalf("Publish error = %v, want recovered panic", err)
 	}
 }
 

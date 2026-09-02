@@ -24,12 +24,13 @@ type Provider string
 const (
 	ProviderEmail     Provider = "email"     // passwordless email code
 	ProviderGoogle    Provider = "google"    // Google OAuth
+	ProviderGitHub    Provider = "github"    // GitHub OAuth
 	ProviderAnthropic Provider = "anthropic" // Anthropic OAuth (alias)
 )
 
 func (p Provider) Valid() bool {
 	switch p {
-	case ProviderEmail, ProviderGoogle, ProviderAnthropic:
+	case ProviderEmail, ProviderGoogle, ProviderGitHub, ProviderAnthropic:
 		return true
 	}
 	return false

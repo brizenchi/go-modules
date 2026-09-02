@@ -2,6 +2,8 @@ package bootstrap
 
 import (
 	"fmt"
+	"net/mail"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -9,6 +11,8 @@ import (
 
 	"github.com/brizenchi/go-modules/foundation/config"
 	"github.com/brizenchi/go-modules/foundation/pgx"
+	"github.com/brizenchi/quickstart-template/internal/hostcfg"
+	"github.com/brizenchi/quickstart-template/internal/platform"
 	"github.com/subosito/gotenv"
 )
 
@@ -23,12 +27,27 @@ type AppConfig struct {
 		Level  string `mapstructure:"level"`
 		Format string `mapstructure:"format"`
 	} `mapstructure:"log"`
-	Tracing  TracingConfig         `mapstructure:"tracing"`
-	DB       DBConfig              `mapstructure:"db"`
-	Auth     AuthConfig            `mapstructure:"auth"`
-	Email    EmailPlatformConfig   `mapstructure:"email"`
-	Billing  BillingPlatformConfig `mapstructure:"billing"`
-	Referral ReferralConfig        `mapstructure:"referral"`
+	HTTP     HTTPConfig              `mapstructure:"http"`
+	Tracing  TracingConfig           `mapstructure:"tracing"`
+	DB       DBConfig                `mapstructure:"db"`
+	Auth     platform.AuthConfig     `mapstructure:"auth"`
+	Email    platform.EmailConfig    `mapstructure:"email"`
+	Billing  platform.BillingConfig  `mapstructure:"billing"`
+	Referral platform.ReferralConfig `mapstructure:"referral"`
+
+	// Host is your own business configuration. Add fields in
+	// internal/hostcfg instead of editing this file.
+	Host hostcfg.Config `mapstructure:"host"`
+}
+
+type HTTPConfig struct {
+	// AllowedOrigins is a comma-separated list so it can be overridden by one
+	// environment variable: APP_HTTP_ALLOWED_ORIGINS.
+	AllowedOrigins          string `mapstructure:"allowed_origins"`
+	ReadHeaderTimeoutSecond int    `mapstructure:"read_header_timeout_seconds"`
+	ReadTimeoutSeconds      int    `mapstructure:"read_timeout_seconds"`
+	WriteTimeoutSeconds     int    `mapstructure:"write_timeout_seconds"`
+	IdleTimeoutSeconds      int    `mapstructure:"idle_timeout_seconds"`
 }
 
 type TracingConfig struct {
@@ -39,89 +58,6 @@ type TracingConfig struct {
 	Authorization string            `mapstructure:"authorization"`
 	Headers       map[string]string `mapstructure:"headers"`
 	URLPath       string            `mapstructure:"url_path"`
-}
-
-type AuthConfig struct {
-	UserJWTSecret      string          `mapstructure:"user_jwt_secret"`
-	UserJWTExpireHours int             `mapstructure:"user_jwt_expire_hours"`
-	WSTicketTTLSeconds int             `mapstructure:"ws_ticket_ttl_seconds"`
-	AdminEmails        []string        `mapstructure:"admin_emails"`
-	FrontendRedirect   string          `mapstructure:"frontend_redirect"`
-	Email              AuthEmailConfig `mapstructure:"email"`
-	Google             GoogleConfig    `mapstructure:"google"`
-}
-
-type AuthEmailConfig struct {
-	Debug bool                `mapstructure:"debug"`
-	Code  AuthEmailCodeConfig `mapstructure:"code"`
-}
-
-type AuthEmailCodeConfig struct {
-	TTLMinutes          int `mapstructure:"ttl_minutes"`
-	MinResendGapSeconds int `mapstructure:"min_resend_gap_seconds"`
-	DailyCap            int `mapstructure:"daily_cap"`
-	MaxAttempts         int `mapstructure:"max_attempts"`
-}
-
-type GoogleConfig struct {
-	ClientID     string `mapstructure:"client_id"`
-	ClientSecret string `mapstructure:"client_secret"`
-	RedirectURL  string `mapstructure:"redirect_url"`
-	StateSecret  string `mapstructure:"state_secret"`
-	StateTTLMin  int    `mapstructure:"state_ttl_minutes"`
-	Scope        string `mapstructure:"scope"`
-}
-
-type EmailPlatformConfig struct {
-	Provider string       `mapstructure:"provider"`
-	Brevo    BrevoConfig  `mapstructure:"brevo"`
-	Resend   ResendConfig `mapstructure:"resend"`
-}
-
-type BrevoConfig struct {
-	APIKey      string `mapstructure:"api_key"`
-	SenderEmail string `mapstructure:"sender_email"`
-	SenderName  string `mapstructure:"sender_name"`
-}
-
-type ResendConfig struct {
-	APIKey      string `mapstructure:"api_key"`
-	SenderEmail string `mapstructure:"sender_email"`
-	SenderName  string `mapstructure:"sender_name"`
-}
-
-type BillingPlatformConfig struct {
-	Stripe StripeConfig `mapstructure:"stripe"`
-}
-
-type StripeConfig struct {
-	SecretKey      string              `mapstructure:"secret_key"`
-	PublishableKey string              `mapstructure:"publishable_key"`
-	WebhookSecret  string              `mapstructure:"webhook_secret"`
-	TrialDays      int64               `mapstructure:"trial_days"`
-	Prices         StripePricesConfig  `mapstructure:"prices"`
-	Credits        StripeCreditsConfig `mapstructure:"credits"`
-}
-
-type StripePricesConfig struct {
-	StarterMonthly string   `mapstructure:"starter_monthly"`
-	StarterYearly  string   `mapstructure:"starter_yearly"`
-	ProMonthly     string   `mapstructure:"pro_monthly"`
-	ProYearly      string   `mapstructure:"pro_yearly"`
-	PremiumMonthly string   `mapstructure:"premium_monthly"`
-	PremiumYearly  string   `mapstructure:"premium_yearly"`
-	Lifetime       string   `mapstructure:"lifetime"`
-	Credits        []string `mapstructure:"credits"`
-}
-
-type StripeCreditsConfig struct {
-	PerPackage int64 `mapstructure:"per_package"`
-}
-
-type ReferralConfig struct {
-	Prefix           string `mapstructure:"prefix"`
-	BaseLink         string `mapstructure:"base_link"`
-	ActivationReward int    `mapstructure:"activation_reward"`
 }
 
 type DBConfig struct {
@@ -154,6 +90,9 @@ func LoadConfig() (AppConfig, error) {
 	}
 
 	applyDefaults(&cfg)
+	if err := cfg.Validate(); err != nil {
+		return AppConfig{}, err
+	}
 	return cfg, nil
 }
 
@@ -189,6 +128,21 @@ func applyDefaults(cfg *AppConfig) {
 	if cfg.Log.Level == "" {
 		cfg.Log.Level = "info"
 	}
+	if strings.TrimSpace(cfg.HTTP.AllowedOrigins) == "" {
+		cfg.HTTP.AllowedOrigins = "http://localhost:3000"
+	}
+	if cfg.HTTP.ReadHeaderTimeoutSecond <= 0 {
+		cfg.HTTP.ReadHeaderTimeoutSecond = 10
+	}
+	if cfg.HTTP.ReadTimeoutSeconds <= 0 {
+		cfg.HTTP.ReadTimeoutSeconds = 15
+	}
+	if cfg.HTTP.WriteTimeoutSeconds <= 0 {
+		cfg.HTTP.WriteTimeoutSeconds = 30
+	}
+	if cfg.HTTP.IdleTimeoutSeconds <= 0 {
+		cfg.HTTP.IdleTimeoutSeconds = 60
+	}
 	if cfg.Tracing.Protocol == "" {
 		cfg.Tracing.Protocol = "http"
 	}
@@ -201,6 +155,195 @@ func applyDefaults(cfg *AppConfig) {
 	if cfg.DB.SlowQueryMS == 0 {
 		cfg.DB.SlowQueryMS = 200
 	}
+}
+
+func (c AppConfig) Validate() error {
+	modules := c.ModuleConfig()
+	production := isProduction(c.Env)
+
+	origins := c.HTTP.AllowedOriginList()
+	if len(origins) == 0 {
+		return fmt.Errorf("http.allowed_origins required")
+	}
+	if production {
+		for _, origin := range origins {
+			if origin == "*" {
+				return fmt.Errorf("http.allowed_origins must not contain * in production")
+			}
+			if err := requireHTTPS("http.allowed_origins", origin); err != nil {
+				return err
+			}
+		}
+	}
+
+	if modules.AuthEnabled() {
+		secret := strings.TrimSpace(c.Auth.UserJWTSecret)
+		if secret == "" {
+			return fmt.Errorf("auth.user_jwt_secret required when auth enabled")
+		}
+		if production && unsafeSecret(secret) {
+			return fmt.Errorf("auth.user_jwt_secret must be at least 32 random characters and must not be a template value")
+		}
+		if production && c.Auth.Email.Debug {
+			return fmt.Errorf("auth.email.debug must be false in production")
+		}
+	}
+
+	if modules.EmailAuthEnabled() {
+		provider := strings.ToLower(strings.TrimSpace(c.Email.Provider))
+		if provider == "" {
+			provider = "log"
+		}
+		if production && (provider == "log" || provider == "none" || provider == "disabled" || provider == "off") {
+			return fmt.Errorf("email.provider must be resend or brevo when email login is enabled in production")
+		}
+		if err := validateEmailProvider(provider, c.Email, production); err != nil {
+			return err
+		}
+	}
+
+	if modules.GoogleEnabled() {
+		if err := validateOAuth("google", c.Auth.Google.ClientID, c.Auth.Google.ClientSecret, c.Auth.Google.RedirectURL, c.Auth.Google.StateSecret, c.Auth.FrontendRedirect, c.Auth.UserJWTSecret, production); err != nil {
+			return err
+		}
+	}
+	if modules.GitHubEnabled() {
+		if err := validateOAuth("github", c.Auth.GitHub.ClientID, c.Auth.GitHub.ClientSecret, c.Auth.GitHub.RedirectURL, c.Auth.GitHub.StateSecret, c.Auth.FrontendRedirect, c.Auth.UserJWTSecret, production); err != nil {
+			return err
+		}
+	}
+
+	if modules.BillingEnabled() {
+		stripe := c.Billing.Stripe
+		if strings.TrimSpace(stripe.SecretKey) == "" {
+			return fmt.Errorf("billing.stripe.secret_key required when billing enabled")
+		}
+		if strings.TrimSpace(stripe.WebhookSecret) == "" {
+			return fmt.Errorf("billing.stripe.webhook_secret required when billing enabled")
+		}
+		if !hasStripePrice(stripe.Prices) {
+			return fmt.Errorf("billing.stripe.prices must configure at least one Checkout price")
+		}
+		if production && (unsafeCredential(stripe.SecretKey) || unsafeCredential(stripe.WebhookSecret)) {
+			return fmt.Errorf("billing.stripe credentials must not use template values in production")
+		}
+	}
+
+	return nil
+}
+
+func (c HTTPConfig) AllowedOriginList() []string {
+	parts := strings.Split(c.AllowedOrigins, ",")
+	origins := make([]string, 0, len(parts))
+	for _, value := range parts {
+		if value = strings.TrimSpace(value); value != "" {
+			origins = append(origins, value)
+		}
+	}
+	return origins
+}
+
+func isProduction(env string) bool {
+	env = strings.ToLower(strings.TrimSpace(env))
+	return env == "prod" || env == "production"
+}
+
+func unsafeSecret(value string) bool {
+	return len(strings.TrimSpace(value)) < 32 || unsafeCredential(value)
+}
+
+func unsafeCredential(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	for _, marker := range []string{"change-me", "changeme", "placeholder", "example", "test-secret", "your-secret"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateEmailProvider(provider string, cfg platform.EmailConfig, production bool) error {
+	var apiKey, sender string
+	switch provider {
+	case "log":
+		return nil
+	case "resend":
+		apiKey, sender = cfg.Resend.APIKey, cfg.Resend.SenderEmail
+	case "brevo":
+		apiKey, sender = cfg.Brevo.APIKey, cfg.Brevo.SenderEmail
+	case "none", "disabled", "off":
+		return fmt.Errorf("email.provider cannot be disabled when email login is enabled")
+	default:
+		return fmt.Errorf("unsupported email.provider %q", provider)
+	}
+	if strings.TrimSpace(apiKey) == "" {
+		return fmt.Errorf("email.%s.api_key required", provider)
+	}
+	if production && unsafeCredential(apiKey) {
+		return fmt.Errorf("email.%s.api_key must not use a template value in production", provider)
+	}
+	if _, err := mail.ParseAddress(strings.TrimSpace(sender)); err != nil {
+		return fmt.Errorf("email.%s.sender_email invalid: %w", provider, err)
+	}
+	return nil
+}
+
+func validateOAuth(provider, clientID, clientSecret, redirectURL, stateSecret, frontendRedirect, jwtSecret string, production bool) error {
+	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(clientSecret) == "" {
+		return fmt.Errorf("auth.%s client_id and client_secret required when enabled", provider)
+	}
+	if production && (unsafeCredential(clientID) || unsafeCredential(clientSecret)) {
+		return fmt.Errorf("auth.%s client_id and client_secret must not use template values in production", provider)
+	}
+	if strings.TrimSpace(redirectURL) == "" || strings.TrimSpace(frontendRedirect) == "" {
+		return fmt.Errorf("auth.%s redirect_url and auth.frontend_redirect required when enabled", provider)
+	}
+	if strings.TrimSpace(stateSecret) == "" {
+		return fmt.Errorf("auth.%s.state_secret required when enabled", provider)
+	}
+	if stateSecret == jwtSecret {
+		return fmt.Errorf("auth.%s.state_secret must differ from auth.user_jwt_secret", provider)
+	}
+	if production {
+		if unsafeSecret(stateSecret) {
+			return fmt.Errorf("auth.%s.state_secret must be at least 32 random characters and must not be a template value", provider)
+		}
+		if err := requireHTTPS("auth."+provider+".redirect_url", redirectURL); err != nil {
+			return err
+		}
+		if err := requireHTTPS("auth.frontend_redirect", frontendRedirect); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireHTTPS(name, value string) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return fmt.Errorf("%s must be an absolute https URL in production", name)
+	}
+	return nil
+}
+
+func hasStripePrice(prices platform.StripePricesConfig) bool {
+	values := []string{
+		prices.StarterMonthly, prices.StarterYearly,
+		prices.ProMonthly, prices.ProYearly,
+		prices.PremiumMonthly, prices.PremiumYearly,
+		prices.Lifetime,
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	for _, value := range prices.Credits {
+		if strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (c DBConfig) PGXConfig(project, env string) pgx.Config {

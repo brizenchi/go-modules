@@ -46,13 +46,16 @@ func (p *Provider) VerifyAndParseWebhook(payload []byte, signature string) (*por
 		RawPayload:      append([]byte(nil), payload...),
 	}
 
-	envs := p.translateEvent(string(ev.Type), data, ev.Data.PreviousAttributes, ev.ID, occurredAt, hint)
+	envs, err := p.translateEvent(string(ev.Type), data, ev.Data.PreviousAttributes, ev.ID, occurredAt, hint)
+	if err != nil {
+		return nil, err
+	}
 	out.Envelopes = envs
 	return out, nil
 }
 
 // translateEvent converts a Stripe event into zero or more domain envelopes.
-func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) []event.Envelope {
+func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) ([]event.Envelope, error) {
 	mk := func(kind event.Kind, payload any) event.Envelope {
 		return event.Envelope{
 			Kind:            kind,
@@ -68,27 +71,30 @@ func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs
 	case "checkout.session.completed":
 		return p.onCheckoutCompleted(data, mk)
 	case "invoice.payment_succeeded", "invoice.paid":
-		return p.onInvoicePaid(data, mk)
+		return p.onInvoicePaid(data, mk), nil
 	case "invoice.payment_failed":
 		return []event.Envelope{mk(event.KindPaymentFailed, event.PaymentFailed{
 			ProviderSubscriptionID: getString(data, "subscription"),
 			ProviderCustomerID:     getString(data, "customer"),
-		})}
+		})}, nil
 	case "customer.subscription.created":
 		snap := p.snapshotFromMap(data)
-		return []event.Envelope{mk(event.KindSubscriptionUpdated, event.SubscriptionUpdated{Snapshot: *snap})}
+		return []event.Envelope{mk(event.KindSubscriptionUpdated, event.SubscriptionUpdated{Snapshot: *snap})}, nil
 	case "customer.subscription.updated":
-		return p.onSubscriptionUpdated(data, prevAttrs, mk)
+		return p.onSubscriptionUpdated(data, prevAttrs, mk), nil
 	case "customer.subscription.deleted":
+		snap := p.snapshotFromMap(data)
+		snap.Status = domain.StatusCanceled
 		return []event.Envelope{mk(event.KindSubscriptionCanceled, event.SubscriptionCanceled{
 			ProviderSubscriptionID: getString(data, "id"),
 			ProviderCustomerID:     getString(data, "customer"),
-		})}
+			Snapshot:               *snap,
+		})}, nil
 	}
-	return nil
+	return nil, nil
 }
 
-func (p *Provider) onCheckoutCompleted(data map[string]any, mk func(event.Kind, any) event.Envelope) []event.Envelope {
+func (p *Provider) onCheckoutCompleted(data map[string]any, mk func(event.Kind, any) event.Envelope) ([]event.Envelope, error) {
 	mode := getString(data, "mode")
 	metadata := getMap(data, "metadata")
 	productType := getString(metadata, "product_type")
@@ -103,16 +109,19 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, mk func(event.Kind, 
 					Plan:               domain.PlanLifetime,
 					Status:             domain.StatusActive,
 				},
-			})}
+			})}, nil
 		}
-		quantity := p.extractCheckoutQuantity(data)
+		quantity, err := p.extractCheckoutQuantity(data)
+		if err != nil {
+			return nil, err
+		}
 		creditsPerUnit := p.cfg.CreditsPerUnit
 		return []event.Envelope{mk(event.KindCreditsPurchased, event.CreditsPurchased{
 			Quantity:       quantity,
 			CreditsPerUnit: creditsPerUnit,
 			TotalCredits:   quantity * creditsPerUnit,
 			PriceID:        getString(metadata, "price_id"),
-		})}
+		})}, nil
 	}
 
 	// Subscription checkout — emit an Activated. The payload-derived snapshot
@@ -134,7 +143,7 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, mk func(event.Kind, 
 		snap.Interval = domain.BillingInterval(strings.ToLower(strings.TrimSpace(getString(metadata, "interval"))))
 	}
 	snap.Status = domain.StatusActive
-	return []event.Envelope{mk(event.KindSubscriptionActivated, event.SubscriptionActivated{Snapshot: snap})}
+	return []event.Envelope{mk(event.KindSubscriptionActivated, event.SubscriptionActivated{Snapshot: snap})}, nil
 }
 
 func (p *Provider) onInvoicePaid(data map[string]any, mk func(event.Kind, any) event.Envelope) []event.Envelope {
@@ -234,36 +243,38 @@ func (p *Provider) snapshotFromMap(data map[string]any) *domain.SubscriptionSnap
 
 // extractCheckoutQuantity returns the quantity from a checkout.session.completed payload.
 // Falls back to the API if line_items isn't expanded in the webhook (Stripe default).
-func (p *Provider) extractCheckoutQuantity(data map[string]any) int64 {
+func (p *Provider) extractCheckoutQuantity(data map[string]any) (int64, error) {
 	lineItems := getMap(data, "line_items")
 	if items, ok := lineItems["data"].([]any); ok && len(items) > 0 {
 		if item, ok := items[0].(map[string]any); ok {
 			if qty := getInt64(item, "quantity"); qty > 0 {
-				return qty
+				return qty, nil
 			}
 		}
 	}
 	sessionID := getString(data, "id")
 	if sessionID == "" {
-		return 1
+		return 0, fmt.Errorf("stripe: checkout session id required to resolve credits quantity")
 	}
 	params := &stripesdk.CheckoutSessionParams{}
 	params.AddExpand("line_items")
 	sess, err := session.Get(sessionID, params)
 	if err != nil {
-		return 1
+		return 0, fmt.Errorf("stripe: get checkout session line items: %w", err)
 	}
 	if sess.LineItems != nil && len(sess.LineItems.Data) > 0 {
-		return sess.LineItems.Data[0].Quantity
+		if quantity := sess.LineItems.Data[0].Quantity; quantity > 0 {
+			return quantity, nil
+		}
 	}
 	if md := sess.Metadata; md != nil {
 		if raw, ok := md["quantity"]; ok {
 			if n, err := strconv.ParseInt(raw, 10, 64); err == nil && n > 0 {
-				return n
+				return n, nil
 			}
 		}
 	}
-	return 1
+	return 0, fmt.Errorf("stripe: checkout session %s missing credits quantity", sessionID)
 }
 
 // extractUserHint pulls every identifier we might use to resolve a user.

@@ -144,10 +144,11 @@ type tokenResp struct {
 }
 
 type userInfo struct {
-	Sub     string `json:"sub"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	Picture string `json:"picture"`
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
 }
 
 func (p *Provider) Exchange(ctx context.Context, q url.Values) (*domain.OAuthProfile, error) {
@@ -233,6 +234,9 @@ func (p *Provider) fetchUserInfo(ctx context.Context, accessToken string) (*user
 	}
 	if info.Email == "" {
 		return nil, fmt.Errorf("google: userinfo missing email")
+	}
+	if !info.EmailVerified {
+		return nil, fmt.Errorf("google: userinfo email is not verified")
 	}
 	return &info, nil
 }

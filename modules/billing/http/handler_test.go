@@ -47,6 +47,19 @@ func TestSanitizeMetadata_DropsReservedAndEmpty(t *testing.T) {
 	}
 }
 
+func TestHandleWebhookRejectsOversizedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/stripe/webhook", bytes.NewReader(bytes.Repeat([]byte("x"), int(maxWebhookBodyBytes)+1)))
+
+	NewHandler(Deps{}).HandleWebhook(ctx)
+
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestSanitizeMetadata_NilOnEmpty(t *testing.T) {
 	if out := sanitizeMetadata(nil); out != nil {
 		t.Errorf("nil input should yield nil, got %+v", out)
@@ -151,8 +164,8 @@ func (s handlerTestCustomerStore) HasUsedTrial(ctx context.Context, userID strin
 
 type handlerTestBus struct{}
 
-func (handlerTestBus) Subscribe(kind event.Kind, listener port.Listener) {}
-func (handlerTestBus) Publish(ctx context.Context, env event.Envelope)   {}
+func (handlerTestBus) Subscribe(kind event.Kind, listener port.Listener)     {}
+func (handlerTestBus) Publish(ctx context.Context, env event.Envelope) error { return nil }
 
 func TestChangeSubscriptionHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)

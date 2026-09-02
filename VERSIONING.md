@@ -1,121 +1,77 @@
-# Versioning Policy
+# 版本管理
 
-This is a single-module Go repo. One repo tag versions every package
-under `github.com/brizenchi/go-modules`.
+## 两种更新不是一回事
 
-## Current package paths
+### 共享模块升级
 
-```text
-foundation/config
-foundation/ginx
-foundation/httpresp
-foundation/httpx
-foundation/jwt
-foundation/ossx
-foundation/pgx
-foundation/randx
-foundation/rdx
-foundation/resilience
-foundation/slog
-foundation/tracing
-modules/auth
-modules/billing
-modules/email
-modules/referral
-modules/user
-stacks/saascore
-```
-
-Tag format:
+`foundation/*` 和 `modules/*` 通过 Go module 版本升级：
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+go get github.com/brizenchi/go-modules@<目标版本>
+go mod tidy
+go test ./...
 ```
 
-Do not create per-package tags such as `modules/auth/v0.3.0`. With a
-single root module, Go tooling expects one shared repo tag.
+适合接收认证安全修复、Stripe Webhook 修复和新适配器。
 
-Consumers can pin either the root module or a package path at the same
-repo tag:
+### 模板更新
 
-```bash
-go get github.com/brizenchi/go-modules@v0.3.0
-go get github.com/brizenchi/go-modules/modules/auth@v0.3.0
-```
+`templates/quickstart` 被复制后就属于当前 SaaS。模板的新字段、新监听器和新示例需要
+项目选择性合并，不能由 `go get` 自动覆盖。
 
-## SemVer rules
+这正是用户字段安全的来源：共享模块升级不会自动修改当前 SaaS 的 `User`。
 
-| Change | Bump |
-|---|---|
-| Bug fix, perf, internal refactor | Patch |
-| New API surface, additive config, new helpers | Minor |
-| Removed or changed exported API | Major |
+## 版本规则
 
-## `v0.x` policy
+- 修复，不改变公开接口：补丁版本；
+- 向后兼容的新能力或适配器：次版本；
+- 删除包、修改端口或迁移所有权：主版本或升级说明明确的预发布版本。
 
-The repo is still pre-`v1.0.0`.
+本次删除 `stacks/saascore` 和 `modules/user` 是有意的边界修正。旧项目应先迁出
+共享 User，再升级到采用 ADR-0001 的版本。
 
-Rule:
-
-- while the repo is on `v0.x`, breaking changes may still happen in a
-  minor release
-- every breaking change still must be called out in the touched
-  package `CHANGELOG.md` files
-- once a module reaches `v1.0.0`, normal SemVer compatibility rules
-  apply
-
-## `v2+` Go module rule
-
-For `v2+`, the root module path itself must include the major version:
-
-```go
-require github.com/brizenchi/go-modules/v2 v2.0.0
-```
-
-That means a major release requires:
-
-1. moving the root module to a `v2/` path
-2. updating the module path in the root `go.mod`
-3. updating imports across packages and consumers, for example
-   `github.com/brizenchi/go-modules/v2/foundation/ginx`
-
-Avoid major bumps unless the API break is worth the migration cost.
-
-## Foundation policy
-
-`foundation/*` is the lowest shared API layer. Breaking changes there
-fan out into every dependent module.
-
-Rule:
-
-- after `v1.0.0`, breaking foundation changes require at least one minor
-  release of deprecation first
-
-Expected flow:
-
-1. add the replacement API
-2. mark the old API with `// Deprecated: ...`
-3. release a minor version
-4. update dependent modules
-5. remove the old API in the next major release
-
-## Business and stack policy
-
-`modules/*` and `stacks/*` can evolve faster than foundation, but they
-still need:
-
-- scoped CHANGELOG entries
-- explicit upgrade notes when host app wiring changes
-- coordination inside the shared repo release tag
-
-## Release checklist
+## 每次发布前
 
 ```bash
 go test ./...
+go vet ./...
+go build ./...
 
-# update touched CHANGELOG.md files
+cd templates/quickstart
+go test ./...
+go vet ./...
+go build ./...
+```
 
+同时检查 quickstart 的 `go.mod` 是否指向即将发布的版本。
+
+本仓库的模板和共享模块在同一个仓库里，因此新版本第一次发布按这个顺序：
+
+```bash
+# 1. 提交并推送共享模块改动，然后创建标签
 git tag v0.3.0
 git push origin v0.3.0
+
+# 2. 标签可下载后，固定并验证模板依赖
+make pin-template-version VERSION=v0.3.0
+make verify-template-release VERSION=v0.3.0
+
+# 3. 提交并推送 go.mod/go.sum 的模板指针更新
 ```
+
+不要在标签还不可下载时把 quickstart 指向它；仓库内 `go.work` 会掩盖这个问题，而独立
+项目或服务器构建会失败。
+
+仓库内开发时 `go.work` 会让 quickstart 使用本地根模块；quickstart 的 `go.mod`
+仍应指向一个已经存在的版本，避免脱离工作区后下载失败。发布本次重构后，再把它
+更新到新标签。
+
+从未发布分支复制模板做联调时，可以临时使用：
+
+```bash
+go mod edit -replace github.com/brizenchi/go-modules=../go-modules
+go mod tidy
+```
+
+发布后必须执行 `go mod edit -dropreplace github.com/brizenchi/go-modules`，再升级到
+发布标签。不要让 CI 或生产构建依赖开发机相对路径。

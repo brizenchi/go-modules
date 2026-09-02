@@ -14,7 +14,7 @@ type AccessLogConfig struct {
 }
 
 // AccessLog returns a middleware that logs one structured slog record per
-// request: method, path, status, duration, request_id, trace_id, span_id.
+// request using the stable cross-project HTTP field schema.
 func AccessLog(cfg AccessLogConfig) gin.HandlerFunc {
 	skip := make(map[string]struct{}, len(cfg.SkipPaths))
 	for _, p := range cfg.SkipPaths {
@@ -28,12 +28,25 @@ func AccessLog(cfg AccessLogConfig) gin.HandlerFunc {
 		}
 		start := time.Now()
 		c.Next()
-		latency := time.Since(start)
+		duration := time.Since(start)
+		status := c.Writer.Status()
+		route := c.FullPath()
+		if route == "" {
+			route = "unmatched"
+		}
+		outcome := "success"
+		if status >= 400 {
+			outcome = "failure"
+		}
 		attrs := []any{
+			"component", "http",
+			"operation", "request",
+			"outcome", outcome,
 			"method", c.Request.Method,
 			"path", path,
-			"status", c.Writer.Status(),
-			"latency_ms", latency.Milliseconds(),
+			"route", route,
+			"status_code", status,
+			"duration_ms", duration.Milliseconds(),
 			"client_ip", c.ClientIP(),
 		}
 		if rid := c.GetString(string(RequestIDKey)); rid != "" {
@@ -42,13 +55,14 @@ func AccessLog(cfg AccessLogConfig) gin.HandlerFunc {
 		if tid := c.GetString("trace_id"); tid != "" {
 			attrs = append(attrs, "trace_id", tid, "span_id", c.GetString("span_id"))
 		}
+		ctx := c.Request.Context()
 		switch {
-		case c.Writer.Status() >= 500:
-			slog.Error("http request", attrs...)
-		case c.Writer.Status() >= 400:
-			slog.Warn("http request", attrs...)
+		case status >= 500:
+			slog.ErrorContext(ctx, "http request", attrs...)
+		case status >= 400:
+			slog.WarnContext(ctx, "http request", attrs...)
 		default:
-			slog.Info("http request", attrs...)
+			slog.InfoContext(ctx, "http request", attrs...)
 		}
 	}
 }

@@ -134,18 +134,27 @@ func TestAccessLog_Logs(t *testing.T) {
 	r := newRouter()
 	r.Use(RequestID())
 	r.Use(AccessLog(AccessLogConfig{}))
-	r.GET("/x", func(c *gin.Context) { c.String(200, "ok") })
+	r.GET("/users/:id", func(c *gin.Context) { c.String(200, "ok") })
 
-	req := httptest.NewRequest("GET", "/x", nil)
+	req := httptest.NewRequest("GET", "/users/user-123", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	out := buf.String()
-	if !strings.Contains(out, `"path":"/x"`) {
+	if !strings.Contains(out, `"path":"/users/user-123"`) {
 		t.Errorf("missing path in log: %q", out)
 	}
-	if !strings.Contains(out, `"status":200`) {
-		t.Errorf("missing status in log: %q", out)
+	for _, field := range []string{
+		`"component":"http"`,
+		`"operation":"request"`,
+		`"outcome":"success"`,
+		`"route":"/users/:id"`,
+		`"status_code":200`,
+		`"duration_ms":`,
+	} {
+		if !strings.Contains(out, field) {
+			t.Errorf("missing %s in log: %q", field, out)
+		}
 	}
 	if !strings.Contains(out, `"request_id":`) {
 		t.Errorf("missing request_id in log: %q", out)

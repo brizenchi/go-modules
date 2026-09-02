@@ -24,6 +24,11 @@ type Config struct {
 	TicketTTL time.Duration // default ws ticket TTL when caller passes 0
 }
 
+const (
+	tokenTypeAccess   = "access"
+	tokenTypeWSTicket = "ws_ticket"
+)
+
 // Signer implements port.TokenSigner.
 type Signer struct {
 	cfg Config
@@ -45,6 +50,7 @@ type userClaims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	Role   string `json:"role"`
+	Type   string `json:"token_type"`
 }
 
 func (s *Signer) Issue(id domain.Identity, ttl time.Duration) (*domain.Token, error) {
@@ -65,6 +71,7 @@ func (s *Signer) Issue(id domain.Identity, ttl time.Duration) (*domain.Token, er
 		UserID: id.UserID,
 		Email:  id.Email,
 		Role:   string(id.Role),
+		Type:   tokenTypeAccess,
 	}
 	tok := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, claims)
 	str, err := tok.SignedString([]byte(s.cfg.Secret))
@@ -76,15 +83,29 @@ func (s *Signer) Issue(id domain.Identity, ttl time.Duration) (*domain.Token, er
 
 func (s *Signer) Parse(value string) (*domain.Identity, error) {
 	claims := &userClaims{}
-	tok, err := jwtv5.ParseWithClaims(value, claims, func(*jwtv5.Token) (any, error) {
+	options := []jwtv5.ParserOption{
+		jwtv5.WithValidMethods([]string{jwtv5.SigningMethodHS256.Alg()}),
+		jwtv5.WithExpirationRequired(),
+	}
+	if s.cfg.Issuer != "" {
+		options = append(options, jwtv5.WithIssuer(s.cfg.Issuer))
+	}
+	parser := jwtv5.NewParser(options...)
+	tok, err := parser.ParseWithClaims(value, claims, func(*jwtv5.Token) (any, error) {
 		return []byte(s.cfg.Secret), nil
 	})
 	if err != nil || !tok.Valid {
 		return nil, fmt.Errorf("%w: %v", domain.ErrInvalidToken, err)
 	}
+	if claims.Type != tokenTypeAccess {
+		return nil, fmt.Errorf("%w: unexpected token_type %q", domain.ErrInvalidToken, claims.Type)
+	}
 	uid := claims.Subject
 	if uid == "" {
 		uid = claims.UserID
+	}
+	if uid == "" {
+		return nil, fmt.Errorf("%w: user id required", domain.ErrInvalidToken)
 	}
 	return &domain.Identity{
 		UserID: uid,
@@ -111,6 +132,7 @@ func NewTicketSigner(cfg Config) (*TicketSigner, error) {
 type ticketClaims struct {
 	jwtv5.RegisteredClaims
 	Scope string `json:"scp"`
+	Type  string `json:"token_type"`
 }
 
 func (s *TicketSigner) Issue(userID string, scope map[string]string, ttl time.Duration) (*domain.WSTicket, error) {
@@ -133,6 +155,7 @@ func (s *TicketSigner) Issue(userID string, scope map[string]string, ttl time.Du
 			ExpiresAt: jwtv5.NewNumericDate(now.Add(ttl)),
 		},
 		Scope: string(scopeJSON),
+		Type:  tokenTypeWSTicket,
 	})
 	str, err := tok.SignedString([]byte(s.cfg.Secret))
 	if err != nil {
@@ -148,11 +171,25 @@ func (s *TicketSigner) Issue(userID string, scope map[string]string, ttl time.Du
 
 func (s *TicketSigner) Parse(value string) (*domain.WSTicket, error) {
 	claims := &ticketClaims{}
-	tok, err := jwtv5.ParseWithClaims(value, claims, func(*jwtv5.Token) (any, error) {
+	options := []jwtv5.ParserOption{
+		jwtv5.WithValidMethods([]string{jwtv5.SigningMethodHS256.Alg()}),
+		jwtv5.WithExpirationRequired(),
+	}
+	if s.cfg.Issuer != "" {
+		options = append(options, jwtv5.WithIssuer(s.cfg.Issuer))
+	}
+	parser := jwtv5.NewParser(options...)
+	tok, err := parser.ParseWithClaims(value, claims, func(*jwtv5.Token) (any, error) {
 		return []byte(s.cfg.Secret), nil
 	})
 	if err != nil || !tok.Valid {
 		return nil, fmt.Errorf("%w: %v", domain.ErrInvalidWSTicket, err)
+	}
+	if claims.Type != tokenTypeWSTicket {
+		return nil, fmt.Errorf("%w: unexpected token_type %q", domain.ErrInvalidWSTicket, claims.Type)
+	}
+	if claims.Subject == "" {
+		return nil, fmt.Errorf("%w: user id required", domain.ErrInvalidWSTicket)
 	}
 	scope := map[string]string{}
 	if claims.Scope != "" {

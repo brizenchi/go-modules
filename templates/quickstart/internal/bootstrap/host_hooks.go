@@ -2,109 +2,109 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 
-	"github.com/brizenchi/go-modules/stacks/saascore"
-	"gorm.io/gorm"
+	authevent "github.com/brizenchi/go-modules/modules/auth/event"
+	billingevent "github.com/brizenchi/go-modules/modules/billing/event"
+	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
+	referralevent "github.com/brizenchi/go-modules/modules/referral/event"
+	"github.com/brizenchi/quickstart-template/internal/hostapi"
 )
 
-func buildHostHooks(db *gorm.DB) saascore.HostHooks {
-	return saascore.HostHooks{
-		OnUserSignedUp: func(ctx context.Context, event saascore.UserSignedUpEvent) error {
-			return onUserSignedUp(ctx, db, event)
-		},
-		OnUserLoggedIn: func(ctx context.Context, event saascore.UserLoggedInEvent) error {
-			return onUserLoggedIn(ctx, db, event)
-		},
-		OnSubscriptionActivated: func(ctx context.Context, event saascore.SubscriptionEvent) error {
-			return onSubscriptionActivated(ctx, db, event)
-		},
-		OnSubscriptionRenewed: func(ctx context.Context, event saascore.SubscriptionEvent) error {
-			return onSubscriptionRenewed(ctx, db, event)
-		},
-		OnSubscriptionUpdated: func(ctx context.Context, event saascore.SubscriptionEvent) error {
-			return onSubscriptionUpdated(ctx, db, event)
-		},
-		OnSubscriptionReactivated: func(ctx context.Context, event saascore.SubscriptionEvent) error {
-			return onSubscriptionReactivated(ctx, db, event)
-		},
-		OnSubscriptionCanceling: func(ctx context.Context, event saascore.SubscriptionCancelingEvent) error {
-			return onSubscriptionCanceling(ctx, db, event)
-		},
-		OnSubscriptionCanceled: func(ctx context.Context, event saascore.SubscriptionCanceledEvent) error {
-			return onSubscriptionCanceled(ctx, db, event)
-		},
-		OnPaymentFailed: func(ctx context.Context, event saascore.PaymentFailedEvent) error {
-			return onPaymentFailed(ctx, db, event)
-		},
-		OnCreditsPurchased: func(ctx context.Context, event saascore.CreditsPurchasedEvent) error {
-			return onCreditsPurchased(ctx, db, event)
-		},
-		OnReferralRegistered: func(ctx context.Context, event saascore.ReferralRegisteredEvent) error {
-			return onReferralRegistered(ctx, db, event)
-		},
-		OnReferralActivated: func(ctx context.Context, event saascore.ReferralActivatedEvent) error {
-			return onReferralActivated(ctx, db, event)
-		},
+// 这些函数就是当前 SaaS 的业务回调。共享模块只发布事件；
+// 要发邮件、送积分、创建工作区或调用其他 service，都在这里决定。
+
+func onUserSignedUp(ctx context.Context, deps hostapi.Deps, _ authevent.Envelope, event authevent.UserSignedUp) error {
+	if deps.Config.SignupCredits > 0 {
+		if err := deps.Users.GrantCredits(ctx, event.Identity.UserID, "signup", event.Identity.UserID, deps.Config.SignupCredits); err != nil {
+			return fmt.Errorf("grant signup credits: %w", err)
+		}
 	}
+
+	welcome := deps.Config.WelcomeEmail
+	if !welcome.Enabled || deps.Modules.Email == nil {
+		return nil
+	}
+	if only := strings.TrimSpace(welcome.OnlyProvider); only != "" && !strings.EqualFold(only, string(event.Identity.Provider)) {
+		return nil
+	}
+	subject := strings.TrimSpace(welcome.Subject)
+	if subject == "" {
+		subject = "欢迎加入"
+	}
+	textBody := welcome.TextBody
+	htmlBody := welcome.HTMLBody
+	if strings.TrimSpace(textBody) == "" && strings.TrimSpace(htmlBody) == "" {
+		textBody = "你的账号已经创建成功。"
+	}
+	_, err := deps.Modules.Email.Send(ctx, &emaildomain.Message{
+		To:       []emaildomain.Address{{Name: event.Identity.Username, Email: event.Identity.Email}},
+		Subject:  subject,
+		TextBody: textBody,
+		HTMLBody: htmlBody,
+	})
+	return err
 }
 
-func onUserSignedUp(_ context.Context, _ *gorm.DB, _ saascore.UserSignedUpEvent) error {
-	// Fill in host-specific signup side effects here.
+func onUserLoggedIn(_ context.Context, _ hostapi.Deps, _ authevent.Envelope, _ authevent.UserLoggedIn) error {
 	return nil
 }
 
-func onUserLoggedIn(_ context.Context, _ *gorm.DB, _ saascore.UserLoggedInEvent) error {
-	// Fill in host-specific login side effects here.
+func onSubscriptionActivated(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionActivated) error {
 	return nil
 }
 
-func onSubscriptionActivated(_ context.Context, _ *gorm.DB, _ saascore.SubscriptionEvent) error {
-	// Fill in host-specific activation side effects here.
+func onSubscriptionRenewed(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionRenewed) error {
 	return nil
 }
 
-func onSubscriptionRenewed(_ context.Context, _ *gorm.DB, _ saascore.SubscriptionEvent) error {
-	// Fill in host-specific renewal side effects here.
+func onSubscriptionUpdated(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionUpdated) error {
 	return nil
 }
 
-func onSubscriptionUpdated(_ context.Context, _ *gorm.DB, _ saascore.SubscriptionEvent) error {
-	// Fill in host-specific plan-change side effects here.
+func onSubscriptionReactivated(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionReactivated) error {
 	return nil
 }
 
-func onSubscriptionReactivated(_ context.Context, _ *gorm.DB, _ saascore.SubscriptionEvent) error {
-	// Fill in host-specific reactivation side effects here.
+func onSubscriptionCanceling(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionCanceling) error {
 	return nil
 }
 
-func onSubscriptionCanceling(_ context.Context, _ *gorm.DB, _ saascore.SubscriptionCancelingEvent) error {
-	// Fill in host-specific pre-cancel side effects here.
+func onSubscriptionCanceled(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionCanceled) error {
 	return nil
 }
 
-func onSubscriptionCanceled(_ context.Context, _ *gorm.DB, _ saascore.SubscriptionCanceledEvent) error {
-	// Fill in host-specific cancel-complete side effects here.
+func onPaymentFailed(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.PaymentFailed) error {
 	return nil
 }
 
-func onPaymentFailed(_ context.Context, _ *gorm.DB, _ saascore.PaymentFailedEvent) error {
-	// Fill in host-specific payment-failure side effects here.
+func onCreditsPurchased(ctx context.Context, deps hostapi.Deps, envelope billingevent.Envelope, event billingevent.CreditsPurchased) error {
+	if event.TotalCredits == 0 {
+		return nil
+	}
+	if err := deps.Users.GrantCredits(ctx, envelope.UserID, "stripe", envelope.ProviderEventID, event.TotalCredits); err != nil {
+		return fmt.Errorf("apply purchased credits: %w", err)
+	}
 	return nil
 }
 
-func onCreditsPurchased(_ context.Context, _ *gorm.DB, _ saascore.CreditsPurchasedEvent) error {
-	// Fill in host-specific credits-purchase side effects here.
-	// Shared saascore already increments user credits before this hook runs.
+func onReferralRegistered(_ context.Context, _ hostapi.Deps, _ referralevent.Envelope, _ referralevent.ReferralRegistered) error {
 	return nil
 }
 
-func onReferralRegistered(_ context.Context, _ *gorm.DB, _ saascore.ReferralRegisteredEvent) error {
-	// Fill in host-specific referral registration side effects here.
+func onReferralActivated(ctx context.Context, deps hostapi.Deps, _ referralevent.Envelope, event referralevent.ReferralActivated) error {
+	reward := int64(event.Referral.RewardCredits)
+	if reward == 0 {
+		return nil
+	}
+	sourceID := strconv.FormatUint(event.Referral.ID, 10)
+	if event.Referral.ID == 0 {
+		sourceID = event.Referral.ReferrerID + ":" + event.Referral.RefereeID
+	}
+	if err := deps.Users.GrantCredits(ctx, event.Referral.ReferrerID, "referral", sourceID, reward); err != nil {
+		return fmt.Errorf("apply referral reward: %w", err)
+	}
 	return nil
-}
-
-func onReferralActivated(ctx context.Context, db *gorm.DB, event saascore.ReferralActivatedEvent) error {
-	// Replace or extend this default implementation with your own payout flow.
-	return applyReferralReward(ctx, db, event)
 }

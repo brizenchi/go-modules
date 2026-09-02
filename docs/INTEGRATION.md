@@ -1,154 +1,139 @@
-# Host Integration Guide
+# 模块接入指南
 
-This is the canonical guide for consuming `go-modules` from another
-application repository.
+quickstart 已经给出了默认组合。只有已有项目不适合复制模板时，才需要直接接入模块。
 
-## Choose the right path
+## 接入 auth
 
-1. New backend using the shared SaaS model
-   Use `stacks/saascore` and start from `templates/quickstart`
-2. Existing backend with its own user table or billing/auth shape
-   Use the lower-level `modules/*` packages directly
-3. Infra-only adoption
-   Use only `foundation/*`
+实现当前项目自己的 `auth/port.UserStore`：
 
-Use [SAASCORE_GUIDE.md](./SAASCORE_GUIDE.md) for the first path. This
-document is for the integration contract, not the copy-paste checklist.
-Use [CONFIG_STANDARD.md](./CONFIG_STANDARD.md) for the recommended
-config/bootstrap ownership split.
+```go
+type AuthStore struct {
+    users *MyUserRepository
+}
 
-## What belongs where
-
-Keep these in the host project:
-
-- env naming and config ownership
-- router root and route tree
-- role policy
-- host-specific listeners and entitlements
-- any non-standard user fields
-- any product-specific websocket, proxy, terminal, or bot behavior
-
-Keep these in `go-modules`:
-
-- reusable business flows
-- provider adapters
-- event contracts
-- standard shared compositions
-- shared schemas that are intentionally identical across projects
-- reusable HTTP helpers and middleware
-
-## Recommended backend split
-
-For a host that matches the shared SaaS model:
-
-```text
-your-app/
-  cmd/
-  internal/
-    reward/      host reward or entitlement logic
-    listener/    extra business listeners
-  deploy/
-  .env
+func (s *AuthStore) FindOrCreateFromOAuth(
+    ctx context.Context,
+    profile authdomain.OAuthProfile,
+) (*authdomain.Identity, error) {
+    user, created, err := s.users.FindOrCreateFromOAuth(ctx, profile)
+    if err != nil {
+        return nil, err
+    }
+    return &authdomain.Identity{
+        UserID:   user.ID,
+        Email:    user.Email,
+        Username: user.Name,
+        Provider: profile.Provider,
+        Subject:  profile.Subject,
+        IsNew:    created,
+    }, nil
+}
 ```
 
-Preferred customization surface:
+然后注入 JWT、临时 store、Provider 和事件总线：
 
-- `saascore.HostHooks`
-- `saascore.PolicyHooks`
+```go
+authModule := auth.New(auth.Deps{
+    UserStore:         myAuthStore,
+    RoleResolver:      myRoleResolver,
+    TokenSigner:       signer,
+    WSTicketSigner:    ticketSigner,
+    ExchangeCodeStore: authStore,
+    EmailCodeIssuer:   issuer,
+    EmailCodeVerifier: verifier,
+    IdentityProviders: providers,
+    Bus:               eventbus.NewInProc(),
+})
+```
 
-If your host already has its own `users` table or a materially different
-billing/auth model, do not force `saascore`. Keep your schema and adapt
-the required ports directly.
+生产使用 GORM 时，认证临时表由 `auth/adapter/gormstore.AutoMigrate` 创建；它不会
+创建用户表。
 
-## Standard backend composition
+## 接入 billing
 
-Recommended boot order:
+billing 不读取固定 users 表。实现最小账户投影：
 
-1. Load config
-2. Setup structured logging
-3. Init tracing if enabled
-4. Open DB
-5. Init `stacks/saascore` or raw `modules/*`
-6. Register host-specific listeners
-7. Setup Gin + foundation middleware
-8. Mount public and authenticated routes
-9. Start server
+```go
+type AccountLookup struct {
+    users *MyUserRepository
+}
 
-Recommended foundations:
+func (l *AccountLookup) FindBillingAccount(ctx context.Context, userID string) (billingport.Account, error) {
+    user, err := l.users.FindByID(ctx, userID)
+    if err != nil {
+        return billingport.Account{}, err
+    }
+    return billingport.Account{UserID: user.ID, Email: user.Email}, nil
+}
+```
 
-- `foundation/ginx`
-- `foundation/httpresp`
-- `foundation/slog`
-- `foundation/tracing`
-- `foundation/pgx`
-- `foundation/rdx`
+然后使用 billing 自己的 GORM 表：
 
-Recommended route split:
+```go
+customers := billingrepo.NewCustomerStore(db, accountLookup)
+resolver := billingrepo.NewUserResolver(db, accountLookup)
 
-- public group
-  - auth public routes
-  - billing webhook routes
-- authenticated user group
-  - `stack.RequireUser()`
-  - auth refresh/logout routes
-  - billing user routes
-  - referral user routes
+billingModule := billing.New(billing.Deps{
+    Provider:     stripeProvider,
+    Bus:          billingeventbus.NewInProc(),
+    Customers:    customers,
+    EventRepo:    billingrepo.NewBillingEventRepo(db),
+    Subscriptions: billingrepo.NewSubscriptionRepo(db),
+    UserResolver: resolver,
+    GetUserID:    currentUserID,
+})
+```
 
-## Module-by-module host responsibility
+替换 Stripe 时实现 `billing/port.Provider`，其他代码不需要知道服务商。
 
-### `modules/auth`
+## 接入 email
 
-Host owns:
+```go
+sender, err := resend.New(resend.Config{
+    APIKey: "...",
+    Sender: emaildomain.Address{Email: "no-reply@example.com"},
+})
+if err != nil {
+    return err
+}
+emailModule := email.New(sender, nil)
+```
 
-- `port.UserStore`
-- optional role policy
-- route tree placement
+email 模块只负责发送。何时发送由宿主订阅 auth/billing/referral 事件决定。
 
-### `modules/billing`
+## 接入 referral
 
-Host owns:
+```go
+referralModule := referral.New(referral.Deps{
+    Codes:      gormrepo.NewCodeRepo(db),
+    Referrals:  gormrepo.NewReferralRepo(db),
+    Generator:  codegen.NewDeterministic("INV", 8),
+    Bus:        referraleventbus.NewInProc(),
+    GetUserID:  currentUserID,
+    BaseLink:   "https://example.com/invite?ref=",
+})
+```
 
-- customer/subscription persistence bridge
-- user resolution from webhook hints
-- business effects after billing events
+两个跨模块动作由宿主显式调用：
 
-### `modules/email`
+1. 注册事件中调用 `AttributeReferral`；
+2. 首次合格付费事件中调用 `ActivateReferral`。
 
-Host owns:
+奖励入账订阅 `ReferralActivated` 后实现。它可以是积分、优惠券、现金或完全不同的规则。
 
-- provider credentials
-- sender identity
+## 事件监听器
 
-### `modules/referral`
+监听器应该满足：
 
-Host owns:
+- 可重复执行或带幂等键；
+- 不假设事件一定只投递一次；
+- Stripe 监听器失败时返回 error：Webhook 不会标记 processed，Stripe 重试时会重新投递；
+- 积分、额度等入账另外保存 provider/event 幂等键，不能只依赖 Webhook event 状态；
+- 登录后的可选副作用要自行决定是阻断、异步重试还是仅记录，避免邮件故障拖垮登录；
+- 需要强可靠时写 outbox，由后台 Runner 消费。
 
-- reward semantics
-- any product-specific activation rules beyond the shared default
+完整可运行实现见：
 
-### `modules/user`
-
-Use only when multiple projects intentionally share the same `users`
-schema. Otherwise keep your existing user table in the host app.
-
-## Frontend and callback ownership
-
-Important separation:
-
-- backend OAuth callback URLs belong to the backend domain
-- backend Stripe webhook URLs belong to the backend domain
-- frontend login/success/cancel/invite pages belong to the frontend domain
-
-The paired frontend reference is
-[`templates/quickstart-nextjs`](../templates/quickstart-nextjs/).
-
-## Local development
-
-While iterating locally across this repo and a host app:
-
-- prefer a temporary host-side replace:
-  `replace github.com/brizenchi/go-modules => /absolute/path/to/go-modules`
-- or create a host-side `go.work` that includes both repos
-
-That is a development convenience, not the production integration
-contract.
+- `templates/quickstart/internal/platform`
+- `templates/quickstart/internal/bootstrap/subscriptions.go`
+- `templates/quickstart/internal/bootstrap/host_hooks.go`

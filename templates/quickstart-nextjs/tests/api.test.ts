@@ -5,11 +5,11 @@ const ENV_KEYS = [
   "NEXT_PUBLIC_APP_URL",
   "NEXT_PUBLIC_API_BASE_URL",
   "NEXT_PUBLIC_APP_NAME",
-  "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_AUTH_EMAIL_ENABLED",
+  "NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS",
   "NEXT_PUBLIC_DEFAULT_PLAN",
   "NEXT_PUBLIC_DEFAULT_INTERVAL",
   "NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY",
-  "NEXT_PUBLIC_DEFAULT_TOPUP_AMOUNT_USD",
   "NEXT_PUBLIC_CREDITS_PRICE_ID",
   "NEXT_PUBLIC_STRIPE_SUCCESS_PATH",
   "NEXT_PUBLIC_STRIPE_CANCEL_PATH"
@@ -126,46 +126,23 @@ test("verifyCode forwards a trimmed referral code", async () => {
   });
 });
 
-test("createTopUpPaymentIntent hits the custom top-up endpoint", async () => {
+test("getOAuthAuthorizeURL uses the selected provider route", async () => {
   const api = loadApiModule();
   let requestURL = "";
-  let requestBody: unknown;
 
-  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+  globalThis.fetch = (async (input: string | URL | Request) => {
     requestURL = typeof input === "string" ? input : String(input);
-    requestBody = init?.body ? JSON.parse(String(init.body)) : null;
     return jsonResponse(200, {
       code: 200,
       msg: "ok",
-      data: {
-        payment_intent_id: "pi_123",
-        client_secret: "pi_123_secret_456",
-        amount_cents: 2500,
-        amount_usd: 25,
-        currency: "usd",
-        credits: 2500
-      }
+      data: { redirect_url: "https://github.com/login/oauth/authorize" }
     });
   }) as typeof fetch;
 
-  const result = await api.createTopUpPaymentIntent("jwt-token", {
-    amount: 25,
-    metadata: { referral_code: "INV-123" }
-  });
+  const redirectURL = await api.getOAuthAuthorizeURL("github");
 
-  assert.equal(requestURL, "https://api.example.com/api/v1/stripe/topup/payment-intent");
-  assert.deepEqual(requestBody, {
-    amount: 25,
-    metadata: { referral_code: "INV-123" }
-  });
-  assert.deepEqual(result, {
-    payment_intent_id: "pi_123",
-    client_secret: "pi_123_secret_456",
-    amount_cents: 2500,
-    amount_usd: 25,
-    currency: "usd",
-    credits: 2500
-  });
+  assert.equal(requestURL, "https://api.example.com/api/v1/auth/github/authorize");
+  assert.equal(redirectURL, "https://github.com/login/oauth/authorize");
 });
 
 test("getSubscription maps provider payment fields into frontend shape", async () => {

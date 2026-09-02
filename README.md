@@ -1,142 +1,122 @@
 # go-modules
 
-Reusable Go packages for shared SaaS backends.
+这是一个面向多个独立 SaaS 的 Go 复用仓库。目标不是让十个 SaaS 共用一张用户表，
+而是让它们复用稳定能力，同时各自拥有用户字段、服务商选择和业务规则。
 
-This repo is for teams that do not want every new project to rebuild the
-same auth, billing, email, referral, logging, and HTTP wiring from
-scratch.
-
-## Repo layout
+## 三层架构
 
 ```text
-foundation/   infrastructure-only packages
-modules/      reusable business modules
-stacks/       opinionated shared compositions
-templates/    runnable backend/frontend starters
-docs/         integration and onboarding guides
+foundation/*
+  通用技术能力：配置、数据库连接、日志、追踪、HTTP 中间件等
+
+modules/*
+  独立业务能力：auth、billing、email、referral
+  每个模块提供 domain / port / adapter / app / http
+
+templates/quickstart/*
+  可复制的 SaaS 后端：拥有 User、数据库迁移、模块选择和事件回调
 ```
 
-Rules:
+最重要的边界是：
 
-- `foundation/*` has no business concepts.
-- `modules/*` has business concepts, but no host-app coupling.
-- `stacks/*` is for standard compositions such as a shared SaaS backend.
-- `templates/*` is for copyable host shells that prove the stack works.
+```text
+共享模块 = 能力和事件
+quickstart = 默认组合方式
+复制后的 SaaS = 用户字段和具体业务规则
+```
 
-## Start here
+项目不再提供强制的 `stacks/saascore`，也不再提供代表所有 SaaS 的共享
+`modules/user`。认证模块通过 `auth/port.UserStore` 使用当前 SaaS 的用户表；
+支付模块通过 `billing/port.AccountLookup` 只读取用户 ID 和邮箱。
 
-Choose one path:
+## 模块清单
 
-1. New backend using the shared SaaS model
-   Read [docs/SAASCORE_GUIDE.md](./docs/SAASCORE_GUIDE.md)
-2. Existing backend adopting one reusable module
-   Read [docs/INTEGRATION.md](./docs/INTEGRATION.md), then the module README
-3. New frontend for the shared backend contract
-   Read [templates/quickstart-nextjs/README.md](./templates/quickstart-nextjs/README.md)
-4. Template overview
-   Read [templates/README.md](./templates/README.md)
-5. Shared config and bootstrap standard
-   Read [docs/CONFIG_STANDARD.md](./docs/CONFIG_STANDARD.md)
+| 目录 | 提供什么 | 不负责什么 |
+| --- | --- | --- |
+| `modules/auth` | 邮箱验证码、Google/GitHub OAuth、JWT、登录事件 | 完整用户表、欢迎邮件、注册送积分 |
+| `modules/email` | Resend、Brevo、SMTP、日志发送器 | 决定什么时候发什么邮件 |
+| `modules/billing` | Stripe 结算、Webhook 幂等、订阅快照、支付事件 | 用户套餐字段、产品额度和邀请奖励 |
+| `modules/referral` | 邀请码、归因、激活状态、邀请事件 | 奖励实际入账方式 |
+| `foundation/*` | 通用基础设施 | SaaS 业务流程 |
 
-## Standard paths
+## 新项目起步
 
-### `foundation/*`
-
-Stable project-agnostic helpers:
-
-- `foundation/slog`
-- `foundation/jwt`
-- `foundation/ginx`
-- `foundation/httpresp`
-- `foundation/config`
-- `foundation/httpx`
-- `foundation/tracing`
-- `foundation/resilience`
-- `foundation/pgx`
-- `foundation/rdx`
-- `foundation/randx`
-- `foundation/ossx`
-
-### `modules/*`
-
-Reusable business modules:
-
-- `modules/auth`
-- `modules/billing`
-- `modules/email`
-- `modules/user`
-- `modules/referral`
-
-Planned but not yet shipped as production-ready modules:
-
-- `modules/sms`
-- `modules/llm`
-- `modules/marketing`
-
-### `stacks/*`
-
-Use `stacks/saascore` when multiple projects intentionally share:
-
-- the same `users` table shape
-- the same JWT auth model
-- the same Stripe customer/subscription linkage
-- the same referral flow
-
-If those assumptions are not true, compose `modules/*` directly instead.
-
-## New project workflow
-
-For the standard shared SaaS shape:
-
-1. Copy `templates/quickstart`
-2. Copy `templates/quickstart-nextjs` if you also need the browser shell
-3. Follow [docs/SAASCORE_GUIDE.md](./docs/SAASCORE_GUIDE.md)
-4. Replace only env/config values and host business hooks
-
-For a custom host shape:
-
-1. Read [docs/INTEGRATION.md](./docs/INTEGRATION.md)
-2. Keep your own user table and route tree
-3. Implement only the required ports around the module you are adopting
-
-## Local development
-
-This repo's shared library surface is the root Go module
-`github.com/brizenchi/go-modules`.
-
-`templates/quickstart` is a separate deployable Go module that consumes
-the shared library as a real downstream app. A local `go.work` keeps
-root-module development and template iteration aligned inside this
-repository.
+发布版本后，用初始化脚本同时复制后端和前端：
 
 ```bash
-make test
-make test-race
-make tidy-check
-make fmt-check
-make purity-check
-make lint
-make vuln
+make init-quickstart \
+  DEST=../my-saas \
+  MODULE=github.com/me/my-saas \
+  APP=my-saas \
+  VERSION=v0.3.0
 ```
 
-## Versioning
-
-This is a single-module repo. One repo tag versions every package:
+脚本会替换 Go module、项目 slug 和共享模块版本，结果位于 `backend/`、`frontend/`。
+需要联调当前尚未发布的本地代码时，再手工复制后端并使用临时 replace：
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+cp -R templates/quickstart ../my-saas-backend
+cd ../my-saas-backend
+cp deploy/config.yaml.example deploy/config.yaml
+cp .env.example .env
+
+# 当前改动还没有发布标签时，让新项目临时使用旁边的本地仓库：
+go mod edit -replace github.com/brizenchi/go-modules=../go-modules
+go mod tidy
+
+go run ./cmd/quickstart
 ```
 
-Consumers can pin any package path at that shared repo tag:
+发布新的 `go-modules` 标签后，删除这个本地 replace，并把依赖升级到该标签。CI 和生产
+环境应使用已发布版本，不依赖开发机上的相对路径。
+
+复制后的第一批修改通常只有：
+
+1. 在 `internal/user/model.go` 决定当前 SaaS 的用户字段。
+2. 在 `deploy/config.yaml` 启用需要的登录、支付和邀请模块。
+3. 在 `internal/bootstrap/host_hooks.go` 编写注册、登录、支付、邮件和奖励规则。
+4. 在 `internal/feature/*` 添加当前 SaaS 的业务功能。
+
+例如“Google 注册成功后由 Resend 发欢迎邮件”完全发生在模板中：Google 和
+Resend 只是注入的适配器，`onUserSignedUp` 才是当前 SaaS 的规则。
+
+## 用户字段怎么改
+
+用户模型在：
+
+```text
+templates/quickstart/internal/user/model.go
+```
+
+给某个 SaaS 增加 `WorkspaceID`、`Locale` 或 `OnboardingStep` 时，只修改这个
+SaaS 的模型、迁移和业务代码。共享 auth 只看到最小 `Identity`，其他 SaaS
+不需要升级。
+
+易变的业务状态不要都堆进 `users`：工作区成员、积分流水、配额和偏好更适合放在
+当前 SaaS 的独立 feature 表，通过 `user_id` 关联。详细判断规则见
+[整体架构：用户字段变更规则](docs/ARCHITECTURE.md#用户字段变更规则)。
+
+支付客户 ID 和订阅状态保存在 billing 自己的表；外部登录身份保存在
+`user_identities`，所以同一用户可以同时连接 Google 和 GitHub。
+
+## 推荐阅读顺序
+
+1. [文档入口](docs/README.md)
+2. [整体架构](docs/ARCHITECTURE.md)
+3. [quickstart 开发指南](templates/quickstart/README.md)
+4. [配置标准](docs/CONFIG_STANDARD.md)
+5. [第三方服务开通](docs/SETUP_ZH.md)
+6. [模块接入方式](docs/INTEGRATION.md)
+
+## 验证
 
 ```bash
-go get github.com/brizenchi/go-modules/modules/auth@v0.3.0
+go test ./...
+go vet ./...
+
+cd templates/quickstart
+go test ./...
+go vet ./...
 ```
 
-Read [VERSIONING.md](./VERSIONING.md) before publishing tags or making
-breaking changes.
-
-## Contributing
-
-Read [CONTRIBUTING.md](./CONTRIBUTING.md).
+架构决策见 [ADR-0001](docs/adr/0001-template-owned-composition-and-user-schema.md)。

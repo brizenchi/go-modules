@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { StripeTopUpForm } from "@/components/stripe-topup-form";
 import { SiteShell } from "@/components/site-shell";
 import { EmptyState, Notice, Panel, DetailRows } from "@/components/ui";
 import {
@@ -10,7 +9,6 @@ import {
   changeSubscription,
   createBillingPortalSession,
   createCheckoutSession,
-  createTopUpPaymentIntent,
   getSubscription,
   listInvoices,
   previewSubscriptionChange,
@@ -18,8 +16,7 @@ import {
   type InvoiceItem,
   type SubscriptionChangeMode,
   type SubscriptionPreview,
-  type SubscriptionView,
-  type TopUpPaymentIntentResult
+  type SubscriptionView
 } from "@/lib/api";
 import {
   readReferralCode,
@@ -48,7 +45,7 @@ const defaultInterval = appEnv.defaultInterval === "yearly" ? "yearly" : "monthl
 
 export default function BillingPage() {
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
-  const [busy, setBusy] = useState<"" | "load" | "subscription" | "change" | "portal" | "credits" | "topup" | "cancel" | "reactivate">("");
+  const [busy, setBusy] = useState<"" | "load" | "subscription" | "change" | "portal" | "credits" | "cancel" | "reactivate">("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [subscription, setSubscription] = useState<SubscriptionView | null>(null);
@@ -58,8 +55,6 @@ export default function BillingPage() {
   const [interval, setInterval] = useState(defaultInterval);
   const [creditsPriceID, setCreditsPriceID] = useState(appEnv.creditsPriceId);
   const [creditsQuantity, setCreditsQuantity] = useState(String(appEnv.defaultCreditsQuantity));
-  const [topUpAmount, setTopUpAmount] = useState(String(appEnv.defaultTopUpAmountUSD));
-  const [topUpIntent, setTopUpIntent] = useState<TopUpPaymentIntentResult | null>(null);
   const [referralCode, setReferralCode] = useState("");
   const currentPlan = subscription?.plan || "";
   const hasLifetime = currentPlan === "lifetime";
@@ -237,31 +232,6 @@ export default function BillingPage() {
     }
   }
 
-  async function handleCreateTopUpIntent() {
-    if (!session) {
-      setError("sign in first");
-      return;
-    }
-    setBusy("topup");
-    setError("");
-    setStatus("");
-    setTopUpIntent(null);
-
-    try {
-      const amount = Number.parseFloat(topUpAmount);
-      const result = await createTopUpPaymentIntent(session.token, {
-        amount,
-        metadata: referralCode ? { referral_code: referralCode } : undefined
-      });
-      setTopUpIntent(result);
-      setStatus(`PaymentIntent ready: ${result.payment_intent_id}`);
-    } catch (err) {
-      setError(messageFromError(err));
-    } finally {
-      setBusy("");
-    }
-  }
-
   async function handleLifetimeCheckout() {
     if (!session) {
       setError("sign in first");
@@ -329,8 +299,8 @@ export default function BillingPage() {
   return (
     <SiteShell
       eyebrow="Subscription Console"
-      title="Operate six billing lanes from one console."
-      description="This page is the operational billing console behind the pricing page and avatar menu. It separates starter, pro, premium, lifetime, package credits, and custom amount top-up while still treating the backend and webhooks as the only billing truth."
+      title="Operate reliable Stripe Checkout flows from one console."
+      description="Subscriptions, lifetime access, and fixed credit packages use hosted Stripe Checkout. The backend and signed webhooks remain the only billing truth."
       accountMenuData={{ subscription }}
       sideTitle="Stripe callback split"
       sideBody={
@@ -357,7 +327,6 @@ export default function BillingPage() {
       }
       toc={[
         { id: "subscription-checkout", label: "Subscriptions" },
-        { id: "credits-topup", label: "Custom amount" },
         { id: "credits-checkout", label: "Package" },
         { id: "subscription-state", label: "Subscription state" },
         { id: "invoices", label: "Invoices" }
@@ -455,52 +424,6 @@ export default function BillingPage() {
           </p>
         </Panel>
 
-        <Panel
-          className="span-7"
-          title="Custom amount top-up"
-          subtitle="自由充值数额: dynamic USD amount -> backend PaymentIntent -> Stripe Payment Element -> webhook grants credits."
-        >
-          <div id="credits-topup" />
-          <div className="input-row">
-            <div className="field">
-              <label htmlFor="topup-amount">Amount (USD)</label>
-              <input
-                id="topup-amount"
-                inputMode="decimal"
-                value={topUpAmount}
-                placeholder="25"
-                onChange={(event) => setTopUpAmount(event.target.value)}
-              />
-            </div>
-          </div>
-          <Notice>
-            This flow does not use a Stripe Price ID. The backend creates a one-off PaymentIntent and returns a
-            client secret for the browser.
-            <br />
-            Publishable key in frontend env:{" "}
-            <span className="inline-code">{appEnv.stripePublishableKey || "(missing)"}</span>
-          </Notice>
-          <div className="button-row">
-            <button className="button primary" disabled={busy !== ""} onClick={handleCreateTopUpIntent}>
-              {busy === "topup" ? "Preparing..." : "Create Top-Up Payment"}
-            </button>
-          </div>
-          {topUpIntent ? (
-            <StripeTopUpForm
-              clientSecret={topUpIntent.client_secret}
-              amountUSD={topUpIntent.amount_usd}
-              credits={topUpIntent.credits}
-              onBusyChange={(isBusy) => {
-                setBusy(isBusy ? "topup" : "");
-              }}
-              onError={setError}
-            />
-          ) : null}
-          <p className="footer-note">
-            This is the flexible recharge path. Credits are added only after the backend webhook confirms <span className="inline-code">payment_intent.succeeded</span>.
-          </p>
-        </Panel>
-
         <Panel className="span-5" title="Package credits checkout" subtitle="Fixed package: hosted Checkout with product_type=credits, price_id, and optional quantity.">
           <div id="credits-checkout" />
           <div className="input-row">
@@ -528,7 +451,7 @@ export default function BillingPage() {
             </button>
           </div>
           <p className="footer-note">
-            Use this when the package amount is fixed in Stripe ahead of time. For arbitrary recharge amounts, use the custom amount panel above. Leave the price ID blank only if the backend Stripe config already has exactly one default credits price configured.
+            Create the package price in Stripe first. Leave the price ID blank only if the backend Stripe config has a default credits price configured.
           </p>
         </Panel>
 

@@ -12,14 +12,15 @@
 // The module is host-agnostic: it never imports project-specific models
 // (e.g. user, bot, relay). Hosts integrate via three pluggable points:
 //
-//  1. port.CustomerStore   — load/save provider customer IDs against the host's user table
+//  1. port.CustomerStore   — load/save provider customer IDs in host-selected persistence
 //  2. port.UserResolver    — resolve a user ID from webhook hints
 //  3. event listeners      — apply provider-specific side effects (grant quota, send email)
 //
 // To copy this module into another project:
 //
 //   - cp -r modules/billing/ <other-project>/modules/billing/
-//   - implement port.CustomerStore + port.UserResolver against your user table
+//   - implement port.AccountLookup against your user table
+//   - use the standard GORM CustomerStore/UserResolver or implement those ports yourself
 //   - register listeners for the events you care about
 //   - call billing.New(...) and billing.Mount(...) from your bootstrap
 package billing
@@ -33,11 +34,12 @@ import (
 
 // Module is the assembled billing system: use cases + handlers, ready to mount.
 type Module struct {
-	Provider     port.Provider
-	Bus          port.EventBus
-	Customers    port.CustomerStore
-	EventRepo    port.BillingEventRepository
-	UserResolver port.UserResolver
+	Provider      port.Provider
+	Bus           port.EventBus
+	Customers     port.CustomerStore
+	EventRepo     port.BillingEventRepository
+	Subscriptions port.SubscriptionRepository
+	UserResolver  port.UserResolver
 
 	Checkout     *app.CheckoutService
 	Subscription *app.SubscriptionService
@@ -49,12 +51,13 @@ type Module struct {
 
 // Deps describes the host-supplied collaborators.
 type Deps struct {
-	Provider     port.Provider
-	Bus          port.EventBus
-	Customers    port.CustomerStore
-	EventRepo    port.BillingEventRepository
-	UserResolver port.UserResolver
-	GetUserID    httpapi.UserIDFunc
+	Provider      port.Provider
+	Bus           port.EventBus
+	Customers     port.CustomerStore
+	EventRepo     port.BillingEventRepository
+	Subscriptions port.SubscriptionRepository
+	UserResolver  port.UserResolver
+	GetUserID     httpapi.UserIDFunc
 }
 
 // New wires the module from its dependencies.
@@ -65,7 +68,7 @@ type Deps struct {
 func New(d Deps) *Module {
 	checkout := app.NewCheckoutService(d.Provider, d.Customers)
 	subs := app.NewSubscriptionService(d.Provider, d.Customers, d.Bus)
-	webhook := app.NewWebhookService(d.Provider, d.EventRepo, d.UserResolver, d.Bus)
+	webhook := app.NewWebhookService(d.Provider, d.EventRepo, d.Subscriptions, d.UserResolver, d.Bus)
 	query := app.NewQueryService(d.Provider, d.Customers)
 
 	handler := httpapi.NewHandler(httpapi.Deps{
@@ -77,16 +80,17 @@ func New(d Deps) *Module {
 	})
 
 	return &Module{
-		Provider:     d.Provider,
-		Bus:          d.Bus,
-		Customers:    d.Customers,
-		EventRepo:    d.EventRepo,
-		UserResolver: d.UserResolver,
-		Checkout:     checkout,
-		Subscription: subs,
-		Webhook:      webhook,
-		Query:        query,
-		Handler:      handler,
+		Provider:      d.Provider,
+		Bus:           d.Bus,
+		Customers:     d.Customers,
+		EventRepo:     d.EventRepo,
+		Subscriptions: d.Subscriptions,
+		UserResolver:  d.UserResolver,
+		Checkout:      checkout,
+		Subscription:  subs,
+		Webhook:       webhook,
+		Query:         query,
+		Handler:       handler,
 	}
 }
 

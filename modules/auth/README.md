@@ -1,166 +1,81 @@
-# auth
+# auth 认证模块
 
-> Portable, provider-agnostic authentication: email-code passwordless + Google OAuth + JWT sessions + WebSocket tickets.
+提供邮箱验证码、Google/GitHub OAuth、JWT、WebSocket 临时票据和认证领域事件。
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/brizenchi/go-modules/modules/auth.svg)](https://pkg.go.dev/github.com/brizenchi/go-modules/modules/auth)
+## 边界
 
-The `auth` module never imports project-specific models. Hosts integrate
-via ports and keep ownership of their user table, role rules, and route tree.
+auth 不拥有用户表，也不发送欢迎邮件、赠送积分或处理邀请。宿主必须实现：
 
-## Install
+- `port.UserStore`：把当前 SaaS 的用户模型映射成最小 `domain.Identity`；
+- `port.RoleResolver`：决定登录身份的粗粒度角色；
+- 事件监听器：处理 `UserSignedUp`、`UserLoggedIn` 后的业务。
 
-```bash
-go get github.com/brizenchi/go-modules/modules/auth
+## 目录
+
+```text
+domain/   Identity、OAuthProfile、Token、错误
+port/     UserStore、IdentityProvider、TokenSigner、EventBus 等接口
+adapter/
+  emailcode/  邮箱验证码流程
+  google/     Google OAuth
+  github/     GitHub OAuth
+  jwt/        HMAC JWT 和 WebSocket 票据
+  gormstore/  验证码、每日次数、OAuth 交换码表
+  memstore/   测试和单实例开发内存 store
+  eventbus/   进程内事件总线
+app/      登录、OAuth、会话用例
+http/     Gin handler、middleware、默认路由
 ```
 
-## Layering
-
-```
-domain/   pure types: Identity, Token, OAuthProfile, errors
-event/    domain events (UserSignedUp, UserLoggedIn)
-port/     interfaces the module depends on
-adapter/  concrete implementations
-  jwt/         HS256 token + WS ticket signer
-  google/      Google OAuth IdentityProvider
-  emailcode/   passwordless email-code provider
-  memstore/    in-memory code + exchange stores for dev/tests
-  eventbus/    in-process synchronous bus
-app/      use cases: SendCode, VerifyCode, StartOAuth, OAuthCallback,
-          ExchangeToken, Refresh, IssueWSTicket
-http/     Gin handlers, middleware, Mount()
-```
-
-## Host responsibilities
-
-1. `port.UserStore` — map the module to your user table.
-2. `port.RoleResolver` — assign `user` / `admin` roles.
-3. `port.ExchangeCodeStore` — persist OAuth exchange codes.
-4. Event listeners — react to `UserSignedUp` / `UserLoggedIn`.
-
-## Quick start
+## 组装
 
 ```go
-import (
-	"time"
-
-	"github.com/brizenchi/go-modules/modules/auth"
-	"github.com/brizenchi/go-modules/modules/auth/adapter/emailcode"
-	autheventbus "github.com/brizenchi/go-modules/modules/auth/adapter/eventbus"
-	"github.com/brizenchi/go-modules/modules/auth/adapter/google"
-	authjwt "github.com/brizenchi/go-modules/modules/auth/adapter/jwt"
-	"github.com/brizenchi/go-modules/modules/auth/adapter/memstore"
-	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
-	"github.com/brizenchi/go-modules/modules/auth/port"
-)
-
-sessionSigner, err := authjwt.NewSigner(authjwt.Config{
-	Secret:  os.Getenv("AUTH_JWT_SECRET"),
-	Issuer:  "app-auth",
-	UserTTL: 7 * 24 * time.Hour,
+module := auth.New(auth.Deps{
+    UserStore:         hostUserStore,
+    RoleResolver:      hostRoleResolver,
+    TokenSigner:       signer,
+    WSTicketSigner:    ticketSigner,
+    ExchangeCodeStore: authStore,
+    EmailCodeIssuer:   issuer,
+    EmailCodeVerifier: verifier,
+    IdentityProviders: providers,
+    Bus:               eventbus.NewInProc(),
+    FrontendURL:       "https://app.example.com/login",
 })
-if err != nil {
-	log.Fatal(err)
+```
+
+生产 GORM store：
+
+```go
+if err := gormstore.AutoMigrate(db); err != nil {
+    return err
 }
+store := gormstore.New(db)
+```
 
-ticketSigner, err := authjwt.NewTicketSigner(authjwt.Config{
-	Secret:    os.Getenv("AUTH_JWT_SECRET"),
-	Issuer:    "app-auth-ws",
-	TicketTTL: 5 * time.Minute,
-})
-if err != nil {
-	log.Fatal(err)
+它只创建 `auth_email_codes`、`auth_email_daily_counts`、
+`auth_exchange_codes`，不会创建 `users`。
+
+## Provider
+
+```go
+providers := map[string]authport.IdentityProvider{
+    "google": googleProvider,
+    "github": githubProvider,
 }
-
-codeStore := memstore.NewCodeStore()
-exchangeStore := memstore.NewExchangeStore()
-
-issuer := emailcode.NewIssuer(emailcode.Config{
-	TTL:         10 * time.Minute,
-	MaxAttempts: 5,
-	TemplateRef: "3",
-}, codeStore, myMailerAdapter)
-
-verifier := emailcode.NewVerifier(emailcode.Config{
-	MaxAttempts: 5,
-}, codeStore)
-
-providers := map[string]port.IdentityProvider{}
-googleProvider, err := google.New(google.Config{
-	ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-	ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-	RedirectURL:  "https://api.example.com/api/v1/auth/google/callback",
-	StateSecret:  os.Getenv("GOOGLE_STATE_SECRET"),
-	StateTTL:     20 * time.Minute,
-})
-if err == nil {
-	providers["google"] = googleProvider
-}
-
-mod := auth.New(auth.Deps{
-	UserStore:         myUserStore,
-	RoleResolver:      myRoleResolver,
-	TokenSigner:       sessionSigner,
-	WSTicketSigner:    ticketSigner,
-	ExchangeCodeStore: exchangeStore,
-	EmailCodeIssuer:   issuer,
-	EmailCodeVerifier: verifier,
-	IdentityProviders: providers,
-	Bus:               autheventbus.NewInProc(),
-	FrontendURL:       "https://app.example.com/login",
-})
-
-public := r.Group("/api/v1")
-user := r.Group("/api/v1")
-user.Use(authhttp.RequireUser(mod.Session))
-
-authhttp.Mount(mod.Handler, public, user)
 ```
 
-`modules/email` can be used for delivery, but `adapter/emailcode` only
-depends on a tiny `Mailer` interface. See
-[`templates/quickstart/internal/auth_glue`](../../templates/quickstart/internal/auth_glue/)
-for a concrete host-side wrapper.
+不注册某个 Provider 就等于关闭它。只使用 GitHub 时不需要创建 Google Provider。
 
-## HTTP flows
+## 事件
 
-### Email-code login
-
-```
-POST /auth/send-code    { "email": "user@example.com" }
-POST /auth/verify-code  { "email": "user@example.com", "code": "123456" }
-POST /auth/refresh      Authorization: Bearer <jwt>
-POST /auth/logout       Authorization: Bearer <jwt>
+```go
+module.Subscribe(authevent.KindUserSignedUp, onUserSignedUp)
+module.Subscribe(authevent.KindUserLoggedIn, onUserLoggedIn)
 ```
 
-`SendCode` returns `debug_code` only when debug mode is enabled on the issuer.
+进程内总线同步执行监听器，错误会记录但不阻止其他监听器。需要崩溃重放时，在宿主
+监听器写 outbox。
 
-### Google OAuth
-
-```
-GET  /auth/google/authorize
-GET  /auth/google/callback
-POST /auth/exchange-token  { "code": "<exchange_code>" }
-```
-
-`GET /auth/:provider/authorize` returns JSON containing `redirect_url`.
-If `FrontendURL` is configured, `OAuthCallback` redirects the browser to
-`FrontendURL?code=<exchange_code>`. Otherwise it returns JSON containing
-`exchange_code`.
-
-### WebSocket ticket
-
-```
-POST /websocket/ticket  Authorization: Bearer <jwt>
-```
-
-The response contains a short-lived JWT ticket for host-specific WS entry points.
-
-## Testing
-
-```bash
-go test -race ./...
-```
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md).
+完整宿主实现见 `templates/quickstart/internal/user` 和
+`templates/quickstart/internal/platform/auth_provider.go`。

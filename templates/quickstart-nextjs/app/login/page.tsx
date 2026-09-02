@@ -69,7 +69,7 @@ function LoginPageInner() {
     let cancelled = false;
     setBusy("exchange");
     setError("");
-    setStatus("Exchanging Google OAuth code for a session token...");
+    setStatus("Exchanging OAuth code for a session token...");
 
     exchangeToken(exchangeCode, readReferralCode())
       .then((session) => {
@@ -80,7 +80,7 @@ function LoginPageInner() {
         setReferralCode("");
         writeSession(session);
         setSessionToken(maskToken(session.token));
-        setStatus("Google login succeeded. Local session is now stored in localStorage.");
+        setStatus("OAuth login succeeded. Local session is now stored in localStorage.");
         router.replace("/account");
       })
       .catch((err) => {
@@ -101,28 +101,31 @@ function LoginPageInner() {
     };
   }, [router, searchParams]);
 
-  const googleCallbackExample = useMemo(() => `${appEnv.appUrl}/login`, []);
+  const callbackExample = useMemo(() => `${appEnv.appUrl}/login`, []);
+  const oauthProviderNames = appEnv.authOAuthProviders
+    .map((provider) => provider === "github" ? "GitHub" : "Google")
+    .join(" / ");
 
   return (
     <SiteShell
       eyebrow="Sign In"
-      title="Use one auth entry page for passwordless email, Google OAuth, and referral-aware signup."
-      description="This page still talks directly to the backend auth flows, but it is framed as a reusable sign-in surface for real products. It supports browser-side referral capture, email-code login, and Google redirect exchange in one place."
+      title="Use one auth entry page for enabled email and OAuth providers."
+      description="The visible login methods come from frontend env and should match the backend module configuration. Referral capture works for email, Google, and GitHub signup."
       sideTitle="What must align"
       sideBody={
         <DetailRows
           rows={[
             {
               label: "Frontend redirect",
-              value: <span className="inline-code">{googleCallbackExample}</span>
+              value: <span className="inline-code">{callbackExample}</span>
             },
             {
               label: "Backend env",
               value: <span className="inline-code">APP_AUTH_FRONTEND_REDIRECT</span>
             },
             {
-              label: "Google redirect URI",
-              value: <span className="inline-code">APP_AUTH_GOOGLE_REDIRECT_URL</span>
+              label: "Enabled OAuth",
+              value: <span className="inline-code">{oauthProviderNames || "none"}</span>
             },
             {
               label: "Local token store",
@@ -133,7 +136,7 @@ function LoginPageInner() {
       }
       toc={[
         { id: "email-login", label: "Email login" },
-        { id: "google-oauth", label: "Google OAuth" },
+        { id: "oauth", label: "OAuth" },
         { id: "session-view", label: "Session view" }
       ]}
     >
@@ -149,15 +152,15 @@ function LoginPageInner() {
           />
         </Panel>
 
-        <Panel className="span-5" title="Google OAuth" subtitle="Matches GET /auth/google/authorize and POST /auth/exchange-token.">
-          <div id="google-oauth" />
+        <Panel className="span-5" title="OAuth" subtitle="Matches GET /auth/:provider/authorize and POST /auth/exchange-token.">
+          <div id="oauth" />
           <p>
-            The browser first asks the backend for a provider authorize URL. After Google redirects back to the backend callback, the backend redirects the browser to{" "}
-            <span className="inline-code">{googleCallbackExample}</span>
-            {" "}with a short-lived exchange code. This page then exchanges it together with the saved referral code, so Google signup and email-code signup both preserve referral attribution.
+            The browser first asks the backend for the selected provider&apos;s authorize URL. After the provider callback, the backend redirects the browser to{" "}
+            <span className="inline-code">{callbackExample}</span>
+            {" "}with a short-lived exchange code. This page exchanges it together with the saved referral code, so every enabled signup method preserves referral attribution.
           </p>
           <p className="footer-note">
-            If this button fails locally, the usual root cause is not the frontend code. It is almost always a mismatch between backend redirect env, Google Console callback URI, and the public backend URL.
+            If an OAuth button fails, first compare the backend redirect env, the provider console callback URI, and the public backend URL.
           </p>
         </Panel>
 

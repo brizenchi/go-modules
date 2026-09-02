@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
@@ -11,26 +12,30 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// CustomerStore persists provider customer linkage outside the shared
-// users table while still projecting email/plan from users.
+// CustomerStore persists provider linkage in billing-owned tables and gets
+// the host account's ID/email through port.AccountLookup.
 type CustomerStore struct {
-	db *gorm.DB
+	db       *gorm.DB
+	accounts port.AccountLookup
 }
 
-func NewCustomerStore(db *gorm.DB) *CustomerStore {
-	return &CustomerStore{db: db}
+func NewCustomerStore(db *gorm.DB, accounts port.AccountLookup) *CustomerStore {
+	return &CustomerStore{db: db, accounts: accounts}
 }
 
 func (s *CustomerStore) LoadCustomer(ctx context.Context, userID string) (port.Customer, error) {
-	user, err := loadUserSummaryByID(ctx, s.db, userID)
+	if s.accounts == nil {
+		return port.Customer{}, fmt.Errorf("billing: account lookup required")
+	}
+	account, err := s.accounts.FindBillingAccount(ctx, userID)
 	if err != nil {
 		return port.Customer{}, err
 	}
 
 	out := port.Customer{
-		UserID: user.ID,
-		Email:  user.Email,
-		Plan:   user.Plan,
+		UserID: account.UserID,
+		Email:  account.Email,
+		Plan:   string(domain.PlanFree),
 	}
 
 	var customer domain.BillingCustomer
@@ -56,6 +61,9 @@ func (s *CustomerStore) LoadCustomer(ctx context.Context, userID string) (port.C
 	err = query.Order("updated_at DESC").Take(&subscription).Error
 	switch {
 	case err == nil:
+		if strings.TrimSpace(subscription.Plan) != "" {
+			out.Plan = subscription.Plan
+		}
 		if out.ProviderCustomerID == "" {
 			out.ProviderCustomerID = subscription.ProviderCustomerID
 		}

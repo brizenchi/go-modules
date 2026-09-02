@@ -90,6 +90,30 @@ func TestSigner_RejectsWrongSecret(t *testing.T) {
 	}
 }
 
+func TestSigner_RejectsWrongIssuer(t *testing.T) {
+	issuerA, _ := NewSigner(Config{Secret: "shared-secret", Issuer: "service-a", UserTTL: time.Hour})
+	issuerB, _ := NewSigner(Config{Secret: "shared-secret", Issuer: "service-b", UserTTL: time.Hour})
+	tok, _ := issuerA.Issue(domain.Identity{UserID: "u1"}, time.Hour)
+	if _, err := issuerB.Parse(tok.Value); !errors.Is(err, domain.ErrInvalidToken) {
+		t.Fatalf("expected wrong issuer to be rejected, got %v", err)
+	}
+}
+
+func TestSignerAndTicketSigner_RejectEachOthersTokens(t *testing.T) {
+	access, _ := NewSigner(Config{Secret: "shared-secret", Issuer: "quickstart", UserTTL: time.Hour})
+	tickets, _ := NewTicketSigner(Config{Secret: "shared-secret", Issuer: "quickstart-ws", TicketTTL: time.Minute})
+
+	accessToken, _ := access.Issue(domain.Identity{UserID: "u1"}, time.Hour)
+	if _, err := tickets.Parse(accessToken.Value); !errors.Is(err, domain.ErrInvalidWSTicket) {
+		t.Fatalf("expected access token to be rejected as websocket ticket, got %v", err)
+	}
+
+	ticket, _ := tickets.Issue("u1", map[string]string{"project_id": "p1"}, time.Minute)
+	if _, err := access.Parse(ticket.Value); !errors.Is(err, domain.ErrInvalidToken) {
+		t.Fatalf("expected websocket ticket to be rejected as access token, got %v", err)
+	}
+}
+
 func TestSigner_TokenIncludesUserIDClaimForLegacyMiddleware(t *testing.T) {
 	// Test the compatibility behavior: tokens carry both `sub` and
 	// `user_id` so legacy middleware that reads `user_id` keeps working.
@@ -112,7 +136,7 @@ func TestSigner_TokenIncludesUserIDClaimForLegacyMiddleware(t *testing.T) {
 }
 
 func TestTicketSigner_RoundTripPreservesScope(t *testing.T) {
-	ts, err := NewTicketSigner(Config{Secret: "ticket-secret", TicketTTL: time.Minute})
+	ts, err := NewTicketSigner(Config{Secret: "ticket-secret", Issuer: "test-ws", TicketTTL: time.Minute})
 	if err != nil {
 		t.Fatal(err)
 	}

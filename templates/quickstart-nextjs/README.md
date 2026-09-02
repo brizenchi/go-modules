@@ -1,134 +1,113 @@
 # quickstart-nextjs
 
-Runnable Next.js SaaS frontend template for the shared `go-modules`
-backend contract.
+这是与 [`templates/quickstart`](../quickstart/) 配套的可复制 Next.js SaaS 前端模板，
+已经包含营销页、文档页、定价、登录、账户、支付管理和邀请页面。
 
-Use it with [`templates/quickstart`](../quickstart/) when you want a
-copyable frontend that already includes public marketing pages, docs,
-pricing, login, account settings, billing management, and referral
-surfaces.
+## 后端契约
 
-## What this template already includes
+- 后端 API 挂在 `/api/v1`；
+- 响应使用 `foundation/httpresp` 的 JSON envelope；
+- 登录方式由前端环境变量选择，并与后端 auth 配置保持一致；
+- 支付使用共享 billing 的 Stripe HTTP 接口；
+- 邀请使用 referral HTTP 接口；
+- 邮箱验证和 OAuth token exchange 都会提交 `referral_code`。
 
-- top navigation
-- breadcrumbs
-- article table of contents
-- EN / 中文 language switch
-- login button and signed-in avatar menu
-- pricing page
-- docs page
-- account settings page
-- billing and subscription management page
-- referral center
+## 页面
 
-## Backend contract assumed by this template
+| 路径 | 内容 |
+| --- | --- |
+| `/` | 产品首页 |
+| `/pricing` | 定价页 |
+| `/docs` | 文档示例页 |
+| `/login` | 按配置显示邮箱、Google、GitHub 登录 |
+| `/account` | 会话刷新、退出、WebSocket ticket |
+| `/billing` | 固定价格 Checkout、订阅变更、Portal、账单、积分包 |
+| `/referrals` | 邀请链接、统计和历史 |
+| `/invite` | 注册前保存 `?ref=...` |
 
-- backend routes mounted under `/api/v1`
-- JSON envelope from `foundation/httpresp`
-- auth routes compatible with `stacks/saascore`
-- billing routes compatible with the shared Stripe HTTP contract
-- referral routes compatible with the shared referral HTTP contract
-- referral attribution supported through `referral_code` on login or
-  signup flows
-
-## Main routes
-
-- `/`: public product home
-- `/pricing`: public pricing page
-- `/docs`: docs-style article page
-- `/login`: email-code login and Google OAuth entry
-- `/account`: settings, session refresh, logout, WS ticket
-- `/billing`: checkout, subscription, invoices, cancel, reactivate
-- `/billing`: checkout, subscription change, Stripe Billing Portal, invoices, cancel, reactivate
-- `/billing`: checkout, subscription preview, subscription change rules for monthly/yearly switches, Stripe Billing Portal, invoices, cancel, reactivate
-- `/referrals`: referral link, stats, history
-- `/invite`: capture `?ref=...` before signup
-
-## Copy and run
+## 复制和启动
 
 ```bash
-cp -R templates/quickstart-nextjs ~/code/your-new-frontend
-cd ~/code/your-new-frontend
+cp -R templates/quickstart-nextjs ../my-saas-frontend
+cd ../my-saas-frontend
 cp .env.example .env.local
+nvm use
 npm ci
 npm run dev
 ```
 
-Default local pairing:
+服务器改用 `.env.production.example` 作为 `.env.local` 的起点。
 
-- frontend: `http://localhost:3000`
-- backend: `http://localhost:8080/api/v1`
+默认地址：
 
-## Frontend env
+- 前端：`http://localhost:3000`
+- 后端：`http://localhost:8080/api/v1`
+
+## 登录组合
+
+```dotenv
+NEXT_PUBLIC_AUTH_EMAIL_ENABLED=true
+NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS=google,github
+```
+
+`NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS` 支持 `google`、`github`，逗号分隔；留空表示不显示
+OAuth 登录。例如只使用 GitHub：
+
+```dotenv
+NEXT_PUBLIC_AUTH_EMAIL_ENABLED=false
+NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS=github
+```
+
+它必须与后端保持一致：前端开关只控制界面，不会启用后端能力。
+
+## 主要环境变量
 
 ```dotenv
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
-NEXT_PUBLIC_APP_NAME=Clawmesh Quickstart Frontend
+NEXT_PUBLIC_APP_NAME=My SaaS
+
+NEXT_PUBLIC_AUTH_EMAIL_ENABLED=true
+NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS=google
+
 NEXT_PUBLIC_DEFAULT_PLAN=pro
 NEXT_PUBLIC_DEFAULT_INTERVAL=monthly
 NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY=1
-NEXT_PUBLIC_DEFAULT_TOPUP_AMOUNT_USD=25
 NEXT_PUBLIC_CREDITS_PRICE_ID=
 NEXT_PUBLIC_STRIPE_SUCCESS_PATH=/billing?checkout=success
 NEXT_PUBLIC_STRIPE_CANCEL_PATH=/billing?checkout=cancelled
 ```
 
-`NEXT_PUBLIC_DEFAULT_PLAN` should be one of `starter`, `pro`, `premium`, or `lifetime`.
-
-`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is optional for the current hosted
-Checkout flow, but should be configured once you add Stripe.js /
-Payment Element flows such as custom-amount top-ups.
-
-`NEXT_PUBLIC_DEFAULT_TOPUP_AMOUNT_USD` seeds the custom recharge form on
-`/billing`.
-
-## Required backend mapping
-
-When frontend origin or route paths change, keep these backend values
-aligned:
+后端 OAuth 配置示例：
 
 ```dotenv
 APP_AUTH_FRONTEND_REDIRECT=http://localhost:3000/login
 APP_AUTH_GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
+APP_AUTH_GITHUB_REDIRECT_URL=http://localhost:8080/api/v1/auth/github/callback
 APP_REFERRAL_BASE_LINK=http://localhost:3000/invite?ref=
 ```
 
-Rules:
+OAuth 控制台登记的是后端 callback；后端完成回调后，再把浏览器带回
+`APP_AUTH_FRONTEND_REDIRECT`。Stripe Webhook 也指向后端，Checkout 的 success/cancel
+地址才指向前端。
 
-- Google authorized redirect URI points to the backend callback
-- Stripe webhook points to the backend, never to Next.js
-- Stripe success and cancel URLs point back to frontend pages
+## 通常要改什么
 
-## What you usually change
+- `NEXT_PUBLIC_APP_NAME` 和品牌文案；
+- 登录方式开关；
+- 首页、定价和文档内容；
+- 套餐和固定积分包默认值；
+- 账户菜单中的产品功能入口。
 
-- `NEXT_PUBLIC_APP_NAME`
-- brand copy, product copy, pricing copy
-- page content under `/`, `/pricing`, `/docs`
-- plan names and credits configuration
-- account menu extensions such as workspace switch or profile settings
-
-## Verification
+## 验证
 
 ```bash
-npm ci
 npm test
+npm run lint
+npm run build
+# 或一次执行：
 npm run verify
 ```
 
-## Manual verification
-
-Before treating the frontend template as ready, confirm:
-
-1. `/invite?ref=CODE` stores the referral code
-2. `/login` completes email-code login
-3. Google OAuth round-trip works when configured
-4. `/pricing` routes users into `/billing`
-5. `/billing` can start first subscription checkout when user has no paid plan
-6. `/billing` can start lifetime buyout checkout when configured
-7. `/billing` can change active subscription plan in place
-8. `/billing` can open Stripe Billing Portal
-9. `/billing` can create and confirm a custom-amount Stripe top-up with Payment Element
-10. `/referrals` loads live referral code, stats, and history
-11. signed-in avatar menu shows settings, subscription, referral, and logout entry points
+手工验收至少覆盖：邀请码保存、所有已启用登录方式、会话刷新与退出、首次订阅、
+套餐变更、Billing Portal、固定积分包购买和邀请统计。生产和 CI 使用 Node 22 LTS。

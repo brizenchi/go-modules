@@ -2,6 +2,8 @@ package google
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +136,38 @@ func TestProvider_AuthorizeURL(t *testing.T) {
 	mustContain(t, url, "client_id=cid")
 	mustContain(t, url, "redirect_uri=")
 	mustContain(t, url, "state="+state[:20]) // partial match — query encoded
+}
+
+func TestProvider_FetchUserInfoRequiresVerifiedEmail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sub":"google-1","email":"owner@example.com","email_verified":false}`))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(t)
+	p.cfg.UserInfoURL = server.URL
+	if _, err := p.fetchUserInfo(t.Context(), "token"); err == nil || !strings.Contains(err.Error(), "verified") {
+		t.Fatalf("expected unverified email to be rejected, got %v", err)
+	}
+}
+
+func TestProvider_FetchUserInfoAcceptsVerifiedEmail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"sub":"google-1","email":"owner@example.com","email_verified":true}`))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(t)
+	p.cfg.UserInfoURL = server.URL
+	info, err := p.fetchUserInfo(t.Context(), "token")
+	if err != nil {
+		t.Fatalf("fetchUserInfo: %v", err)
+	}
+	if info.Email != "owner@example.com" {
+		t.Fatalf("email=%q", info.Email)
+	}
 }
 
 func mustContain(t *testing.T, haystack, needle string) {

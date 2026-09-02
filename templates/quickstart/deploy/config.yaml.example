@@ -1,25 +1,31 @@
 project: quickstart
 env: dev
 
-# This file is a deploy-safe baseline. Environment variables still
-# override every field at boot.
+# 这是一份可用于部署的安全基线；启动时环境变量仍会覆盖对应字段。
 
 server:
-  name: quickstart        # appears as "service" field in every log record
+  name: quickstart        # 会作为每条日志里的 service 字段
   port: 8080
 
 log:
   level: info             # debug | info | warn | error
-  format: json            # json | text — text is human-readable for dev
+  format: json            # json | text；本地开发可用更易读的 text
+
+http:
+  allowed_origins: "http://localhost:3000" # 生产改为前端 HTTPS 域名；多个域名用逗号分隔
+  read_header_timeout_seconds: 10
+  read_timeout_seconds: 15
+  write_timeout_seconds: 30
+  idle_timeout_seconds: 60
 
 tracing:
-  endpoint: ""            # e.g. localhost:4318 ; empty disables exporter
+  endpoint: ""            # 例如 localhost:4318；留空关闭导出器
   protocol: http          # http | grpc
-  insecure: true          # true for local collectors without TLS
+  insecure: true          # 本地无 TLS 的采集器使用 true
   sample_rate: 1.0        # 0..1
-  authorization: ""       # e.g. Basic <base64> for OpenObserve
-  headers: {}             # e.g. { Authorization: "Basic <base64>" } for OpenObserve
-  url_path: ""            # e.g. /api/default/v1/traces for OpenObserve
+  authorization: ""       # 例如 OpenObserve 的 Basic <base64>
+  headers: {}             # 例如 { Authorization: "Basic <base64>" }
+  url_path: ""            # 例如 OpenObserve 的 /api/default/v1/traces
 
 db:
   host: localhost
@@ -31,49 +37,60 @@ db:
   time_zone: UTC
   log_level: warn
   slow_query_ms: 200
-  # Optional legacy escape hatch if you still prefer a single connection string:
+  # 兼容旧项目：也可以只提供一条连接字符串：
   # dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC"
 
 # ---------- auth ----------
 auth:
+  enabled: true                     # false 时不创建 auth 模块，也不挂登录路由
   user_jwt_secret: "CHANGE-ME-32-RANDOM-CHARS"
   user_jwt_expire_hours: 168       # 7 days
   ws_ticket_ttl_seconds: 300       # 5 minutes
-  admin_emails: []                 # users with these emails get role=admin
-  frontend_redirect: "http://localhost:3000/login"  # browser landing after backend Google callback
+  admin_emails: []                 # 列表中的邮箱登录后获得 admin 角色
+  frontend_redirect: "http://localhost:3000/login"  # OAuth 后端回调完成后的前端落点
 
   email:
-    debug: false                   # keep false outside local dev; true leaks the OTP in response
+    enabled: true                   # false 时关闭邮箱验证码路由
+    debug: false                   # 线上必须为 false；true 会在响应中返回验证码
     code:
       ttl_minutes: 10
       min_resend_gap_seconds: 60
       daily_cap: 10
       max_attempts: 5
   google:
-    client_id: ""                  # leave empty → Google login disabled
+    # enabled 可省略：配置 client_id/client_secret 后自动启用
+    client_id: ""                  # 留空则不启用 Google 登录
     client_secret: ""
     redirect_url: "http://localhost:8080/api/v1/auth/google/callback"
     state_secret: "ANOTHER-CHANGE-ME-32-CHARS"
-    state_ttl_minutes: 20          # allow enough time for consent screens / account switching
+    state_ttl_minutes: 20          # 为授权确认和切换账号预留时间
     scope: "openid email profile"
+  github:
+    # enabled 可省略：配置 client_id/client_secret 后自动启用
+    client_id: ""
+    client_secret: ""
+    redirect_url: "http://localhost:8080/api/v1/auth/github/callback"
+    state_secret: "ANOTHER-GITHUB-STATE-SECRET"
+    state_ttl_minutes: 20
+    scope: "read:user user:email"
 
 # ---------- email ----------
 email:
-  provider: log                    # log | brevo | resend
+  provider: log                    # none | log | brevo | resend
   brevo:
-    api_key: ""                    # required when provider=brevo
+    api_key: ""                    # provider=brevo 时必填
     sender_email: ""
     sender_name: "quickstart"
   resend:
-    api_key: ""                    # required when provider=resend
+    api_key: ""                    # provider=resend 时必填
     sender_email: ""
     sender_name: "quickstart"
 
 # ---------- billing ----------
 billing:
+  enabled: false                   # true 才创建 billing 模块并挂支付路由
+  provider: stripe                 # 换供应商时改 internal/platform/buildBilling
   stripe:
-    # Billing is considered enabled when both secret_key and
-    # webhook_secret are non-empty.
     secret_key: ""
     publishable_key: ""
     webhook_secret: ""
@@ -86,12 +103,27 @@ billing:
       premium_monthly: ""
       premium_yearly: ""
       lifetime: ""
-      credits: []                  # list of one-time credit price IDs
+      credits: []                  # 一次性积分包的 price ID 列表
     credits:
-      per_package: 100             # credits granted per credits-package unit
+      per_package: 100             # 每购买一份积分包增加的积分
 
 # ---------- referral ----------
 referral:
+  enabled: true
   prefix: "INV"                    # invitation code prefix
   base_link: "http://localhost:3000/invite?ref="
   activation_reward: 50            # credits granted to referrer on referee subscription
+  activation_window_days: 0        # 0 表示不限制激活时间
+
+# ---------- host ----------
+# 当前 SaaS 自己的业务配置。在 internal/hostcfg 声明对应字段，
+# 再通过 hostapi.Deps.Config 读取。
+# 环境变量示例：host.openai_api_key → APP_HOST_OPENAI_API_KEY
+host:
+  signup_credits: 0
+  welcome_email:
+    enabled: false
+    only_provider: ""              # google | github | email；空表示全部
+    subject: "欢迎加入"
+    text_body: "你的账号已经创建成功。"
+    html_body: ""

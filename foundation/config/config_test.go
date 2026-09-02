@@ -14,6 +14,7 @@ type appCfg struct {
 	DB struct {
 		DSN string `mapstructure:"dsn"`
 	} `mapstructure:"db"`
+	Features []string `mapstructure:"features"`
 }
 
 func writeFile(t *testing.T, name, body string) string {
@@ -52,6 +53,18 @@ func TestLoad_EnvOverride(t *testing.T) {
 	}
 	if c.Server.Port != 9090 {
 		t.Errorf("env override didn't take, got %d", c.Server.Port)
+	}
+}
+
+func TestLoad_EnvOverrideCommaSeparatedSlice(t *testing.T) {
+	p := writeFile(t, "c.yaml", "features: []\n")
+	t.Setenv("APP_FEATURES", "pro_monthly,pro_yearly")
+	var c appCfg
+	if err := Load(p, "APP", &c); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Features) != 2 || c.Features[0] != "pro_monthly" || c.Features[1] != "pro_yearly" {
+		t.Fatalf("features = %#v", c.Features)
 	}
 }
 

@@ -210,18 +210,20 @@ func (r *mockRepo) MarkProcessed(ctx context.Context, provider, id string) error
 // --- mockBus ------------------------------------------------------------
 
 type mockBus struct {
-	mu        sync.Mutex
-	published []event.Envelope
+	mu         sync.Mutex
+	published  []event.Envelope
+	publishErr error
 }
 
 func newMockBus() *mockBus { return &mockBus{} }
 
 func (b *mockBus) Subscribe(kind event.Kind, fn port.Listener) {}
 
-func (b *mockBus) Publish(ctx context.Context, env event.Envelope) {
+func (b *mockBus) Publish(ctx context.Context, env event.Envelope) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.published = append(b.published, env)
+	return b.publishErr
 }
 
 func (b *mockBus) Published() []event.Envelope {
@@ -230,6 +232,25 @@ func (b *mockBus) Published() []event.Envelope {
 	out := make([]event.Envelope, len(b.published))
 	copy(out, b.published)
 	return out
+}
+
+type snapshotWrite struct {
+	userID   string
+	provider string
+	snapshot domain.SubscriptionSnapshot
+}
+
+type mockSubscriptionRepo struct {
+	writes []snapshotWrite
+	err    error
+}
+
+func (r *mockSubscriptionRepo) UpsertSnapshot(ctx context.Context, userID, provider string, snapshot domain.SubscriptionSnapshot) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.writes = append(r.writes, snapshotWrite{userID: userID, provider: provider, snapshot: snapshot})
+	return nil
 }
 
 // --- mockResolver -------------------------------------------------------

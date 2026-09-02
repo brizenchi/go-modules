@@ -100,7 +100,7 @@ export default function HomePage() {
           <MetricCard
             label="Auth"
             value="Email + Google"
-            detail="Uses /auth/send-code, /auth/verify-code, /auth/google/authorize, /auth/exchange-token, /auth/refresh, and /auth/logout."
+            detail="Uses the enabled email/OAuth routes, including /auth/:provider/authorize and /auth/exchange-token."
           />
           <MetricCard
             label="Billing"

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/event"
 	"github.com/brizenchi/go-modules/modules/billing/port"
 )
@@ -17,13 +18,21 @@ func TestWebhook_DispatchesEnvelopesAndMarksProcessed(t *testing.T) {
 		UserHint:        port.UserHint{UserID: "u1"},
 		RawPayload:      []byte(`{"id":"evt_1"}`),
 		Envelopes: []event.Envelope{
-			{Kind: event.KindSubscriptionUpdated, ProviderEventID: "evt_1"},
+			{
+				Kind:            event.KindSubscriptionUpdated,
+				ProviderEventID: "evt_1",
+				Payload: event.SubscriptionUpdated{Snapshot: domain.SubscriptionSnapshot{
+					ProviderSubscriptionID: "sub_1",
+					Status:                 domain.StatusActive,
+				}},
+			},
 		},
 	}
 	repo := newMockRepo()
 	bus := newMockBus()
 	resolver := &mockResolver{}
-	svc := NewWebhookService(prov, repo, resolver, bus)
+	snapshots := &mockSubscriptionRepo{}
+	svc := NewWebhookService(prov, repo, snapshots, resolver, bus)
 
 	res, err := svc.Process(context.Background(), []byte(`{"id":"evt_1"}`), "sig")
 	if err != nil {
@@ -41,6 +50,9 @@ func TestWebhook_DispatchesEnvelopesAndMarksProcessed(t *testing.T) {
 	if got := bus.Published()[0].UserID; got != "u1" {
 		t.Errorf("envelope user_id = %q, want u1", got)
 	}
+	if len(snapshots.writes) != 1 || snapshots.writes[0].userID != "u1" {
+		t.Fatalf("snapshot writes = %+v", snapshots.writes)
+	}
 }
 
 func TestWebhook_DuplicateEventSkipsDispatch(t *testing.T) {
@@ -52,13 +64,13 @@ func TestWebhook_DuplicateEventSkipsDispatch(t *testing.T) {
 	}
 	repo := newMockRepo()
 	bus := newMockBus()
-	svc := NewWebhookService(prov, repo, &mockResolver{}, bus)
+	svc := NewWebhookService(prov, repo, &mockSubscriptionRepo{}, &mockResolver{}, bus)
 
 	if _, err := svc.Process(context.Background(), nil, "sig"); err != nil {
 		t.Fatalf("first call err: %v", err)
 	}
 	bus2 := newMockBus()
-	svc2 := NewWebhookService(prov, repo, &mockResolver{}, bus2) // share repo
+	svc2 := NewWebhookService(prov, repo, &mockSubscriptionRepo{}, &mockResolver{}, bus2) // share repo
 	res, err := svc2.Process(context.Background(), nil, "sig")
 	if err != nil {
 		t.Fatalf("second call err: %v", err)
@@ -81,7 +93,7 @@ func TestWebhook_ResolverFillsUserID(t *testing.T) {
 	}
 	resolver := &mockResolver{resolveTo: "u-from-cus"}
 	bus := newMockBus()
-	svc := NewWebhookService(prov, newMockRepo(), resolver, bus)
+	svc := NewWebhookService(prov, newMockRepo(), &mockSubscriptionRepo{}, resolver, bus)
 
 	if _, err := svc.Process(context.Background(), nil, "sig"); err != nil {
 		t.Fatalf("err: %v", err)
@@ -98,8 +110,41 @@ func TestWebhook_ResolverFillsUserID(t *testing.T) {
 func TestWebhook_PropagatesProviderError(t *testing.T) {
 	prov := newMockProvider()
 	prov.parseErr = errors.New("invalid sig")
-	svc := NewWebhookService(prov, newMockRepo(), nil, newMockBus())
+	svc := NewWebhookService(prov, newMockRepo(), &mockSubscriptionRepo{}, nil, newMockBus())
 	if _, err := svc.Process(context.Background(), nil, "sig"); err == nil {
 		t.Fatal("expected error from provider")
+	}
+}
+
+func TestWebhook_ListenerFailureLeavesEventForStripeRetry(t *testing.T) {
+	prov := newMockProvider()
+	prov.parseResult = &port.WebhookParseResult{
+		ProviderEventID: "evt_retry",
+		Type:            "checkout.session.completed",
+		UserHint:        port.UserHint{UserID: "u1"},
+		Envelopes: []event.Envelope{{
+			Kind:            event.KindCreditsPurchased,
+			ProviderEventID: "evt_retry",
+			Payload:         event.CreditsPurchased{TotalCredits: 100},
+		}},
+	}
+	repo := newMockRepo()
+	bus := newMockBus()
+	bus.publishErr = errors.New("database unavailable")
+	svc := NewWebhookService(prov, repo, &mockSubscriptionRepo{}, &mockResolver{}, bus)
+
+	if _, err := svc.Process(context.Background(), nil, "sig"); err == nil {
+		t.Fatal("expected listener failure")
+	}
+	if repo.rows["evt_retry"].Processed {
+		t.Fatal("failed listener must not mark webhook processed")
+	}
+
+	bus.publishErr = nil
+	if _, err := svc.Process(context.Background(), nil, "sig"); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if !repo.rows["evt_retry"].Processed {
+		t.Fatal("successful retry should mark webhook processed")
 	}
 }

@@ -54,10 +54,18 @@ func NewHandler(deps Deps) *Handler {
 
 // --- Webhook (public) ----------------------------------------------------
 
+const maxWebhookBodyBytes int64 = 1 << 20 // 1 MiB; Stripe events are normally far smaller.
+
 // HandleWebhook is the provider webhook endpoint. Mount on a public route.
 func (h *Handler) HandleWebhook(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxWebhookBodyBytes)
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			respondError(c, http.StatusRequestEntityTooLarge, "webhook payload too large")
+			return
+		}
 		respondError(c, http.StatusBadRequest, "failed to read webhook payload")
 		return
 	}

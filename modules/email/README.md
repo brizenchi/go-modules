@@ -1,115 +1,55 @@
-# email
+# email 邮件模块
 
-> Portable, provider-agnostic transactional email: Brevo, Resend, SMTP, log/dev fallback.
+提供服务商无关的事务邮件发送能力。
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/brizenchi/go-modules/modules/email.svg)](https://pkg.go.dev/github.com/brizenchi/go-modules/modules/email)
+## 适配器
 
-Never persists user data, never imports project-specific types. Hosts
-inject a configured `Sender` and call `SendService.Send(ctx, msg)`.
+- `adapter/resend`
+- `adapter/brevo`
+- `adapter/smtp`
+- `adapter/log`：本地开发，只记录邮件
+- `adapter/gotemplate`：本地 Go 模板渲染
 
-## Install
-
-```bash
-go get github.com/brizenchi/go-modules/modules/email
-```
-
-## Layering
-
-```
-domain/    pure types: Message, Address, Attachment, errors
-port/      interfaces: Sender, Renderer
-adapter/   concrete implementations
-  brevo/      Brevo HTTP API (server-side templates supported)
-  resend/     Resend HTTP API (no server-side templates — use Renderer)
-  smtp/       net/smtp (any SMTP server: SES, Postfix, Mailhog, ...)
-  log/        no-op logger Sender (dev/tests)
-  gotemplate/ Renderer using html/text template
-app/       use cases (SendService, SendTemplate)
-email.go   Module + multi-tenant Manager
-```
-
-## Quick start
-
-### Brevo
+## 组装
 
 ```go
-import (
-    "github.com/brizenchi/go-modules/modules/email"
-    "github.com/brizenchi/go-modules/modules/email/adapter/brevo"
-    "github.com/brizenchi/go-modules/modules/email/domain"
-)
-
-sender, err := brevo.New(brevo.Config{
-    APIKey: os.Getenv("BREVO_API_KEY"),
-    Sender: domain.Address{Name: "Acme", Email: "no-reply@acme.com"},
-})
-if err != nil { log.Fatal(err) }
-
-mod := email.New(sender, nil)
-_, err = mod.Service.Send(ctx, &domain.Message{
-    To:          []domain.Address{{Email: "user@example.com"}},
-    Subject:     "Welcome",
-    HTMLBody:    "<p>Hi!</p>",
-    TemplateRef: "3", // brevo template id
-    Variables:   map[string]any{"name": "Bob"},
-})
-```
-
-### Resend
-
-```go
-import "github.com/brizenchi/go-modules/modules/email/adapter/resend"
-
 sender, err := resend.New(resend.Config{
-    APIKey: os.Getenv("RESEND_API_KEY"),
-    Sender: domain.Address{Name: "Acme", Email: "no-reply@acme.com"},
+    APIKey: "re_...",
+    Sender: emaildomain.Address{
+        Email: "no-reply@example.com",
+        Name:  "My SaaS",
+    },
+})
+if err != nil {
+    return err
+}
+
+module := email.New(sender, nil)
+```
+
+发送内联内容：
+
+```go
+_, err := module.Send(ctx, &emaildomain.Message{
+    To:       []emaildomain.Address{{Email: "user@example.com"}},
+    Subject:  "欢迎加入",
+    TextBody: "你的账号已经创建成功。",
 })
 ```
 
-Resend has no server-side templates — render locally first (e.g. via
-`adapter/gotemplate`) and set `HTMLBody` / `TextBody` directly. Passing
-`TemplateRef` returns `ErrTemplateNotFound`.
+## 边界
 
-### SMTP
+email 不知道用户、注册、支付或邀请。下面这些决定属于宿主：
 
-```go
-import "github.com/brizenchi/go-modules/modules/email/adapter/smtp"
+- 注册成功后是否发送欢迎邮件；
+- 哪种登录方式触发邮件；
+- 使用哪个模板和语言；
+- 失败后是否进入重试队列。
 
-sender, err := smtp.New(smtp.Config{
-    Host: "smtp.gmail.com", Port: 587,
-    Username: "...", Password: "...",
-    Sender: domain.Address{Email: "..."},
-})
-```
+quickstart 在 `internal/platform/email_provider.go` 选择发送器，在
+`internal/bootstrap/host_hooks.go` 决定什么时候发送。
 
-### Multi-tenant (one Manager, many Senders)
+## 多租户
 
-```go
-mgr := email.NewManager()
-mgr.Register("default", email.New(brevoSender, nil))
-mgr.Register("premium", email.New(resendSender, nil))
-
-mod, _ := mgr.Get("default")
-mod.Service.Send(ctx, msg)
-```
-
-## Adapter comparison
-
-| Adapter | Network | Server-side templates | Notes |
-|---------|---------|-----------------------|-------|
-| `brevo`     | HTTP    | ✓ (`TemplateRef` = id) | Cheap, established, EU-friendly |
-| `resend`    | HTTP    | ✗ (use `Renderer`)     | Developer-first, React-friendly |
-| `smtp`      | SMTP    | ✗                      | Use any SMTP: SES, Postfix, ... |
-| `log`       | none    | ✗                      | Dev/CI fallback, prints to slog |
-
-## Testing
-
-```bash
-go test -race ./...
-```
-
-Coverage: brevo 68.2%, resend 85%, smtp 68.9%, log 100%, app 94.1%.
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md).
+同一进程确实需要多套发信凭据时使用 `email.Manager`，按项目键注册不同 Module。
+十个独立部署的 SaaS 通常各自只需要一个 Module。

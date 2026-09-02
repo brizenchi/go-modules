@@ -1,166 +1,219 @@
-# quickstart
+# quickstart 后端模板
 
-Thin HTTP host shell for the shared `stacks/saascore` stack.
+这是一个可以复制后直接开发的 SaaS 后端。它不是共享栈的薄壳：复制后，用户模型、
+模块组合、配置和事件回调都属于当前 SaaS。
 
-Use it when you want:
-
-- a normal Go HTTP service
-- shared auth / billing / referral from `go-modules`
-- your own business logic to stay in your own handler / service / repository / model packages
-- host-side writeback through hooks instead of modifying shared stack code
-
-Read first:
-
-1. [`docs/SAASCORE_GUIDE.md`](../../docs/SAASCORE_GUIDE.md)
-2. [`docs/INTEGRATION.md`](../../docs/INTEGRATION.md)
-
-## Ownership split
-
-`go-modules` owns:
-
-- `foundation/*`: config, logging, tracing, db, HTTP helpers
-- `modules/*`: shared domain modules such as `user`
-- `stacks/saascore`: standard auth, billing, referral flow and shared routes
-
-`quickstart` owns:
-
-- process boot
-- config mapping
-- DB / tracing / logger assembly
-- mounting the shared stack
-- host hooks for your business writeback
-- host route registration for your own features
-
-## Template tree
+## 启动链路
 
 ```text
-quickstart/
-├── cmd/quickstart/
-│   ├── main.go
-│   └── main_test.go
-├── internal/
-│   ├── bootstrap/
-│   │   ├── app.go
-│   │   ├── config.go
-│   │   ├── host_hooks.go
-│   │   ├── referral.go
-│   │   └── saascore.go
-│   └── http/
-│       ├── host_routes.go
-│       ├── router.go
-│       └── middleware/router.go
-├── deploy/config.yaml.example
-├── .env.example
-├── Dockerfile
-├── go.mod
-└── go.sum
+cmd/quickstart/main.go
+  → bootstrap.New()
+    → LoadConfig()                         读取 YAML / .env / 环境变量
+    → foundation 日志与追踪
+    → pgx.Open()                           连接数据库并健康检查
+    → platform.Migrate()                   User + 已启用模块的表
+    → platform.New()                       选择适配器并创建模块
+    → subscribeModuleEvents()              连接注册、支付和邀请事件
+    → http.NewRouter()                     挂模块路由和产品路由
+    → buildHostJobs()                      创建后台任务
+  → app.Run()                              HTTP、Runner、优雅退出
 ```
 
-Directory intent:
+## 目录
 
-- `cmd/quickstart`: process lifecycle only
-- `internal/bootstrap/app.go`: assemble logger, tracing, db, shared stack, HTTP server
-- `internal/bootstrap/config.go`: app config schema and defaults
-- `internal/bootstrap/saascore.go`: map host config into shared `saascore.Config`
-- `internal/bootstrap/host_hooks.go`: fill in business callbacks after signup, login, payment, referral, subscription events
-- `internal/bootstrap/referral.go`: default referral reward writeback to shared `users.credits`
-- `internal/http/router.go`: compose shared routes and host routes into one router
-- `internal/http/host_routes.go`: register your own business routes here
-- `internal/http/middleware/router.go`: root Gin middleware setup
+```text
+internal/
+├── user/
+│   ├── model.go            当前 SaaS 的 User 和 user_identities
+│   ├── repository.go       用户数据访问
+│   ├── auth_store.go       实现 auth.port.UserStore
+│   └── billing_lookup.go   实现 billing.port.AccountLookup
+├── platform/
+│   ├── config.go           模块和服务商配置
+│   ├── migrate.go          按启用状态迁移表
+│   ├── modules.go          当前 SaaS 的模块集合
+│   ├── auth_provider.go    Google/GitHub/JWT/验证码组装
+│   ├── email_provider.go   none/log/Resend/Brevo
+│   ├── billing_provider.go Stripe 组装；替换支付入口
+│   └── routes.go           按启用状态挂路由
+├── bootstrap/
+│   ├── app.go              进程生命周期
+│   ├── subscriptions.go    模块之间的事件连接
+│   ├── host_hooks.go       当前 SaaS 的业务回调
+│   ├── host_migrate.go     产品功能模型
+│   └── host_jobs.go        后台任务
+├── feature/
+│   └── note/               service/repository/handler 参考功能
+├── hostapi/                传给产品功能的依赖和路由组
+└── hostcfg/                当前 SaaS 的业务配置
+```
 
-## How you develop on top of it
-
-1. Copy the template and fill config.
-2. Keep shared auth / billing / referral in `saascore`.
-3. Put your own side effects in `internal/bootstrap/host_hooks.go`.
-4. Register your own business routes in `internal/http/host_routes.go`.
-5. Add your own feature folders only when needed.
-
-Recommended host business layout:
-
-- `internal/http/handler/<feature>/...`
-- `internal/service/<feature>/...`
-- `internal/repository/<feature>/...`
-- `internal/model/entity/<feature>/...`
-- `internal/integration/<provider>/...`
-
-## Copy and run
+## 第一次启动
 
 ```bash
-cp -R templates/quickstart ~/code/your-new-service
-cd ~/code/your-new-service
-
-cp .env.example .env
 cp deploy/config.yaml.example deploy/config.yaml
+cp .env.example .env
 
-go test ./...
-go build ./...
+# 如果这是从尚未发布的本地 go-modules 分支复制出的同级目录：
+go mod edit -replace github.com/brizenchi/go-modules=../go-modules
+go mod tidy
+
+# 准备 PostgreSQL 后：
 go run ./cmd/quickstart
+curl http://localhost:8080/health
 ```
 
-Local `go run ./cmd/quickstart` auto-loads `.env` if it exists. Process env
-variables still override `.env` and YAML.
+服务器把 `.env.production.example` 复制为 `.env`，逐项替换其中的域名和
+`CHANGE-ME`。
 
-## Minimum config
+新版本发布后，删除本地 replace，并把 `go-modules` 依赖升级到发布标签。
+生产环境变量、Google/GitHub 回调、Stripe Webhook 和上线验收见
+[配置与上线指南](../../docs/SETUP_ZH.md)。`APP_ENV=production` 时，模板会在连接数据库
+之前拒绝弱密钥、HTTP 回调、通配 CORS、调试验证码和不完整的 Stripe/邮件配置。
 
-Required to boot:
+## 修改用户字段
 
-- `db.host`
-- `db.user`
-- `db.password`
-- `db.name`
-- `auth.user_jwt_secret`
+只修改 `internal/user/model.go`：
 
-Common optional groups:
+```go
+type User struct {
+    // 默认身份字段……
 
-- `auth.google.*`
-- `email.*`
-- `billing.stripe.*`
-- `referral.*`
-- `tracing.*`
-- `project`
-- `env`
+    WorkspaceID   string `gorm:"type:varchar(36);index"`
+    Locale        string `gorm:"type:varchar(20)"`
+    OnboardingStep int
+}
+```
 
-Stripe shared billing price slots:
+本地快速开发仍然使用 GORM AutoMigrate。生产升级时建议把字段变更转成当前 SaaS 自己
+的版本化 migration。不要把产品字段加进 `go-modules/modules/auth`。
 
-- `billing.stripe.prices.starter_monthly`
-- `billing.stripe.prices.starter_yearly`
-- `billing.stripe.prices.pro_monthly`
-- `billing.stripe.prices.pro_yearly`
-- `billing.stripe.prices.premium_monthly`
-- `billing.stripe.prices.premium_yearly`
-- `billing.stripe.prices.lifetime`
-- `billing.stripe.prices.credits[]`
+auth 适配器只把宿主 User 映射为：
 
-## What you usually change
+```go
+authdomain.Identity{UserID, Email, Username, AvatarURL, Role}
+```
 
-- `.env`
-- `deploy/config.yaml`
-- `internal/bootstrap/host_hooks.go`
-- `internal/http/host_routes.go`
-- your own feature folders under `internal/`
+因此新增字段不会影响共享模块或其他 SaaS。
 
-## What you should not rewrite
+不是所有“和用户有关”的数据都应该加进 `User`：
 
-- JWT signing and verification
-- email-code login flow
-- Google OAuth callback exchange flow
-- Stripe checkout session creation
-- Stripe webhook parsing and idempotency
-- shared referral activation flow
+- 语言、时区、引导步骤等稳定的一对一资料，可以直接加字段；
+- 工作区成员、积分流水、配额、偏好等规则容易变化的数据，放到
+  `internal/feature/*` 的独立表，用 `user_id` 关联；
+- Stripe customer、订阅和邀请关系由对应模块表保存；
+- 只有暂时不稳定、无需索引和约束的小块数据才考虑 JSON，稳定后迁出。
 
-## Manual verification
+生产环境新增、重命名或删除字段时，为当前 SaaS 写版本化 migration。其他 SaaS 不会
+被迫跟着迁移，这正是把 User 放在模板而非共享模块里的原因。
 
-Before production, confirm:
+## 决定使用哪些模块
 
-1. email-code login works
-2. Google OAuth works when configured
-3. protected routes reject missing bearer tokens
-4. Stripe checkout and webhook flow work against a public backend URL
-5. referral signup with `?ref=` activates after paid subscription
+配置示例：
 
-## When not to use this template
+```yaml
+auth:
+  enabled: true
+  email:
+    enabled: false
+  google:
+    enabled: false
+  github:
+    enabled: true
 
-- your project already has a different `users` schema
-- you only need one module, not the full shared stack
-- you want a completely custom auth or billing model from day one
+billing:
+  enabled: false
+
+referral:
+  enabled: true
+```
+
+关闭模块会同时停止建表和挂路由。完整规则见
+[配置标准](../../docs/CONFIG_STANDARD.md)。
+
+## 编写业务组合
+
+`internal/bootstrap/host_hooks.go` 的函数就是可修改的业务回调：
+
+```go
+func onUserSignedUp(
+    ctx context.Context,
+    deps hostapi.Deps,
+    envelope authevent.Envelope,
+    event authevent.UserSignedUp,
+) error {
+    // 当前 SaaS 自己决定：发欢迎邮件、送积分、创建 workspace……
+    return nil
+}
+```
+
+模板已经示范：
+
+- `UserSignedUp`：可选注册积分和欢迎邮件；
+- `CreditsPurchased`：把购买积分写入宿主 `User.Credits`；
+- `SubscriptionActivated`：激活邀请关系；
+- `ReferralActivated`：把邀请奖励写入宿主 `User.Credits`。
+
+回调同时收到通用 `Envelope` 和强类型 payload。支付回调可从 envelope 取得
+`UserID`、供应商和 Webhook event ID，再从 payload 读取订阅或金额等业务内容。
+
+不使用积分的 SaaS 可以删除 `User.Credits` 和对应两个监听器。奖励是优惠券或现金时，
+直接在 `onReferralActivated` 调用自己的 service。
+
+## 替换服务商
+
+| 需求 | 修改位置 |
+| --- | --- |
+| 只使用 GitHub | 配置关闭 email 和 Google，启用 GitHub |
+| Resend 换 Brevo | `email.provider: brevo` |
+| 邮件换其他服务 | 实现 `email.port.Sender`，修改 `buildEmail` |
+| Stripe 换其他支付 | 实现 `billing.port.Provider`，修改 `buildBilling` |
+| 自己的登录平台 | 实现 `auth.port.IdentityProvider`，在 `buildIdentityProviders` 注册 |
+
+共享模块不需要知道当前 SaaS 选了哪一个服务商。
+
+## 添加产品功能
+
+参考 `internal/feature/note`：
+
+```text
+note.go        实体和 Register
+repository.go  数据访问，只在这里接触 GORM
+service.go     业务规则，不依赖 Gin
+handler.go     HTTP 输入输出
+```
+
+新增功能后：
+
+1. 在 `host_migrate.go` 注册模型；
+2. 在 `internal/http/host_routes.go` 注册路由；
+3. 需要模块能力时从 `hostapi.Deps` 读取，不使用包级全局变量。
+
+路由组：
+
+| 路由组 | 权限 |
+| --- | --- |
+| `g.Public` | 匿名 |
+| `g.User` | 有效用户 JWT |
+| `g.Admin` | 用户 JWT + admin 角色 |
+
+auth 被关闭时，`g.User` 和 `g.Admin` 返回 503，不会退化成匿名访问。
+
+## 后台任务
+
+在 `host_jobs.go` 返回实现 `Runner` 的任务。`App.Run` 会和 HTTP 一起启动，并在退出
+时先停止接收请求，再取消 Runner，最长等待 30 秒。
+
+## 测试
+
+```bash
+go test ./...
+go vet ./...
+go build ./...
+```
+
+关键参考测试：
+
+- `internal/user/auth_store_test.go`：用户字段与 auth 边界；
+- `internal/platform/modules_test.go`：模块启停和 GitHub-only；
+- `internal/bootstrap/subscriptions_test.go`：注册、购买和邀请奖励组合。

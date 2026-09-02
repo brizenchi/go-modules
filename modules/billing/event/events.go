@@ -12,12 +12,12 @@ import (
 type Kind string
 
 const (
-	KindSubscriptionActivated   Kind = "subscription.activated"   // first payment / start
-	KindSubscriptionRenewed     Kind = "subscription.renewed"     // recurring payment succeeded
-	KindSubscriptionUpdated     Kind = "subscription.updated"     // generic update (plan change, etc)
-	KindSubscriptionCanceling   Kind = "subscription.canceling"   // user requested cancel, still active until effective
-	KindSubscriptionCanceled    Kind = "subscription.canceled"    // fully canceled, access revoked
-	KindSubscriptionReactivated Kind = "subscription.reactivated" // canceling -> active again
+	KindSubscriptionActivated   Kind = "subscription.activated"       // first payment / start
+	KindSubscriptionRenewed     Kind = "subscription.renewed"         // recurring payment succeeded
+	KindSubscriptionUpdated     Kind = "subscription.updated"         // generic update (plan change, etc)
+	KindSubscriptionCanceling   Kind = "subscription.canceling"       // user requested cancel, still active until effective
+	KindSubscriptionCanceled    Kind = "subscription.canceled"        // fully canceled, access revoked
+	KindSubscriptionReactivated Kind = "subscription.reactivated"     // canceling -> active again
 	KindTrialConverted          Kind = "subscription.trial_converted" // trial ended, first payment succeeded
 	KindPaymentFailed           Kind = "payment.failed"
 	KindCreditsPurchased        Kind = "credits.purchased"
@@ -59,6 +59,7 @@ type SubscriptionCanceling struct {
 type SubscriptionCanceled struct {
 	ProviderSubscriptionID string
 	ProviderCustomerID     string
+	Snapshot               domain.SubscriptionSnapshot
 }
 
 // SubscriptionReactivated means a canceling subscription was reactivated.

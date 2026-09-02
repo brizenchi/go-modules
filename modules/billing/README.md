@@ -1,132 +1,76 @@
-# billing
+# billing 支付模块
 
-> Portable, payment-provider-agnostic billing: Stripe-backed checkout, subscriptions, subscription changes, billing portal, credits, webhooks.
+提供支付服务商无关的结算、订阅变更、Webhook 幂等处理、订阅快照和支付事件。
+当前自带 Stripe 适配器。
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/brizenchi/go-modules/modules/billing.svg)](https://pkg.go.dev/github.com/brizenchi/go-modules/modules/billing)
+## 边界
 
-The module is host-agnostic — never imports project-specific user/order
-models. Hosts integrate via three pluggable points.
+billing 不导入宿主 User，不要求 `users.plan` 或 Stripe 字段。它只依赖：
 
-## Install
+- `port.Provider`：Stripe 或其他支付服务商；
+- `port.CustomerStore`：支付客户关联；
+- `port.AccountLookup`：从宿主读取最小的用户 ID 和邮箱；
+- `port.BillingEventRepository`：Webhook 幂等记录；
+- `port.SubscriptionRepository`：保存本地订阅快照；
+- `port.UserResolver`：把 Webhook 提示映射回宿主用户 ID；
+- 事件监听器：应用产品额度、发送邮件、激活邀请等。
 
-```bash
-go get github.com/brizenchi/go-modules/modules/billing
-```
+## 模块拥有的表
 
-## Layering
-
-```
-domain/   pure types: enums, errors, snapshots, persistence model,
-          ReservedMetadataKeys
-event/    domain events (subscription.activated, ...)
-port/     interfaces (Provider, EventBus, Repository, CustomerStore,
-          UserResolver)
-adapter/  concrete implementations
-  stripe/      Stripe checkout + subscription changes + portal + webhooks (stripe-go/v76)
-  repo/        GORM BillingEvent repository (idempotency)
-  eventbus/    in-process synchronous bus
-app/      use cases (Checkout, Cancel, Reactivate, Webhook, Query)
-http/     Gin handlers + Mount()
-```
-
-## Host responsibilities
-
-1. **`port.CustomerStore`** — load/save the provider customer ID against the host's user table
-2. **`port.UserResolver`** — resolve `userID` from webhook hints (email / customer / subscription IDs)
-3. **Event listeners** — react to `SubscriptionActivated`, `CreditsPurchased`, etc. (grant quota, send email, ...)
-
-## Quick start
+- `billing_events`
+- `billing_customers`
+- `billing_subscriptions`
 
 ```go
-import (
-    "os"
-
-    billinghttp "github.com/brizenchi/go-modules/modules/billing/http"
-    "github.com/brizenchi/go-modules/modules/billing"
-    billingeventbus "github.com/brizenchi/go-modules/modules/billing/adapter/eventbus"
-    "github.com/brizenchi/go-modules/modules/billing/adapter/repo"
-    "github.com/brizenchi/go-modules/modules/billing/adapter/stripe"
-    "github.com/brizenchi/go-modules/modules/billing/domain"
-)
-
-provider := stripe.NewProvider(stripe.Config{
-    Enabled:        true,
-    SecretKey:      os.Getenv("STRIPE_SECRET_KEY"),
-    WebhookSecret:  os.Getenv("STRIPE_WEBHOOK_SECRET"),
-    SubscriptionPrices: map[domain.PlanType]map[domain.BillingInterval]string{
-        domain.PlanStarter: {domain.IntervalMonthly: "price_starter_m"},
-        domain.PlanPro:     {domain.IntervalMonthly: "price_pro_m"},
-    },
-    CreditsPriceIDs: []string{"price_credits_a"},
-    CreditsPerUnit:  40,
-})
-
-mod := billing.New(billing.Deps{
-    Provider:     provider,
-    Bus:          billingeventbus.NewInProc(),
-    Customers:    myCustomerStore,             // your impl
-    EventRepo:    repo.NewBillingEventRepo(db),
-    UserResolver: myUserResolver,              // your impl
-    GetUserID:    myGinUserIDExtractor,        // ties auth to billing routes
-})
-
-public := r.Group("/api/v1")
-user := r.Group("/api/v1", requireAuth)
-
-billinghttp.Mount(mod.Handler, public, user)
+if err := billingrepo.AutoMigrate(db); err != nil {
+    return err
+}
 ```
 
-## Checkout metadata pass-through
+## 组装
 
-Callers can attach metadata to the Checkout Session via the request body:
+```go
+lookup := myAccountLookup{}
 
-```js
-fetch('/api/v1/stripe/checkout/session', {
-  body: JSON.stringify({
-    plan: 'pro', interval: 'monthly',
-    success_url: '...', cancel_url: '...',
-    metadata: { referral: window.Rewardful?.referral }  // Rewardful
-  })
+module := billing.New(billing.Deps{
+    Provider:     stripeProvider,
+    Bus:          eventbus.NewInProc(),
+    Customers:    billingrepo.NewCustomerStore(db, lookup),
+    EventRepo:    billingrepo.NewBillingEventRepo(db),
+    Subscriptions: billingrepo.NewSubscriptionRepo(db),
+    UserResolver: billingrepo.NewUserResolver(db, lookup),
+    GetUserID:    currentUserID,
 })
 ```
 
-Reserved keys (`user_id`, `email`, `plan`, `interval`, `product_type`,
-`price_id`, `quantity`) are written by the billing layer itself and
-**always win** over caller metadata — frontend can't spoof them. See
-`domain.ReservedMetadataKeys` and `domain.IsReservedMetadataKey`.
+`AccountLookup` 示例：
 
-## Professional subscription management
-
-The Stripe adapter now covers the core SaaS subscription-management flow:
-
-- first paid subscription via hosted Checkout
-- in-place plan change for active subscriptions
-- prorated charging on upgrades and interval changes
-- Stripe Billing Portal session for card updates, self-serve invoices, and subscription management
-- cancel at period end
-- reactivate pending cancellation
-
-Recommended host policy:
-
-- upgrade: immediate plan change with proration
-- downgrade: either use the same change API or push users into Billing Portal if you want stricter Stripe-managed rules
-- cancel: `cancel_at_period_end`
-- card and invoice management: Billing Portal
-
-## Idempotent webhooks
-
-`adapter/repo` persists every webhook event id; replays are detected and
-short-circuited before listeners run. Listeners can therefore assume
-each delivery fires at most once per process.
-
-## Testing
-
-```bash
-go test -race ./...
+```go
+func (l lookup) FindBillingAccount(ctx context.Context, userID string) (port.Account, error) {
+    user, err := l.users.FindByID(ctx, userID)
+    if err != nil {
+        return port.Account{}, err
+    }
+    return port.Account{UserID: user.ID, Email: user.Email}, nil
+}
 ```
 
-Coverage: stripe 76.1%, eventbus 100%, app 61.7%, domain 75%.
+## 事件
 
-## Changelog
+- `subscription.activated`
+- `subscription.renewed`
+- `subscription.updated`
+- `subscription.canceling`
+- `subscription.canceled`
+- `subscription.reactivated`
+- `payment.failed`
+- `credits.purchased`
 
-See [CHANGELOG.md](./CHANGELOG.md).
+billing 只发布商业事实。某个套餐对应多少额度、要停哪些资源、是否激活邀请，全部由
+当前 SaaS 的监听器决定。监听器返回错误时 Webhook 不会标记完成，Stripe 重试会重新
+投递；积分和额度入账仍必须使用 provider/event ID 做业务幂等。
+
+## 旧表迁移
+
+`cmd/legacy-billing-migrate` 只用于把旧 `users` 表里的 Stripe 字段迁入 billing 表。
+新项目不需要运行。

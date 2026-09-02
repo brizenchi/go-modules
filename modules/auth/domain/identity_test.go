@@ -9,9 +9,10 @@ func TestProvider_Valid(t *testing.T) {
 	}{
 		{ProviderEmail, true},
 		{ProviderGoogle, true},
+		{ProviderGitHub, true},
 		{ProviderAnthropic, true},
 		{Provider(""), false},
-		{Provider("github"), false},
+		{Provider("unknown"), false},
 	}
 	for _, c := range cases {
 		if got := c.p.Valid(); got != c.want {

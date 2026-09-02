@@ -71,7 +71,7 @@ func BackfillLegacyStripeState(ctx context.Context, db *gorm.DB, opts LegacyBill
 		return nil, err
 	}
 
-	customers := NewCustomerStore(db)
+	customers := NewCustomerStore(db, nil)
 	subscriptions := NewSubscriptionRepo(db)
 	report := &LegacyBillingBackfillReport{Scanned: len(rows)}
 
