@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -121,7 +122,11 @@ func (b *Bucket) Stat(ctx context.Context, key string) (*ossx.ObjectInfo, error)
 	}
 	info := &ossx.ObjectInfo{Key: key}
 	if v := hdr.Get(aliyun.HTTPHeaderContentLength); v != "" {
-		fmt.Sscanf(v, "%d", &info.Size)
+		size, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("ossx/aliyun: stat %q: invalid content-length %q: %w", key, v, err)
+		}
+		info.Size = size
 	}
 	info.ContentType = hdr.Get(aliyun.HTTPHeaderContentType)
 	info.ETag = strings.Trim(hdr.Get(aliyun.HTTPHeaderEtag), `"`)

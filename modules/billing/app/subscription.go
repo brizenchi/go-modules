@@ -72,7 +72,7 @@ func (s *SubscriptionService) Cancel(ctx context.Context, userID string, mode do
 		effectiveAt = snap.CancelEffectiveAt
 	}
 
-	s.bus.Publish(ctx, event.Envelope{
+	if err := s.bus.Publish(ctx, event.Envelope{
 		Kind:       event.KindSubscriptionCanceling,
 		UserID:     userID,
 		Provider:   s.provider.Name(),
@@ -82,7 +82,9 @@ func (s *SubscriptionService) Cancel(ctx context.Context, userID string, mode do
 			Mode:        mode,
 			EffectiveAt: effectiveAt,
 		},
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("billing: publish subscription canceling event: %w", err)
+	}
 
 	return &CancelResult{
 		ProviderSubscriptionID: subID,
@@ -136,13 +138,15 @@ func (s *SubscriptionService) Change(ctx context.Context, userID string, in doma
 		snap = &domain.SubscriptionSnapshot{ProviderSubscriptionID: subID}
 	}
 
-	s.bus.Publish(ctx, event.Envelope{
+	if err := s.bus.Publish(ctx, event.Envelope{
 		Kind:       event.KindSubscriptionUpdated,
 		UserID:     userID,
 		Provider:   s.provider.Name(),
 		OccurredAt: time.Now().UTC(),
 		Payload:    event.SubscriptionUpdated{Snapshot: *snap},
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("billing: publish subscription updated event: %w", err)
+	}
 
 	return &ChangeResult{
 		ProviderSubscriptionID: subID,
@@ -171,13 +175,15 @@ func (s *SubscriptionService) Reactivate(ctx context.Context, userID string) (st
 		snap = &domain.SubscriptionSnapshot{ProviderSubscriptionID: subID, ProviderCustomerID: cust.ProviderCustomerID, Status: domain.StatusActive}
 	}
 
-	s.bus.Publish(ctx, event.Envelope{
+	if err := s.bus.Publish(ctx, event.Envelope{
 		Kind:       event.KindSubscriptionReactivated,
 		UserID:     userID,
 		Provider:   s.provider.Name(),
 		OccurredAt: time.Now().UTC(),
 		Payload:    event.SubscriptionReactivated{Snapshot: *snap},
-	})
+	}); err != nil {
+		return "", fmt.Errorf("billing: publish subscription reactivated event: %w", err)
+	}
 
 	return subID, nil
 }

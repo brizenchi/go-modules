@@ -52,6 +52,20 @@ func TestCancel_NoActiveSubscription(t *testing.T) {
 	}
 }
 
+func TestCancel_ReturnsPublishError(t *testing.T) {
+	bus := newMockBus()
+	bus.publishErr = errors.New("publish failed")
+	svc := NewSubscriptionService(newMockProvider(), newMockCustomerStore(port.Customer{
+		UserID:                 "u1",
+		ProviderSubscriptionID: "sub_x",
+	}), bus)
+
+	_, err := svc.Cancel(context.Background(), "u1", domain.CancelAtPeriodEnd)
+	if !errors.Is(err, bus.publishErr) {
+		t.Fatalf("error = %v, want publish error", err)
+	}
+}
+
 func TestReactivate_PublishesReactivatedEvent(t *testing.T) {
 	prov := newMockProvider()
 	store := newMockCustomerStore(port.Customer{
@@ -82,6 +96,20 @@ func TestReactivate_NoSubscription(t *testing.T) {
 	_, err := svc.Reactivate(context.Background(), "u1")
 	if !errors.Is(err, domain.ErrNoSubscriptionToReactive) {
 		t.Errorf("expected ErrNoSubscriptionToReactive, got %v", err)
+	}
+}
+
+func TestReactivate_ReturnsPublishError(t *testing.T) {
+	bus := newMockBus()
+	bus.publishErr = errors.New("publish failed")
+	svc := NewSubscriptionService(newMockProvider(), newMockCustomerStore(port.Customer{
+		UserID:                 "u1",
+		ProviderSubscriptionID: "sub_x",
+	}), bus)
+
+	_, err := svc.Reactivate(context.Background(), "u1")
+	if !errors.Is(err, bus.publishErr) {
+		t.Fatalf("error = %v, want publish error", err)
 	}
 }
 
@@ -121,6 +149,23 @@ func TestChange_NoActiveSubscription(t *testing.T) {
 	})
 	if !errors.Is(err, domain.ErrNoActiveSubscription) {
 		t.Errorf("expected ErrNoActiveSubscription, got %v", err)
+	}
+}
+
+func TestChange_ReturnsPublishError(t *testing.T) {
+	bus := newMockBus()
+	bus.publishErr = errors.New("publish failed")
+	svc := NewSubscriptionService(newMockProvider(), newMockCustomerStore(port.Customer{
+		UserID:                 "u1",
+		ProviderSubscriptionID: "sub_x",
+	}), bus)
+
+	_, err := svc.Change(context.Background(), "u1", domain.SubscriptionChangeInput{
+		Plan:     domain.PlanPro,
+		Interval: domain.IntervalMonthly,
+	})
+	if !errors.Is(err, bus.publishErr) {
+		t.Fatalf("error = %v, want publish error", err)
 	}
 }
 
