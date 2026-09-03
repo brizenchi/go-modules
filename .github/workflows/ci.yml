@@ -61,6 +61,8 @@ jobs:
           cache-dependency-path: templates/quickstart/go.sum
       - run: go test ./...
       - run: go build ./...
+      - name: Standalone Docker-equivalent build
+        run: GOWORK=off CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /tmp/quickstart ./cmd/quickstart
       - name: Detached copy using current modules
         working-directory: ${{ github.workspace }}
         run: ./scripts/verify-quickstart-release.sh local
