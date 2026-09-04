@@ -264,6 +264,7 @@ function AccountMenu({
 
 export function SiteShell(props: SiteShellProps) {
   const pathname = usePathname();
+  const isHome = pathname === "/";
   const [session, setSession] = useState<AuthSession | null>(null);
   const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
   const [accountDetailsLoading, setAccountDetailsLoading] = useState(false);
@@ -334,9 +335,16 @@ export function SiteShell(props: SiteShellProps) {
       <header className="topbar">
         <div className="topbar-inner">
           <Link className="brand-lockup" href="/">
-            <span className="brand-kicker">go-modules</span>
-            <span className="brand-title">{appEnv.appName}</span>
-            <span className="brand-subtitle">{t({ en: "SaaS frontend template", zh: "SaaS 前端模板" })}</span>
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 28 28" role="img">
+                <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
+                <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
+              </svg>
+            </span>
+            <span className="brand-copy">
+              <span className="brand-title">{appEnv.appName}</span>
+              <span className="brand-subtitle">{t({ en: "Powered by go-modules", zh: "由 go-modules 驱动" })}</span>
+            </span>
           </Link>
 
           <nav className="main-nav" aria-label="Primary">
@@ -362,10 +370,10 @@ export function SiteShell(props: SiteShellProps) {
         </div>
       </header>
 
-      <main className="page-shell">
-        <section className="hero-grid">
+      <main className={`page-shell${isHome ? " home-page-shell" : ""}`}>
+        <section className={`hero-grid${isHome ? " home-hero" : ""}`}>
           <div className="hero-main-card">
-            <Breadcrumbs items={breadcrumbs} />
+            {!isHome ? <Breadcrumbs items={breadcrumbs} /> : null}
             <span className="eyebrow">{props.eyebrow}</span>
             <h1>{props.title}</h1>
             <p>{props.description}</p>
@@ -393,6 +401,26 @@ export function SiteShell(props: SiteShellProps) {
 
         {props.children}
       </main>
+
+      <footer className="site-footer">
+        <div className="site-footer-inner">
+          <Link className="footer-brand" href="/">
+            <span className="brand-mark small" aria-hidden="true">
+              <svg viewBox="0 0 28 28" role="img">
+                <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
+                <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
+              </svg>
+            </span>
+            <span>{appEnv.appName}</span>
+          </Link>
+          <nav className="footer-links" aria-label="Footer">
+            <Link href="/docs">{t({ en: "Documentation", zh: "文档" })}</Link>
+            <Link href="/pricing">{t({ en: "Pricing", zh: "价格" })}</Link>
+            <Link href="/login">{t({ en: "Sign in", zh: "登录" })}</Link>
+          </nav>
+          <p>{t({ en: "A production-minded SaaS starter.", zh: "面向生产环境的 SaaS 启动模板。" })}</p>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -2,130 +2,149 @@ import Link from "next/link";
 import { SiteShell } from "@/components/site-shell";
 import { CTAButton, DetailRows, PageSection, Panel } from "@/components/ui";
 import { FeatureCard, MetricCard } from "@/components/marketing";
+import { ProductPreview } from "@/components/product-preview";
 import { appEnv } from "@/lib/env";
 
 export default function HomePage() {
   return (
     <SiteShell
-      eyebrow="Universal SaaS Shell"
-      title="A reusable frontend template for product marketing, docs, pricing, auth, billing, and referral flows."
-      description="This template no longer behaves like a single-purpose test harness. It is a starter shell for real SaaS products: a public-facing home, navigation system, docs experience, pricing page, multilingual-ready layout, and authenticated account surfaces all wired to the shared go-modules backend contract, including starter, pro, premium, lifetime, package credits, and custom amount top-up."
-      sideTitle="Contract map"
+      eyebrow="Production-ready SaaS starter"
+      title="The foundation your next SaaS should not have to rebuild."
+      description="Launch with polished marketing, authentication, subscriptions, credits, and referrals already connected to a dependable Go backend—then make the product yours."
+      sideTitle="Ready on day one"
       sideBody={
         <DetailRows
           rows={[
-            { label: "Frontend origin", value: <span className="inline-code">{appEnv.appUrl}</span> },
-            { label: "Backend API", value: <span className="inline-code">{appEnv.apiBaseUrl}</span> },
-            { label: "Login landing", value: <span className="inline-code">{`${appEnv.appUrl}/login`}</span> },
-            { label: "Referral invite", value: <span className="inline-code">{`${appEnv.appUrl}/invite?ref=`}</span> }
+            { label: "Frontend", value: <span className="inline-code">{appEnv.appUrl}</span> },
+            { label: "API contract", value: <span className="inline-code">{appEnv.apiBaseUrl}</span> },
+            { label: "Auth", value: "Email + OAuth" },
+            { label: "Monetization", value: "Plans + credits" }
           ]}
         />
       }
       actions={
         <>
           <CTAButton href="/pricing" primary>
-            Open Pricing
+            Explore pricing
           </CTAButton>
-          <CTAButton href="/docs">Read Docs</CTAButton>
+          <CTAButton href="/docs">Read the docs</CTAButton>
         </>
       }
       toc={[
-        { id: "shell", label: "Shell capabilities" },
-        { id: "routes", label: "Route map" },
-        { id: "ops", label: "Operational contract" }
+        { id: "capabilities", label: "What is included" },
+        { id: "routes", label: "Product surfaces" },
+        { id: "contract", label: "Backend contract" }
       ]}
     >
+      <ProductPreview />
+
+      <div className="capability-rail" aria-label="Included platform capabilities">
+        <span>Authentication</span>
+        <span>Billing</span>
+        <span>Credits</span>
+        <span>Referrals</span>
+        <span>Documentation</span>
+      </div>
+
       <PageSection
-        id="shell"
-        title="What this template is now"
-        description="It gives you a public site shell and an authenticated product shell in the same starter."
+        id="capabilities"
+        title="The parts every SaaS rebuilds. Already done."
+        description="A focused baseline for the work surrounding your actual product—designed to be replaced, extended, and shipped."
       >
         <div className="feature-grid">
           <FeatureCard
-            label="Navigation"
-            title="Public and product entry points"
-            description="A top navigation system that can carry marketing pages, documentation, pricing, and authenticated account flows without rewriting the layout every time."
+            label="01 · Identity"
+            title="Authentication that feels native"
+            description="Email code and OAuth flows, session refresh, sign-out, and referral-aware signup inside one coherent account experience."
           />
           <FeatureCard
-            label="Account UX"
-            title="Avatar menu and management surfaces"
-            description="Signed-in users get an account menu with settings, sign-out, subscription access, and referral access instead of a single debug session pill."
+            label="02 · Revenue"
+            title="More than one way to monetize"
+            description="Recurring plans, lifetime access, fixed credit packages, and custom top-ups share a reliable Stripe-backed contract."
           />
           <FeatureCard
-            label="Documentation"
-            title="Breadcrumbs and article navigation"
-            description="Docs-style pages can expose article sections with table-of-contents navigation so the template works for launch docs and product education pages."
+            label="03 · Growth"
+            title="Referrals built into the journey"
+            description="Capture invite codes before signup, attribute conversions, and give customers a clear place to understand their rewards."
           />
           <FeatureCard
-            label="Localization"
-            title="Language-ready structure"
-            description="The shell carries an EN / 中文 switch and a basic i18n layer, making multilingual product sites possible without redesigning the whole frame."
+            label="04 · Experience"
+            title="Public site and product shell"
+            description="Marketing, docs, pricing, and authenticated tools use the same responsive system with multilingual structure included."
           />
         </div>
       </PageSection>
 
       <PageSection
         id="routes"
-        title="Route map"
-        description="These routes are intended as a reusable baseline, not one-off demos."
+        title="A complete customer journey, not a disconnected demo."
+        description="Each surface has a clear role, while shared navigation and account state keep the experience continuous."
       >
         <div className="page-grid">
-          <Panel className="span-4" title="/pricing" subtitle="Plan comparison and checkout entry">
-            <p>Use for the six billing lanes: starter, pro, premium, lifetime, package credits, and custom amount top-up before redirecting into Checkout or Payment Element.</p>
+          <Panel className="span-4 route-panel" title="Pricing" subtitle="Discover and compare">
+            <p>Present subscriptions, lifetime access, and credit packages with direct paths into checkout.</p>
+            <Link className="text-link" href="/pricing">View pricing <span aria-hidden="true">↗</span></Link>
           </Panel>
-          <Panel className="span-4" title="/docs" subtitle="Onboarding and product documentation">
-            <p>Use for integration docs, getting-started flows, technical setup guides, and feature explanation pages with table-of-contents support.</p>
+          <Panel className="span-4 route-panel" title="Documentation" subtitle="Understand and integrate">
+            <p>Publish onboarding, technical guides, and product education with breadcrumbs and article navigation.</p>
+            <Link className="text-link" href="/docs">Browse docs <span aria-hidden="true">↗</span></Link>
           </Panel>
-          <Panel className="span-4" title="/login" subtitle="Auth entry surface">
-            <p>Still supports email code, Google OAuth exchange, and referral-aware signup, but now sits inside a broader product shell.</p>
+          <Panel className="span-4 route-panel" title="Authentication" subtitle="Enter the product">
+            <p>Give every user a clean email or OAuth entry point with referral attribution carried through signup.</p>
+            <Link className="text-link" href="/login">Open sign in <span aria-hidden="true">↗</span></Link>
           </Panel>
-          <Panel className="span-4" title="/account" subtitle="Settings and session management">
-            <p>Identity, refresh, logout, current token/session view, and ticket issue flow. This is the base for a settings or workspace page.</p>
+          <Panel className="span-4 route-panel" title="Account" subtitle="Control identity and sessions">
+            <p>Manage identity, refresh state, sign-out, token visibility, and WebSocket ticket issuance.</p>
+            <Link className="text-link" href="/account">View account <span aria-hidden="true">↗</span></Link>
           </Panel>
-          <Panel className="span-4" title="/billing" subtitle="Subscription and invoice management">
-            <p>Subscription lifecycle, lifetime buyout, fixed package checkout, custom amount recharge, invoice list, cancel, and reactivate. This doubles as the management page behind the avatar menu.</p>
+          <Panel className="span-4 route-panel" title="Billing" subtitle="Manage the lifecycle">
+            <p>Start checkout, inspect invoices, change plan state, buy credits, and manage entitlements.</p>
+            <Link className="text-link" href="/billing">Open billing <span aria-hidden="true">↗</span></Link>
           </Panel>
-          <Panel className="span-4" title="/referrals" subtitle="Referral center">
-            <p>Share link, stats, history, and the consumer-facing part of the referral system, suitable for a growth or rewards area.</p>
+          <Panel className="span-4 route-panel" title="Referrals" subtitle="Turn customers into growth">
+            <p>Share links, conversion stats, reward history, and attribution in a customer-facing center.</p>
+            <Link className="text-link" href="/referrals">View referrals <span aria-hidden="true">↗</span></Link>
           </Panel>
         </div>
       </PageSection>
 
       <PageSection
-        id="ops"
-        title="Operational contract"
-        description="Keep the shell generic, keep the backend contract stable."
+        id="contract"
+        title="A quiet frontend. A serious backend contract."
+        description="The design stays easy to reshape because the operational boundaries remain explicit and predictable."
       >
         <div className="metric-grid">
           <MetricCard
             label="Auth"
             value="Email + Google"
-            detail="Uses the enabled email/OAuth routes, including /auth/:provider/authorize and /auth/exchange-token."
+            detail="Provider authorization, token exchange, refresh, and account state are already connected."
           />
           <MetricCard
             label="Billing"
             value="6 billing lanes"
-            detail="Starter, Pro, Premium, Lifetime, Package, and Custom Amount all enter from the frontend, while webhook truth and subscription state stay on the backend."
+            detail="Plans, buyout, packages, and top-ups all preserve webhook-owned payment truth."
           />
           <MetricCard
             label="Referral"
             value="Closed loop"
-            detail="Captures ?ref= in the browser, forwards referral_code during signup, then reads stats and history from backend APIs."
+            detail="Browser capture, signup attribution, activation state, statistics, and history stay connected."
           />
           <MetricCard
             label="Docs"
             value="Product-ready"
-            detail="Supports docs pages, breadcrumbs, and in-page article navigation so the starter can front a real product site."
+            detail="Breadcrumbs, article navigation, language state, and public routing are part of the shell."
           />
         </div>
 
         <div className="cta-strip">
-          <Link className="button primary" href="/billing">
-            Open Billing Console
-          </Link>
-          <Link className="button" href="/referrals">
-            Open Referral Center
-          </Link>
+          <div>
+            <span className="panel-kicker">Start with the hard parts solved</span>
+            <strong>Make the next commit about your product.</strong>
+          </div>
+          <div className="cta-strip-actions">
+            <Link className="button primary" href="/billing">Open billing</Link>
+            <Link className="button" href="/docs">Read the docs</Link>
+          </div>
         </div>
       </PageSection>
     </SiteShell>
