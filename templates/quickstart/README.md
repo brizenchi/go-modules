@@ -71,6 +71,10 @@ curl http://localhost:8080/health
 [配置与上线指南](../../docs/SETUP_ZH.md)。`APP_ENV=production` 时，模板会在连接数据库
 之前拒绝弱密钥、HTTP 回调、通配 CORS、调试验证码和不完整的 Stripe/邮件配置。
 
+部署到前后端不同域名时，设置 `APP_HTTP_ALLOWED_ORIGINS` 为前端 origin（只有协议和域名，
+不要包含 `/login` 路径），例如 `https://app.example.com`。未显式设置时，容器会从
+`APP_AUTH_FRONTEND_REDIRECT` 自动提取该 origin；OAuth 启用时，启动校验也会确认两者一致。
+
 ## 修改用户字段
 
 只修改 `internal/user/model.go`：

@@ -12,7 +12,8 @@ log:
   format: json            # json | text；本地开发可用更易读的 text
 
 http:
-  allowed_origins: "http://localhost:3000" # 生产改为前端 HTTPS 域名；多个域名用逗号分隔
+  # 留空时从 auth.frontend_redirect 自动提取 origin；多个前端域名时显式填写逗号分隔列表。
+  allowed_origins: ""
   read_header_timeout_seconds: 10
   read_timeout_seconds: 15
   write_timeout_seconds: 30

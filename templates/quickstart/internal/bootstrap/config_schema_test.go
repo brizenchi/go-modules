@@ -98,6 +98,40 @@ func TestValidateProductionRejectsWildcardCORS(t *testing.T) {
 	}
 }
 
+func TestApplyDefaultsDerivesCORSFromOAuthFrontendRedirect(t *testing.T) {
+	cfg := AppConfig{}
+	cfg.Auth.FrontendRedirect = "https://template.daobang.tech/login?source=oauth"
+
+	applyDefaults(&cfg)
+
+	if got, want := cfg.HTTP.AllowedOrigins, "https://template.daobang.tech"; got != want {
+		t.Fatalf("allowed origins = %q, want %q", got, want)
+	}
+}
+
+func TestValidateRejectsOAuthFrontendMissingFromCORS(t *testing.T) {
+	cfg := productionConfigForTest()
+	cfg.HTTP.AllowedOrigins = "https://another.example.com"
+	enableGoogleForTest(&cfg)
+	cfg.Auth.FrontendRedirect = "https://template.daobang.tech/login"
+
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "APP_HTTP_ALLOWED_ORIGINS") {
+		t.Fatalf("expected OAuth frontend CORS error, got %v", err)
+	}
+}
+
+func TestValidateAcceptsOAuthFrontendInCORSList(t *testing.T) {
+	cfg := productionConfigForTest()
+	cfg.HTTP.AllowedOrigins = "https://admin.example.com,https://template.daobang.tech"
+	enableGoogleForTest(&cfg)
+	cfg.Auth.FrontendRedirect = "https://template.daobang.tech/login"
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+}
+
 func TestValidateRejectsIncompleteStripeConfig(t *testing.T) {
 	cfg := productionConfigForTest()
 	enabled := true
@@ -128,4 +162,12 @@ func productionConfigForTest() AppConfig {
 	cfg.Email.Resend.SenderEmail = "no-reply@example.com"
 	cfg.Billing.Enabled = falsePtr()
 	return cfg
+}
+
+func enableGoogleForTest(cfg *AppConfig) {
+	cfg.Auth.Google.Enabled = truePtr()
+	cfg.Auth.Google.ClientID = "google-client"
+	cfg.Auth.Google.ClientSecret = "google-secret"
+	cfg.Auth.Google.RedirectURL = "https://api.example.com/api/v1/auth/google/callback"
+	cfg.Auth.Google.StateSecret = "abcdef0123456789abcdef0123456789"
 }

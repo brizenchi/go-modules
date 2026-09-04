@@ -129,7 +129,7 @@ func applyDefaults(cfg *AppConfig) {
 		cfg.Log.Level = "info"
 	}
 	if strings.TrimSpace(cfg.HTTP.AllowedOrigins) == "" {
-		cfg.HTTP.AllowedOrigins = "http://localhost:3000"
+		cfg.HTTP.AllowedOrigins = frontendOriginOrDefault(cfg.Auth.FrontendRedirect)
 	}
 	if cfg.HTTP.ReadHeaderTimeoutSecond <= 0 {
 		cfg.HTTP.ReadHeaderTimeoutSecond = 10
@@ -212,6 +212,11 @@ func (c AppConfig) Validate() error {
 			return err
 		}
 	}
+	if modules.GoogleEnabled() || modules.GitHubEnabled() {
+		if err := validateOAuthFrontendCORS(c.Auth.FrontendRedirect, origins); err != nil {
+			return err
+		}
+	}
 
 	if modules.BillingEnabled() {
 		stripe := c.Billing.Stripe
@@ -241,6 +246,38 @@ func (c HTTPConfig) AllowedOriginList() []string {
 		}
 	}
 	return origins
+}
+
+func frontendOriginOrDefault(frontendRedirect string) string {
+	origin, err := absoluteOrigin(frontendRedirect)
+	if err == nil {
+		return origin
+	}
+	return "http://localhost:3000"
+}
+
+func validateOAuthFrontendCORS(frontendRedirect string, allowedOrigins []string) error {
+	origin, err := absoluteOrigin(frontendRedirect)
+	if err != nil {
+		return fmt.Errorf("auth.frontend_redirect must be an absolute URL for CORS validation: %w", err)
+	}
+	for _, allowed := range allowedOrigins {
+		if allowed == "*" || allowed == origin {
+			return nil
+		}
+	}
+	return fmt.Errorf("http.allowed_origins must include OAuth frontend origin %q; set APP_HTTP_ALLOWED_ORIGINS=%s", origin, origin)
+}
+
+func absoluteOrigin(rawURL string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("scheme and host required")
+	}
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), nil
 }
 
 func isProduction(env string) bool {
