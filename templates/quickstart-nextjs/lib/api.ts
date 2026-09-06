@@ -217,8 +217,8 @@ export async function verifyCode(email: string, code: string, referralCode?: str
 
 export type OAuthProvider = "google" | "github";
 
-export async function getOAuthAuthorizeURL(provider: OAuthProvider): Promise<string> {
-	const challenge = await prepareOAuthBrowserFlow(provider);
+export async function getOAuthAuthorizeURL(provider: OAuthProvider, returnTo?: string): Promise<string> {
+	const challenge = await prepareOAuthBrowserFlow(provider, returnTo);
   const data = await apiRequest<{ redirect_url: string }>(
 		`/auth/${provider}/authorize?challenge=${encodeURIComponent(challenge)}`,
 		{ credentials: "include" }

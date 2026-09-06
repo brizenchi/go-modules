@@ -27,7 +27,7 @@ export function queryString(values: Record<string, string | number | undefined>)
 export function listOperator<T>(token: string, section: "users" | "subscriptions" | "orders" | "referrals" | "audit", page = 1, query = "", status = "") {
   return apiRequest<PageResult<T>>(`/admin/${section}?${queryString({ page, limit: 20, query, status })}`, { authToken: token });
 }
-export function getOperatorOverview(token: string) { return apiRequest<OperatorOverview>("/admin/overview", { authToken: token }); }
+export function getOperatorOverview(token: string, signal?: AbortSignal) { return apiRequest<OperatorOverview>("/admin/overview", { authToken: token, signal }); }
 export function getBusinessSettings(token: string) { return apiRequest<BusinessSettings>("/admin/settings", { authToken: token }); }
 export function saveBusinessSettings(token: string, data: BusinessSettings & { reason: string }, key: string) {
   return apiRequest<BusinessSettings>("/admin/settings", { authToken: token, method: "PATCH", headers: { "Idempotency-Key": key }, json: data });

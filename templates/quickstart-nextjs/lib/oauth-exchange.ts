@@ -6,7 +6,7 @@ import {
   writeSession,
   type AuthSession
 } from "./auth";
-import { clearOAuthVerifier, readOAuthVerifier } from "./oauth-flow";
+import { clearOAuthVerifier, readOAuthReturnTo, readOAuthVerifier, type OAuthReturnTo } from "./oauth-flow";
 
 export type OAuthExchangeOutcome<TSession> = {
   session: TSession;
@@ -61,14 +61,19 @@ export function createOAuthExchangeCoordinator<TSession>(
   };
 }
 
-const oauthExchangeCoordinator = createOAuthExchangeCoordinator<AuthSession>({
+type OAuthSessionResult = { session: AuthSession; returnTo: OAuthReturnTo };
+
+const oauthExchangeCoordinator = createOAuthExchangeCoordinator<OAuthSessionResult>({
   exchange: async (code, flowID) => {
+    const returnTo = readOAuthReturnTo(flowID);
     const session = await exchangeToken(code, readReferralCode(), readOAuthVerifier(flowID));
     clearOAuthVerifier(flowID);
-    return session;
+    // Keep the destination with the completed single-flight result before its
+    // one-time browser record is cleared. React effect replays use this snapshot.
+    return { session, returnTo };
   },
   readSessionToken: () => readSession()?.token || "",
-  commit: (session) => {
+  commit: ({ session }) => {
     clearReferralCode();
     writeSession(session);
   }
@@ -77,6 +82,10 @@ const oauthExchangeCoordinator = createOAuthExchangeCoordinator<AuthSession>({
 export function exchangeOAuthCodeOnce(
   code: string,
   flowID = ""
-): Promise<OAuthExchangeOutcome<AuthSession>> {
-  return oauthExchangeCoordinator.exchange(code, flowID);
+): Promise<OAuthExchangeOutcome<AuthSession> & { returnTo: OAuthReturnTo }> {
+  return oauthExchangeCoordinator.exchange(code, flowID).then(({ session: result, committed }) => ({
+    session: result.session,
+    returnTo: result.returnTo,
+    committed
+  }));
 }

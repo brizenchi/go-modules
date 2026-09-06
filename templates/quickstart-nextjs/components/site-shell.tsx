@@ -24,7 +24,6 @@ import {
 import { SignInDialog } from "@/components/sign-in-dialog";
 import {
   activeWorkspaceHref,
-  adminNavItem,
   auxiliaryWorkspaceItems,
   isWorkspacePath,
   workspaceNavItems,
@@ -139,7 +138,6 @@ function TableOfContents({
 function WorkspaceIcon({ name }: { name: WorkspaceIconName }) {
   if (name === "credits") return <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 4 16 4 16 0V6M4 12v6c0 4 16 4 16 0v-6" /></svg>;
   if (name === "notes" || name === "files") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h6" /></svg>;
-  if (name === "admin") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6zM8 12l3 3 5-6" /></svg>;
   if (name === "billing") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -341,8 +339,6 @@ function AccountMenu({
             </Link>
           </div>
 
-          {session.user.role === "admin" ? <Link className="popover-link-card" href="/admin" onClick={() => setOpen(false)}><span>{t({ en: "Operator console", zh: "运营后台" })}</span><small>{t({ en: "Users, payments, invitations and settings", zh: "用户、支付、邀请和网站配置" })}</small></Link> : null}
-
           <div className="account-popover-meta">
             <div>
               <span className="panel-kicker">{t({ en: "Session expires", zh: "会话到期" })}</span>
@@ -374,7 +370,6 @@ export function SiteShell(props: SiteShellProps) {
   const [siteSettings, setSiteSettings] = useState(publicSiteSettingsFallback);
   const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
   const { t } = useI18n();
-  const workspaceItems = [...workspaceNavItems, ...auxiliaryWorkspaceItems, ...(session?.user.role === "admin" ? [adminNavItem] : [])];
   useEffect(() => {
     let current: AbortController | undefined;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -449,7 +444,8 @@ export function SiteShell(props: SiteShellProps) {
     referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats
   };
 
-  const currentWorkspaceItem = [...workspaceNavItems, ...auxiliaryWorkspaceItems, adminNavItem].find((item) => item.href === activeWorkspace);
+  const currentWorkspaceItem = [...workspaceNavItems, ...auxiliaryWorkspaceItems].find((item) => item.href === activeWorkspace);
+  const customDescription = siteSettings.description && siteSettings.description !== publicSiteSettingsFallback.description ? siteSettings.description : "";
   const accountMenu = (
     <AccountMenu
       session={session}
@@ -481,7 +477,7 @@ export function SiteShell(props: SiteShellProps) {
           </div>
 
           <nav className="workspace-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
-            {workspaceItems.map((item) => (
+            {workspaceNavItems.map((item) => (
               <Link
                 className={`workspace-nav-link${activeWorkspace === item.href ? " active" : ""}`}
                 href={item.href}
@@ -535,7 +531,7 @@ export function SiteShell(props: SiteShellProps) {
           </header>
 
           <nav className="workspace-mobile-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
-            {workspaceItems.map((item) => (
+            {workspaceNavItems.map((item) => (
               <Link
                 className={`workspace-mobile-link${activeWorkspace === item.href ? " active" : ""}`}
                 href={item.href}
@@ -612,7 +608,7 @@ export function SiteShell(props: SiteShellProps) {
             {!isHome ? <Breadcrumbs items={breadcrumbs} /> : null}
             <span className="eyebrow">{props.eyebrow}</span>
             <h1>{props.title}</h1>
-            <p>{props.description}</p>
+            <p>{isHome && customDescription ? customDescription : props.description}</p>
             {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
           </div>
 
@@ -656,7 +652,7 @@ export function SiteShell(props: SiteShellProps) {
             <Link href="/privacy">{t({ en: "Privacy", zh: "隐私" })}</Link>
             <Link href="/terms">{t({ en: "Terms", zh: "条款" })}</Link>
           </nav>
-          <p>{t({ en: "A production-minded SaaS starter.", zh: "面向生产环境的 SaaS 启动模板。" })}</p>
+          <p>{customDescription || t({ en: "A production-minded SaaS starter.", zh: "面向生产环境的 SaaS 启动模板。" })}</p>
         </div>
       </footer>
     </div>

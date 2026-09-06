@@ -44,7 +44,7 @@ test("the sign-in panel does not expose implementation notes to end users", () =
 });
 
 test("OAuth starts with a top-level backend redirect", () => {
-	assert.match(panelSource, /await getOAuthRedirectURL\(provider\)/);
+	assert.match(panelSource, /await getOAuthRedirectURL\(provider, returnTo\)/);
 	assert.doesNotMatch(panelSource, /getOAuthAuthorizeURL/);
 });
 

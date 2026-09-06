@@ -118,3 +118,65 @@ test("unrecognized OAuth error query does not discard a verifier", async () => {
 	);
 	assert.equal(flow.readOAuthVerifier(challenge), verifier);
 });
+
+test("admin destinations belong to the exact browser flow and never leak into ordinary sign-in", async () => {
+  installBrowserStorage();
+  const flow = loadOAuthFlow();
+  const adminURL = new URL(await flow.getOAuthRedirectURL("google", "/admin/credits"));
+  const adminID = adminURL.searchParams.get("challenge")!;
+  const userID = await flow.prepareOAuthBrowserFlow("github");
+
+  assert.equal(flow.readOAuthReturnTo(adminID), "/admin/credits");
+  assert.equal(flow.readOAuthReturnTo(userID), "/account");
+  assert.equal(flow.readOAuthReturnTo(""), "/account");
+  assert.equal(flow.readOAuthReturnTo("unrelated-flow"), "/account");
+  assert.equal(adminURL.searchParams.has("returnTo"), false);
+  assert.equal(adminURL.searchParams.has("return_to"), false);
+  assert.doesNotMatch(adminURL.toString(), /admin/);
+
+  flow.clearOAuthVerifier(adminID);
+  assert.equal(flow.readOAuthReturnTo(adminID), "/account");
+  assert.notEqual(flow.readOAuthVerifier(userID), "");
+});
+
+test("OAuth accepts only known internal destinations and gates admin return on the signed-in role", async () => {
+  installBrowserStorage();
+  const flow = loadOAuthFlow();
+  for (const path of ["https://evil.example/admin", "//evil.example", "/\\evil.example", "/admin/../account", "/admin/unknown", "/admin/users?next=https://evil.example", "/admin#settings", "/%61dmin", "/admin/", " /admin"]) {
+    await assert.rejects(flow.prepareOAuthBrowserFlow("google", path), /Unsupported OAuth return destination/);
+    assert.equal(flow.resolveOAuthReturnTo(path, "admin"), "/account");
+  }
+  assert.equal(values.size, 0);
+  for (const path of ["/admin", "/admin/users", "/admin/orders", "/admin/subscriptions", "/admin/referrals", "/admin/credits", "/admin/settings", "/admin/audit"]) {
+    assert.equal(flow.resolveOAuthReturnTo(path, "admin"), path);
+    assert.equal(flow.resolveOAuthReturnTo(path, "user"), "/account");
+    assert.equal(flow.resolveOAuthReturnTo(path), "/account");
+  }
+  assert.equal(flow.resolveOAuthReturnTo("/account", "admin"), "/account");
+});
+
+test("canceled, expired, missing and tampered destinations fall back safely", async () => {
+  installBrowserStorage();
+  const flow = loadOAuthFlow();
+  const denied = await flow.prepareOAuthBrowserFlow("google", "/admin/settings");
+  flow.consumeOAuthCallbackError("access_denied", denied);
+  assert.equal(flow.readOAuthReturnTo(denied), "/account");
+
+  const challenge = await flow.prepareOAuthBrowserFlow("github", "/admin/users");
+  const key = "go-modules.quickstart-nextjs.oauth-flow";
+  const records = JSON.parse(values.get(key)!);
+  records[challenge].returnTo = "https://evil.example";
+  values.set(key, JSON.stringify(records));
+  assert.equal(flow.readOAuthReturnTo(challenge), "/account");
+  records[challenge].returnTo = "/admin/users";
+  records[challenge].createdAt = Date.now() - 31 * 60 * 1000;
+  values.set(key, JSON.stringify(records));
+  assert.equal(flow.readOAuthReturnTo(challenge), "/account");
+  assert.equal(values.has(key), false);
+
+  const legacy = await flow.prepareOAuthBrowserFlow("google");
+  const legacyRecords = JSON.parse(values.get(key)!);
+  delete legacyRecords[legacy].returnTo;
+  values.set(key, JSON.stringify(legacyRecords));
+  assert.equal(flow.readOAuthReturnTo(legacy), "/account");
+});

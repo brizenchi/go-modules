@@ -10,6 +10,8 @@
 
 ## Accepted scope and constraints
 
+- Clarification from the user: the customer workspace is for managing one's own account, subscription and invitations. All site-wide management belongs to the separate `/admin` route tree, with its own administrator login, layout and navigation. Customer navigation and the account menu must not contain administrator controls.
+
 - Include users, subscriptions, payment records, referrals, credit grants/refunds, audit history and business settings in the operator console. Authorization lives on the server; client role checks only control navigation.
 - Credit grants, expiry, consumption and refund require stable idempotency, ownership, insufficient-balance protection and an auditable reason. Existing balances are preserved through a supplied explicit migration, never an automatic repair.
 - A note-to-Markdown export is the paid business example. Show its actual configured cost, deduct once per export request and let retries retrieve the same output without another charge.
@@ -64,3 +66,13 @@ Files: host_routes.go, host_migrate.go, env/config examples, README/runbook and 
 3. Exercise user/admin journeys against isolated local fixtures; verify permissions, invitation replay, export idempotency and negative cases.
 4. Inspect frontend navigation, loading/error states and layout in the browser.
 5. Record precise completed validation, deployment prerequisites and any live-service checks not performed.
+
+## Completed validation
+
+- Implemented all five tasks; migrations remain supplied artifacts, not executed against a configured database.
+- `go test -race ./templates/quickstart/... ./foundation/ossx/s3` passed; after review fixes, operations and HTTP middleware race tests passed again. Real JWT tests cover anonymous/ordinary-user denial, changed export prices, idempotent consumption, and agreement between profile and ledger.
+- Frontend: 79 tests passed, TypeScript and lint passed, and the final production build generated all 34 pages successfully.
+- Browser checks against `cmd/preview` temporary SQLite: administrator login, ordinary-user denial of `/admin`, administrator logout and account switching, separate administrator/customer layouts, three-item customer navigation, settings save, preserved user filter from users to credits, note export balance 50→49, article search/detail, contact empty state, and 320px administrator layout without horizontal page overflow.
+- Administrator OAuth return paths are tied to the exact browser flow and checked against a local allowlist. Ordinary sign-in continues to `/account`; admin-origin sign-in returns to the corresponding admin section after successful administrator authentication.
+- Image upload server validation, ownership, multipart client handling and private authenticated reads passed automated tests. Browser automatic file selection was blocked by the Chrome extension's file-URL permission; no personal file was uploaded.
+- No configured database migration, external email, live payment, deployment or git push was performed. Local preview billing is disabled; provider integration needs the operator's own test environment.

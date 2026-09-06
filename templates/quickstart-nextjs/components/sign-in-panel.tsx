@@ -48,12 +48,15 @@ function messageFromError(error: unknown): string {
 type SignInPanelProps = {
   compact?: boolean;
   showReferralField?: boolean;
+  // OAuth-only destination; email login remains controlled by onSuccess.
+  returnTo?: string;
   onSuccess?: (session: AuthSession) => void;
 };
 
 export function SignInPanel({
   compact = false,
   showReferralField = false,
+  returnTo,
   onSuccess
 }: SignInPanelProps) {
   const { t } = useI18n();
@@ -205,7 +208,7 @@ export function SignInPanel({
     }));
 
     try {
-      const redirectURL = await getOAuthRedirectURL(provider);
+      const redirectURL = await getOAuthRedirectURL(provider, returnTo);
       window.location.href = redirectURL;
     } catch (err) {
       setError(messageFromError(err));

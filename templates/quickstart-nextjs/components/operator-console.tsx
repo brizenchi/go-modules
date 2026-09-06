@@ -3,31 +3,30 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { SiteShell } from "./site-shell";
+import adminStyles from "./admin-shell.module.css";
 import { Panel } from "./ui";
 import { ConsoleError, ConsoleGate, Pagination, consoleStyles as styles, newIntentKey, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
 import { useI18n } from "@/lib/i18n";
 import { formatDate } from "@/lib/format";
 import { getBusinessSettings, getOperatorOverview, grantCredits, listCreditTransactions, listOperator, refundCredits, retryReferralReward, saveBusinessSettings, type BusinessSettings, type PageResult } from "@/lib/operations-api";
 import { SITE_SETTINGS_EVENT } from "@/lib/site-settings";
+import { adminSections, adminSectionNames } from "@/lib/admin-navigation";
 
-export const operatorSections = ["overview", "users", "orders", "subscriptions", "referrals", "credits", "settings", "audit"] as const;
+export const operatorSections = adminSections;
 export type OperatorSection = typeof operatorSections[number];
 type Row = Record<string, unknown>;
-const names: Record<OperatorSection, { en: string; zh: string }> = {
-  overview: { en: "Overview", zh: "运营概况" }, users: { en: "Users", zh: "用户" }, orders: { en: "Payments", zh: "支付记录" }, subscriptions: { en: "Subscriptions", zh: "订阅" }, referrals: { en: "Invitations", zh: "邀请" }, credits: { en: "Credits", zh: "积分" }, settings: { en: "Site settings", zh: "网站配置" }, audit: { en: "Audit log", zh: "操作记录" }
-};
+const names = adminSectionNames;
 const columns: Partial<Record<OperatorSection, Array<[string, { en: string; zh: string }]>>> = {
   users: [["email", { en: "Email", zh: "邮箱" }], ["id", { en: "Account ID", zh: "账号 ID" }], ["role", { en: "Role", zh: "角色" }], ["credits", { en: "Credits", zh: "积分" }], ["created_at", { en: "Joined", zh: "注册时间" }]],
-  orders: [["id", { en: "Payment reference", zh: "支付编号" }], ["user_id", { en: "Account", zh: "账号" }], ["amount", { en: "Amount", zh: "金额" }], ["status", { en: "Status", zh: "状态" }], ["created_at", { en: "Recorded", zh: "记录时间" }]],
+  orders: [["livemode", { en: "Environment", zh: "环境" }], ["id", { en: "Payment reference", zh: "支付编号" }], ["user_id", { en: "Account", zh: "账号" }], ["amount", { en: "Amount", zh: "金额" }], ["status", { en: "Status", zh: "状态" }], ["created_at", { en: "Recorded", zh: "记录时间" }]],
   subscriptions: [["user_id", { en: "Account", zh: "账号" }], ["plan", { en: "Plan", zh: "套餐" }], ["status", { en: "Status", zh: "状态" }], ["provider_subscription_id", { en: "Subscription", zh: "订阅编号" }], ["period_end", { en: "Period end", zh: "本期截止" }]],
   referrals: [["referrer_id", { en: "Inviter", zh: "邀请人" }], ["referee_id", { en: "Invitee", zh: "受邀人" }], ["status", { en: "Status", zh: "状态" }], ["reward_credits", { en: "Reward", zh: "奖励积分" }], ["expires_at", { en: "Deadline", zh: "奖励截止" }]],
   credits: [["id", { en: "Transaction", zh: "流水编号" }], ["user_id", { en: "Account", zh: "账号" }], ["kind", { en: "Type", zh: "类型" }], ["amount", { en: "Credits", zh: "积分变动" }], ["reason", { en: "Reason", zh: "原因" }], ["created_at", { en: "Recorded", zh: "时间" }]],
-  audit: [["actor_id", { en: "Operator", zh: "操作人" }], ["action", { en: "Action", zh: "操作" }], ["target_id", { en: "Target", zh: "对象" }], ["reason", { en: "Reason", zh: "原因" }], ["created_at", { en: "Recorded", zh: "时间" }]]
+  audit: [["status", { en: "Outcome", zh: "结果" }], ["actor_id", { en: "Operator", zh: "操作人" }], ["action", { en: "Action", zh: "操作" }], ["target_id", { en: "Target", zh: "对象" }], ["reason", { en: "Reason", zh: "原因" }], ["created_at", { en: "Recorded", zh: "时间" }]]
 };
 
 function OperatorConsoleInner({ section }: { section: OperatorSection }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const params = useSearchParams();
   const { session, ready } = useConsoleSession();
   const token = session?.user.role === "admin" ? session.token : "";
@@ -52,7 +51,7 @@ function OperatorConsoleInner({ section }: { section: OperatorSection }) {
     return intent.current.key;
   }
   useEffect(() => { setPage(1); setSearch(""); setQuery(""); setStatus(""); setReason(""); setSelectedReferral(null); setSettings(null); setTarget(""); setRefundID(""); setExpiry(""); intent.current = { payload: "", key: "" }; }, [section, token]);
-  useEffect(() => { if (section === "credits") { const userID = params.get("user_id") || ""; setTarget(userID); setQuery(userID); setSearch(userID); } }, [params, section]);
+  useEffect(() => { if (section === "credits") { const userID = params.get("user_id") || ""; setTarget(userID); setQuery(userID); setSearch(userID); } }, [params, section, token]);
   const loader = useCallback(async (currentToken: string): Promise<unknown> => {
     if (section === "overview") return getOperatorOverview(currentToken);
     if (section === "settings") return getBusinessSettings(currentToken);
@@ -87,19 +86,20 @@ function OperatorConsoleInner({ section }: { section: OperatorSection }) {
   }
   function display(row: Row, key: string): string {
     const value = row[key];
+    if (key === "livemode" && typeof value === "boolean") return value ? t({ en: "Live", zh: "正式支付" }) : t({ en: "Test", zh: "测试支付" });
     if (key === "amount" && section === "orders") {
       if (typeof value !== "number") return t({ en: "Unknown", zh: "未知" });
       return `${value} ${String(row.currency || "").toUpperCase()}`;
     }
     if (value === null || value === undefined || value === "") return "—";
-    if (key.endsWith("_at") || key === "period_end") return formatDate(String(value));
-    const labels: Record<string, { en: string; zh: string }> = { admin: { en: "Administrator", zh: "管理员" }, user: { en: "Customer", zh: "用户" }, pending: { en: "Pending", zh: "待激活" }, activated: { en: "Activated", zh: "已激活" }, expired: { en: "Expired", zh: "已过期" }, grant: { en: "Grant", zh: "发放" }, consume: { en: "Consumption", zh: "消费" }, refund: { en: "Refund", zh: "退回" }, active: { en: "Active", zh: "有效" }, paid: { en: "Paid", zh: "已支付" }, trialing: { en: "Trial", zh: "试用中" }, canceled: { en: "Canceled", zh: "已取消" } };
+    if (key.endsWith("_at") || key === "period_end") return formatDate(String(value), locale === "zh" ? "zh-CN" : "en-US");
+    const labels: Record<string, { en: string; zh: string }> = { opening: { en: "Opening balance", zh: "期初余额" }, expire: { en: "Expired credits", zh: "积分过期" }, succeeded: { en: "Succeeded", zh: "已完成" }, failed: { en: "Failed", zh: "未完成" }, admin: { en: "Administrator", zh: "管理员" }, user: { en: "Customer", zh: "用户" }, pending: { en: "Pending", zh: "待激活" }, activated: { en: "Activated", zh: "已激活" }, expired: { en: "Expired", zh: "已过期" }, grant: { en: "Grant", zh: "发放" }, consume: { en: "Consumption", zh: "消费" }, refund: { en: "Refund", zh: "退回" }, active: { en: "Active", zh: "有效" }, paid: { en: "Paid", zh: "已支付" }, trialing: { en: "Trial", zh: "试用中" }, canceled: { en: "Canceled", zh: "已取消" } };
     return labels[String(value)] ? t(labels[String(value)]) : String(value);
   }
-  return <SiteShell eyebrow={t({ en: "Operator console", zh: "运营后台" })} title={t(names[section])} description={t({ en: "Manage customers, payment records and product operations with an auditable history.", zh: "管理用户、支付记录与产品运营，每次权益调整都有据可查。" })} actions={<button className="button" type="button" disabled={!token || resource.loading} onClick={() => void resource.refresh()}>{t({ en: "Refresh", zh: "刷新" })}</button>}>
+  return <>
+    <header className={adminStyles.pageHeader}><div><span className={adminStyles.eyebrow}>{t({ en: "WEBSITE ADMINISTRATION", zh: "网站管理员后台" })}</span><h1>{t(names[section])}</h1><p>{t({ en: "Manage this website's users, subscriptions, payment records and business settings.", zh: "管理全站用户、订阅、支付记录和业务配置。" })}</p></div><button className="button" type="button" disabled={!token || resource.loading} onClick={() => void resource.refresh()}>{t({ en: "Refresh", zh: "刷新" })}</button></header>
     <ConsoleGate session={session} ready={ready} admin>
       <div className={styles.stack}>
-        <nav className={styles.tabs} aria-label={t({ en: "Operator navigation", zh: "运营后台导航" })}>{operatorSections.map((item) => <Link key={item} href={item === "overview" ? "/admin" : `/admin/${item}`} aria-current={section === item ? "page" : undefined}>{t(names[item])}</Link>)}</nav>
         <ConsoleError error={resource.error} retry={() => void resource.refresh()} />
         <ConsoleError error={action.error} />
         {action.message ? <p className={styles.success} role="status">{action.message}</p> : null}
@@ -138,6 +138,6 @@ function OperatorConsoleInner({ section }: { section: OperatorSection }) {
         </form></Panel> : null}
       </div>
     </ConsoleGate>
-  </SiteShell>;
+  </>;
 }
 export function OperatorConsole({ section }: { section: OperatorSection }) { return <Suspense fallback={null}><OperatorConsoleInner key={section} section={section} /></Suspense>; }

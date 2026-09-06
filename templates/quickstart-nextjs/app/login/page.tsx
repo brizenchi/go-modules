@@ -13,7 +13,7 @@ import {
 } from "@/lib/auth";
 import { formatDate, maskToken } from "@/lib/format";
 import { exchangeOAuthCodeOnce } from "@/lib/oauth-exchange";
-import { consumeOAuthCallbackError } from "@/lib/oauth-flow";
+import { consumeOAuthCallbackError, resolveOAuthReturnTo } from "@/lib/oauth-flow";
 import { SignInPanel } from "@/components/sign-in-panel";
 
 function messageFromError(error: unknown): string {
@@ -78,7 +78,7 @@ function LoginPageInner() {
     setStatus("Exchanging OAuth code for a session token...");
 
     exchangeOAuthCodeOnce(exchangeCode, oauthFlowID)
-      .then(({ session, committed }) => {
+      .then(({ session, committed, returnTo }) => {
         if (cancelled) {
           return;
         }
@@ -97,7 +97,7 @@ function LoginPageInner() {
         setReferralCode("");
         setSessionToken(maskToken(session.token));
         setStatus("OAuth login succeeded. Local session is now stored in localStorage.");
-        router.replace("/account");
+        router.replace(resolveOAuthReturnTo(returnTo, session.user.role));
       })
       .catch((err) => {
         if (cancelled) {

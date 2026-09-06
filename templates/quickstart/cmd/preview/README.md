@@ -6,7 +6,10 @@ Run from `templates/quickstart`:
 go run ./cmd/preview --port 18081 --frontend http://localhost:3100
 ```
 
-Point the frontend API origin at `http://localhost:18081`. The command always
+Set `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:18081/api/v1` and
+`NEXT_PUBLIC_APP_URL=http://localhost:3100` when starting the frontend development
+server (or before its production build). Start that frontend on port 3100.
+The command always
 binds to `127.0.0.1`; it accepts only a loopback HTTP frontend origin.
 
 Sign in through the ordinary email-code dialog:

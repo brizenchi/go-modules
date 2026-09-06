@@ -236,7 +236,7 @@ func (m *Module) audit(c *gin.Context) {
 	if db == nil {
 		return
 	}
-	q := db.Model(&AuditEvent{})
+	q := search(db.Model(&AuditEvent{}), p.query, "actor_id", "action", "target_id", "reason")
 	var total int64
 	if queryFailed(c, q.Count(&total).Error) {
 		return

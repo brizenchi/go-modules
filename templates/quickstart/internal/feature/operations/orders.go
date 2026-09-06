@@ -28,6 +28,7 @@ type OrderSummary struct {
 	Livemode        *bool     `json:"livemode"`
 	CreatedAt       time.Time `json:"created_at"`
 	sortID          uint
+	eventAt         int64
 }
 
 func objectID(raw json.RawMessage) string {
@@ -70,6 +71,7 @@ func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
 		object = paymentObject{}
 	}
 	result := OrderSummary{UserID: e.UserID, Provider: e.Provider, ProviderEventID: e.ProviderEventID, EventType: e.EventType, Processed: e.Processed, Status: "unknown", Currency: strings.ToLower(object.Currency), Livemode: envelope.Livemode, CreatedAt: e.CreatedAt, sortID: e.ID}
+	result.eventAt = envelope.Created
 	if object.Created > 0 {
 		result.CreatedAt = time.Unix(object.Created, 0).UTC()
 	}
@@ -110,6 +112,34 @@ func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
 	return result, true
 }
 
+func replaceOrder(previous, incoming OrderSummary) bool {
+	previousInvoice := strings.HasPrefix(previous.EventType, "invoice.")
+	incomingInvoice := strings.HasPrefix(incoming.EventType, "invoice.")
+	if previousInvoice != incomingInvoice {
+		return incomingInvoice
+	}
+	// Payment outcome events take precedence over checkout's initial completion
+	// even when an old event is delivered after the payment outcome.
+	previousFinal := previous.EventType == "checkout.session.async_payment_succeeded" || previous.EventType == "checkout.session.async_payment_failed"
+	incomingFinal := incoming.EventType == "checkout.session.async_payment_succeeded" || incoming.EventType == "checkout.session.async_payment_failed"
+	if previousFinal != incomingFinal {
+		return incomingFinal
+	}
+	if previous.eventAt != 0 && incoming.eventAt != 0 && previous.eventAt != incoming.eventAt {
+		return incoming.eventAt > previous.eventAt
+	}
+	// Equal or absent event timestamps cannot overturn confirmed payment with
+	// an inconclusive older state. Prefer a populated amount when either copy
+	// of an invoice contains additional verified data.
+	if previous.Status == "paid" && incoming.Status != "paid" {
+		return false
+	}
+	if previous.Amount != nil && incoming.Amount == nil {
+		return false
+	}
+	return true
+}
+
 func (m *Module) orders(c *gin.Context) {
 	p, ok := pagination(c)
 	if !ok {
@@ -146,7 +176,7 @@ func (m *Module) orders(c *gin.Context) {
 			previous, exists := byID[item.ID]
 			// An invoice is the authoritative monetary record if checkout also
 			// references it. Repeated provider event kinds stay one purchase.
-			if exists && strings.HasPrefix(previous.EventType, "invoice.") && !strings.HasPrefix(item.EventType, "invoice.") {
+			if exists && !replaceOrder(previous, item) {
 				continue
 			}
 			byID[item.ID] = item

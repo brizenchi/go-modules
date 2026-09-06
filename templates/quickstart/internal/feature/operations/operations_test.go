@@ -228,6 +228,48 @@ func TestOrdersDeduplicateInvoiceAndCheckoutAndKeepMissingAmountsNull(t *testing
 	}
 }
 
+func TestOrderOutcomeSurvivesOutOfOrderProviderDeliveries(t *testing.T) {
+	f := newFixture(t)
+	for _, event := range []billingdomain.BillingEvent{
+		{Provider: "stripe", ProviderEventID: "success-first", EventType: "checkout.session.async_payment_succeeded", Payload: json.RawMessage(`{"created":200,"data":{"object":{"id":"cs_late","amount_total":1500,"currency":"usd","payment_status":"paid"}}}`)},
+		{Provider: "stripe", ProviderEventID: "old-completed-last", EventType: "checkout.session.completed", Payload: json.RawMessage(`{"created":100,"data":{"object":{"id":"cs_late","amount_total":1500,"currency":"usd","payment_status":"unpaid"}}}`)},
+		{Provider: "stripe", ProviderEventID: "old-failure-last", EventType: "checkout.session.async_payment_failed", Payload: json.RawMessage(`{"created":150,"data":{"object":{"id":"cs_late","amount_total":1500,"currency":"usd"}}}`)},
+	} {
+		if err := f.db.Create(&event).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	w := request(f, "GET", "/admin/orders", "", "admin", "")
+	if w.Code != 200 || data(t, w)["total"] != float64(1) {
+		t.Fatalf("orders: %s", w.Body)
+	}
+	item := data(t, w)["items"].([]any)[0].(map[string]any)
+	if item["status"] != "paid" || item["provider_event_id"] != "success-first" {
+		t.Fatalf("payment status regressed: %+v", item)
+	}
+}
+
+func TestAuditSearchMatchesActorActionTargetReasonAndTreatsWildcardsLiterally(t *testing.T) {
+	f := newFixture(t)
+	for i, item := range []AuditEvent{
+		{ActorID: "operator-alpha", Action: "settings.update", TargetID: "site", Reason: "Brand launch"},
+		{ActorID: "operator-beta", Action: "referral.retry_reward", TargetID: "42", Reason: "Investigate delivery 100%"},
+	} {
+		item.IdempotencyKey = strconv.Itoa(i)
+		item.Status = "succeeded"
+		item.RequestHash = "hash"
+		if err := f.db.Create(&item).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, query := range []string{"operator-alpha", "settings.update", "site", "BRAND", "%25"} {
+		w := request(f, "GET", "/admin/audit?query="+query, "", "admin", "")
+		if w.Code != 200 || data(t, w)["total"] != float64(1) {
+			t.Fatalf("query %q: %s", query, w.Body)
+		}
+	}
+}
+
 func TestReferralReconciliationCannotActivatePendingAndRewardsStayIdempotent(t *testing.T) {
 	f := newFixture(t)
 	bus := refbus.NewInProc()
