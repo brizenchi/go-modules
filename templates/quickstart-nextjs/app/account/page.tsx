@@ -17,7 +17,8 @@ import {
   type UpdateAccountProfilePayload
 } from "@/lib/api";
 import { clearSessionIfToken, readSession, SESSION_EVENT, writeSession } from "@/lib/auth";
-import { formatDate, maskToken } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import {
   describeRequestFailure,
   idleResource,
@@ -53,6 +54,8 @@ function validateProfile(username: string, avatarURL: string): RequestFailure | 
 
 export default function AccountPage() {
   const router = useRouter();
+  const { locale, t } = useI18n();
+  const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<CapabilitiesView>>(idleResource());
@@ -157,7 +160,7 @@ export default function AccountPage() {
     if (nextUsername !== profile.username) payload.username = nextUsername;
     if (nextAvatarURL !== profile.avatar_url) payload.avatar_url = nextAvatarURL;
     if (Object.keys(payload).length === 0) {
-      setStatus("No profile changes to save.");
+      setStatus(t({ en: "No profile changes to save.", zh: "没有需要保存的资料变更。" }));
       return;
     }
     const profileGeneration = beginRequestGeneration(profileGenerationRef);
@@ -181,7 +184,7 @@ export default function AccountPage() {
         ...currentSession,
         user: { ...currentSession.user, username: updated.username, avatar: updated.avatar_url }
       });
-      setStatus("Profile saved.");
+      setStatus(t({ en: "Profile saved.", zh: "账户资料已保存。" }));
     } catch (error) {
       if (
         readSession()?.token === requestToken
@@ -216,7 +219,7 @@ export default function AccountPage() {
         || !isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
       ) return;
       writeSession(refreshed);
-      setStatus("Session refreshed.");
+      setStatus(t({ en: "Session refreshed.", zh: "当前登录会话已刷新。" }));
     } catch (error) {
       if (
         readSession()?.token === requestToken
@@ -274,7 +277,7 @@ export default function AccountPage() {
         || !isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
       ) return;
       setTicket({ value: result.ticket, expiresAt: result.expires_at });
-      setStatus("WebSocket ticket issued.");
+      setStatus(t({ en: "WebSocket ticket issued.", zh: "临时连接凭证已生成。" }));
     } catch (error) {
       if (
         readSession()?.token === requestToken
@@ -295,93 +298,98 @@ export default function AccountPage() {
   const capabilityFailure: RequestFailure | null = capabilitiesState.status === "error"
     ? capabilitiesState.failure
     : capabilitiesState.status === "ready" && !capabilitiesState.data.account.enabled
-      ? { kind: "disabled", title: "Account settings are not enabled", message: "Deploy a backend with the account profile capability enabled.", retryable: false }
+      ? {
+          kind: "disabled",
+          title: t({ en: "Account settings are not enabled", zh: "账户设置暂未启用" }),
+          message: t({ en: "Ask the site administrator to enable account profiles.", zh: "请联系网站管理员启用账户资料功能。" }),
+          retryable: false
+        }
       : null;
 
   return (
     <SiteShell
-      eyebrow="Account Settings"
-      title="Keep your identity and account access up to date."
-      description="Update the profile fields supported by the API, review account details, and manage the session on this device."
+      eyebrow={t({ en: "Account", zh: "账户设置" })}
+      title={t({ en: "Your profile, security, and access.", zh: "管理你的资料、安全与访问。" })}
+      description={t({ en: "Keep your identity current and manage the session on this device.", zh: "更新对外展示信息，并管理当前设备上的登录状态。" })}
       accountMenuData={{ capabilities: capabilitiesState }}
-      sideTitle="Account security"
+      sideTitle={t({ en: "Account status", zh: "账户状态" })}
       sideBody={<DetailRows rows={[
-        { label: "Email", value: <span>Verified by the authentication provider</span> },
-        { label: "Session", value: <span>Stored only on this device</span> },
-        { label: "Profile", value: <span>Saved through the authenticated API</span> }
+        { label: t({ en: "Email", zh: "邮箱" }), value: <span>{t({ en: "Protected by your sign-in provider", zh: "由登录服务安全保护" })}</span> },
+        { label: t({ en: "Session", zh: "登录状态" }), value: <span>{t({ en: "Active on this device", zh: "当前设备已登录" })}</span> },
+        { label: t({ en: "Profile", zh: "个人资料" }), value: <span>{t({ en: "Private until you choose to share it", zh: "默认仅自己可见" })}</span> }
       ]} />}
       toc={[
-        { id: "profile", label: "Profile" },
-        { id: "security", label: "Security" },
-        { id: "developer-access", label: "Developer access" }
+        { id: "profile", label: t({ en: "Profile", zh: "个人资料" }) },
+        { id: "security", label: t({ en: "Security", zh: "会话安全" }) },
+        { id: "developer-access", label: t({ en: "Advanced access", zh: "高级访问" }) }
       ]}
     >
       <div className="page-grid">
-        {sessionReady && !session ? <div className="span-12"><SignInRequired message="Sign in to view and update your account." /></div> : null}
+        {sessionReady && !session ? <div className="span-12"><SignInRequired message={t({ en: "Sign in to view and update your account.", zh: "登录后即可查看并更新账户设置。" })} /></div> : null}
         {capabilityFailure ? <div className="span-12"><ResourceFailure failure={capabilityFailure} onRetry={capabilitiesState.status === "error" ? () => void loadCapabilities() : undefined} /></div> : null}
 
-        <Panel className="span-7" title="Profile" subtitle="Username and avatar URL are the editable fields supported by this backend.">
+        <Panel className="span-7" title={t({ en: "Profile", zh: "个人资料" })} subtitle={t({ en: "Choose how your name and avatar appear across the product.", zh: "设置你在产品中显示的名称和头像。" })}>
           <div id="profile" />
           {profile ? (
             <div className="input-row">
               <div className="field">
-                <label htmlFor="account-email">Email</label>
+                <label htmlFor="account-email">{t({ en: "Email", zh: "邮箱" })}</label>
                 <input id="account-email" value={profile.email} readOnly aria-readonly="true" />
               </div>
               <div className="field">
-                <label htmlFor="account-username">Username</label>
+                <label htmlFor="account-username">{t({ en: "Display name", zh: "显示名称" })}</label>
                 <input id="account-username" maxLength={100} value={username} onChange={(event) => setUsername(event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="account-avatar">Avatar URL</label>
+                <label htmlFor="account-avatar">{t({ en: "Avatar URL", zh: "头像链接" })}</label>
                 <input id="account-avatar" type="url" maxLength={512} placeholder="https://example.com/avatar.png" value={avatarURL} onChange={(event) => setAvatarURL(event.target.value)} />
               </div>
               <div className="button-row">
-                <button className="button primary" type="button" disabled={!profileDirty || busy !== ""} onClick={() => void handleSaveProfile()}>{busy === "profile" ? "Saving..." : "Save changes"}</button>
-                <button className="button" type="button" disabled={!profileDirty || busy !== ""} onClick={() => { setUsername(profile.username); setAvatarURL(profile.avatar_url); }}>Reset</button>
+                <button className="button primary" type="button" disabled={!profileDirty || busy !== ""} onClick={() => void handleSaveProfile()}>{busy === "profile" ? t({ en: "Saving...", zh: "保存中..." }) : t({ en: "Save changes", zh: "保存修改" })}</button>
+                <button className="button" type="button" disabled={!profileDirty || busy !== ""} onClick={() => { setUsername(profile.username); setAvatarURL(profile.avatar_url); }}>{t({ en: "Reset", zh: "重置" })}</button>
               </div>
             </div>
           ) : profileState.status === "error" ? (
             <ResourceFailure failure={profileState.failure} onRetry={session ? () => void loadProfile(session.token) : undefined} />
           ) : (
-            <EmptyState>{profileState.status === "loading" ? "Loading profile..." : "Sign in to load your profile."}</EmptyState>
+            <EmptyState>{profileState.status === "loading" ? t({ en: "Loading profile...", zh: "正在加载账户资料..." }) : t({ en: "Sign in to load your profile.", zh: "登录后即可加载账户资料。" })}</EmptyState>
           )}
           {status ? <Notice tone="success">{status}</Notice> : null}
           {actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
         </Panel>
 
-        <Panel className="span-5" title="Account details" subtitle="Read-only identity and product state.">
+        <Panel className="span-5" title={t({ en: "Account details", zh: "账户详情" })} subtitle={t({ en: "Your identity, role, balance, and account history.", zh: "查看身份、角色、积分余额和账户记录。" })}>
           {profile ? <DetailRows rows={[
-            { label: "User ID", value: <span className="inline-code">{profile.id}</span> },
-            { label: "Email status", value: <LabelPill>{profile.email_verified ? "Verified" : "Unverified"}</LabelPill> },
-            { label: "Role", value: <span>{profile.role || "user"}</span> },
-            { label: "Credits", value: <span>{profile.credits}</span> },
-            { label: "Created", value: <span>{formatDate(profile.created_at)}</span> },
-            { label: "Updated", value: <span>{formatDate(profile.updated_at)}</span> }
-          ]} /> : <EmptyState>Account details appear after the profile loads.</EmptyState>}
+            { label: t({ en: "User ID", zh: "用户 ID" }), value: <span className="inline-code">{profile.id}</span> },
+            { label: t({ en: "Email status", zh: "邮箱状态" }), value: <LabelPill>{profile.email_verified ? t({ en: "Verified", zh: "已验证" }) : t({ en: "Unverified", zh: "未验证" })}</LabelPill> },
+            { label: t({ en: "Role", zh: "账户角色" }), value: <span>{profile.role || "user"}</span> },
+            { label: t({ en: "Credits", zh: "可用积分" }), value: <span>{profile.credits}</span> },
+            { label: t({ en: "Created", zh: "创建时间" }), value: <span>{formatDate(profile.created_at, dateLocale)}</span> },
+            { label: t({ en: "Updated", zh: "更新时间" }), value: <span>{formatDate(profile.updated_at, dateLocale)}</span> }
+          ]} /> : <EmptyState>{t({ en: "Account details appear after the profile loads.", zh: "账户资料加载后将在这里显示详情。" })}</EmptyState>}
         </Panel>
 
-        <Panel className="span-7" title="Session & security" subtitle="Refresh or end the current session on this device.">
+        <Panel className="span-7" title={t({ en: "Session & security", zh: "会话与安全" })} subtitle={t({ en: "Review, refresh, or end this device session.", zh: "查看、刷新或结束当前设备的登录会话。" })}>
           <div id="security" />
           {session ? <DetailRows rows={[
-            { label: "Signed in as", value: <span>{session.user.email}</span> },
-            { label: "Access token", value: <span className="inline-code">{maskToken(session.token)}</span> },
-            { label: "Expires", value: <span>{formatDate(session.expires_at)}</span> }
-          ]} /> : <EmptyState>No active session.</EmptyState>}
+            { label: t({ en: "Signed in as", zh: "当前账户" }), value: <span>{session.user.email}</span> },
+            { label: t({ en: "Session credential", zh: "会话凭证" }), value: <span>{t({ en: "Stored securely on this device", zh: "已安全保存在当前设备" })}</span> },
+            { label: t({ en: "Expires", zh: "有效期至" }), value: <span>{formatDate(session.expires_at, dateLocale)}</span> }
+          ]} /> : <EmptyState>{t({ en: "No active session.", zh: "当前没有有效登录会话。" })}</EmptyState>}
           <div className="button-row">
-            <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleRefresh()}>{busy === "refresh" ? "Refreshing..." : "Refresh session"}</button>
-            <button className="button danger" type="button" disabled={busy !== ""} onClick={() => void handleLogout()}>{busy === "logout" ? "Signing out..." : "Sign out"}</button>
+            <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleRefresh()}>{busy === "refresh" ? t({ en: "Refreshing...", zh: "刷新中..." }) : t({ en: "Refresh session", zh: "刷新会话" })}</button>
+            <button className="button danger" type="button" disabled={busy !== ""} onClick={() => void handleLogout()}>{busy === "logout" ? t({ en: "Signing out...", zh: "正在退出..." }) : t({ en: "Sign out", zh: "退出登录" })}</button>
           </div>
         </Panel>
 
-        <Panel className="span-5" title="Developer access" subtitle="Issue a short-lived ticket only when a browser WebSocket needs it.">
+        <Panel className="span-5" title={t({ en: "Advanced access", zh: "高级访问" })} subtitle={t({ en: "Create a short-lived credential for an approved live connection.", zh: "为已授权的实时连接生成短时有效凭证。" })}>
           <div id="developer-access" />
           {ticket ? <DetailRows rows={[
-            { label: "Ticket", value: <span className="inline-code">{ticket.value}</span> },
-            { label: "Expires", value: <span>{formatDate(ticket.expiresAt)}</span> }
-          ]} /> : <EmptyState>No WebSocket ticket issued.</EmptyState>}
+            { label: t({ en: "Ticket", zh: "临时凭证" }), value: <span className="inline-code">{ticket.value}</span> },
+            { label: t({ en: "Expires", zh: "有效期至" }), value: <span>{formatDate(ticket.expiresAt, dateLocale)}</span> }
+          ]} /> : <EmptyState>{t({ en: "No temporary credential issued.", zh: "尚未生成临时连接凭证。" })}</EmptyState>}
           <div className="button-row">
-            <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleIssueTicket()}>{busy === "ticket" ? "Issuing..." : "Issue ticket"}</button>
+            <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleIssueTicket()}>{busy === "ticket" ? t({ en: "Issuing...", zh: "生成中..." }) : t({ en: "Create credential", zh: "生成临时凭证" })}</button>
           </div>
         </Panel>
       </div>

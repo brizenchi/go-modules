@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { SignInPanel } from "@/components/sign-in-panel";
+import type { AuthSession } from "@/lib/auth";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 
 type SignInDialogProps = {
   open: boolean;
   onClose: () => void;
+  onSuccess?: (session: AuthSession) => void;
 };
 
-export function SignInDialog({ open, onClose }: SignInDialogProps) {
+export function SignInDialog({ open, onClose, onSuccess }: SignInDialogProps) {
   const { t } = useI18n();
   const [mounted, setMounted] = useState(false);
 
@@ -79,7 +81,13 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
             <p className="dialog-auth-copy">
               {t({ en: "Available methods are loaded from the backend before you continue.", zh: "继续前会先从后端加载实际可用的登录方式。" })}
             </p>
-            <SignInPanel compact onSuccess={() => onClose()} />
+            <SignInPanel
+              compact
+              onSuccess={(session) => {
+                onClose();
+                onSuccess?.(session);
+              }}
+            />
           </div>
 
           <p className="dialog-support-copy">

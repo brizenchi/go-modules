@@ -34,6 +34,7 @@ import {
 } from "@/lib/billing-state";
 import { appEnv, appUrl } from "@/lib/env";
 import { formatCurrencyUSD, formatDate } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import {
   describeRequestFailure,
   idleResource,
@@ -62,6 +63,8 @@ const signedOutFailure: RequestFailure = {
 };
 
 export default function BillingPage() {
+  const { locale, t } = useI18n();
+  const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [busy, setBusy] = useState<"" | "subscription" | "change" | "portal" | "credits" | "cancel" | "reactivate" | "refresh">("");
@@ -135,8 +138,11 @@ export default function BillingPage() {
     : capabilitiesState.status === "ready" && !capabilitiesState.data.billing.enabled
       ? {
           kind: "configuration",
-          title: "Subscription billing needs configuration",
-          message: `${capabilitiesState.data.billing.provider || "Stripe"} is selected, but the backend has no complete billing configuration or purchasable offers.`,
+          title: t({ en: "Subscription billing needs configuration", zh: "订阅与账单尚未配置完成" }),
+          message: t({
+            en: `${capabilitiesState.data.billing.provider || "Stripe"} is selected, but no purchasable offer is available yet.`,
+            zh: `当前已选择 ${capabilitiesState.data.billing.provider || "Stripe"}，但尚未配置可购买的套餐。`
+          }),
           retryable: false
         }
       : subscriptionState.status === "error"
@@ -144,6 +150,31 @@ export default function BillingPage() {
         ? subscriptionState.failure
         : null;
   const sessionToken = session?.token || "";
+
+  function planName(value?: string): string {
+    switch ((value || "").toLowerCase()) {
+      case "starter": return t({ en: "Starter", zh: "入门版" });
+      case "pro": return t({ en: "Pro", zh: "专业版" });
+      case "premium": return t({ en: "Premium", zh: "高级版" });
+      case "lifetime": return t({ en: "Lifetime", zh: "终身版" });
+      case "free": return t({ en: "Free", zh: "免费版" });
+      default: return value || t({ en: "Free", zh: "免费版" });
+    }
+  }
+
+  function intervalName(value?: string): string {
+    if (value === "monthly") return t({ en: "Monthly", zh: "按月" });
+    if (value === "yearly") return t({ en: "Yearly", zh: "按年" });
+    return value || "—";
+  }
+
+  function statusName(value?: string): string {
+    if (value === "active") return t({ en: "Active", zh: "生效中" });
+    if (value === "canceling") return t({ en: "Ending", zh: "即将结束" });
+    if (value === "past_due") return t({ en: "Past due", zh: "待付款" });
+    if (value === "canceled") return t({ en: "Canceled", zh: "已取消" });
+    return value || t({ en: "Not active", zh: "未开通" });
+  }
 
   const loadSubscriptionState = useCallback(async (token: string) => {
     if (readSession()?.token !== token) return;
@@ -471,11 +502,11 @@ export default function BillingPage() {
   function changeModeLabel(mode?: SubscriptionChangeMode): string {
     switch (mode) {
       case "immediate_reset_cycle":
-        return "Immediate switch, restart billing cycle";
+        return t({ en: "Immediate switch, restart billing cycle", zh: "立即切换并重新开始计费周期" });
       case "period_end":
-        return "Takes effect next billing cycle";
+        return t({ en: "Takes effect next billing cycle", zh: "下个计费周期生效" });
       case "immediate_prorated":
-        return "Immediate switch with proration";
+        return t({ en: "Immediate switch with proration", zh: "立即切换并按比例结算" });
       default:
         return "-";
     }
@@ -627,44 +658,44 @@ export default function BillingPage() {
 
   return (
     <SiteShell
-      eyebrow="Subscription Console"
-      title="Operate reliable Stripe Checkout flows from one console."
-      description="Subscriptions, lifetime access, and fixed credit packages use hosted Stripe Checkout. The backend and signed webhooks remain the only billing truth."
+      eyebrow={t({ en: "Billing", zh: "订阅与账单" })}
+      title={t({ en: "Plans and payments, without the clutter.", zh: "套餐与支付，一目了然。" })}
+      description={t({ en: "Choose a plan, manage your payment method, buy credits, and keep every invoice in one place.", zh: "在一个页面选择套餐、管理支付方式、购买积分并查看全部账单。" })}
       accountMenuData={{ capabilities: capabilitiesState, subscription: subscriptionState }}
-      sideTitle="Stripe callback split"
+      sideTitle={t({ en: "Current billing", zh: "当前订阅" })}
       sideBody={
         <DetailRows
           rows={[
             {
-              label: "Frontend success URL",
-              value: <span className="inline-code">{appUrl(appEnv.stripeSuccessPath)}</span>
+              label: t({ en: "Plan", zh: "套餐" }),
+              value: <span>{planName(subscription?.plan)}</span>
             },
             {
-              label: "Frontend cancel URL",
-              value: <span className="inline-code">{appUrl(appEnv.stripeCancelPath)}</span>
+              label: t({ en: "Status", zh: "状态" }),
+              value: <span>{statusName(subscription?.status)}</span>
             },
             {
-              label: "Stripe webhook",
-              value: <span className="inline-code">https://api.example.com/api/v1/stripe/webhook</span>
+              label: t({ en: "Billing cycle", zh: "计费周期" }),
+              value: <span>{intervalName(subscription?.billing_cycle)}</span>
             },
             {
-              label: "Client never verifies Stripe",
-              value: <span>All billing truth comes from backend reads and webhook processing.</span>
+              label: t({ en: "Period end", zh: "周期结束" }),
+              value: <span>{formatDate(subscription?.current_period_end, dateLocale)}</span>
             }
           ]}
         />
       }
       toc={[
-        { id: "subscription-checkout", label: "Subscriptions" },
-        { id: "credits-checkout", label: "Package" },
-        { id: "subscription-state", label: "Subscription state" },
-        { id: "invoices", label: "Invoices" }
+        { id: "subscription-checkout", label: t({ en: "Subscriptions", zh: "选择套餐" }) },
+        { id: "credits-checkout", label: t({ en: "Credits", zh: "购买积分" }) },
+        { id: "subscription-state", label: t({ en: "Subscription state", zh: "订阅状态" }) },
+        { id: "invoices", label: t({ en: "Invoices", zh: "账单记录" }) }
       ]}
     >
       <div className="page-grid">
         {sessionReady && !session ? (
           <div className="span-12">
-            <SignInRequired message="Sign in to view your subscription, invoices, and available checkout options." />
+            <SignInRequired message={t({ en: "Sign in to view your subscription, invoices, and available checkout options.", zh: "登录后即可查看订阅、账单和可购买的套餐。" })} />
           </div>
         ) : null}
 
@@ -681,72 +712,67 @@ export default function BillingPage() {
           <div className="span-12">
             <Notice tone={checkoutRefreshComplete ? "success" : "default"}>
               {checkoutRefreshActive
-                ? `Checkout completed. Waiting for Stripe webhook confirmation and refreshing billing (${checkoutRefreshAttempt}/${CHECKOUT_REFRESH_DELAYS_MS.length}).`
+                ? t({ en: `Checkout completed. Waiting for Stripe confirmation (${checkoutRefreshAttempt}/${CHECKOUT_REFRESH_DELAYS_MS.length}).`, zh: `支付已完成，正在等待 Stripe 确认并刷新账单（${checkoutRefreshAttempt}/${CHECKOUT_REFRESH_DELAYS_MS.length}）。` })
                 : checkoutRefreshComplete
-                  ? "Checkout completed and billing state was refreshed. If Stripe is still processing the payment, use Refresh billing state in a moment."
+                  ? t({ en: "Checkout completed and billing was refreshed. If Stripe is still processing, refresh again in a moment.", zh: "支付已完成，账单状态已刷新。如 Stripe 仍在处理中，请稍后再次刷新。" })
                   : session
-                    ? "Checkout completed. Billing state will refresh as soon as billing is available."
-                    : "Checkout completed. Sign in to refresh the billing state for this account."}
+                    ? t({ en: "Checkout completed. Billing will refresh as soon as it is available.", zh: "支付已完成，账单状态将在可用后自动刷新。" })
+                    : t({ en: "Checkout completed. Sign in to refresh billing for this account.", zh: "支付已完成，请登录后刷新此账户的账单状态。" })}
             </Notice>
           </div>
         ) : checkoutReturn === "cancelled" ? (
-          <div className="span-12"><Notice>Checkout was cancelled. No new purchase was confirmed.</Notice></div>
+          <div className="span-12"><Notice>{t({ en: "Checkout was cancelled. No new purchase was confirmed.", zh: "支付已取消，没有产生新的购买。" })}</Notice></div>
         ) : null}
 
-        <Panel className="span-7" title="Subscription tiers" subtitle="Starter, Pro, Premium, and Lifetime. First purchase uses Checkout; existing recurring subscriptions change in-place.">
+        <Panel className="span-7" title={t({ en: "Choose your plan", zh: "选择套餐" })} subtitle={t({ en: "Start, upgrade, or schedule a plan change with the exact cost shown before confirmation.", zh: "开通、升级或预约变更，确认前会清楚展示费用。" })}>
           <div id="subscription-checkout" />
           <div className="field-grid">
             <div className="field">
-              <label htmlFor="plan">Plan</label>
+              <label htmlFor="plan">{t({ en: "Plan", zh: "套餐" })}</label>
               <select
                 id="plan"
                 value={availablePlans.includes(plan) ? plan : ""}
                 disabled={!billingReady || availablePlans.length === 0}
                 onChange={(event) => setPlan(event.target.value)}
               >
-                {availablePlans.length === 0 ? <option value="">No configured offers</option> : null}
+                {availablePlans.length === 0 ? <option value="">{t({ en: "No configured offers", zh: "暂无可购买套餐" })}</option> : null}
                 {availablePlans.map((availablePlan) => (
-                  <option value={availablePlan} key={availablePlan}>{availablePlan}</option>
+                  <option value={availablePlan} key={availablePlan}>{planName(availablePlan)}</option>
                 ))}
               </select>
             </div>
             {!selectedLifetime ? (
               <div className="field">
-                <label htmlFor="interval">Interval</label>
+                <label htmlFor="interval">{t({ en: "Billing interval", zh: "计费周期" })}</label>
                 <select
                   id="interval"
                   value={availableIntervals.includes(interval) ? interval : ""}
                   disabled={!billingReady || availableIntervals.length === 0}
                   onChange={(event) => setInterval(event.target.value)}
                 >
-                  {availableIntervals.length === 0 ? <option value="">No configured intervals</option> : null}
+                  {availableIntervals.length === 0 ? <option value="">{t({ en: "No configured intervals", zh: "暂无可用周期" })}</option> : null}
                   {availableIntervals.map((availableInterval) => (
-                    <option value={availableInterval} key={availableInterval}>{availableInterval}</option>
+                    <option value={availableInterval} key={availableInterval}>{intervalName(availableInterval)}</option>
                   ))}
                 </select>
               </div>
             ) : null}
           </div>
           <Notice>
-            Success URL: <span className="inline-code">{appUrl(appEnv.stripeSuccessPath)}</span>
-            <br />
-            Cancel URL: <span className="inline-code">{appUrl(appEnv.stripeCancelPath)}</span>
-            <br />
-            Supported here: <span className="inline-code">starter / pro / premium / lifetime</span>
-            <br />
-            Optional referral metadata carried from browser: <span className="inline-code">{referralCode || "-"}</span>
+            {t({ en: "Checkout opens securely with Stripe. Existing subscriptions show a price preview before any change is confirmed.", zh: "支付将在 Stripe 安全页面完成；已有订阅在变更前会先展示价格预览。" })}
+            {referralCode ? <> {t({ en: "Your saved invitation will be applied automatically when eligible.", zh: "符合条件时，已保存的邀请码会自动应用。" })}</> : null}
           </Notice>
           <div className="button-row">
             {selectedLifetime && !hasLifetime ? (
               ongoingRecurringSubscription ? (
                 <div className="button-row">
                   <button className="button" disabled={baseActionDisabled} onClick={handleOpenPortal}>
-                    {busy === "portal" ? "Opening..." : "Open Billing Portal"}
+                    {busy === "portal" ? t({ en: "Opening...", zh: "正在打开..." }) : t({ en: "Open Billing Portal", zh: "打开账单管理" })}
                   </button>
                 </div>
               ) : (
                 <button className="button primary" disabled={lifetimePurchaseDisabled} onClick={handleLifetimeCheckout}>
-                  {busy === "subscription" ? "Creating..." : "Buy Lifetime"}
+                  {busy === "subscription" ? t({ en: "Creating...", zh: "正在创建..." }) : t({ en: "Buy Lifetime", zh: "购买终身版" })}
                 </button>
               )
             ) : ongoingRecurringSubscription ? (
@@ -756,10 +782,10 @@ export default function BillingPage() {
                   disabled={purchaseDisabled || !previewMatchesSelection}
                   onClick={handleChangeSubscription}
                 >
-                  {busy === "change" ? "Updating..." : "Change Plan"}
+                  {busy === "change" ? t({ en: "Updating...", zh: "更新中..." }) : t({ en: "Change Plan", zh: "变更套餐" })}
                 </button>
                 <button className="button" disabled={baseActionDisabled} onClick={handleOpenPortal}>
-                  {busy === "portal" ? "Opening..." : "Open Billing Portal"}
+                  {busy === "portal" ? t({ en: "Opening...", zh: "正在打开..." }) : t({ en: "Open Billing Portal", zh: "打开账单管理" })}
                 </button>
               </>
             ) : (
@@ -767,37 +793,37 @@ export default function BillingPage() {
                 {!hasLifetime ? (
                   <>
                     <button className="button primary" disabled={purchaseDisabled} onClick={handleSubscriptionCheckout}>
-                      {busy === "subscription" ? "Creating..." : "Start Subscription Checkout"}
+                      {busy === "subscription" ? t({ en: "Creating...", zh: "正在创建..." }) : t({ en: "Continue to checkout", zh: "前往支付" })}
                     </button>
                     {billingCapability?.offers.lifetime ? (
                       <button className="button" disabled={lifetimePurchaseDisabled} onClick={handleLifetimeCheckout}>
-                        {busy === "subscription" ? "Creating..." : "Buy Lifetime"}
+                        {busy === "subscription" ? t({ en: "Creating...", zh: "正在创建..." }) : t({ en: "Buy Lifetime", zh: "购买终身版" })}
                       </button>
                     ) : null}
                   </>
                 ) : (
-                  <Notice tone="success">This account already has lifetime access.</Notice>
+                  <Notice tone="success">{t({ en: "This account already has lifetime access.", zh: "当前账户已拥有终身权益。" })}</Notice>
                 )}
               </div>
             )}
           </div>
           {selectedLifetime && ongoingRecurringSubscription ? (
             <Notice>
-              End the recurring subscription before buying Lifetime. Open the Billing Portal, cancel it, and wait until the current paid period has ended; this prevents overlapping recurring charges.
+              {t({ en: "End the recurring subscription before buying Lifetime. Open Billing Portal, cancel it, and wait until the current paid period ends to avoid overlapping charges.", zh: "购买终身版前，请先在账单管理中取消周期订阅，并等待当前付费周期结束，以免产生重叠扣款。" })}
             </Notice>
           ) : selectedLifetime ? (
             <Notice>
-              Lifetime is a one-time buyout flow. Interval and subscription proration preview do not apply.
+              {t({ en: "Lifetime is a one-time purchase. Billing intervals and proration do not apply.", zh: "终身版为一次性购买，不涉及计费周期或按比例结算。" })}
             </Notice>
           ) : preview ? (
             <Notice>
-              Mode: <span className="inline-code">{changeModeLabel(preview.change_mode)}</span>
+              {t({ en: "Change timing", zh: "变更方式" })}: <span className="inline-code">{changeModeLabel(preview.change_mode)}</span>
               <br />
-              Amount due now: <span className="inline-code">{formatCurrencyUSD(preview.amount_due_now)}</span>
+              {t({ en: "Amount due now", zh: "当前应付" })}: <span className="inline-code">{formatCurrencyUSD(preview.amount_due_now)}</span>
               <br />
-              Current period end: <span className="inline-code">{formatDate(preview.current_period_end)}</span>
+              {t({ en: "Current period end", zh: "当前周期结束" })}: <span className="inline-code">{formatDate(preview.current_period_end, dateLocale)}</span>
               <br />
-              Next billing: <span className="inline-code">{formatDate(preview.next_billing_at)}</span>
+              {t({ en: "Next billing", zh: "下次计费" })}: <span className="inline-code">{formatDate(preview.next_billing_at, dateLocale)}</span>
               <br />
               {preview.message}
             </Notice>
@@ -805,21 +831,19 @@ export default function BillingPage() {
             <ResourceFailure
               failure={previewState.failure}
               onRetry={() => void loadPreviewState(sessionToken, plan, interval)}
-              retryLabel="Retry preview"
+              retryLabel={t({ en: "Retry preview", zh: "重新获取预览" })}
             />
           ) : null}
-          <p className="footer-note">
-            Professional default: existing subscriptions change in place with proration; card updates and invoice self-service go through Stripe Billing Portal. Lifetime is a separate one-time buyout path.
-          </p>
+          <p className="footer-note">{t({ en: "Use Billing Portal for payment methods and invoice self-service. Lifetime access is a separate one-time purchase.", zh: "支付方式和发票可在账单管理中自助处理；终身版需单独一次性购买。" })}</p>
         </Panel>
 
-        <Panel className="span-5" title="Package credits checkout" subtitle="Hosted Checkout uses the backend's configured credit package and a quantity from 1 to 100.">
+        <Panel className="span-5" title={t({ en: "Add credits", zh: "购买积分" })} subtitle={t({ en: "Top up your account with one or more fixed credit packages.", zh: "按需购买固定积分包，为当前账户补充余额。" })}>
           <div id="credits-checkout" />
           {billingReady && billingCapability?.offers.credits ? (
             <>
               <div className="input-row">
                 <div className="field">
-                  <label htmlFor="credits-qty">Package quantity (1–100)</label>
+                  <label htmlFor="credits-qty">{t({ en: "Package quantity (1–100)", zh: "积分包数量（1–100）" })}</label>
                   <input
                     id="credits-qty"
                     type="number"
@@ -832,26 +856,26 @@ export default function BillingPage() {
                     onChange={(event) => setCreditsQuantity(event.target.value)}
                   />
                   {parsedCreditsQuantity === null ? (
-                    <small className="field-error" role="alert">Enter a whole number from 1 through 100.</small>
+                    <small className="field-error" role="alert">{t({ en: "Enter a whole number from 1 through 100.", zh: "请输入 1 到 100 之间的整数。" })}</small>
                   ) : null}
                 </div>
               </div>
               <div className="button-row">
                 <button className="button" disabled={creditsDisabled} onClick={handleCreditsCheckout}>
-                  {busy === "credits" ? "Creating..." : "Buy Package Credits"}
+                  {busy === "credits" ? t({ en: "Creating...", zh: "正在创建..." }) : t({ en: "Buy credit packages", zh: "购买积分包" })}
                 </button>
               </div>
-              <p className="footer-note">The backend selects and validates its configured credit package before creating hosted Checkout.</p>
+              <p className="footer-note">{t({ en: "You will review the total securely in Stripe before payment.", zh: "付款前可在 Stripe 安全页面核对总金额。" })}</p>
             </>
           ) : (
-            <EmptyState>Credit packages are not configured on this backend.</EmptyState>
+            <EmptyState>{t({ en: "Credit packages are not available yet.", zh: "积分包暂未开放购买。" })}</EmptyState>
           )}
         </Panel>
 
         <Panel
           className="span-6"
-          title="Current subscription"
-          subtitle="Loaded from GET /stripe/subscription."
+          title={t({ en: "Current subscription", zh: "当前订阅" })}
+          subtitle={t({ en: "Live plan status, renewal date, and saved payment method.", zh: "查看套餐状态、续费时间和已保存的支付方式。" })}
           actions={(
             <button
               className="button"
@@ -859,7 +883,7 @@ export default function BillingPage() {
               disabled={!session || !billingReady || busy !== "" || checkoutRefreshActive}
               onClick={() => void handleRefreshBillingState()}
             >
-              {busy === "refresh" ? "Refreshing..." : "Refresh billing state"}
+              {busy === "refresh" ? t({ en: "Refreshing...", zh: "刷新中..." }) : t({ en: "Refresh billing", zh: "刷新账单" })}
             </button>
           )}
         >
@@ -867,27 +891,27 @@ export default function BillingPage() {
           {subscription ? (
             <div className="details-list">
               <div className="details-row">
-                <strong>Plan</strong>
-                <span>{subscription.plan}</span>
+                <strong>{t({ en: "Plan", zh: "套餐" })}</strong>
+                <span>{planName(subscription.plan)}</span>
               </div>
               <div className="details-row">
-                <strong>Status</strong>
-                <span>{subscription.status}</span>
+                <strong>{t({ en: "Status", zh: "状态" })}</strong>
+                <span>{statusName(subscription.status)}</span>
               </div>
               <div className="details-row">
-                <strong>Billing cycle</strong>
-                <span>{subscription.billing_cycle || "-"}</span>
+                <strong>{t({ en: "Billing cycle", zh: "计费周期" })}</strong>
+                <span>{intervalName(subscription.billing_cycle)}</span>
               </div>
               <div className="details-row">
-                <strong>Current period end</strong>
-                <span>{formatDate(subscription.current_period_end)}</span>
+                <strong>{t({ en: "Current period end", zh: "当前周期结束" })}</strong>
+                <span>{formatDate(subscription.current_period_end, dateLocale)}</span>
               </div>
               <div className="details-row">
-                <strong>Cancel at period end</strong>
-                <span>{subscription.cancel_at_period_end ? "true" : "false"}</span>
+                <strong>{t({ en: "Ends after this period", zh: "周期结束后终止" })}</strong>
+                <span>{subscription.cancel_at_period_end ? t({ en: "Yes", zh: "是" }) : t({ en: "No", zh: "否" })}</span>
               </div>
               <div className="details-row">
-                <strong>Payment method</strong>
+                <strong>{t({ en: "Payment method", zh: "支付方式" })}</strong>
                 <span>
                   {subscription.payment_method
                     ? `${subscription.payment_method.brand} •••• ${subscription.payment_method.last4}`
@@ -903,45 +927,45 @@ export default function BillingPage() {
           ) : (
             <EmptyState>
               {subscriptionState.status === "loading"
-                ? "Loading subscription..."
+                ? t({ en: "Loading subscription...", zh: "正在加载订阅..." })
                 : session
-                  ? "No subscription payload loaded yet."
-                  : "Sign in to load billing data."}
+                  ? t({ en: "No subscription data loaded yet.", zh: "暂未加载到订阅信息。" })
+                  : t({ en: "Sign in to load billing data.", zh: "登录后即可加载账单信息。" })}
             </EmptyState>
           )}
           {ongoingRecurringSubscription ? (
             <div className="button-row">
               {cancellationPending ? (
                 <button className="button" disabled={baseActionDisabled} onClick={handleReactivate}>
-                  Reactivate
+                  {t({ en: "Reactivate", zh: "恢复订阅" })}
                 </button>
               ) : (
                 <>
                   <button className="button danger" disabled={baseActionDisabled} onClick={() => void handleCancel("end_of_period")}>
-                    Cancel End Of Period
+                    {t({ en: "Cancel at period end", zh: "周期结束时取消" })}
                   </button>
                   <button className="button danger" disabled={baseActionDisabled} onClick={() => void handleCancel("3days")}>
-                    Cancel In 3 Days
+                    {t({ en: "Cancel in 3 days", zh: "3 天后取消" })}
                   </button>
                 </>
               )}
             </div>
           ) : hasLifetime ? (
-            <p className="footer-note">Lifetime access has no recurring cancellation or reactivation flow.</p>
+            <p className="footer-note">{t({ en: "Lifetime access has no recurring cancellation or reactivation flow.", zh: "终身权益没有周期取消或恢复流程。" })}</p>
           ) : null}
         </Panel>
 
-        <Panel className="span-6" title="Invoices" subtitle="Loaded from GET /stripe/invoices.">
+        <Panel className="span-6" title={t({ en: "Invoices", zh: "账单记录" })} subtitle={t({ en: "Your payment history and downloadable receipts.", zh: "查看历史付款记录并下载收据。" })}>
           <div id="invoices" />
           {invoices.length > 0 ? (
             <table className="table">
               <thead>
                 <tr>
-                  <th>Period</th>
-                  <th>Status</th>
-                  <th>Amount</th>
-                  <th>Issued</th>
-                  <th>PDF</th>
+                  <th>{t({ en: "Period", zh: "账期" })}</th>
+                  <th>{t({ en: "Status", zh: "状态" })}</th>
+                  <th>{t({ en: "Amount", zh: "金额" })}</th>
+                  <th>{t({ en: "Issued", zh: "生成时间" })}</th>
+                  <th>{t({ en: "Receipt", zh: "收据" })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -952,11 +976,11 @@ export default function BillingPage() {
                       <td>{invoice.period}</td>
                       <td>{invoice.status}</td>
                       <td>{formatCurrencyUSD(invoice.amount_usd)}</td>
-                      <td>{formatDate(invoice.created_at)}</td>
+                      <td>{formatDate(invoice.created_at, dateLocale)}</td>
                       <td>
                         {pdf ? (
                           <a href={pdf} target="_blank" rel="noreferrer">
-                            Open
+                            {t({ en: "Open", zh: "查看" })}
                           </a>
                         ) : (
                           "-"
@@ -973,7 +997,7 @@ export default function BillingPage() {
               onRetry={() => session ? void loadInvoiceState(session.token) : undefined}
             />
           ) : (
-            <EmptyState>{invoiceState.status === "loading" ? "Loading invoices..." : "No invoices yet."}</EmptyState>
+            <EmptyState>{invoiceState.status === "loading" ? t({ en: "Loading invoices...", zh: "正在加载账单..." }) : t({ en: "No invoices yet.", zh: "暂无账单记录。" })}</EmptyState>
           )}
         </Panel>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SiteShell } from "@/components/site-shell";
 import { Notice, Panel, DetailRows } from "@/components/ui";
@@ -11,7 +11,6 @@ import {
   SESSION_EVENT,
   writeReferralCode
 } from "@/lib/auth";
-import { appEnv } from "@/lib/env";
 import { formatDate, maskToken } from "@/lib/format";
 import { exchangeOAuthCodeOnce } from "@/lib/oauth-exchange";
 import { consumeOAuthCallbackError } from "@/lib/oauth-flow";
@@ -88,7 +87,7 @@ function LoginPageInner() {
           setSessionToken(maskToken(currentSession?.token));
           if (currentSession) {
             setStatus("A newer browser session is already active. The stale OAuth response was ignored.");
-            router.replace("/account");
+            router.replace("/dashboard");
           } else {
             setError("This OAuth exchange is no longer current. Start OAuth sign-in again.");
             setStatus("");
@@ -98,7 +97,7 @@ function LoginPageInner() {
         setReferralCode("");
         setSessionToken(maskToken(session.token));
         setStatus("OAuth login succeeded. Local session is now stored in localStorage.");
-        router.replace("/account");
+        router.replace("/dashboard");
       })
       .catch((err) => {
         if (cancelled) {
@@ -118,31 +117,30 @@ function LoginPageInner() {
     };
   }, [exchangeAttempt, router, searchParams]);
 
-  const callbackExample = useMemo(() => `${appEnv.appUrl}/login`, []);
   return (
     <SiteShell
-      eyebrow="Sign In"
-      title="Use one auth entry page for enabled email and OAuth providers."
-      description="The visible login methods come from the backend capability contract. Frontend build flags may narrow that list. Referral capture works for email, Google, and GitHub signup."
-      sideTitle="What must align"
+      eyebrow="Welcome back"
+      title="One sign-in. Your whole workspace."
+      description="Choose any available sign-in method. Your plan, account settings, credits, and referral rewards will be waiting in the workspace."
+      sideTitle="Secure by default"
       sideBody={
         <DetailRows
           rows={[
             {
-              label: "Frontend redirect",
-              value: <span className="inline-code">{callbackExample}</span>
+              label: "After sign-in",
+              value: <span>Your workspace opens automatically</span>
             },
             {
-              label: "Backend env",
-              value: <span className="inline-code">APP_AUTH_FRONTEND_REDIRECT</span>
+              label: "OAuth",
+              value: <span>Browser-bound and single-use</span>
             },
             {
-              label: "Enabled OAuth",
-              value: <span>Loaded from API capabilities</span>
+              label: "Available methods",
+              value: <span>Always matched to this workspace</span>
             },
             {
-              label: "Local token store",
-              value: <span className="inline-code">localStorage</span>
+              label: "Referral code",
+              value: <span>Preserved through first sign-up</span>
             }
           ]}
         />
@@ -154,26 +152,24 @@ function LoginPageInner() {
       ]}
     >
       <div className="page-grid">
-        <Panel className="span-7" title="Sign in" subtitle="Loads available methods from GET /capabilities before enabling email or OAuth actions.">
+        <Panel className="span-7" title="Sign in" subtitle="Use email, Google, or GitHub when enabled for this workspace.">
           <div id="email-login" />
           <SignInPanel
             showReferralField
             onSuccess={() => {
-              setStatus("Email-code login succeeded. Session saved in localStorage.");
-              router.push("/account");
+              setStatus("Signed in. Opening your workspace...");
+              router.push("/dashboard");
             }}
           />
         </Panel>
 
-        <Panel className="span-5" title="OAuth" subtitle="Matches GET /auth/:provider/authorize and POST /auth/exchange-token.">
+        <Panel className="span-5" title="Continue securely" subtitle="OAuth opens the provider directly and returns you here when complete.">
           <div id="oauth" />
           <p>
-            The browser first asks the backend for the selected provider&apos;s authorize URL. After the provider callback, the backend redirects the browser to{" "}
-            <span className="inline-code">{callbackExample}</span>
-            {" "}with a short-lived exchange code. This page exchanges it together with the saved referral code, so every enabled signup method preserves referral attribution.
+            Your browser completes authorization directly with the selected provider. A short-lived, single-use handoff signs you in without exposing provider credentials to this page.
           </p>
           <p className="footer-note">
-            If an OAuth button fails, first compare the backend redirect env, the provider console callback URI, and the public backend URL.
+            If you cancel authorization, you will return here safely and can choose another sign-in method.
           </p>
         </Panel>
 

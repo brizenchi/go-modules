@@ -35,7 +35,8 @@ import {
 } from "@/lib/request-generation";
 
 export default function ReferralsPage() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
   const [signInOpen, setSignInOpen] = useState(false);
   const copy = t({
     en: {
@@ -392,9 +393,9 @@ export default function ReferralsPage() {
                       <td><span className={`${styles.status} ${styles[item.status] || ""}`} title={item.status === "pending" ? copy.pendingHelp : item.status === "activated" ? copy.activatedHelp : item.status === "expired" ? copy.expiredHelp : undefined}>
                         {item.status === "pending" ? copy.pending : item.status === "activated" ? copy.activated : item.status === "expired" ? copy.expired : item.status}
                       </span></td>
-                      <td>{item.reward_credits}</td><td>{formatDate(item.created_at)}</td>
-                      <td>{item.expires_at ? formatDate(item.expires_at) : copy.noDeadline}</td>
-                      <td>{formatDate(item.activated_at)}</td>
+                      <td>{item.reward_credits}</td><td>{formatDate(item.created_at, dateLocale)}</td>
+                      <td>{item.expires_at ? formatDate(item.expires_at, dateLocale) : copy.noDeadline}</td>
+                      <td>{formatDate(item.activated_at, dateLocale)}</td>
                     </tr>
                   ))}</tbody>
                 </table>

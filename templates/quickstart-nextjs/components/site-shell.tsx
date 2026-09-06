@@ -6,7 +6,7 @@ import {
   useMemo,
   useState
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
 import { logout, userLabel, type ReferralStats, type SubscriptionView } from "@/lib/api";
 import { loadAccountSummary, type AccountSummary } from "@/lib/account-summary";
@@ -21,6 +21,12 @@ import {
   type ResourceState
 } from "@/lib/request-state";
 import { SignInDialog } from "@/components/sign-in-dialog";
+import {
+  activeWorkspaceHref,
+  isWorkspacePath,
+  workspaceNavItems,
+  type WorkspaceIcon as WorkspaceIconName
+} from "@/lib/workspace";
 
 type NavItem = {
   href: string;
@@ -125,6 +131,39 @@ function TableOfContents({
   );
 }
 
+function WorkspaceIcon({ name }: { name: WorkspaceIconName }) {
+  if (name === "overview") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
+      </svg>
+    );
+  }
+  if (name === "billing") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="3" />
+        <path d="M3 10h18M7 15h4" />
+      </svg>
+    );
+  }
+  if (name === "referrals") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="8" cy="8" r="3" />
+        <circle cx="17" cy="7" r="2.5" />
+        <path d="M3 19c.4-3.5 2.2-5.3 5-5.3s4.6 1.8 5 5.3M14 13.8c3.8-.8 6.2 1 6.6 4.2" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20c.6-4.1 3.1-6.2 7.5-6.2s6.9 2.1 7.5 6.2" />
+    </svg>
+  );
+}
+
 function buildBreadcrumbs(pathname: string): Array<{ href?: string; label: string }> {
   if (pathname === "/") {
     return [{ label: "Home" }];
@@ -147,10 +186,12 @@ function buildBreadcrumbs(pathname: string): Array<{ href?: string; label: strin
 
 function AccountMenu({
   session,
-  details
+  details,
+  onSignInSuccess
 }: {
   session: AuthSession | null;
   details?: AccountMenuData;
+  onSignInSuccess?: (session: AuthSession) => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -197,7 +238,11 @@ function AccountMenu({
             {t({ en: "Sign In", zh: "登录" })}
           </button>
         </div>
-        <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
+        <SignInDialog
+          open={signInOpen}
+          onClose={() => setSignInOpen(false)}
+          onSuccess={onSignInSuccess}
+        />
       </>
     );
   }
@@ -277,6 +322,10 @@ function AccountMenu({
           </div>
 
           <div className="account-popover-grid">
+            <Link className="popover-link-card featured" href="/dashboard" onClick={() => setOpen(false)}>
+              <span>{t({ en: "Open dashboard", zh: "进入工作台" })}</span>
+              <small>{t({ en: "Plan, credits and account activity", zh: "查看套餐、积分和账户进展" })}</small>
+            </Link>
             <Link className="popover-link-card" href="/account" onClick={() => setOpen(false)}>
               <span>{t({ en: "Settings", zh: "设置" })}</span>
               <small>{accountText}</small>
@@ -318,7 +367,10 @@ function AccountMenu({
 
 export function SiteShell(props: SiteShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const isHome = pathname === "/";
+  const isWorkspace = isWorkspacePath(pathname);
+  const activeWorkspace = activeWorkspaceHref(pathname);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
   const { t } = useI18n();
@@ -384,6 +436,127 @@ export function SiteShell(props: SiteShellProps) {
     referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats
   };
 
+  const currentWorkspaceItem = workspaceNavItems.find((item) => item.href === activeWorkspace);
+  const accountMenu = (
+    <AccountMenu
+      session={session}
+      details={mergedAccountDetails}
+      onSignInSuccess={() => router.push("/dashboard")}
+    />
+  );
+
+  if (isWorkspace) {
+    return (
+      <div className="workspace-shell">
+        <aside className="workspace-sidebar">
+          <Link className="workspace-brand" href="/dashboard">
+            <span className="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 28 28" role="img">
+                <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
+                <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
+              </svg>
+            </span>
+            <span className="workspace-brand-copy">
+              <strong>{appEnv.appName}</strong>
+              <small>{t({ en: "Customer workspace", zh: "用户工作台" })}</small>
+            </span>
+          </Link>
+
+          <div className="workspace-status">
+            <span className="workspace-status-dot" aria-hidden="true" />
+            <span>{t({ en: "Workspace online", zh: "工作区运行中" })}</span>
+          </div>
+
+          <nav className="workspace-nav" aria-label={t({ en: "Workspace navigation", zh: "工作台导航" })}>
+            {workspaceNavItems.map((item) => (
+              <Link
+                className={`workspace-nav-link${activeWorkspace === item.href ? " active" : ""}`}
+                href={item.href}
+                key={item.href}
+                aria-current={activeWorkspace === item.href ? "page" : undefined}
+              >
+                <span className="workspace-nav-icon"><WorkspaceIcon name={item.icon} /></span>
+                <span className="workspace-nav-copy">
+                  <strong>{t(item.label)}</strong>
+                  <small>{t(item.description)}</small>
+                </span>
+                <span className="workspace-nav-arrow" aria-hidden="true">↗</span>
+              </Link>
+            ))}
+          </nav>
+
+          <div className="workspace-sidebar-foot">
+            {session ? (
+              <div className="workspace-user-card">
+                <span className="avatar-badge">
+                  {(session.user.username || session.user.email || session.user.id).slice(0, 2).toUpperCase()}
+                </span>
+                <span>
+                  <strong>{userLabel(session.user)}</strong>
+                  <small>{session.user.email}</small>
+                </span>
+              </div>
+            ) : (
+              <p>{t({ en: "Sign in to load your workspace data.", zh: "登录后加载你的工作区数据。" })}</p>
+            )}
+            <Link className="workspace-public-link" href="/">
+              <span>{t({ en: "View public site", zh: "返回网站首页" })}</span>
+              <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
+        </aside>
+
+        <div className="workspace-main">
+          <header className="workspace-topbar">
+            <div className="workspace-topbar-copy">
+              <span className="workspace-mobile-mark" aria-hidden="true" />
+              <div>
+                <strong>{currentWorkspaceItem ? t(currentWorkspaceItem.label) : t({ en: "Workspace", zh: "工作台" })}</strong>
+                <small>{currentWorkspaceItem ? t(currentWorkspaceItem.description) : appEnv.appName}</small>
+              </div>
+            </div>
+            <div className="workspace-topbar-tools">
+              <LocaleSwitch />
+              {accountMenu}
+            </div>
+          </header>
+
+          <nav className="workspace-mobile-nav" aria-label={t({ en: "Workspace navigation", zh: "工作台导航" })}>
+            {workspaceNavItems.map((item) => (
+              <Link
+                className={`workspace-mobile-link${activeWorkspace === item.href ? " active" : ""}`}
+                href={item.href}
+                key={item.href}
+                aria-current={activeWorkspace === item.href ? "page" : undefined}
+              >
+                <WorkspaceIcon name={item.icon} />
+                <span>{t(item.label)}</span>
+              </Link>
+            ))}
+          </nav>
+
+          <main className="workspace-page">
+            <section className="workspace-page-header">
+              <div className="workspace-page-intro">
+                <span className="eyebrow">{props.eyebrow}</span>
+                <h1>{props.title}</h1>
+                <p>{props.description}</p>
+                {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
+              </div>
+              {props.sideBody ? (
+                <aside className="workspace-context-card">
+                  <span className="panel-kicker">{props.sideTitle || t({ en: "At a glance", zh: "概览" })}</span>
+                  {props.sideBody}
+                </aside>
+              ) : null}
+            </section>
+            {props.children}
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -415,10 +588,7 @@ export function SiteShell(props: SiteShellProps) {
 
           <div className="topbar-tools">
             <LocaleSwitch />
-            <AccountMenu
-              session={session}
-              details={mergedAccountDetails}
-            />
+            {accountMenu}
           </div>
         </div>
       </header>
