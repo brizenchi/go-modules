@@ -48,6 +48,8 @@ auth:
   user_jwt_secret: "CHANGE-ME-32-RANDOM-CHARS"
   user_jwt_expire_hours: 168       # 7 days
   ws_ticket_ttl_seconds: 300       # 5 minutes
+  admin_email: ""                  # 用 APP_AUTH_ADMIN_EMAIL 配置 /admin 密码登录邮箱
+  admin_password: ""               # 用 APP_AUTH_ADMIN_PASSWORD 配置；12–72 字节，勿提交真实密码
   admin_emails: []                 # 列表中的邮箱登录后获得 admin 角色
   frontend_redirect: "http://localhost:3000/login"  # OAuth 后端回调完成后的前端落点
   oauth_cookie_secure:                  # 留空按 provider callback URL 推导；本地 HTTP=false，生产 HTTPS=true

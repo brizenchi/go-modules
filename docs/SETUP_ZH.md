@@ -29,6 +29,24 @@ cp .env.example .env
 - 后端：`https://api.example.com`
 - 后端 API 前缀：`/api/v1`
 
+### 管理员邮箱和密码
+
+后端 `.env` 或部署平台的环境变量中添加：
+
+```dotenv
+APP_AUTH_ADMIN_EMAIL=owner@example.com
+APP_AUTH_ADMIN_PASSWORD=请替换成独立随机密码
+```
+
+密码长度为 12–72 字节，建议使用随机 ASCII 字符串（例如通过 `openssl rand -hex 24`
+生成）。两项同时配置，重启后端后打开前端 `/admin`，输入这个邮箱和密码即可；
+不需要预先注册。两项都留空则关闭密码登录，配置不完整或密码不符合要求会阻止启动。
+凭据不放进前端 `NEXT_PUBLIC_` 环境变量或版本库。
+
+修改密码需要重启后端；已有会话按原有有效期到期。`APP_AUTH_ADMIN_EMAILS` 可额外
+授权验证码 / OAuth 管理员，不会让这些邮箱共用上述密码。配置的单个管理员邮箱
+也可以通过已启用的验证码 / OAuth 登录，密码登录不是二次验证。
+
 ### 最小生产环境变量
 
 这是“邮箱 + Google + Pro 月付/年付 + 固定积分包”的推荐最小集合。未使用的套餐、

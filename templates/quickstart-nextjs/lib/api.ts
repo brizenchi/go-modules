@@ -27,6 +27,7 @@ export type CapabilitiesView = {
   auth?: {
     email_enabled: boolean;
     oauth_providers: OAuthProvider[];
+    admin_password_enabled?: boolean;
   };
   account: { enabled: boolean };
   billing: {
@@ -193,8 +194,16 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (envelope?.data ?? null) as T;
 }
 
-export async function getCapabilities(): Promise<CapabilitiesView> {
-  return apiRequest<CapabilitiesView>("/capabilities");
+export async function getCapabilities(signal?: AbortSignal): Promise<CapabilitiesView> {
+  return apiRequest<CapabilitiesView>("/capabilities", { signal });
+}
+
+export async function loginAdmin(email: string, password: string, signal?: AbortSignal): Promise<AuthSession> {
+  return apiRequest<AuthSession>("/auth/admin/login", {
+    method: "POST",
+    json: { email: email.trim(), password },
+    signal
+  });
 }
 
 export async function sendCode(email: string): Promise<SendCodeResult> {

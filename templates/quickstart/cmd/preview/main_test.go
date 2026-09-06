@@ -64,7 +64,7 @@ func TestPreviewUsesOnlyIsolatedLocalConfigurationAndCleansUp(t *testing.T) {
 	for _, key := range []string{"DATABASE_URL", "APP_DB_DSN", "APP_EMAIL_PROVIDER", "APP_BILLING_STRIPE_SECRET_KEY", "APP_AUTH_USER_JWT_SECRET", "RESEND_API_KEY"} {
 		t.Setenv(key, "must-not-be-used")
 	}
-	app, err := newPreview("http://localhost:3100")
+	app, err := newPreview("http://localhost:3100", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestPreviewUsesOnlyIsolatedLocalConfigurationAndCleansUp(t *testing.T) {
 }
 
 func TestPreviewRealRegistrationAttributesReferralAndRunsCreditFeature(t *testing.T) {
-	app, err := newPreview("http://localhost:3100")
+	app, err := newPreview("http://localhost:3100", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,6 +155,43 @@ func jsonNumber(t *testing.T, value float64) string {
 		t.Fatal(err)
 	}
 	return string(raw)
+}
+
+func TestPreviewAdministratorPasswordAndOrdinaryUserPermissions(t *testing.T) {
+	const password = "local-preview-password-2026"
+	app, err := newPreview("http://localhost:3100", password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(app.Close)
+	capabilities := previewData(t, previewRequest(t, app, "GET", "/capabilities", "", nil))
+	if capabilities["auth"].(map[string]any)["admin_password_enabled"] != true {
+		t.Fatal("preview did not expose configured administrator login")
+	}
+	for _, attempt := range []map[string]string{
+		{"email": previewAdmin, "password": "wrong-password"},
+		{"email": previewUser, "password": password},
+	} {
+		if response := previewRequest(t, app, "POST", "/auth/admin/login", "", attempt); response.Code != http.StatusUnauthorized {
+			t.Fatalf("invalid credentials accepted: status=%d", response.Code)
+		}
+	}
+	session := previewData(t, previewRequest(t, app, "POST", "/auth/admin/login", "", map[string]string{"email": previewAdmin, "password": password}))
+	token, ok := session["token"].(string)
+	if !ok || token == "" || session["user"].(map[string]any)["role"] != "admin" {
+		t.Fatal("password login did not issue an administrator session")
+	}
+	if response := previewRequest(t, app, "GET", "/admin/overview", token, nil); response.Code != http.StatusOK {
+		t.Fatalf("password session cannot access admin: status=%d", response.Code)
+	}
+	refreshed := previewData(t, previewRequest(t, app, "POST", "/auth/refresh", token, nil))
+	if response := previewRequest(t, app, "GET", "/admin/overview", refreshed["token"].(string), nil); response.Code != http.StatusOK {
+		t.Fatalf("refreshed password session cannot access admin: status=%d", response.Code)
+	}
+	userToken := previewLogin(t, app, previewUser, "")
+	if response := previewRequest(t, app, "GET", "/admin/overview", userToken, nil); response.Code != http.StatusForbidden {
+		t.Fatalf("ordinary user can access admin: status=%d", response.Code)
+	}
 }
 
 func TestPreviewRejectsNonLocalFrontendOrigins(t *testing.T) {

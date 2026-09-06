@@ -27,6 +27,7 @@ type Modules struct {
 
 	emailAuthEnabled bool
 	oauthEnabled     bool
+	adminPassword    *adminPasswordLogin
 }
 
 func New(db *gorm.DB, cfg Config) (*Modules, error) {
@@ -34,6 +35,9 @@ func New(db *gorm.DB, cfg Config) (*Modules, error) {
 		return nil, fmt.Errorf("platform: db required")
 	}
 	cfg = cfg.withDefaults()
+	if err := cfg.ValidateAdminPassword(); err != nil {
+		return nil, err
+	}
 	users := user.NewRepository(db)
 	emailModule, err := buildEmail(cfg.Email)
 	if err != nil {
@@ -48,7 +52,13 @@ func New(db *gorm.DB, cfg Config) (*Modules, error) {
 		}
 		modules.emailAuthEnabled = cfg.EmailAuthEnabled()
 		modules.oauthEnabled = len(modules.Auth.Deps.IdentityProviders) > 0
+		modules.adminPassword, err = newAdminPasswordLogin(cfg, modules.Auth)
+		if err != nil {
+			return nil, err
+		}
 	}
+	// Keep only the bcrypt hash in the running authentication handler.
+	modules.Config.Auth.AdminPassword = ""
 	if cfg.BillingEnabled() {
 		modules.Billing, err = buildBilling(db, cfg, users)
 		if err != nil {

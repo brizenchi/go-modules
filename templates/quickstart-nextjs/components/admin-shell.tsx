@@ -10,7 +10,7 @@ import { getOperatorOverview } from "@/lib/operations-api";
 import { getPublicSiteSettings, publicSiteSettingsFallback, SITE_SETTINGS_EVENT } from "@/lib/site-settings";
 import { useI18n } from "@/lib/i18n";
 import { ConsoleError, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
-import { SignInPanel } from "./sign-in-panel";
+import { AdminSignInPanel } from "./admin-sign-in-panel";
 import styles from "./admin-shell.module.css";
 
 async function verifyAdminAccess(token: string) {
@@ -69,7 +69,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <span className={styles.eyebrow}>{t({ en: "Website administration", zh: "网站管理员后台" })}</span>
       <h1>{!session ? t({ en: "Administrator sign-in", zh: "管理员登录" }) : unavailable ? t({ en: "Administration is temporarily unavailable", zh: "管理后台暂时无法连接" }) : t({ en: "Administrator access required", zh: "需要网站管理员权限" })}</h1>
       <p>{!session ? t({ en: "Sign in with your administrator account to manage this website.", zh: "请使用网站管理员账号登录，管理全站用户、订阅和网站配置。" }) : unavailable ? t({ en: "We couldn't connect to the administration service. Try again when your connection is available.", zh: "暂时无法连接管理服务，请检查网络后重试。" }) : t({ en: "This account cannot open website management. You can manage your own subscription in your account center.", zh: "当前账号无法进入网站管理。你可以在用户中心管理自己的订阅和账户。" })}</p>
-      {!session ? <SignInPanel compact returnTo={pathname} /> : <div className="button-row"><Link className="button primary" href="/account">{t({ en: "Go to my account", zh: "返回用户中心" })}</Link><button className="button" type="button" disabled={action.busy} onClick={signOut}>{t({ en: "Use another account", zh: "切换登录账号" })}</button></div>}
+      {!session ? <AdminSignInPanel /> : <div className="button-row"><Link className="button primary" href="/account">{t({ en: "Go to my account", zh: "返回用户中心" })}</Link><button className="button" type="button" disabled={action.busy} onClick={signOut}>{t({ en: "Use another account", zh: "切换登录账号" })}</button></div>}
       <ConsoleError error={access.error} retry={isAdmin ? () => void access.refresh() : undefined} />
       <ConsoleError error={action.error} />
       <Link className={styles.publicLink} href="/">{t({ en: "Back to website", zh: "返回网站首页" })} ↗</Link>

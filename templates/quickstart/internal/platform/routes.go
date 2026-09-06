@@ -55,8 +55,9 @@ type capabilityState struct {
 }
 
 type authCapability struct {
-	EmailEnabled   bool     `json:"email_enabled"`
-	OAuthProviders []string `json:"oauth_providers"`
+	EmailEnabled         bool     `json:"email_enabled"`
+	AdminPasswordEnabled bool     `json:"admin_password_enabled"`
+	OAuthProviders       []string `json:"oauth_providers"`
 }
 
 type billingCapability struct {
@@ -83,6 +84,7 @@ func (m *Modules) Mount(publicGroup, userGroup *gin.RouterGroup) {
 		return
 	}
 	publicGroup.GET("/capabilities", m.getCapabilities)
+	publicGroup.POST("/auth/admin/login", m.adminPasswordLogin)
 	if m.Auth != nil {
 		if m.emailAuthEnabled {
 			publicGroup.POST("/auth/send-code", m.Auth.Handler.SendCode)
@@ -131,6 +133,7 @@ func (m *Modules) configuredAuthCapability() authCapability {
 	}
 
 	capability.EmailEnabled = m.emailAuthEnabled
+	capability.AdminPasswordEnabled = m.adminPassword != nil
 	// Keep the public contract deterministic instead of exposing Go map order.
 	// These are the providers the quickstart frontend knows how to render.
 	for _, provider := range []string{"google", "github"} {

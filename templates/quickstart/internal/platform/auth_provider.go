@@ -62,9 +62,13 @@ func buildAuth(db *gorm.DB, cfg Config, users *user.Repository, emailModule *ema
 	if err != nil {
 		return nil, err
 	}
+	adminEmails := append([]string(nil), cfg.Auth.AdminEmails...)
+	if cfg.Auth.AdminEmail != "" {
+		adminEmails = append(adminEmails, cfg.Auth.AdminEmail)
+	}
 	return auth.New(auth.Deps{
 		UserStore:         user.NewAuthStore(users),
-		RoleResolver:      user.NewRoleResolver(cfg.Auth.AdminEmails),
+		RoleResolver:      user.NewRoleResolver(adminEmails),
 		TokenSigner:       signer,
 		WSTicketSigner:    ticketSigner,
 		ExchangeCodeStore: store,

@@ -22,6 +22,8 @@ type AuthConfig struct {
 	UserJWTExpireHours int      `mapstructure:"user_jwt_expire_hours"`
 	WSTicketTTLSeconds int      `mapstructure:"ws_ticket_ttl_seconds"`
 	AdminEmails        []string `mapstructure:"admin_emails"`
+	AdminEmail         string   `mapstructure:"admin_email"`
+	AdminPassword      string   `mapstructure:"admin_password" json:"-"`
 	FrontendRedirect   string   `mapstructure:"frontend_redirect"`
 	// OAuthCookieSecure may be explicitly set for unusual proxy setups. When
 	// nil, it is derived from the enabled providers' callback URL schemes.

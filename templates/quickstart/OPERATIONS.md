@@ -32,7 +32,7 @@
 
 ## 配置
 
-1. 在后端设置 `APP_AUTH_ADMIN_EMAILS=owner@example.com`（多个邮箱逗号分隔），用该邮箱登录后访问 `/admin`。身份和权限由后端检查，前端隐藏入口不代替权限校验。
+1. 在后端设置 `APP_AUTH_ADMIN_EMAIL=owner@example.com` 和 `APP_AUTH_ADMIN_PASSWORD`，重启后在 `/admin` 输入邮箱与密码。密码长度为 12–72 字节，建议使用独立生成的随机 ASCII 密码；不需要先注册。两项都留空时关闭密码登录，只填一项或密码不符合要求会阻止启动。身份和权限由后端检查。
 2. 使用 `/admin/settings` 保存公开配置并填写修改原因。导出默认消耗 1 积分，允许 1–1,000,000 的整数。登录、Stripe、Resend、存储密钥继续使用服务端环境变量。
 3. 开启注册赠送可设置 `APP_HOST_SIGNUP_CREDITS`。邀请奖励由 `APP_REFERRAL_ACTIVATION_REWARD` 与奖励期限配置决定；管理员核对按钮不会把待激活邀请变成已激活。
 4. 本地图片上传配置 `APP_HOST_UPLOADS_ENABLED=true`、`APP_HOST_UPLOADS_PROVIDER=local` 和 `APP_HOST_UPLOADS_DIRECTORY=./var/uploads`。支持 JPEG、PNG、GIF、WebP，每张最多 5 MiB；SVG 不支持。
@@ -40,6 +40,16 @@
 6. 前端 `NEXT_PUBLIC_APP_URL` 用于 canonical 与 sitemap，`NEXT_PUBLIC_APP_NAME` 用于构建时品牌和 SEO。后台品牌设置会更新页面导航，自定义产品介绍用于首页和页脚；SEO 和文章正文修改后需要重新构建。支持信息未配置时联系页会明确显示暂未开放。
 
 管理员设置与奖励核对请求使用 `Idempotency-Key`，后端 CORS 已允许该请求头。自有网关也需要保留它，并允许配置的前端 origin。
+
+管理员凭据只配置在后端 `.env` 或部署平台的环境变量中，不使用 `NEXT_PUBLIC_` 前缀。
+修改密码后重启后端，新登录会使用新密码；已有登录会话仍按原有有效期到期。
+`APP_AUTH_ADMIN_EMAILS` 仍可用于额外的验证码 / OAuth 管理员，这些邮箱不能使用
+`APP_AUTH_ADMIN_PASSWORD` 登录。配置的单个管理员邮箱也保留已启用的验证码 / OAuth
+登录能力；管理员密码不是第二因素验证。
+
+密码接口每分钟限制同一连接 IP 5 次、单个 API 进程共 20 次尝试，成功与格式错误的
+请求也计数。限流响应为 `429`，带 `Retry-After`。不会直接信任客户端转发的 IP 请求头，
+因此反向代理后的请求共享代理连接 IP 的限制；多实例部署在网关增加共享限流。
 
 公共文章、更新记录和隐私/条款模板在前端本地内容文件中编辑，见 [内容编辑指南](../quickstart-nextjs/CONTENT.md)。上线前填写真实经营者、支持渠道和实际数据政策。
 

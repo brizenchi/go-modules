@@ -89,12 +89,24 @@ func LoadConfig() (AppConfig, error) {
 	if err := config.LoadGlobal(path, "APP", &cfg); err != nil {
 		return AppConfig{}, err
 	}
+	applyAdminPasswordEnvironment(&cfg)
 
 	applyDefaults(&cfg)
 	if err := cfg.Validate(); err != nil {
 		return AppConfig{}, err
 	}
 	return cfg, nil
+}
+
+// Viper's unmarshal only discovers environment keys present in older config
+// files. These credentials must also work with an existing copied template.
+func applyAdminPasswordEnvironment(cfg *AppConfig) {
+	if value, ok := os.LookupEnv("APP_AUTH_ADMIN_EMAIL"); ok {
+		cfg.Auth.AdminEmail = value
+	}
+	if value, ok := os.LookupEnv("APP_AUTH_ADMIN_PASSWORD"); ok {
+		cfg.Auth.AdminPassword = value
+	}
 }
 
 func LoadDotEnv(path string) error {
@@ -163,6 +175,9 @@ func applyDefaults(cfg *AppConfig) {
 
 func (c AppConfig) Validate() error {
 	modules := c.ModuleConfig()
+	if err := modules.ValidateAdminPassword(); err != nil {
+		return err
+	}
 	production := isProduction(c.Env)
 	if production {
 		if err := validateProductionDBTLS(c.DB); err != nil {

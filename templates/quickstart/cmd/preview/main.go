@@ -102,7 +102,7 @@ func localOrigin(raw string) (string, error) {
 	return strings.TrimSuffix(u.String(), "/"), nil
 }
 
-func newPreview(frontend string) (_ *previewApp, err error) {
+func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 	frontend, err = localOrigin(frontend)
 	if err != nil {
 		return nil, err
@@ -132,6 +132,10 @@ func newPreview(frontend string) (_ *previewApp, err error) {
 		Email:    platform.EmailConfig{Provider: "log"},
 		Billing:  platform.BillingConfig{Enabled: &off},
 		Referral: platform.ReferralConfig{Enabled: &on, Prefix: "PREVIEW", BaseLink: frontend + "/invite", ActivationReward: 25, ActivationWindowDays: 30},
+	}
+	if adminPassword != "" {
+		cfg.Auth.AdminEmail = previewAdmin
+		cfg.Auth.AdminPassword = adminPassword
 	}
 	db, err := gorm.Open(sqlite.Open(filepath.Join(directory, "preview.sqlite")+"?_busy_timeout=10000&_journal_mode=WAL"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
@@ -209,7 +213,9 @@ func runPreview(ctx context.Context, port int, frontend string) error {
 	if port < 1 || port > 65535 {
 		return errors.New("port must be between 1 and 65535")
 	}
-	app, err := newPreview(frontend)
+	// Only this explicitly supported credential is read from the environment.
+	// Provider and database configuration remain isolated from deployment values.
+	app, err := newPreview(frontend, os.Getenv("APP_AUTH_ADMIN_PASSWORD"))
 	if err != nil {
 		return err
 	}
@@ -235,6 +241,11 @@ func runPreview(ctx context.Context, port int, frontend string) error {
 	log.Printf("LOCAL FIXTURE PREVIEW ONLY: http://%s · temporary SQLite and files: %s", address, app.directory)
 	log.Printf("Email codes appear in this terminal and the API debug response. No external email, OAuth or payments are enabled.")
 	log.Printf("Sign in normally with %s (admin) or %s (user); each starts with %d credits. Frontend: %s", previewAdmin, previewUser, previewInitialCredits, frontend)
+	if app.modules.Config.Auth.AdminEmail != "" {
+		log.Printf("Administrator password login is enabled at %s/admin for %s; use the password supplied in APP_AUTH_ADMIN_PASSWORD.", frontend, previewAdmin)
+	} else {
+		log.Printf("To enable the /admin password form, restart with APP_AUTH_ADMIN_PASSWORD set to a 12–72 byte local test password.")
+	}
 	err = server.Serve(listener)
 	close(stopped)
 	<-shutdownDone

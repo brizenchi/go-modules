@@ -13,7 +13,7 @@ export type AuthSession = {
   user: SessionUser;
 };
 
-const SESSION_KEY = "go-modules.quickstart-nextjs.session";
+export const SESSION_KEY = "go-modules.quickstart-nextjs.session";
 const REFERRAL_KEY = "go-modules.quickstart-nextjs.referral-code";
 export const SESSION_EVENT = "go-modules.quickstart-nextjs.session-change";
 export const REFERRAL_EVENT = "go-modules.quickstart-nextjs.referral-change";
