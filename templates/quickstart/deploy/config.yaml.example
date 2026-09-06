@@ -124,6 +124,16 @@ referral:
 # 环境变量示例：host.openai_api_key → APP_HOST_OPENAI_API_KEY
 host:
   signup_credits: 0
+  uploads:
+    enabled: false
+    provider: local              # local | s3；S3/R2 使用 s3
+    directory: "./var/uploads"  # 私有目录，不作为静态资源公开
+    bucket: ""
+    region: ""
+    endpoint: ""
+    use_path_style: false
+    access_key_id: ""           # 生产使用部署密钥或默认 IAM 凭据链
+    secret_access_key: ""
   welcome_email:
     enabled: false
     only_provider: ""              # google | github | email；空表示全部

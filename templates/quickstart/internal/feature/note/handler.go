@@ -2,6 +2,7 @@ package note
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
 	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
@@ -28,6 +29,7 @@ func (h *Handler) Create(c *gin.Context) {
 	userID := authhttp.Authenticated(c).UserID
 
 	var req createRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 320000)
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httpresp.BadRequest(c, "invalid body")
 		return
@@ -35,11 +37,11 @@ func (h *Handler) Create(c *gin.Context) {
 
 	n, err := h.svc.Create(c.Request.Context(), userID, req.Title, req.Body)
 	if err != nil {
-		if errors.Is(err, ErrEmptyTitle) {
+		if errors.Is(err, ErrEmptyTitle) || errors.Is(err, ErrInvalidContent) {
 			httpresp.BadRequest(c, err.Error())
 			return
 		}
-		httpresp.InternalError(c, err.Error())
+		httpresp.InternalError(c, "unable to save note")
 		return
 	}
 	httpresp.OK(c, n)
@@ -50,7 +52,7 @@ func (h *Handler) ListMine(c *gin.Context) {
 
 	rows, err := h.svc.ListMine(c.Request.Context(), userID)
 	if err != nil {
-		httpresp.InternalError(c, err.Error())
+		httpresp.InternalError(c, "unable to load notes")
 		return
 	}
 	httpresp.OK(c, gin.H{"list": rows})
@@ -59,7 +61,7 @@ func (h *Handler) ListMine(c *gin.Context) {
 func (h *Handler) CountAll(c *gin.Context) {
 	total, err := h.svc.CountAll(c.Request.Context())
 	if err != nil {
-		httpresp.InternalError(c, err.Error())
+		httpresp.InternalError(c, "unable to count notes")
 		return
 	}
 	httpresp.OK(c, gin.H{"total": total})

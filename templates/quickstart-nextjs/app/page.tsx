@@ -19,22 +19,22 @@ export default function HomePage() {
     zh: {
       eyebrow: "免费 SaaS 启动模板 · Next.js + Go",
       title: "快速上线你的 SaaS。",
-      description: "Template 是一套面向独立开发者和小团队的免费 SaaS 启动模板。已整合用户登录、订阅支付、积分计费和邀请推荐，配套 Resend 邮件服务、产品官网与配置指南。复用这些基础能力，把时间留给你的核心业务，让想法更快成为可以运营的产品。",
+      description: "Template 是一套面向独立开发者和小团队的免费 SaaS 启动模板。已整合用户登录、订阅支付、积分计费、邀请推荐和运营后台，配套 Resend 邮件服务、产品官网与配置指南。复用这些基础能力，把时间留给你的核心业务，让想法更快成为可以运营的产品。",
       start: "体验在线演示", configure: "查看部署指南",
-      included: "已整合的功能", analytics: "产品分析与运营看板", tryIt: "怎么体验", payment: "怎么测试支付", sharing: "怎么测试分享", setup: "怎么配置上线",
+      included: "已整合的功能", analytics: "运营后台与数据", tryIt: "怎么体验", payment: "怎么测试支付", sharing: "怎么测试分享", setup: "怎么配置上线",
       features: [
         { label: "01 / 用户认证", title: "注册登录，接好就能用", description: "整合邮箱验证码、Google 和 GitHub 登录，支持账号创建、会话管理与退出登录。按需启用登录方式，让用户顺畅进入你的产品。" },
         { label: "02 / 订阅与计费", title: "为你的产品接上付费能力", description: "整合 Stripe Checkout，支持月付、年付、终身套餐与积分包，配套订阅管理和账单查询。根据业务选择合适的收费方式。" },
         { label: "03 / 邀请推荐", title: "从用户分享，到邀请转化", description: "专属邀请链接、注册归因、订阅激活与积分奖励已经串联。用户可以查看邀请记录和统计，为产品的推荐增长提供基础。" },
         { label: "04 / Resend 邮件", title: "把验证和欢迎邮件送到用户手中", description: "已接入 Resend 邮件发送能力。配置发信域名和密钥后即可发送验证码，还可以按需启用欢迎邮件，完善用户的首次体验。" },
-        { label: "05 / 产品官网", title: "展示、定价、文档一起准备好", description: "配套首页、价格页、文档页和账户入口，使用统一的响应式界面。替换品牌与文案，沿用现有中英文结构，快速搭建产品门面。" },
+        { label: "05 / 产品官网", title: "展示、定价、文档一起准备好", description: "配套首页、价格、可搜索的文档与博客、更新日志和联系页面。中英文内容使用统一的响应式界面，替换品牌与文案即可构建自己的产品门面。" },
         { label: "06 / 开发与部署", title: "在完整前后端上开发你的业务", description: "Next.js 前端与 Go 后端配套提供，包含环境配置示例和上线指南。按需启用模块、连接数据库、配置服务，再接入你的业务功能。" }
       ],
       metrics: [
-        { label: "用户增长", value: "新增与累计用户", detail: "按时间观察注册增长，了解有多少人开始使用你的产品。" },
-        { label: "活跃与留存", value: "DAU / MAU", detail: "按统一活跃行为统计每日、每月的去重用户，并观察用户是否持续回来使用。" },
-        { label: "业务使用", value: "项目与关键操作", detail: "统计项目总数、新建项目数和关键功能使用量，了解用户真正完成了哪些工作。" },
-        { label: "转化效果", value: "注册到订阅", detail: "分析注册、付费与邀请转化，找到用户流失的环节和可以改善的体验。" }
+        { label: "已内置 / 用户", value: "累计注册用户", detail: "运营后台读取真实账号总数，并支持按邮箱、用户名或账号 ID 查询用户。" },
+        { label: "已内置 / 订阅", value: "有效订阅", detail: "查看当前有效订阅数量、套餐状态和支付记录，掌握产品的基本运营情况。" },
+        { label: "已内置 / 邀请", value: "待激活与已激活", detail: "查看邀请总量与激活进展，按状态查找记录，并核对已激活邀请的奖励。" },
+        { label: "后续可扩展", value: "DAU、留存与项目", detail: "尚未内置活跃、留存、项目统计和转化漏斗；这些分析需要接入自己的业务数据。" }
       ],
       steps: [
         { title: "注册并登录", description: "点击登录，使用页面提供的邮箱或第三方登录方式。新用户首次完成验证时会自动创建账号。", result: "完成后：账户页可以看到自己的账号。", href: "/login", action: "注册 / 登录" },
@@ -53,22 +53,22 @@ export default function HomePage() {
     en: {
       eyebrow: "Free SaaS starter · Next.js + Go",
       title: "Get your SaaS to launch, faster.",
-      description: "Template is a free SaaS starter for independent developers and small teams. Authentication, subscriptions, credit billing, and referrals are already integrated, alongside Resend email, a public website, and setup guides. Build on these foundations and spend your time on the service your customers need.",
+      description: "Template is a free SaaS starter for independent developers and small teams. Authentication, subscriptions, credit billing, referrals, and an operator console are already integrated, alongside Resend email, a public website, and setup guides. Build on these foundations and spend your time on the service your customers need.",
       start: "Try the live demo", configure: "View the setup guide",
-      included: "Integrated features", analytics: "Product analytics", tryIt: "Try the template", payment: "Test a payment", sharing: "Test a referral", setup: "Configure and launch",
+      included: "Integrated features", analytics: "Operations and data", tryIt: "Try the template", payment: "Test a payment", sharing: "Test a referral", setup: "Configure and launch",
       features: [
         { label: "01 / Authentication", title: "Give customers a smooth way in", description: "Email verification, Google, and GitHub sign-in connect account creation, session management, and sign-out. Enable the sign-in options your product needs." },
         { label: "02 / Subscriptions and billing", title: "Start with payments already connected", description: "Stripe Checkout supports monthly and yearly subscriptions, lifetime access, and credit packages, with subscription management and invoices. Choose how your product earns revenue." },
         { label: "03 / Referrals", title: "Connect sharing to customer growth", description: "Personal invite links connect sign-up attribution, subscription activation, and credit rewards. Customers can review referral history and statistics." },
         { label: "04 / Resend email", title: "Reach customers from their first sign-in", description: "Resend email delivery is integrated. Configure your sending domain and API key to deliver verification codes, then enable welcome emails when you need them." },
-        { label: "05 / Your public website", title: "Present, explain, and price your product", description: "A homepage, pricing, documentation, and account entry points share a responsive interface. Update your brand and copy, with an existing English / Chinese structure to build on." },
+        { label: "05 / Your public website", title: "Present, explain, and price your product", description: "A homepage, pricing, searchable docs and blog, release notes, and contact pages share a responsive English / Chinese interface. Update the brand and content for your product." },
         { label: "06 / Development and deployment", title: "Build your service on a complete stack", description: "A Next.js frontend and Go backend come with configuration examples and a launch guide. Enable modules, connect your database and providers, then add your core features." }
       ],
       metrics: [
-        { label: "User growth", value: "New and total users", detail: "Track sign-ups over time to understand how many people are starting to use your product." },
-        { label: "Activity and retention", value: "DAU / MAU", detail: "Count distinct daily and monthly users using a consistent definition of activity, and see whether they return." },
-        { label: "Product usage", value: "Projects and actions", detail: "Track total projects, new projects, and key feature usage to understand what customers actually accomplish." },
-        { label: "Conversion", value: "Sign-up to subscription", detail: "Explore registration, payment, and referral conversion to find where customers leave and what to improve." }
+        { label: "Included / Users", value: "Registered accounts", detail: "Read the real account total in the operator console and find users by email, username, or account ID." },
+        { label: "Included / Subscriptions", value: "Active subscriptions", detail: "Review the active subscription count, plan status, and payment records for day-to-day operations." },
+        { label: "Included / Invitations", value: "Pending and activated", detail: "Follow invitation totals and activation progress, filter records by status, and reconcile activated rewards." },
+        { label: "Future extension", value: "DAU, retention, projects", detail: "Activity, retention, project statistics, and conversion funnels are not included yet. Add tracking for your own business data." }
       ],
       steps: [
         { title: "Create your account", description: "Choose an available email or social sign-in option. Completing verification for the first time automatically creates your account.", result: "Then: find your identity on the account page.", href: "/login", action: "Sign up / sign in" },
@@ -131,12 +131,12 @@ export default function HomePage() {
 
       <PageSection
         id="analytics"
-        title={t({ en: "Product analytics and business metrics", zh: "产品分析与运营看板" })}
-        description={t({ en: "An extension for your product: bring user growth, activity, project usage, and conversion into one dashboard to understand how your SaaS performs after launch.", zh: "可按业务扩展：把用户增长、活跃度、项目使用和转化表现放到同一张数据看板里，帮助你了解 SaaS 上线后的使用情况。" })}
+        title={t({ en: "See the essentials of your operation", zh: "掌握产品的基本运营情况" })}
+        description={t({ en: "An administrator console brings together user, subscription, and invitation counts with the records needed to operate your SaaS.", zh: "管理员后台汇总用户、订阅和邀请计数，配合相关记录查询，支持 SaaS 日常运营。" })}
       >
         <p className={styles.helper}>
-          <strong>{t({ en: "Extension · not included yet. ", zh: "可扩展能力 · 尚未内置。" })}</strong>
-          {t({ en: "The template currently provides individual subscription and invoice views plus referral statistics. DAU, retention, project counts, and an operator dashboard require activity tracking and your business data. The items below describe metrics to add, not live figures.", zh: "当前模板已提供个人订阅、账单查询和邀请统计。DAU、留存、项目数量及运营端看板需要接入用户行为与业务数据；下方介绍的是可扩展的指标，不是演示站的实时统计。" })}
+          <strong>{t({ en: "Core operations are included. ", zh: "基础运营后台已内置。" })}</strong>
+          {t({ en: "Administrators can view real user, subscription, invitation, payment, and credit records, manage public site settings, and review recorded operations. The cards describe the available features; live operational data is visible only in the administrator console.", zh: "管理员可查询真实用户、订阅、邀请、支付和积分记录，调整公开网站配置，并查看操作记录。下方展示能力说明，实际运营数据仅在管理员后台中可见。" })}
         </p>
         <div className="metric-grid">
           {content.metrics.map((metric) => <MetricCard key={metric.label} {...metric} />)}

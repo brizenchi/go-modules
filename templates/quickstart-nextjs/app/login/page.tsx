@@ -87,7 +87,7 @@ function LoginPageInner() {
           setSessionToken(maskToken(currentSession?.token));
           if (currentSession) {
             setStatus("A newer browser session is already active. The stale OAuth response was ignored.");
-            router.replace("/dashboard");
+            router.replace("/account");
           } else {
             setError("This OAuth exchange is no longer current. Start OAuth sign-in again.");
             setStatus("");
@@ -97,7 +97,7 @@ function LoginPageInner() {
         setReferralCode("");
         setSessionToken(maskToken(session.token));
         setStatus("OAuth login succeeded. Local session is now stored in localStorage.");
-        router.replace("/dashboard");
+        router.replace("/account");
       })
       .catch((err) => {
         if (cancelled) {
@@ -120,15 +120,15 @@ function LoginPageInner() {
   return (
     <SiteShell
       eyebrow="Welcome back"
-      title="One sign-in. Your whole workspace."
-      description="Choose any available sign-in method. Your plan, account settings, credits, and referral rewards will be waiting in the workspace."
+      title="Sign in. Pick up where you left off."
+      description="Choose any available sign-in method, then manage your settings, subscription, credits, and referral rewards directly."
       sideTitle="Secure by default"
       sideBody={
         <DetailRows
           rows={[
             {
               label: "After sign-in",
-              value: <span>Your workspace opens automatically</span>
+              value: <span>Account settings open automatically</span>
             },
             {
               label: "OAuth",
@@ -136,7 +136,7 @@ function LoginPageInner() {
             },
             {
               label: "Available methods",
-              value: <span>Always matched to this workspace</span>
+              value: <span>Always matched to this account</span>
             },
             {
               label: "Referral code",
@@ -152,13 +152,13 @@ function LoginPageInner() {
       ]}
     >
       <div className="page-grid">
-        <Panel className="span-7" title="Sign in" subtitle="Use email, Google, or GitHub when enabled for this workspace.">
+        <Panel className="span-7" title="Sign in" subtitle="Use email, Google, or GitHub when enabled for this site.">
           <div id="email-login" />
           <SignInPanel
             showReferralField
             onSuccess={() => {
-              setStatus("Signed in. Opening your workspace...");
-              router.push("/dashboard");
+              setStatus("Signed in. Opening account settings...");
+              router.push("/account");
             }}
           />
         </Panel>

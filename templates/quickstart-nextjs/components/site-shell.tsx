@@ -8,6 +8,7 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
+import { getPublicSiteSettings, publicSiteSettingsFallback, SITE_SETTINGS_EVENT } from "@/lib/site-settings";
 import { logout, userLabel, type ReferralStats, type SubscriptionView } from "@/lib/api";
 import { loadAccountSummary, type AccountSummary } from "@/lib/account-summary";
 import { clearSessionIfToken, readSession, SESSION_EVENT, writeSession, type AuthSession } from "@/lib/auth";
@@ -23,6 +24,8 @@ import {
 import { SignInDialog } from "@/components/sign-in-dialog";
 import {
   activeWorkspaceHref,
+  adminNavItem,
+  auxiliaryWorkspaceItems,
   isWorkspacePath,
   workspaceNavItems,
   type WorkspaceIcon as WorkspaceIconName
@@ -39,7 +42,9 @@ type NavItem = {
 const topNav: NavItem[] = [
   { href: "/", label: { en: "Overview", zh: "总览" } },
   { href: "/pricing", label: { en: "Pricing", zh: "价格" } },
-  { href: "/docs", label: { en: "Docs", zh: "文档" } }
+  { href: "/docs", label: { en: "Docs", zh: "文档" } },
+  { href: "/blog", label: { en: "Blog", zh: "文章" } },
+  { href: "/updates", label: { en: "Updates", zh: "更新" } }
 ];
 
 type TOCItem = {
@@ -132,13 +137,9 @@ function TableOfContents({
 }
 
 function WorkspaceIcon({ name }: { name: WorkspaceIconName }) {
-  if (name === "overview") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
-      </svg>
-    );
-  }
+  if (name === "credits") return <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 4 16 4 16 0V6M4 12v6c0 4 16 4 16 0v-6" /></svg>;
+  if (name === "notes" || name === "files") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h6" /></svg>;
+  if (name === "admin") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6zM8 12l3 3 5-6" /></svg>;
   if (name === "billing") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -317,16 +318,12 @@ function AccountMenu({
       {open ? (
         <div className="account-popover">
           <div className="account-popover-head">
-            <span className="panel-kicker">{t({ en: "Workspace", zh: "工作区" })}</span>
+            <span className="panel-kicker">{t({ en: "Account center", zh: "账户中心" })}</span>
             <strong>{appEnv.appName}</strong>
           </div>
 
           <div className="account-popover-grid">
-            <Link className="popover-link-card featured" href="/dashboard" onClick={() => setOpen(false)}>
-              <span>{t({ en: "Open dashboard", zh: "进入工作台" })}</span>
-              <small>{t({ en: "Plan, credits and account activity", zh: "查看套餐、积分和账户进展" })}</small>
-            </Link>
-            <Link className="popover-link-card" href="/account" onClick={() => setOpen(false)}>
+            <Link className="popover-link-card featured" href="/account" onClick={() => setOpen(false)}>
               <span>{t({ en: "Settings", zh: "设置" })}</span>
               <small>{accountText}</small>
             </Link>
@@ -343,6 +340,8 @@ function AccountMenu({
               </small>
             </Link>
           </div>
+
+          {session.user.role === "admin" ? <Link className="popover-link-card" href="/admin" onClick={() => setOpen(false)}><span>{t({ en: "Operator console", zh: "运营后台" })}</span><small>{t({ en: "Users, payments, invitations and settings", zh: "用户、支付、邀请和网站配置" })}</small></Link> : null}
 
           <div className="account-popover-meta">
             <div>
@@ -372,8 +371,22 @@ export function SiteShell(props: SiteShellProps) {
   const isWorkspace = isWorkspacePath(pathname);
   const activeWorkspace = activeWorkspaceHref(pathname);
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [siteSettings, setSiteSettings] = useState(publicSiteSettingsFallback);
   const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
   const { t } = useI18n();
+  const workspaceItems = [...workspaceNavItems, ...auxiliaryWorkspaceItems, ...(session?.user.role === "admin" ? [adminNavItem] : [])];
+  useEffect(() => {
+    let current: AbortController | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const syncSettings = () => {
+      current?.abort(); if (timeout) clearTimeout(timeout);
+      const controller = new AbortController(); current = controller;
+      timeout = setTimeout(() => controller.abort(), 8000);
+      void getPublicSiteSettings(controller.signal).then((value) => { if (!controller.signal.aborted) setSiteSettings(value); }).catch(() => {}).finally(() => { if (current === controller && timeout) clearTimeout(timeout); });
+    };
+    syncSettings(); window.addEventListener(SITE_SETTINGS_EVENT, syncSettings);
+    return () => { current?.abort(); if (timeout) clearTimeout(timeout); window.removeEventListener(SITE_SETTINGS_EVENT, syncSettings); };
+  }, []);
 
   useEffect(() => {
     const sync = () => setSession(readSession());
@@ -436,12 +449,12 @@ export function SiteShell(props: SiteShellProps) {
     referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats
   };
 
-  const currentWorkspaceItem = workspaceNavItems.find((item) => item.href === activeWorkspace);
+  const currentWorkspaceItem = [...workspaceNavItems, ...auxiliaryWorkspaceItems, adminNavItem].find((item) => item.href === activeWorkspace);
   const accountMenu = (
     <AccountMenu
       session={session}
       details={mergedAccountDetails}
-      onSignInSuccess={() => router.push("/dashboard")}
+      onSignInSuccess={() => router.push("/account")}
     />
   );
 
@@ -449,7 +462,7 @@ export function SiteShell(props: SiteShellProps) {
     return (
       <div className="workspace-shell">
         <aside className="workspace-sidebar">
-          <Link className="workspace-brand" href="/dashboard">
+          <Link className="workspace-brand" href="/account">
             <span className="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 28 28" role="img">
                 <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
@@ -457,18 +470,18 @@ export function SiteShell(props: SiteShellProps) {
               </svg>
             </span>
             <span className="workspace-brand-copy">
-              <strong>{appEnv.appName}</strong>
-              <small>{t({ en: "Customer workspace", zh: "用户工作台" })}</small>
+              <strong>{siteSettings.brand_name}</strong>
+              <small>{t({ en: "Account center", zh: "账户中心" })}</small>
             </span>
           </Link>
 
           <div className="workspace-status">
             <span className="workspace-status-dot" aria-hidden="true" />
-            <span>{t({ en: "Workspace online", zh: "工作区运行中" })}</span>
+            <span>{t({ en: "Your workspace", zh: "你的工作空间" })}</span>
           </div>
 
-          <nav className="workspace-nav" aria-label={t({ en: "Workspace navigation", zh: "工作台导航" })}>
-            {workspaceNavItems.map((item) => (
+          <nav className="workspace-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
+            {workspaceItems.map((item) => (
               <Link
                 className={`workspace-nav-link${activeWorkspace === item.href ? " active" : ""}`}
                 href={item.href}
@@ -497,7 +510,7 @@ export function SiteShell(props: SiteShellProps) {
                 </span>
               </div>
             ) : (
-              <p>{t({ en: "Sign in to load your workspace data.", zh: "登录后加载你的工作区数据。" })}</p>
+              <p>{t({ en: "Sign in to load your account data.", zh: "登录后加载你的账户数据。" })}</p>
             )}
             <Link className="workspace-public-link" href="/">
               <span>{t({ en: "View public site", zh: "返回网站首页" })}</span>
@@ -511,8 +524,8 @@ export function SiteShell(props: SiteShellProps) {
             <div className="workspace-topbar-copy">
               <span className="workspace-mobile-mark" aria-hidden="true" />
               <div>
-                <strong>{currentWorkspaceItem ? t(currentWorkspaceItem.label) : t({ en: "Workspace", zh: "工作台" })}</strong>
-                <small>{currentWorkspaceItem ? t(currentWorkspaceItem.description) : appEnv.appName}</small>
+                <strong>{currentWorkspaceItem ? t(currentWorkspaceItem.label) : t({ en: "Account", zh: "账户中心" })}</strong>
+                <small>{currentWorkspaceItem ? t(currentWorkspaceItem.description) : siteSettings.brand_name}</small>
               </div>
             </div>
             <div className="workspace-topbar-tools">
@@ -521,8 +534,8 @@ export function SiteShell(props: SiteShellProps) {
             </div>
           </header>
 
-          <nav className="workspace-mobile-nav" aria-label={t({ en: "Workspace navigation", zh: "工作台导航" })}>
-            {workspaceNavItems.map((item) => (
+          <nav className="workspace-mobile-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
+            {workspaceItems.map((item) => (
               <Link
                 className={`workspace-mobile-link${activeWorkspace === item.href ? " active" : ""}`}
                 href={item.href}
@@ -569,7 +582,7 @@ export function SiteShell(props: SiteShellProps) {
               </svg>
             </span>
             <span className="brand-copy">
-              <span className="brand-title">{appEnv.appName}</span>
+              <span className="brand-title">{siteSettings.brand_name}</span>
               <span className="brand-subtitle">{t({ en: "Powered by go-modules", zh: "由 go-modules 驱动" })}</span>
             </span>
           </Link>
@@ -634,12 +647,14 @@ export function SiteShell(props: SiteShellProps) {
                 <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
               </svg>
             </span>
-            <span>{appEnv.appName}</span>
+            <span>{siteSettings.brand_name}</span>
           </Link>
           <nav className="footer-links" aria-label="Footer">
             <Link href="/docs">{t({ en: "Documentation", zh: "文档" })}</Link>
             <Link href="/pricing">{t({ en: "Pricing", zh: "价格" })}</Link>
-            <Link href="/login">{t({ en: "Sign in", zh: "登录" })}</Link>
+            <Link href="/contact">{t({ en: "Contact", zh: "联系支持" })}</Link>
+            <Link href="/privacy">{t({ en: "Privacy", zh: "隐私" })}</Link>
+            <Link href="/terms">{t({ en: "Terms", zh: "条款" })}</Link>
           </nav>
           <p>{t({ en: "A production-minded SaaS starter.", zh: "面向生产环境的 SaaS 启动模板。" })}</p>
         </div>

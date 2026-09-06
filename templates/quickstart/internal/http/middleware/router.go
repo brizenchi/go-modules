@@ -27,7 +27,11 @@ func BuildRouter(cfg RouterConfig, router *apphttp.Router) *gin.Engine {
 	if len(origins) == 0 {
 		origins = []string{"http://localhost:3000"}
 	}
-	r.Use(ginx.CORS(ginx.CORSConfig{AllowedOrigins: origins, AllowCredentials: true}))
+	r.Use(ginx.CORS(ginx.CORSConfig{
+		AllowedOrigins:   origins,
+		AllowCredentials: true,
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept", "Authorization", "Idempotency-Key", "X-Request-ID", "traceparent", "tracestate", "baggage"},
+	}))
 	r.Use(ginx.NoCache(), ginx.Secure(ginx.SecureConfig{}))
 	r.GET("/health", apphttp.HealthHandler)
 

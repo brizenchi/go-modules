@@ -5,6 +5,13 @@
 
 ## 启动链路
 
+配套前端已包含运营后台、积分流水与有效期、付费笔记导出、私有图片上传，以及博客、
+更新日志、联系页和搜索。管理员可查询用户、支付记录、订阅和邀请，补发或退回积分，
+核对已达标邀请的奖励，修改公开品牌与支持信息。
+
+新功能配置、旧库升级和验收路径见 [运营功能使用指南](OPERATIONS.md)。现有数据库
+升级前需要显式执行提供的积分迁移 SQL；本次开发没有运行部署数据库迁移。
+
 ```text
 cmd/quickstart/main.go
   → bootstrap.New()
@@ -44,7 +51,9 @@ internal/
 │   └── host_jobs.go        后台任务
 ├── feature/
 │   ├── account/            用户资料读取与更新 API
-│   └── note/               service/repository/handler 参考功能
+│   ├── note/               免费笔记创建与查询
+│   ├── credits/            积分生命周期、管理调整与付费导出
+│   └── operations/         运营查询、设置、审计与私有上传
 ├── hostapi/                传给产品功能的依赖和路由组
 └── hostcfg/                当前 SaaS 的业务配置
 ```
@@ -166,9 +175,9 @@ func onUserSignedUp(
 模板已经示范：
 
 - `UserSignedUp`：可选注册积分和欢迎邮件；
-- `CreditsPurchased`：把购买积分写入宿主 `User.Credits`；
+- `CreditsPurchased`：将购买积分记入宿主积分账本，并更新余额；
 - `SubscriptionActivated`：激活邀请关系；
-- `ReferralActivated`：把邀请奖励写入宿主 `User.Credits`。
+- `ReferralActivated`：将邀请奖励记入积分账本，同一事件不会重复发放。
 
 回调同时收到通用 `Envelope` 和强类型 payload。支付回调可从 envelope 取得
 `UserID`、供应商和 Webhook event ID，再从 payload 读取订阅或金额等业务内容。

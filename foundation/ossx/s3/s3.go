@@ -114,7 +114,8 @@ func (b *Bucket) Put(ctx context.Context, key string, r io.Reader, size int64, o
 	case ossx.ACLPublicRead:
 		in.ACL = s3types.ObjectCannedACLPublicRead
 	case ossx.ACLPrivate, "":
-		in.ACL = s3types.ObjectCannedACLPrivate
+		// Private is the bucket default. Omitting ACL also works with S3
+		// bucket-owner-enforced buckets and R2, which disable object ACLs.
 	}
 	_, err := b.client.PutObject(ctx, in)
 	if err != nil {

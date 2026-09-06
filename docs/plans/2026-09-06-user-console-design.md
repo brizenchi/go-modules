@@ -10,7 +10,7 @@ The console is a calm editorial operations desk: a warm paper canvas, a graphite
 
 ## Information architecture
 
-Public routes keep the existing marketing header. Signed-in routes use a dedicated console shell with persistent navigation: Overview, Subscription, Referrals, and Account. `/dashboard` becomes the post-login destination and shows only real API data: plan state, credits, activated invitations, profile completion, next billing date, and direct actions. Account, billing, and referral pages retain their working forms and error states, but their large marketing-style heroes become compact console page headers.
+Public routes keep the existing marketing header. Signed-in routes use a dedicated account shell with only three persistent destinations: Settings, Subscription, and Referrals. There is no overview item or intermediate dashboard; sign-in opens `/account` directly, and the legacy `/dashboard` URL redirects there for compatibility. Each destination retains its working forms, real API data, and explicit error states while using compact account-center page headers.
 
 ## Interaction and responsive behavior
 
@@ -18,4 +18,4 @@ Desktop uses a fixed-width sidebar and a compact utility bar. Mobile replaces th
 
 ## Data and safety
 
-The console does not invent analytics. It composes existing account, capability, subscription, and referral endpoints; partial failures do not erase successful cards. Authentication continues to use the browser-bound OAuth and email flows already implemented. Billing mutations and referral attribution stay in their existing pages and backend services.
+The account center does not invent analytics or add a redundant summary layer. Each page reads only the account, capability, subscription, invoice, or referral data it needs. Authentication continues to use the browser-bound OAuth and email flows already implemented. Billing mutations and referral attribution stay in their existing pages and backend services.

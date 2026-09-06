@@ -71,8 +71,8 @@ export function SignInDialog({ open, onClose, onSuccess }: SignInDialogProps) {
             <h2>{t({ en: `Welcome to ${appEnv.appName}!`, zh: `欢迎使用 ${appEnv.appName}` })}</h2>
             <p>
               {t({
-                en: "Choose one of the sign-in methods currently enabled for this workspace.",
-                zh: "请选择当前工作区已启用的登录方式。"
+                en: "Choose one of the sign-in methods currently enabled for this site.",
+                zh: "请选择当前网站已启用的登录方式。"
               })}
             </p>
           </div>
@@ -92,8 +92,8 @@ export function SignInDialog({ open, onClose, onSuccess }: SignInDialogProps) {
 
           <p className="dialog-support-copy">
             {t({
-              en: "By continuing you accept your workspace authentication flow and session storage policy.",
-              zh: "继续即表示你接受当前工作区的登录流程与会话存储策略。"
+              en: "By continuing you accept this site's authentication flow and session storage policy.",
+              zh: "继续即表示你接受当前网站的登录流程与会话存储策略。"
             })}
           </p>
         </div>

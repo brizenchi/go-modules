@@ -17,6 +17,20 @@ type Config struct {
 	SignupCredits int64 `mapstructure:"signup_credits"`
 
 	WelcomeEmail WelcomeEmailConfig `mapstructure:"welcome_email"`
+	Uploads      UploadConfig       `mapstructure:"uploads"`
+}
+
+// UploadConfig is deployment-owned; credentials never enter editable site settings.
+type UploadConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`
+	Provider        string `mapstructure:"provider"` // local (development), s3 (S3/R2)
+	Directory       string `mapstructure:"directory"`
+	Bucket          string `mapstructure:"bucket"`
+	Region          string `mapstructure:"region"`
+	Endpoint        string `mapstructure:"endpoint"`
+	UsePathStyle    bool   `mapstructure:"use_path_style"`
+	AccessKeyID     string `mapstructure:"access_key_id"`
+	SecretAccessKey string `mapstructure:"secret_access_key"`
 }
 
 type WelcomeEmailConfig struct {

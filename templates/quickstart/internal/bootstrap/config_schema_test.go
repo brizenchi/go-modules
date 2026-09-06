@@ -19,6 +19,32 @@ func truePtr() *bool {
 	return &v
 }
 
+func TestOperatorAndUploadEnvironmentConfiguration(t *testing.T) {
+	t.Setenv("QUICKSTART_OPERATIONS_AUTH_ADMIN_EMAILS", "owner@example.test,second@example.test")
+	t.Setenv("QUICKSTART_OPERATIONS_HOST_UPLOADS_ENABLED", "true")
+	t.Setenv("QUICKSTART_OPERATIONS_HOST_UPLOADS_PROVIDER", "s3")
+	t.Setenv("QUICKSTART_OPERATIONS_HOST_UPLOADS_BUCKET", "private-fixture")
+	t.Setenv("QUICKSTART_OPERATIONS_HOST_UPLOADS_REGION", "auto")
+	source, err := os.ReadFile("../../deploy/config.yaml.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	var cfg AppConfig
+	if err := foundationconfig.Load(configPath, "QUICKSTART_OPERATIONS", &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Auth.AdminEmails) != 2 || cfg.Auth.AdminEmails[1] != "second@example.test" {
+		t.Fatalf("admin email mapping: %v", cfg.Auth.AdminEmails)
+	}
+	if !cfg.Host.Uploads.Enabled || cfg.Host.Uploads.Provider != "s3" || cfg.Host.Uploads.Bucket != "private-fixture" || cfg.Host.Uploads.Region != "auto" {
+		t.Fatalf("upload config mapping: %+v", cfg.Host.Uploads)
+	}
+}
+
 func TestDeployConfigExampleMatchesAppConfig(t *testing.T) {
 	source, err := os.ReadFile("../../deploy/config.yaml.example")
 	if err != nil {

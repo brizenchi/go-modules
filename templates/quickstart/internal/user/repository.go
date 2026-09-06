@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,12 +10,15 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-func Models() []any { return []any{&User{}, &Identity{}, &CreditGrant{}} }
+func Models() []any {
+	return []any{&User{}, &Identity{}, &CreditGrant{}, &CreditTransaction{}, &CreditLot{}, &CreditAllocation{}}
+}
 
 func AutoMigrate(db *gorm.DB) error { return db.AutoMigrate(Models()...) }
 
 type Repository struct {
-	db *gorm.DB
+	db          *gorm.DB
+	creditClock func() time.Time
 }
 
 func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
@@ -24,6 +26,11 @@ func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
 func (r *Repository) FindByID(ctx context.Context, userID string) (*User, error) {
 	var user User
 	err := r.db.WithContext(ctx).Where("id = ?", strings.TrimSpace(userID)).Take(&user).Error
+	if err == nil && user.CreditsVersion == 1 {
+		var summary CreditSummary
+		summary, err = r.GetCreditSummary(ctx, user.ID)
+		user.Credits = summary.Balance
+	}
 	return &user, err
 }
 
@@ -42,11 +49,28 @@ func (r *Repository) FindIdentity(ctx context.Context, provider authdomain.Provi
 }
 
 func (r *Repository) Create(ctx context.Context, user *User) error {
-	return r.db.WithContext(ctx).Create(user).Error
+	if user.Credits < 0 {
+		return ErrInvalidCreditOperation
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		user.CreditsVersion = 1
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		if user.Credits == 0 {
+			return nil
+		}
+		entry := CreditTransaction{UserID: user.ID, Kind: CreditKindOpening, Amount: user.Credits, BalanceAfter: user.Credits, Source: "opening", SourceID: user.ID, Reason: "Initial account balance"}
+		if err := tx.Create(&entry).Error; err != nil {
+			return err
+		}
+		return tx.Create(&CreditLot{UserID: user.ID, TransactionID: entry.ID, Amount: user.Credits, Remaining: user.Credits}).Error
+	})
 }
 
 func (r *Repository) Save(ctx context.Context, user *User) error {
-	return r.db.WithContext(ctx).Save(user).Error
+	// Login/profile updates must never overwrite a concurrent credit operation.
+	return r.db.WithContext(ctx).Omit("credits", "credits_version").Save(user).Error
 }
 
 // UpdateProfile changes only the host-owned, user-editable profile fields.
@@ -93,54 +117,6 @@ func (r *Repository) MarkLogin(ctx context.Context, userID string, at time.Time)
 		Model(&User{}).
 		Where("id = ?", strings.TrimSpace(userID)).
 		Update("last_login_at", at.UTC()).Error
-}
-
-func (r *Repository) AddCredits(ctx context.Context, userID string, delta int64) error {
-	if delta == 0 {
-		return nil
-	}
-	return r.db.WithContext(ctx).
-		Model(&User{}).
-		Where("id = ?", strings.TrimSpace(userID)).
-		UpdateColumn("credits", gorm.Expr("credits + ?", delta)).Error
-}
-
-// GrantCredits applies a credit change exactly once for a stable external
-// source key such as ("stripe", "evt_123"). The ledger insert and balance
-// update share one database transaction.
-func (r *Repository) GrantCredits(ctx context.Context, userID, source, sourceID string, delta int64) error {
-	userID = strings.TrimSpace(userID)
-	source = strings.ToLower(strings.TrimSpace(source))
-	sourceID = strings.TrimSpace(sourceID)
-	if delta == 0 {
-		return nil
-	}
-	if userID == "" || source == "" || sourceID == "" {
-		return fmt.Errorf("user: user_id, source and source_id required for credit grant")
-	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		grant := &CreditGrant{UserID: userID, Source: source, SourceID: sourceID, Amount: delta}
-		result := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "source"}, {Name: "source_id"}},
-			DoNothing: true,
-		}).Create(grant)
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return nil
-		}
-		result = tx.Model(&User{}).
-			Where("id = ?", userID).
-			UpdateColumn("credits", gorm.Expr("credits + ?", delta))
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return gorm.ErrRecordNotFound
-		}
-		return nil
-	})
 }
 
 func (r *Repository) DB() *gorm.DB { return r.db }

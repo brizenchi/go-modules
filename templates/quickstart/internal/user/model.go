@@ -29,9 +29,11 @@ type User struct {
 	AvatarURL       string     `json:"avatar_url,omitempty" gorm:"type:varchar(512)"`
 	Role            string     `json:"role" gorm:"type:varchar(20);not null;default:'user';index"`
 	Credits         int64      `json:"credits" gorm:"not null;default:0"`
-	LastLoginAt     *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	// Version 0 denotes an existing balance that needs the explicit credit-ledger migration.
+	CreditsVersion int        `json:"-" gorm:"not null;default:0"`
+	LastLoginAt    *time.Time `json:"last_login_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 
 	// Credits 是 quickstart 的宿主业务示例；不需要积分的 SaaS 可以连同监听器一起删除。
 	// 在这里添加当前 SaaS 独有的字段，例如 WorkspaceID、Locale、OnboardingStep。

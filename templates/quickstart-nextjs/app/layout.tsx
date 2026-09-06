@@ -3,11 +3,13 @@ import "@fontsource-variable/manrope";
 import "@fontsource-variable/newsreader";
 import { appEnv } from "@/lib/env";
 import { LocaleProvider } from "@/lib/i18n";
+import { publicMetadata, siteDescription, siteOrigin } from "@/lib/seo";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: `${appEnv.appName} — Free SaaS starter`,
-  description: "Launch your SaaS faster with a free Next.js and Go template. Authentication, Stripe subscriptions, credits, referrals, Resend email, and a public website are already integrated."
+  ...publicMetadata("Free SaaS starter", siteDescription, "/"),
+  metadataBase: new URL(siteOrigin),
+  applicationName: appEnv.appName
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

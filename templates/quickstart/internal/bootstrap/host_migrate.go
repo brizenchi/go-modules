@@ -1,6 +1,10 @@
 package bootstrap
 
-import "github.com/brizenchi/quickstart-template/internal/feature/note"
+import (
+	"github.com/brizenchi/quickstart-template/internal/feature/credits"
+	"github.com/brizenchi/quickstart-template/internal/feature/note"
+	"github.com/brizenchi/quickstart-template/internal/feature/operations"
+)
 
 // YOURS — edit freely.
 //
@@ -17,7 +21,9 @@ import "github.com/brizenchi/quickstart-template/internal/feature/note"
 //		}
 //	}
 func hostModels() []any {
-	return []any{
+	models := []any{
 		&note.Note{},
 	}
+	models = append(models, credits.Models()...)
+	return append(models, operations.Models()...)
 }

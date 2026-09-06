@@ -19,6 +19,28 @@ import (
 
 func boolPtr(value bool) *bool { return &value }
 
+func TestOperatorMutationPreflightAllowsIdempotencyHeader(t *testing.T) {
+	engine := BuildRouter(RouterConfig{ServiceName: "operator-cors", AllowedOrigins: []string{"https://app.example.com"}}, nil)
+	request := httptest.NewRequest(http.MethodOptions, "/api/v1/admin/settings", nil)
+	request.Header.Set("Origin", "https://app.example.com")
+	request.Header.Set("Access-Control-Request-Method", "PATCH")
+	request.Header.Set("Access-Control-Request-Headers", "authorization,content-type,idempotency-key")
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent || response.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Fatalf("preflight rejected: status=%d headers=%v", response.Code, response.Header())
+	}
+	allowed := strings.ToLower(response.Header().Get("Access-Control-Allow-Headers"))
+	for _, header := range []string{"authorization", "content-type", "idempotency-key"} {
+		if !strings.Contains(allowed, header) {
+			t.Fatalf("missing allowed header %s", header)
+		}
+	}
+	if !strings.Contains(response.Header().Get("Access-Control-Allow-Methods"), "PATCH") {
+		t.Fatal("PATCH preflight is not allowed")
+	}
+}
+
 func TestRouterAllowsCredentialedRequestsOnlyFromConfiguredOrigin(t *testing.T) {
 	engine := BuildRouter(RouterConfig{
 		ServiceName: "cors-test", AllowedOrigins: []string{"https://app.example.com"},

@@ -7,10 +7,10 @@ import {
 } from "../lib/workspace";
 
 test("workspace routes are explicit and do not capture public pages", () => {
-  for (const path of ["/dashboard", "/account", "/billing", "/referrals", "/billing/history"]) {
+  for (const path of ["/account", "/billing", "/referrals", "/billing/history"]) {
     assert.equal(isWorkspacePath(path), true, path);
   }
-  for (const path of ["/", "/login", "/pricing", "/docs", "/invite", "/referral-story"]) {
+  for (const path of ["/", "/dashboard", "/login", "/pricing", "/docs", "/invite", "/referral-story"]) {
     assert.equal(isWorkspacePath(path), false, path);
   }
 });
@@ -18,7 +18,7 @@ test("workspace routes are explicit and do not capture public pages", () => {
 test("workspace navigation is visible, ordered, and resolves one active destination", () => {
   assert.deepEqual(
     workspaceNavItems.map((item) => item.href),
-    ["/dashboard", "/billing", "/referrals", "/account"]
+    ["/account", "/billing", "/referrals"]
   );
   assert.equal(activeWorkspaceHref("/billing"), "/billing");
   assert.equal(activeWorkspaceHref("/billing/invoices"), "/billing");
