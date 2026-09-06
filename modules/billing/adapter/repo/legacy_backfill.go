@@ -89,10 +89,13 @@ func BackfillLegacyStripeState(ctx context.Context, db *gorm.DB, opts LegacyBill
 			continue
 		}
 		report.SubscriptionCandidates++
-		if err := subscriptions.UpsertSnapshot(ctx, row.ID, "stripe", snapshot); err != nil {
+		applied, err := subscriptions.UpsertSnapshot(ctx, row.ID, "stripe", snapshot, time.Unix(1, 0).UTC(), "legacy-backfill:"+row.ID)
+		if err != nil {
 			return nil, err
 		}
-		report.SubscriptionsSynced++
+		if applied {
+			report.SubscriptionsSynced++
+		}
 	}
 
 	return report, nil

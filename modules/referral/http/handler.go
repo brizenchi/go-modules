@@ -8,7 +8,10 @@ package http
 
 import (
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -36,8 +39,8 @@ type Deps struct {
 	Query     *app.QueryService
 	GetUserID UserIDFunc
 
-	// BaseLink is the URL prefix appended to a code to build a shareable
-	// invite link, e.g. "https://app.example.com/invite?ref=".
+	// BaseLink is the page URL used to build a shareable invite link. The
+	// handler sets (or replaces) its ref query parameter safely.
 	BaseLink string
 }
 
@@ -64,7 +67,12 @@ func (h *Handler) GetMyCode(c *gin.Context) {
 	}
 	link := ""
 	if h.baseLink != "" {
-		link = h.baseLink + code.Value
+		link, err = buildInviteLink(h.baseLink, code.Value)
+		if err != nil {
+			slog.ErrorContext(c.Request.Context(), "referral: build invite link", "error", err)
+			respondError(c, http.StatusInternalServerError, "internal referral error")
+			return
+		}
 	}
 	httpresp.OK(c, gin.H{
 		"code": code.Value,
@@ -109,6 +117,17 @@ func (h *Handler) GetMyStats(c *gin.Context) {
 
 // --- helpers ----------------------------------------------------------
 
+func buildInviteLink(baseLink, code string) (string, error) {
+	parsed, err := url.ParseRequestURI(strings.TrimSpace(baseLink))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil {
+		return "", fmt.Errorf("invalid referral base link")
+	}
+	query := parsed.Query()
+	query.Set("ref", strings.TrimSpace(code))
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
+}
+
 func (h *Handler) userID(c *gin.Context) (string, bool) {
 	if h.getUserID == nil {
 		respondError(c, http.StatusUnauthorized, "unauthorized")
@@ -147,6 +166,7 @@ func respondAppError(c *gin.Context, err error) {
 	case errors.Is(err, domain.ErrNotFound):
 		respondError(c, http.StatusNotFound, err.Error())
 	default:
-		respondError(c, http.StatusInternalServerError, err.Error())
+		slog.ErrorContext(c.Request.Context(), "referral: internal error", "error", err)
+		respondError(c, http.StatusInternalServerError, "internal referral error")
 	}
 }

@@ -46,15 +46,20 @@ export function readSession(): AuthSession | null {
     return null;
   }
 
-  const session = safeParse<AuthSession>(window.localStorage.getItem(SESSION_KEY));
+  const rawSession = window.localStorage.getItem(SESSION_KEY);
+  const session = safeParse<AuthSession>(rawSession);
   if (!session?.token || !session?.expires_at || !session.user?.id) {
-    window.localStorage.removeItem(SESSION_KEY);
+    if (rawSession !== null) {
+      window.localStorage.removeItem(SESSION_KEY);
+      emit(SESSION_EVENT);
+    }
     return null;
   }
 
   const expiresAt = new Date(session.expires_at);
   if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
     window.localStorage.removeItem(SESSION_KEY);
+    emit(SESSION_EVENT);
     return null;
   }
 
@@ -74,6 +79,20 @@ export function writeSession(session: AuthSession | null): void {
 
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   emit(SESSION_EVENT);
+}
+
+export function clearSessionIfToken(token: string): boolean {
+  if (!isBrowser()) {
+    return false;
+  }
+
+  const session = readSession();
+  if (!session || session.token !== token) {
+    return false;
+  }
+
+  writeSession(null);
+  return true;
 }
 
 export function readReferralCode(): string {

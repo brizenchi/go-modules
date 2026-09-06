@@ -16,7 +16,7 @@ if err := db.AutoMigrate(gormrepo.AutoMigrateModels()...); err != nil {
 module := referral.New(referral.Deps{
     Codes:      gormrepo.NewCodeRepo(db),
     Referrals:  gormrepo.NewReferralRepo(db),
-    Generator:  codegen.NewDeterministic("INV", 8),
+    Generator:  codegen.NewRandom("INV", 10),
     Bus:        eventbus.NewInProc(),
     GetUserID:  currentUserID,
     BaseLink:   "https://example.com/invite?ref=",
@@ -38,6 +38,8 @@ _, err := module.Attribute.ActivateReferral(ctx, refereeID, rewardAmount)
 ```
 
 激活条件可以是首次订阅、完成订单或其他产品事件，不固定在 referral 内。
+`NewRandom` 配合数据库唯一索引适合公开生产邀请码；截断用户 ID 的
+`NewDeterministic` 只适用于调用方能保证截断后仍唯一的内部场景。
 
 ## 事件
 

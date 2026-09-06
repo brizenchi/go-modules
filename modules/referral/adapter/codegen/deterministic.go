@@ -11,7 +11,9 @@ import (
 // Deterministic derives a code from the user_id by stripping non-alphanum
 // characters, uppercasing, truncating/padding to Length, and prefixing.
 //
-// Stable across restarts; no DB collision possible (user_id is unique).
+// Stable across restarts, but truncation can make different user IDs collide.
+// Prefer Random for public production codes unless the full transformed user ID
+// is guaranteed unique within Length characters.
 type Deterministic struct {
 	Prefix string
 	Length int

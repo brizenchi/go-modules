@@ -3,6 +3,7 @@ package gormrepo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -88,31 +89,58 @@ func (r *ReferralRepo) Create(ctx context.Context, ref domain.Referral) (*domain
 
 func (r *ReferralRepo) Activate(ctx context.Context, refereeID string, rewardCredits int) (*domain.Referral, error) {
 	var row referralRow
+	var activated bool
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Where("referee_id = ?", strings.TrimSpace(refereeID)).Limit(1).Find(&row)
+		now := time.Now().UTC()
+		refereeID = strings.TrimSpace(refereeID)
+		// Claim the pending row with a conditional write. Concurrent webhooks
+		// must not overwrite the first reward or resurrect an expired invite.
+		res := tx.Model(&referralRow{}).
+			Where("referee_id = ? AND status = ?", refereeID, string(domain.StatusPending)).
+			Where("expires_at IS NULL OR expires_at > ?", now).
+			Updates(map[string]any{
+				"status": string(domain.StatusActivated), "activated_at": now, "reward_credits": rewardCredits,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		activated = res.RowsAffected > 0
+		if !activated {
+			if err := tx.Model(&referralRow{}).
+				Where("referee_id = ? AND status = ? AND expires_at IS NOT NULL AND expires_at <= ?", refereeID, string(domain.StatusPending), now).
+				Updates(map[string]any{"status": string(domain.StatusExpired), "activated_at": nil, "reward_credits": 0}).Error; err != nil {
+				return err
+			}
+		}
+		res = tx.Where("referee_id = ?", refereeID).Limit(1).Find(&row)
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
 			return domain.ErrNotFound
 		}
-		if row.Status == string(domain.StatusActivated) {
-			return domain.ErrAlreadyActivated
-		}
-		now := time.Now().UTC()
-		row.Status = string(domain.StatusActivated)
-		row.ActivatedAt = &now
-		row.RewardCredits = rewardCredits
-		return tx.Save(&row).Error
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	d := row.toDomain()
-	return &d, nil
+	if activated {
+		return &d, nil
+	}
+	if d.Status == domain.StatusExpired {
+		return &d, domain.ErrExpired
+	}
+	if d.Status == domain.StatusActivated {
+		return nil, domain.ErrAlreadyActivated
+	}
+	return nil, fmt.Errorf("referral: unexpected activation state %q", d.Status)
 }
 
 func (r *ReferralRepo) ListByReferrer(ctx context.Context, referrerID string, page, limit int) ([]domain.Referral, int, error) {
+	if err := r.expirePending(ctx, referrerID); err != nil {
+		return nil, 0, err
+	}
 	if page <= 0 {
 		page = 1
 	}
@@ -130,7 +158,7 @@ func (r *ReferralRepo) ListByReferrer(ctx context.Context, referrerID string, pa
 	var rows []referralRow
 	err := r.db.WithContext(ctx).
 		Where("referrer_id = ?", referrerID).
-		Order("created_at DESC").
+		Order("created_at DESC, id DESC").
 		Offset((page - 1) * limit).
 		Limit(limit).
 		Find(&rows).Error
@@ -145,6 +173,9 @@ func (r *ReferralRepo) ListByReferrer(ctx context.Context, referrerID string, pa
 }
 
 func (r *ReferralRepo) StatsByReferrer(ctx context.Context, referrerID string) (*domain.Stats, error) {
+	if err := r.expirePending(ctx, referrerID); err != nil {
+		return nil, err
+	}
 	type aggRow struct {
 		Status string
 		Count  int64
@@ -172,6 +203,25 @@ func (r *ReferralRepo) StatsByReferrer(ctx context.Context, referrerID string) (
 		stats.TotalRewardCredits += int(row.Reward)
 	}
 	return stats, nil
+}
+
+// expirePending keeps dashboard reads honest even when no qualifying billing
+// event arrives after an invitation's deadline. Activation independently
+// enforces the same deadline inside its transaction.
+func (r *ReferralRepo) expirePending(ctx context.Context, referrerID string) error {
+	return r.db.WithContext(ctx).
+		Model(&referralRow{}).
+		Where(
+			"referrer_id = ? AND status = ? AND expires_at IS NOT NULL AND expires_at <= ?",
+			strings.TrimSpace(referrerID),
+			string(domain.StatusPending),
+			time.Now().UTC(),
+		).
+		Updates(map[string]any{
+			"status":         string(domain.StatusExpired),
+			"activated_at":   nil,
+			"reward_credits": 0,
+		}).Error
 }
 
 var _ port.ReferralRepository = (*ReferralRepo)(nil)

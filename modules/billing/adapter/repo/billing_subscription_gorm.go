@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 	"gorm.io/gorm"
@@ -21,19 +22,23 @@ func NewSubscriptionRepo(db *gorm.DB) *SubscriptionRepo {
 	return &SubscriptionRepo{db: db}
 }
 
-func (r *SubscriptionRepo) UpsertSnapshot(ctx context.Context, userID, provider string, snapshot domain.SubscriptionSnapshot) error {
+func (r *SubscriptionRepo) UpsertSnapshot(ctx context.Context, userID, provider string, snapshot domain.SubscriptionSnapshot, occurredAt time.Time, providerEventID string) (bool, error) {
 	userID = strings.TrimSpace(userID)
 	provider = strings.TrimSpace(provider)
 	if userID == "" {
-		return fmt.Errorf("billing: user_id required")
+		return false, fmt.Errorf("billing: user_id required")
 	}
 	if provider == "" {
-		return fmt.Errorf("billing: provider required")
+		return false, fmt.Errorf("billing: provider required")
 	}
+	if occurredAt.IsZero() {
+		return false, fmt.Errorf("billing: snapshot occurred_at required")
+	}
+	occurredAt = occurredAt.UTC()
 
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	row := &domain.BillingSubscription{
@@ -51,10 +56,13 @@ func (r *SubscriptionRepo) UpsertSnapshot(ctx context.Context, userID, provider 
 		PeriodStart:            snapshot.PeriodStart,
 		PeriodEnd:              snapshot.PeriodEnd,
 		CancelEffectiveAt:      snapshot.CancelEffectiveAt,
+		SnapshotOccurredAt:     &occurredAt,
+		SnapshotEventID:        strings.TrimSpace(providerEventID),
 		RawSnapshotJSON:        raw,
 	}
 
-	return r.db.WithContext(ctx).
+	terminalStatuses := []any{string(domain.StatusCanceled), string(domain.StatusIncompleteExpired)}
+	result := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{
 				{Name: "user_id"},
@@ -73,11 +81,45 @@ func (r *SubscriptionRepo) UpsertSnapshot(ctx context.Context, userID, provider 
 				"period_start",
 				"period_end",
 				"cancel_effective_at",
+				"snapshot_occurred_at",
+				"snapshot_event_id",
 				"raw_snapshot_json",
 				"updated_at",
 			}),
+			Where: clause.Where{Exprs: []clause.Expression{clause.Expr{
+				SQL: `
+					(plan <> ? OR excluded.plan = ?)
+					AND (
+						(excluded.plan = ? AND plan <> ?)
+						OR excluded.snapshot_occurred_at > COALESCE(snapshot_occurred_at, updated_at)
+						OR (
+							excluded.snapshot_occurred_at = COALESCE(snapshot_occurred_at, updated_at)
+							AND (
+								(
+									COALESCE(provider_subscription_id, '') = COALESCE(excluded.provider_subscription_id, '')
+									AND (status NOT IN (?, ?) OR excluded.status IN (?, ?))
+								)
+								OR (
+									COALESCE(provider_subscription_id, '') <> COALESCE(excluded.provider_subscription_id, '')
+									AND (status IN (?, ?) OR excluded.status NOT IN (?, ?))
+								)
+							)
+						)
+					)
+				`,
+				Vars: []any{
+					string(domain.PlanLifetime), string(domain.PlanLifetime),
+					string(domain.PlanLifetime), string(domain.PlanLifetime),
+					terminalStatuses[0], terminalStatuses[1], terminalStatuses[0], terminalStatuses[1],
+					terminalStatuses[0], terminalStatuses[1], terminalStatuses[0], terminalStatuses[1],
+				},
+			}}},
 		}).
-		Create(row).Error
+		Create(row)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (r *SubscriptionRepo) FindByUser(ctx context.Context, userID string) (*domain.BillingSubscription, error) {

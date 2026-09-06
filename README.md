@@ -70,6 +70,12 @@ go run ./cmd/quickstart
 发布新的 `go-modules` 标签后，删除这个本地 replace，并把依赖升级到该标签。CI 和生产
 环境应使用已发布版本，不依赖开发机上的相对路径。
 
+如果要直接从这个 monorepo 部署内置 quickstart（例如 Dokploy），使用仓库根目录的
+`Dockerfile`，并把构建上下文设为仓库根目录 `/`。这个入口通过 `go.work` 把当前提交里的
+`foundation/*`、`modules/*` 和 `templates/quickstart` 一起构建，因此不会误用模板
+`go.mod` 中锁定的旧发布版。`templates/quickstart/Dockerfile` 仍保留给已经复制出去、且
+依赖已发布 `go-modules` 版本的独立项目。
+
 复制后的第一批修改通常只有：
 
 1. 在 `internal/user/model.go` 决定当前 SaaS 的用户字段。

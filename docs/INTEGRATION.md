@@ -107,7 +107,7 @@ email 模块只负责发送。何时发送由宿主订阅 auth/billing/referral 
 referralModule := referral.New(referral.Deps{
     Codes:      gormrepo.NewCodeRepo(db),
     Referrals:  gormrepo.NewReferralRepo(db),
-    Generator:  codegen.NewDeterministic("INV", 8),
+    Generator:  codegen.NewRandom("INV", 10),
     Bus:        referraleventbus.NewInProc(),
     GetUserID:  currentUserID,
     BaseLink:   "https://example.com/invite?ref=",

@@ -1,5 +1,6 @@
 import { apiUrl } from "./env";
-import type { AuthSession, SessionUser } from "./auth";
+import { clearSessionIfToken, type AuthSession, type SessionUser } from "./auth";
+import { prepareOAuthBrowserFlow } from "./oauth-flow";
 
 export type ApiEnvelope<T> = {
   code: number;
@@ -18,6 +19,43 @@ export type VerifyResult = AuthSession;
 export type WSTicketResult = {
   ticket: string;
   expires_at: string;
+};
+
+export type CapabilitiesView = {
+  // Optional only for compatibility with an older quickstart API that exposed
+  // account/billing/referral capabilities before auth method discovery.
+  auth?: {
+    email_enabled: boolean;
+    oauth_providers: OAuthProvider[];
+  };
+  account: { enabled: boolean };
+  billing: {
+    enabled: boolean;
+    provider: string;
+    offers: {
+      subscriptions: Array<{ plan: string; intervals: string[] }>;
+      lifetime: boolean;
+      credits: boolean;
+    };
+  };
+  referral: { enabled: boolean };
+};
+
+export type AccountProfile = {
+  id: string;
+  email: string;
+  email_verified: boolean;
+  username: string;
+  avatar_url: string;
+  role: string;
+  credits: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UpdateAccountProfilePayload = {
+  username?: string;
+  avatar_url?: string;
 };
 
 export type SubscriptionView = {
@@ -145,10 +183,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const bodyCode = typeof envelope?.code === "number" ? envelope.code : response.status;
 
   if (!response.ok || bodyCode !== 200) {
-    throw new ApiError(message, response.status, bodyCode, envelope?.data);
+    const error = new ApiError(message, response.status, bodyCode, envelope?.data);
+    if ((response.status === 401 || bodyCode === 401) && options.authToken) {
+      clearSessionIfToken(options.authToken);
+    }
+    throw error;
   }
 
   return (envelope?.data ?? null) as T;
+}
+
+export async function getCapabilities(): Promise<CapabilitiesView> {
+  return apiRequest<CapabilitiesView>("/capabilities");
 }
 
 export async function sendCode(email: string): Promise<SendCodeResult> {
@@ -172,15 +218,20 @@ export async function verifyCode(email: string, code: string, referralCode?: str
 export type OAuthProvider = "google" | "github";
 
 export async function getOAuthAuthorizeURL(provider: OAuthProvider): Promise<string> {
-  const data = await apiRequest<{ redirect_url: string }>(`/auth/${provider}/authorize`);
+	const challenge = await prepareOAuthBrowserFlow(provider);
+  const data = await apiRequest<{ redirect_url: string }>(
+		`/auth/${provider}/authorize?challenge=${encodeURIComponent(challenge)}`,
+		{ credentials: "include" }
+	);
   return data.redirect_url;
 }
 
-export async function exchangeToken(code: string, referralCode?: string): Promise<VerifyResult> {
+export async function exchangeToken(code: string, referralCode?: string, oauthVerifier?: string): Promise<VerifyResult> {
   return apiRequest<VerifyResult>("/auth/exchange-token", {
     method: "POST",
     json: {
       code,
+		oauth_verifier: oauthVerifier?.trim() || undefined,
       referral_code: referralCode?.trim() || undefined
     }
   });
@@ -208,11 +259,27 @@ export async function issueWSTicket(token: string): Promise<WSTicketResult> {
   });
 }
 
+export async function getAccountProfile(token: string): Promise<AccountProfile> {
+  return apiRequest<AccountProfile>("/account/profile", {
+    authToken: token
+  });
+}
+
+export async function updateAccountProfile(
+  token: string,
+  payload: UpdateAccountProfilePayload
+): Promise<AccountProfile> {
+  return apiRequest<AccountProfile>("/account/profile", {
+    method: "PATCH",
+    authToken: token,
+    json: payload
+  });
+}
+
 export type CheckoutPayload = {
   plan?: string;
   interval?: string;
   product_type: "subscription" | "credits" | "lifetime";
-  price_id?: string;
   quantity?: number;
   success_url: string;
   cancel_url: string;

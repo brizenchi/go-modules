@@ -50,6 +50,42 @@ func TestCodeService_GetOrCreate_RetriesOnCollision(t *testing.T) {
 	}
 }
 
+func TestCodeService_GetOrCreate_RereadsConcurrentWinner(t *testing.T) {
+	winner := domain.Code{UserID: "u1", Value: "WINNER"}
+	repo := &concurrentWinnerCodeRepo{winner: winner}
+	svc := NewCodeService(repo, &mockGenerator{values: []string{"LOSER"}})
+
+	got, err := svc.GetOrCreate(context.Background(), "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Value != winner.Value {
+		t.Fatalf("code=%q, want concurrent winner %q", got.Value, winner.Value)
+	}
+}
+
+type concurrentWinnerCodeRepo struct {
+	winner   domain.Code
+	findCall int
+}
+
+func (r *concurrentWinnerCodeRepo) FindByUser(_ context.Context, _ string) (*domain.Code, error) {
+	r.findCall++
+	if r.findCall == 1 {
+		return nil, domain.ErrNotFound
+	}
+	winner := r.winner
+	return &winner, nil
+}
+
+func (r *concurrentWinnerCodeRepo) FindByValue(context.Context, string) (*domain.Code, error) {
+	return nil, domain.ErrNotFound
+}
+
+func (r *concurrentWinnerCodeRepo) Create(context.Context, domain.Code) error {
+	return domain.ErrCodeCollision
+}
+
 func TestCodeService_GetOrCreate_RejectsEmptyUser(t *testing.T) {
 	svc := NewCodeService(newMockCodeRepo(), &mockGenerator{values: []string{"X"}})
 	_, err := svc.GetOrCreate(context.Background(), "")

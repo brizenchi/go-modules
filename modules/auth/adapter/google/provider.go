@@ -1,11 +1,15 @@
 // Package google implements port.IdentityProvider against Google's OAuth 2.0 endpoints.
 //
-// State handling: state values are stateless signed JWTs (HS256, 20-min TTL).
-// This avoids needing a server-side state store and protects against CSRF.
+// State integrity uses signed JWTs (HS256, 20-min default TTL). Browser
+// binding and one-time consumption are enforced by auth/app with the shared
+// OAuthFlowStore; a signed state alone is not treated as sufficient CSRF
+// protection.
 package google
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -93,13 +97,21 @@ func New(cfg Config) (*Provider, error) {
 
 func (p *Provider) Name() domain.Provider { return p.cfg.ProviderName }
 
-// IssueState mints an HS256 JWT carrying just an expiry — that's enough
-// to prove the state came from this server within the TTL window.
+func (p *Provider) OAuthStateTTL() time.Duration { return p.cfg.StateTTL }
+
+// IssueState mints an expiring HS256 JWT with a cryptographically random ID.
+// The random jti prevents two flows started in the same second from sharing
+// an identical state value.
 func (p *Provider) IssueState() (string, error) {
+	jti, err := randomStateID()
+	if err != nil {
+		return "", err
+	}
 	now := time.Now().UTC()
 	claims := jwtv5.RegisteredClaims{
 		IssuedAt:  jwtv5.NewNumericDate(now),
 		ExpiresAt: jwtv5.NewNumericDate(now.Add(p.cfg.StateTTL)),
+		ID:        jti,
 	}
 	tok := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, claims)
 	return tok.SignedString([]byte(p.cfg.StateSecret))
@@ -110,11 +122,15 @@ func (p *Provider) VerifyState(state string) error {
 		return domain.ErrInvalidState
 	}
 	claims := &jwtv5.RegisteredClaims{}
-	parser := jwtv5.NewParser(jwtv5.WithLeeway(30 * time.Second))
+	parser := jwtv5.NewParser(
+		jwtv5.WithLeeway(30*time.Second),
+		jwtv5.WithExpirationRequired(),
+		jwtv5.WithValidMethods([]string{jwtv5.SigningMethodHS256.Alg()}),
+	)
 	tok, err := parser.ParseWithClaims(state, claims, func(*jwtv5.Token) (any, error) {
 		return []byte(p.cfg.StateSecret), nil
 	})
-	if err != nil || !tok.Valid {
+	if err != nil || !tok.Valid || claims.ID == "" || claims.IssuedAt == nil {
 		return fmt.Errorf("%w: %v", domain.ErrInvalidState, err)
 	}
 	return nil
@@ -152,15 +168,18 @@ type userInfo struct {
 }
 
 func (p *Provider) Exchange(ctx context.Context, q url.Values) (*domain.OAuthProfile, error) {
-	if errParam := q.Get("error"); errParam != "" {
-		return nil, fmt.Errorf("google: oauth error: %s", errParam)
-	}
-	code := q.Get("code")
-	if code == "" {
-		return nil, fmt.Errorf("google: missing code in callback")
-	}
 	if err := p.VerifyState(q.Get("state")); err != nil {
 		return nil, err
+	}
+	if errParam := strings.ToLower(strings.TrimSpace(q.Get("error"))); errParam != "" {
+		if errParam == "access_denied" {
+			return nil, domain.ErrOAuthDenied
+		}
+		return nil, domain.ErrOAuthCallback
+	}
+	code := strings.TrimSpace(q.Get("code"))
+	if code == "" {
+		return nil, domain.ErrOAuthCallback
 	}
 
 	form := url.Values{
@@ -193,6 +212,14 @@ func (p *Provider) Exchange(ctx context.Context, q url.Values) (*domain.OAuthPro
 		Username:  strings.TrimSpace(info.Name),
 		AvatarURL: strings.TrimSpace(info.Picture),
 	}, nil
+}
+
+func randomStateID() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", fmt.Errorf("google: generate oauth state id: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
 }
 
 func (p *Provider) postForm(ctx context.Context, endpoint string, form url.Values) ([]byte, error) {

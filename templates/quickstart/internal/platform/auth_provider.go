@@ -68,11 +68,13 @@ func buildAuth(db *gorm.DB, cfg Config, users *user.Repository, emailModule *ema
 		TokenSigner:       signer,
 		WSTicketSigner:    ticketSigner,
 		ExchangeCodeStore: store,
+		OAuthFlowStore:    store,
 		EmailCodeIssuer:   issuer,
 		EmailCodeVerifier: verifier,
 		IdentityProviders: providers,
 		Bus:               autheventbus.NewInProc(),
 		FrontendURL:       cfg.Auth.FrontendRedirect,
+		OAuthCookieSecure: cfg.OAuthFlowCookieSecure(),
 	}), nil
 }
 

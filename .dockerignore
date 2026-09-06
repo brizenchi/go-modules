@@ -1,0 +1,16 @@
+.git
+.github
+.codegraph
+.DS_Store
+.env
+.env.*
+**/.env
+**/.env.*
+**/node_modules
+**/.next
+**/coverage
+**/dist
+**/tmp
+templates/quickstart/quickstart
+templates/quickstart-nextjs
+*.log

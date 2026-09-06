@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -79,40 +80,83 @@ func (s *AttributeService) AttributeReferral(ctx context.Context, refereeID, cod
 		ref.ExpiresAt = &expires
 	}
 	stored, err := s.referrals.Create(ctx, ref)
+	alreadyAttributed := false
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, domain.ErrAlreadyAttributed) {
+			return nil, err
+		}
+		alreadyAttributed = true
+		// The link can commit before a listener fails. Replaying only the same
+		// attribution lets an upstream login retry finish downstream work while
+		// preserving the one-referrer-per-user contract.
+		stored, err = s.referrals.FindByReferee(ctx, refereeID)
+		if err != nil {
+			return nil, err
+		}
+		if stored.Code != code.Value || stored.ReferrerID != code.UserID {
+			return stored, domain.ErrAlreadyAttributed
+		}
 	}
 	if s.bus != nil {
-		s.bus.Publish(ctx, event.Envelope{
+		if err := s.bus.Publish(ctx, event.Envelope{
 			Kind:       event.KindReferralRegistered,
-			OccurredAt: time.Now().UTC(),
+			OccurredAt: referralOccurredAt(stored),
 			Payload:    event.ReferralRegistered{Referral: *stored},
-		})
+		}); err != nil {
+			return stored, fmt.Errorf("referral: publish registered event: %w", err)
+		}
+	}
+	if alreadyAttributed {
+		return stored, domain.ErrAlreadyAttributed
 	}
 	return stored, nil
 }
 
+func referralOccurredAt(referral *domain.Referral) time.Time {
+	if referral != nil && !referral.CreatedAt.IsZero() {
+		return referral.CreatedAt.UTC()
+	}
+	return time.Now().UTC()
+}
+
 // ActivateReferral transitions a pending referral to activated and
-// fires ReferralActivated. Idempotent: subsequent calls return
-// ErrAlreadyActivated.
+// fires ReferralActivated. Subsequent calls still return ErrAlreadyActivated,
+// but first reload and republish the stored event. That lets an upstream
+// webhook retry a listener failure without changing the public idempotency
+// contract; listeners must make repeated delivery safe.
 func (s *AttributeService) ActivateReferral(ctx context.Context, refereeID string, rewardCredits int) (*domain.Referral, error) {
 	refereeID = strings.TrimSpace(refereeID)
 	if refereeID == "" {
 		return nil, domain.ErrInvalidUser
 	}
 	r, err := s.referrals.Activate(ctx, refereeID, rewardCredits)
+	alreadyActivated := false
 	if err != nil {
-		if errors.Is(err, domain.ErrAlreadyActivated) || errors.Is(err, domain.ErrNotFound) {
+		if !errors.Is(err, domain.ErrAlreadyActivated) {
 			return nil, err
 		}
-		return nil, err
+		alreadyActivated = true
+		// The state transition can commit before a listener fails. Reload and
+		// replay the stored reward so the upstream webhook retry can complete.
+		r, err = s.referrals.FindByReferee(ctx, refereeID)
+		if err != nil {
+			return nil, err
+		}
+		if r.Status != domain.StatusActivated {
+			return nil, domain.ErrAlreadyActivated
+		}
 	}
 	if s.bus != nil {
-		s.bus.Publish(ctx, event.Envelope{
+		if err := s.bus.Publish(ctx, event.Envelope{
 			Kind:       event.KindReferralActivated,
 			OccurredAt: time.Now().UTC(),
 			Payload:    event.ReferralActivated{Referral: *r},
-		})
+		}); err != nil {
+			return r, fmt.Errorf("referral: publish activated event: %w", err)
+		}
+	}
+	if alreadyActivated {
+		return r, domain.ErrAlreadyActivated
 	}
 	return r, nil
 }

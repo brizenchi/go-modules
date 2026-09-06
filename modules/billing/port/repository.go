@@ -2,6 +2,7 @@ package port
 
 import (
 	"context"
+	"time"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 )
@@ -21,7 +22,22 @@ type BillingEventRepository interface {
 // SubscriptionRepository persists the current provider-derived subscription
 // snapshot used by query, change, cancellation and portal flows.
 type SubscriptionRepository interface {
-	UpsertSnapshot(ctx context.Context, userID, provider string, snapshot domain.SubscriptionSnapshot) error
+	// UpsertSnapshot applies snapshot only when version is not stale. The bool
+	// reports whether the read model changed; stale events return (false, nil).
+	UpsertSnapshot(ctx context.Context, userID, provider string, snapshot domain.SubscriptionSnapshot, occurredAt time.Time, providerEventID string) (bool, error)
+}
+
+// CheckoutReservationRepository serializes subscription/lifetime checkout
+// creation across processes. A reservation must live at least as long as the
+// provider-side checkout session it protects.
+type CheckoutReservationRepository interface {
+	ReserveCheckout(ctx context.Context, userID, provider, providerCustomerID, reservationID, intentKey string, now, expiresAt time.Time) (*domain.BillingCheckoutReservation, bool, error)
+	ReplaceCheckoutReservation(ctx context.Context, userID, provider, providerCustomerID, expectedReservationID, reservationID, intentKey string, expiresAt time.Time) (bool, error)
+	CompleteCheckoutReservation(ctx context.Context, userID, provider, reservationID string, result domain.CheckoutResult) error
+	LinkCheckoutSubscription(ctx context.Context, provider, providerSessionID, providerSubscriptionID string) error
+	ReleaseCheckoutReservation(ctx context.Context, provider, providerSessionID string) (bool, error)
+	ReleaseCheckoutReservationByReservationID(ctx context.Context, provider, reservationID string) (bool, error)
+	ReleaseCheckoutReservationBySubscription(ctx context.Context, provider, providerSubscriptionID string) (bool, error)
 }
 
 // UserResolver maps webhook payload hints to a userID known to the host

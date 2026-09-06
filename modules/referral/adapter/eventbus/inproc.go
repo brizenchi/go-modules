@@ -3,6 +3,8 @@ package eventbus
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 
@@ -30,25 +32,32 @@ func (b *InProc) Subscribe(kind event.Kind, fn port.Listener) {
 	b.listeners[kind] = append(b.listeners[kind], fn)
 }
 
-func (b *InProc) Publish(ctx context.Context, env event.Envelope) {
+func (b *InProc) Publish(ctx context.Context, env event.Envelope) error {
 	b.mu.RLock()
 	listeners := append([]port.Listener(nil), b.listeners[env.Kind]...)
 	wildcards := append([]port.Listener(nil), b.wildcards...)
 	b.mu.RUnlock()
+
+	var failures []error
 	for _, fn := range append(listeners, wildcards...) {
-		b.run(ctx, env, fn)
+		if err := b.run(ctx, env, fn); err != nil {
+			failures = append(failures, err)
+		}
 	}
+	return errors.Join(failures...)
 }
 
-func (b *InProc) run(ctx context.Context, env event.Envelope, fn port.Listener) {
+func (b *InProc) run(ctx context.Context, env event.Envelope, fn port.Listener) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			err = fmt.Errorf("referral listener panic: %v", r)
 			slog.ErrorContext(ctx, "referral: listener panic", "kind", env.Kind, "recover", r)
 		}
 	}()
-	if err := fn(ctx, env); err != nil {
+	if err = fn(ctx, env); err != nil {
 		slog.ErrorContext(ctx, "referral: listener returned error", "kind", env.Kind, "error", err)
 	}
+	return err
 }
 
 var _ port.EventBus = (*InProc)(nil)

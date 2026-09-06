@@ -24,7 +24,7 @@ host.welcome_email.enabled → APP_HOST_WELCOME_EMAIL_ENABLED
 | `auth.email.enabled` | 默认 true | false 时不挂邮箱验证码路由 |
 | `auth.google.enabled` | 省略时根据凭据推断 | 注册或移除 Google Provider |
 | `auth.github.enabled` | 省略时根据凭据推断 | 注册或移除 GitHub Provider |
-| `billing.enabled` | 省略时根据 Stripe 凭据推断 | false 时不迁移 billing 表、不挂支付路由 |
+| `billing.enabled` | 省略时根据 Stripe 凭据推断 | false 时不迁移 billing 表，支付接口返回明确的 503 |
 | `referral.enabled` | 默认 true | false 时不迁移邀请表、不挂邀请路由 |
 | `email.provider` | 默认 log | `none`、`log`、`resend`、`brevo` |
 
@@ -86,7 +86,8 @@ referral:
   enabled: false
 ```
 
-对应表不会创建，对应路由不会出现。
+对应模块表不会创建。Auth 和 Referral 路由不会挂载；Billing 为了让客户端可诊断配置状态，
+保留同路径的 503 响应。客户端可通过 `GET /api/v1/capabilities` 在请求前判断模块状态。
 
 ## 配置归属
 
@@ -102,7 +103,10 @@ referral:
 ## 校验原则
 
 - 启用 auth 时必须有 `auth.user_jwt_secret`；
+- Billing 和 Referral 只提供用户路由，因此启用任一能力时必须同时启用 auth；
 - 启用邮箱登录时 `email.provider` 不能是 `none`；
 - 显式启用 OAuth 后，客户端 ID、密钥、回调地址和 state 密钥必须完整；
 - 启用 billing 时当前只支持 `provider: stripe`，并要求 secret key 和 webhook secret；
+- 启用 referral 时要求有效的 `base_link`，生产环境必须是 HTTPS；未填写时会从
+  `auth.frontend_redirect` 的 origin 派生 `/invite?ref=`；
 - 不认识的 provider 直接启动失败，不静默回退。

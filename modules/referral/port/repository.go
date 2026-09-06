@@ -34,8 +34,10 @@ type ReferralRepository interface {
 
 	// Activate transitions a Pending referral to Activated, recording
 	// the reward credits and ActivatedAt. Returns domain.ErrAlreadyActivated
-	// when called twice on the same referral, domain.ErrNotFound when
-	// the referee has no referral.
+	// when called twice on the same referral, domain.ErrExpired when the
+	// activation deadline has passed, or domain.ErrNotFound when the referee
+	// has no referral. An expiry transition is persisted before ErrExpired is
+	// returned.
 	Activate(ctx context.Context, refereeID string, rewardCredits int) (*domain.Referral, error)
 
 	// ListByReferrer returns paginated referrals where the user is the

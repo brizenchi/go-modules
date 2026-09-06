@@ -104,17 +104,42 @@ test("writeSession persists valid sessions and emits a session event", () => {
   assert.equal(emitted, 1);
 });
 
-test("readSession clears expired sessions", () => {
+test("readSession clears expired sessions and emits only once", () => {
   const windowMock = installWindow();
   const auth = loadAuthModule();
+  let emitted = 0;
+
+  windowMock.addEventListener(auth.SESSION_EVENT, () => {
+    emitted += 1;
+  });
 
   auth.writeSession({
     token: "expired",
     expires_at: new Date(Date.now() - 60_000).toISOString(),
     user: { id: "user_2", email: "expired@example.com" }
   });
+  emitted = 0;
 
   assert.equal(auth.readSession(), null);
+  assert.equal(windowMock.localStorage.length, 0);
+  assert.equal(emitted, 1);
+
+  assert.equal(auth.readSession(), null);
+  assert.equal(emitted, 1);
+});
+
+test("clearSessionIfToken does not clear a newer session", () => {
+  const windowMock = installWindow();
+  const auth = loadAuthModule();
+  auth.writeSession({
+    token: "new-token",
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    user: { id: "user_3", email: "new@example.com" }
+  });
+
+  assert.equal(auth.clearSessionIfToken("old-token"), false);
+  assert.equal(auth.readSession()?.token, "new-token");
+  assert.equal(auth.clearSessionIfToken("new-token"), true);
   assert.equal(windowMock.localStorage.length, 0);
 });
 

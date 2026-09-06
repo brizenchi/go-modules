@@ -10,4 +10,5 @@ var (
 	ErrCodeCollision     = errors.New("referral: code collision after retries")
 	ErrNotFound          = errors.New("referral: not found")
 	ErrAlreadyActivated  = errors.New("referral: already activated")
+	ErrExpired           = errors.New("referral: activation window expired")
 )

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/event"
@@ -20,23 +21,33 @@ import (
 //     (provider, provider_event_id). On duplicate,
 //     skip processing.
 //  3. resolver.Resolve                → fill UserID for each envelope when missing
-//  4. bus.Publish                     → dispatch domain events to listeners
-//  5. repo.MarkProcessed              → mark the event row as handled
+//  4. subs.UpsertSnapshot             → update the canonical read model only
+//     when this snapshot is not stale
+//  5. bus.Publish                     → dispatch every unprocessed domain event
+//     to listeners, even when its snapshot was stale
+//  6. repo.MarkProcessed              → mark the event row as handled
 //
 // On any error after a successful CreateIfAbsent insert we return the error
 // without marking processed. A later provider retry finds the unprocessed row
 // and runs it again. Every listener must therefore use an idempotency key for
-// externally visible side effects.
+// externally visible side effects. Stateful listeners must also use OccurredAt
+// or query the canonical subscription because provider delivery order is not
+// guaranteed.
 type WebhookService struct {
-	provider port.Provider
-	repo     port.BillingEventRepository
-	subs     port.SubscriptionRepository
-	resolver port.UserResolver
-	bus      port.EventBus
+	provider     port.Provider
+	repo         port.BillingEventRepository
+	subs         port.SubscriptionRepository
+	resolver     port.UserResolver
+	bus          port.EventBus
+	reservations port.CheckoutReservationRepository
 }
 
-func NewWebhookService(p port.Provider, r port.BillingEventRepository, sr port.SubscriptionRepository, ur port.UserResolver, b port.EventBus) *WebhookService {
-	return &WebhookService{provider: p, repo: r, subs: sr, resolver: ur, bus: b}
+func NewWebhookService(p port.Provider, r port.BillingEventRepository, sr port.SubscriptionRepository, ur port.UserResolver, b port.EventBus, reservationRepos ...port.CheckoutReservationRepository) *WebhookService {
+	var reservations port.CheckoutReservationRepository
+	if len(reservationRepos) > 0 {
+		reservations = reservationRepos[0]
+	}
+	return &WebhookService{provider: p, repo: r, subs: sr, resolver: ur, bus: b, reservations: reservations}
 }
 
 // ProcessResult summarizes what Process did. It's primarily for logging/responses.
@@ -84,6 +95,30 @@ func (s *WebhookService) Process(ctx context.Context, payload []byte, signature 
 		}, nil
 	}
 
+	if parsed.ReleaseCheckoutReservation {
+		if s.reservations == nil {
+			return nil, fmt.Errorf("billing: checkout reservation repository required to release terminal session")
+		}
+		reservationID := strings.TrimSpace(parsed.CheckoutReservationID)
+		sessionID := strings.TrimSpace(parsed.CheckoutSessionID)
+		if reservationID == "" && sessionID == "" {
+			return nil, fmt.Errorf("billing: terminal checkout event missing reservation and session ids")
+		}
+		var releaseErr error
+		if reservationID != "" {
+			_, releaseErr = s.reservations.ReleaseCheckoutReservationByReservationID(ctx, s.provider.Name(), reservationID)
+		} else {
+			_, releaseErr = s.reservations.ReleaseCheckoutReservation(ctx, s.provider.Name(), sessionID)
+		}
+		if releaseErr != nil {
+			return nil, fmt.Errorf("billing: release terminal checkout reservation: %w", releaseErr)
+		}
+	} else if parsed.CheckoutSessionID != "" && parsed.CheckoutSubscriptionID != "" && s.reservations != nil {
+		if err := s.reservations.LinkCheckoutSubscription(ctx, s.provider.Name(), parsed.CheckoutSessionID, parsed.CheckoutSubscriptionID); err != nil {
+			return nil, fmt.Errorf("billing: link checkout reservation subscription: %w", err)
+		}
+	}
+
 	for _, env := range parsed.Envelopes {
 		if env.UserID == "" {
 			env.UserID = resolvedUserID
@@ -94,8 +129,24 @@ func (s *WebhookService) Process(ctx context.Context, payload []byte, signature 
 		if env.ProviderEventID == "" {
 			env.ProviderEventID = parsed.ProviderEventID
 		}
-		if err := s.persistSubscriptionSnapshot(ctx, env); err != nil {
+		snapshotApplied, err := s.persistSubscriptionSnapshot(ctx, env)
+		if err != nil {
 			return nil, err
+		}
+		if !snapshotApplied {
+			slog.InfoContext(ctx, "billing: ignore stale subscription snapshot",
+				"provider", env.Provider,
+				"event_id", env.ProviderEventID,
+				"kind", env.Kind,
+				"user_id", env.UserID,
+			)
+		}
+		if snapshotApplied && s.reservations != nil {
+			if subID := terminalSubscriptionID(env); subID != "" {
+				if _, err := s.reservations.ReleaseCheckoutReservationBySubscription(ctx, env.Provider, subID); err != nil {
+					return nil, fmt.Errorf("billing: release terminal checkout reservation: %w", err)
+				}
+			}
 		}
 		if err := s.bus.Publish(ctx, env); err != nil {
 			return nil, fmt.Errorf("billing: publish %s: %w", env.Kind, err)
@@ -112,16 +163,38 @@ func (s *WebhookService) Process(ctx context.Context, payload []byte, signature 
 	}, nil
 }
 
-func (s *WebhookService) persistSubscriptionSnapshot(ctx context.Context, env event.Envelope) error {
+func terminalSubscriptionID(env event.Envelope) string {
+	var snapshot domain.SubscriptionSnapshot
+	switch payload := env.Payload.(type) {
+	case event.SubscriptionCanceled:
+		snapshot = payload.Snapshot
+		if snapshot.ProviderSubscriptionID == "" {
+			snapshot.ProviderSubscriptionID = payload.ProviderSubscriptionID
+		}
+	case event.SubscriptionUpdated:
+		snapshot = payload.Snapshot
+	default:
+		return ""
+	}
+	if snapshot.Status != domain.StatusCanceled && snapshot.Status != domain.StatusIncompleteExpired {
+		return ""
+	}
+	return strings.TrimSpace(snapshot.ProviderSubscriptionID)
+}
+
+func (s *WebhookService) persistSubscriptionSnapshot(ctx context.Context, env event.Envelope) (bool, error) {
 	if s.subs == nil {
-		return nil
+		return true, nil
 	}
 	var snapshot *domain.SubscriptionSnapshot
 	switch payload := env.Payload.(type) {
 	case event.SubscriptionActivated:
 		snapshot = &payload.Snapshot
 	case event.SubscriptionRenewed:
-		snapshot = &payload.Snapshot
+		// Invoice payloads are payment facts, not authoritative subscription
+		// snapshots (they do not carry cancellation flags and can omit fields).
+		// customer.subscription.* events own the canonical read model.
+		return true, nil
 	case event.SubscriptionUpdated:
 		snapshot = &payload.Snapshot
 	case event.SubscriptionCanceling:
@@ -136,15 +209,19 @@ func (s *WebhookService) persistSubscriptionSnapshot(ctx context.Context, env ev
 		}
 	}
 	if snapshot == nil {
-		return nil
+		return true, nil
 	}
 	if env.UserID == "" {
-		return fmt.Errorf("billing: user_id required to persist %s snapshot", env.Kind)
+		return false, fmt.Errorf("billing: user_id required to persist %s snapshot", env.Kind)
 	}
-	if err := s.subs.UpsertSnapshot(ctx, env.UserID, env.Provider, *snapshot); err != nil {
-		return fmt.Errorf("billing: persist %s snapshot: %w", env.Kind, err)
+	if env.OccurredAt.IsZero() {
+		return false, fmt.Errorf("billing: occurred_at required to persist %s snapshot", env.Kind)
 	}
-	return nil
+	applied, err := s.subs.UpsertSnapshot(ctx, env.UserID, env.Provider, *snapshot, env.OccurredAt, env.ProviderEventID)
+	if err != nil {
+		return false, fmt.Errorf("billing: persist %s snapshot: %w", env.Kind, err)
+	}
+	return applied, nil
 }
 
 // IsSignatureError reports whether err originates from webhook signature verification.

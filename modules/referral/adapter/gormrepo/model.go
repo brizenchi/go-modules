@@ -24,12 +24,12 @@ func (r codeRow) toDomain() domain.Code {
 type referralRow struct {
 	ID            uint64 `gorm:"primaryKey;autoIncrement"`
 	Code          string `gorm:"type:varchar(64);index;not null"`
-	ReferrerID    string `gorm:"type:varchar(36);index;not null"`
+	ReferrerID    string `gorm:"type:varchar(36);index;index:idx_referrals_referrer_status_expiry,priority:1;not null"`
 	RefereeID     string `gorm:"type:varchar(36);uniqueIndex;not null"` // a referee has at most one referrer
-	Status        string `gorm:"type:varchar(16);index;not null;default:'pending'"`
+	Status        string `gorm:"type:varchar(16);index;index:idx_referrals_referrer_status_expiry,priority:2;not null;default:'pending'"`
 	ActivatedAt   *time.Time
-	ExpiresAt     *time.Time
-	RewardCredits int `gorm:"not null;default:0"`
+	ExpiresAt     *time.Time `gorm:"index:idx_referrals_referrer_status_expiry,priority:3"`
+	RewardCredits int        `gorm:"not null;default:0"`
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

@@ -7,6 +7,7 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -55,6 +56,7 @@ func NewHandler(deps Deps) *Handler {
 // --- Webhook (public) ----------------------------------------------------
 
 const maxWebhookBodyBytes int64 = 1 << 20 // 1 MiB; Stripe events are normally far smaller.
+const maxJSONBodyBytes int64 = 32 << 10
 
 // HandleWebhook is the provider webhook endpoint. Mount on a public route.
 func (h *Handler) HandleWebhook(c *gin.Context) {
@@ -117,7 +119,7 @@ func (h *Handler) CreateCheckoutSession(c *gin.Context) {
 		return
 	}
 	var req createCheckoutRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := bindJSON(c, &req, false); err != nil {
 		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -141,15 +143,19 @@ func (h *Handler) CreateCheckoutSession(c *gin.Context) {
 
 // maxMetadataEntries caps client-supplied metadata size to keep request
 // payloads bounded. Stripe itself allows 50 keys per object.
-const maxMetadataEntries = 20
+const (
+	maxMetadataEntries    = 20
+	maxMetadataKeyBytes   = 40
+	maxMetadataValueBytes = 500
+)
 
 // sanitizeMetadata trims keys/values, drops empty pairs and reserved keys,
 // and caps the size. Reserved keys are populated by the billing layer
 // itself — silently ignoring them prevents request bodies from spoofing
 // system fields like user_id.
-func sanitizeMetadata(in map[string]string) map[string]string {
+func sanitizeMetadata(in map[string]string) (map[string]string, error) {
 	if len(in) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make(map[string]string, len(in))
 	for k, v := range in {
@@ -161,25 +167,35 @@ func sanitizeMetadata(in map[string]string) map[string]string {
 		if domain.IsReservedMetadataKey(k) {
 			continue
 		}
-		out[k] = v
-		if len(out) >= maxMetadataEntries {
-			break
+		if len(k) > maxMetadataKeyBytes {
+			return nil, fmt.Errorf("metadata key must not exceed %d bytes", maxMetadataKeyBytes)
 		}
+		if len(v) > maxMetadataValueBytes {
+			return nil, fmt.Errorf("metadata value must not exceed %d bytes", maxMetadataValueBytes)
+		}
+		if len(out) >= maxMetadataEntries {
+			return nil, fmt.Errorf("metadata must not contain more than %d entries", maxMetadataEntries)
+		}
+		out[k] = v
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, nil
 	}
-	return out
+	return out, nil
 }
 
 func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutInput, error) {
+	metadata, err := sanitizeMetadata(req.Metadata)
+	if err != nil {
+		return app.CheckoutInput{}, err
+	}
 	in := app.CheckoutInput{
 		UserID:     userID,
 		PriceID:    strings.TrimSpace(req.PriceID),
 		Quantity:   req.Quantity,
 		SuccessURL: strings.TrimSpace(req.SuccessURL),
 		CancelURL:  strings.TrimSpace(req.CancelURL),
-		Metadata:   sanitizeMetadata(req.Metadata),
+		Metadata:   metadata,
 	}
 
 	productType := strings.ToLower(strings.TrimSpace(req.ProductType))
@@ -198,6 +214,7 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 	}
 
 	if in.ProductType == domain.ProductSubscription {
+		in.Quantity = 1
 		plan := domain.PlanType(strings.ToLower(strings.TrimSpace(req.Plan)))
 		if !plan.Valid() || plan == domain.PlanFree || plan == domain.PlanLifetime {
 			return in, errors.New("plan must be starter, pro, or premium")
@@ -212,14 +229,9 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 			return in, errors.New("interval must be monthly or yearly")
 		}
 	} else if in.ProductType == domain.ProductCredits {
-		if in.Quantity < 0 {
-			return in, errors.New("quantity must be non-negative")
-		}
-		if in.Quantity == 0 {
-			in.Quantity = 1
-		}
-		if in.Quantity > 100 {
-			return in, errors.New("quantity too large")
+		in.PriceID = ""
+		if in.Quantity < 1 || in.Quantity > 100 {
+			return in, errors.New("quantity must be between 1 and 100")
 		}
 	} else {
 		in.Plan = domain.PlanLifetime
@@ -235,15 +247,13 @@ type cancelSubscriptionRequest struct {
 }
 
 type changeSubscriptionRequest struct {
-	Plan       string `json:"plan"`
-	Interval   string `json:"interval"`
-	ChangeMode string `json:"change_mode"`
+	Plan     string `json:"plan"`
+	Interval string `json:"interval"`
 }
 
 type previewSubscriptionChangeRequest struct {
-	Plan       string `json:"plan"`
-	Interval   string `json:"interval"`
-	ChangeMode string `json:"change_mode"`
+	Plan     string `json:"plan"`
+	Interval string `json:"interval"`
 }
 
 type portalSessionRequest struct {
@@ -257,7 +267,10 @@ func (h *Handler) CancelSubscription(c *gin.Context) {
 		return
 	}
 	var req cancelSubscriptionRequest
-	_ = c.ShouldBindJSON(&req) // body is optional
+	if err := bindJSON(c, &req, true); err != nil {
+		respondError(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
 	mode := domain.CancelMode(strings.TrimSpace(req.CancelType))
 	if mode == "" {
 		mode = domain.CancelAtPeriodEnd
@@ -290,7 +303,7 @@ func (h *Handler) ChangeSubscription(c *gin.Context) {
 		return
 	}
 	var req changeSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := bindJSON(c, &req, false); err != nil {
 		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -312,16 +325,9 @@ func (h *Handler) ChangeSubscription(c *gin.Context) {
 		return
 	}
 
-	mode := domain.SubscriptionChangeMode(strings.TrimSpace(req.ChangeMode))
-	if req.ChangeMode != "" && !mode.Valid() {
-		respondError(c, http.StatusBadRequest, "change_mode must be immediate_prorated, immediate_reset_cycle, or period_end")
-		return
-	}
-
 	res, err := h.subscription.Change(c.Request.Context(), userID, domain.SubscriptionChangeInput{
 		Plan:     plan,
 		Interval: interval,
-		Mode:     mode,
 	})
 	if err != nil {
 		respondAppError(c, err)
@@ -344,7 +350,7 @@ func (h *Handler) PreviewSubscriptionChange(c *gin.Context) {
 		return
 	}
 	var req previewSubscriptionChangeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := bindJSON(c, &req, false); err != nil {
 		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -366,16 +372,9 @@ func (h *Handler) PreviewSubscriptionChange(c *gin.Context) {
 		return
 	}
 
-	mode := domain.SubscriptionChangeMode(strings.TrimSpace(req.ChangeMode))
-	if req.ChangeMode != "" && !mode.Valid() {
-		respondError(c, http.StatusBadRequest, "change_mode must be immediate_prorated, immediate_reset_cycle, or period_end")
-		return
-	}
-
 	res, err := h.subscription.PreviewChange(c.Request.Context(), userID, domain.SubscriptionPreviewInput{
 		Plan:     plan,
 		Interval: interval,
-		Mode:     mode,
 	})
 	if err != nil {
 		respondAppError(c, err)
@@ -418,7 +417,7 @@ func (h *Handler) CreateBillingPortalSession(c *gin.Context) {
 		return
 	}
 	var req portalSessionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := bindJSON(c, &req, false); err != nil {
 		respondError(c, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -498,6 +497,15 @@ func respondError(c *gin.Context, status int, msg string) {
 	}
 }
 
+func bindJSON(c *gin.Context, target any, optional bool) error {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxJSONBodyBytes)
+	err := c.ShouldBindJSON(target)
+	if optional && errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
+}
+
 func formatTimePtr(value *time.Time) string {
 	if value == nil {
 		return ""
@@ -508,6 +516,7 @@ func formatTimePtr(value *time.Time) string {
 func respondAppError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidInput),
+		errors.Is(err, domain.ErrInvalidReturnURL),
 		errors.Is(err, domain.ErrInvalidPriceID),
 		errors.Is(err, domain.ErrInvalidCancelMode),
 		errors.Is(err, domain.ErrPriceNotFound),
@@ -517,8 +526,10 @@ func respondAppError(c *gin.Context, err error) {
 		respondError(c, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domain.ErrProviderDisabled):
 		respondError(c, http.StatusServiceUnavailable, err.Error())
+	case errors.Is(err, domain.ErrSubscriptionCheckoutConflict):
+		respondError(c, http.StatusConflict, err.Error())
 	default:
 		slog.ErrorContext(c.Request.Context(), "billing: internal error", "error", err)
-		respondError(c, http.StatusInternalServerError, err.Error())
+		respondError(c, http.StatusInternalServerError, "internal billing error")
 	}
 }

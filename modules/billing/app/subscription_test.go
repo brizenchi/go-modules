@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/go-modules/modules/billing/event"
@@ -68,9 +69,17 @@ func TestCancel_ReturnsPublishError(t *testing.T) {
 
 func TestReactivate_PublishesReactivatedEvent(t *testing.T) {
 	prov := newMockProvider()
+	deadline := time.Now().UTC().Add(72 * time.Hour)
+	prov.subSnapshot = &domain.SubscriptionSnapshot{
+		ProviderSubscriptionID: "sub_x",
+		Status:                 domain.StatusCanceling,
+		CancelAtPeriodEnd:      false,
+		CancelEffectiveAt:      &deadline,
+	}
 	store := newMockCustomerStore(port.Customer{
 		UserID:                 "u1",
 		ProviderSubscriptionID: "sub_x",
+		SubscriptionStatus:     domain.StatusCanceling,
 	})
 	bus := newMockBus()
 	svc := NewSubscriptionService(prov, store, bus)
@@ -102,14 +111,61 @@ func TestReactivate_NoSubscription(t *testing.T) {
 func TestReactivate_ReturnsPublishError(t *testing.T) {
 	bus := newMockBus()
 	bus.publishErr = errors.New("publish failed")
-	svc := NewSubscriptionService(newMockProvider(), newMockCustomerStore(port.Customer{
+	prov := newMockProvider()
+	prov.subSnapshot = &domain.SubscriptionSnapshot{
+		ProviderSubscriptionID: "sub_x",
+		Status:                 domain.StatusCanceling,
+		CancelAtPeriodEnd:      true,
+	}
+	svc := NewSubscriptionService(prov, newMockCustomerStore(port.Customer{
 		UserID:                 "u1",
 		ProviderSubscriptionID: "sub_x",
+		SubscriptionStatus:     domain.StatusCanceling,
 	}), bus)
 
 	_, err := svc.Reactivate(context.Background(), "u1")
 	if !errors.Is(err, bus.publishErr) {
 		t.Fatalf("error = %v, want publish error", err)
+	}
+}
+
+func TestReactivate_RejectsSubscriptionThatIsNotCanceling(t *testing.T) {
+	prov := newMockProvider()
+	svc := NewSubscriptionService(prov, newMockCustomerStore(port.Customer{
+		UserID:                 "u1",
+		ProviderSubscriptionID: "sub_x",
+		SubscriptionStatus:     domain.StatusActive,
+	}), newMockBus())
+
+	_, err := svc.Reactivate(context.Background(), "u1")
+	if !errors.Is(err, domain.ErrNoSubscriptionToReactive) {
+		t.Fatalf("error=%v, want ErrNoSubscriptionToReactive", err)
+	}
+	if prov.reactivateCalls != 0 {
+		t.Fatalf("provider reactivation calls=%d, want 0", prov.reactivateCalls)
+	}
+}
+
+func TestReactivate_RejectsCanceledSubscriptionEvenWithHistoricalCancelTimestamp(t *testing.T) {
+	prov := newMockProvider()
+	future := time.Now().UTC().Add(time.Hour)
+	prov.subSnapshot = &domain.SubscriptionSnapshot{
+		ProviderSubscriptionID: "sub_x",
+		Status:                 domain.StatusCanceled,
+		CancelEffectiveAt:      &future,
+	}
+	svc := NewSubscriptionService(prov, newMockCustomerStore(port.Customer{
+		UserID:                 "u1",
+		ProviderSubscriptionID: "sub_x",
+		SubscriptionStatus:     domain.StatusCanceled,
+	}), newMockBus())
+
+	_, err := svc.Reactivate(context.Background(), "u1")
+	if !errors.Is(err, domain.ErrNoSubscriptionToReactive) {
+		t.Fatalf("error=%v, want ErrNoSubscriptionToReactive", err)
+	}
+	if prov.reactivateCalls != 0 {
+		t.Fatalf("provider reactivation calls=%d, want 0", prov.reactivateCalls)
 	}
 }
 
@@ -209,12 +265,39 @@ func TestChange_ResolvesMonthlyToYearlyAsImmediateResetCycle(t *testing.T) {
 	res, err := NewSubscriptionService(prov, store, newMockBus()).Change(context.Background(), "u1", domain.SubscriptionChangeInput{
 		Plan:     domain.PlanPro,
 		Interval: domain.IntervalYearly,
+		Mode:     domain.ChangeModePeriodEnd, // untrusted caller override is ignored
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if res.Mode != domain.ChangeModeImmediateResetCycle {
 		t.Errorf("mode = %s", res.Mode)
+	}
+}
+
+func TestPreviewChange_IgnoresCallerSuppliedMode(t *testing.T) {
+	prov := newMockProvider()
+	prov.subSnapshot = &domain.SubscriptionSnapshot{
+		ProviderSubscriptionID: "sub_x",
+		Plan:                   domain.PlanPro,
+		Interval:               domain.IntervalYearly,
+		Status:                 domain.StatusActive,
+	}
+	store := newMockCustomerStore(port.Customer{
+		UserID:                 "u1",
+		ProviderCustomerID:     "cus_x",
+		ProviderSubscriptionID: "sub_x",
+	})
+	res, err := NewSubscriptionService(prov, store, newMockBus()).PreviewChange(context.Background(), "u1", domain.SubscriptionPreviewInput{
+		Plan:     domain.PlanPro,
+		Interval: domain.IntervalMonthly,
+		Mode:     domain.ChangeModeImmediateResetCycle,
+	})
+	if err != nil {
+		t.Fatalf("PreviewChange: %v", err)
+	}
+	if res.Mode != domain.ChangeModePeriodEnd {
+		t.Fatalf("mode = %s, want server-selected period_end", res.Mode)
 	}
 }
 

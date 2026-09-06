@@ -3,9 +3,11 @@ package http
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/brizenchi/go-modules/modules/billing/app"
@@ -25,7 +27,10 @@ func TestSanitizeMetadata_DropsReservedAndEmpty(t *testing.T) {
 		"k":          "",        // empty value → dropped
 		"  spaced  ": "  v  ",   // trimmed
 	}
-	out := sanitizeMetadata(in)
+	out, err := sanitizeMetadata(in)
+	if err != nil {
+		t.Fatalf("sanitizeMetadata: %v", err)
+	}
 
 	if got := out["referral"]; got != "rwf_abc" {
 		t.Errorf("referral = %q", got)
@@ -61,22 +66,60 @@ func TestHandleWebhookRejectsOversizedBody(t *testing.T) {
 }
 
 func TestSanitizeMetadata_NilOnEmpty(t *testing.T) {
-	if out := sanitizeMetadata(nil); out != nil {
+	if out, err := sanitizeMetadata(nil); err != nil || out != nil {
 		t.Errorf("nil input should yield nil, got %+v", out)
 	}
-	if out := sanitizeMetadata(map[string]string{"user_id": "x"}); out != nil {
+	if out, err := sanitizeMetadata(map[string]string{"user_id": "x"}); err != nil || out != nil {
 		t.Errorf("only-reserved input should yield nil, got %+v", out)
 	}
 }
 
-func TestSanitizeMetadata_EnforcesCap(t *testing.T) {
+func TestSanitizeMetadata_RejectsLimits(t *testing.T) {
 	in := make(map[string]string, 50)
 	for i := range 50 {
 		in["k"+strconv.Itoa(i)] = "v"
 	}
-	out := sanitizeMetadata(in)
-	if len(out) != maxMetadataEntries {
-		t.Errorf("len = %d, want %d", len(out), maxMetadataEntries)
+	if _, err := sanitizeMetadata(in); err == nil {
+		t.Fatal("oversized metadata map should be rejected")
+	}
+	if _, err := sanitizeMetadata(map[string]string{strings.Repeat("k", maxMetadataKeyBytes+1): "v"}); err == nil {
+		t.Fatal("oversized metadata key should be rejected")
+	}
+	if _, err := sanitizeMetadata(map[string]string{"k": strings.Repeat("v", maxMetadataValueBytes+1)}); err == nil {
+		t.Fatal("oversized metadata value should be rejected")
+	}
+}
+
+func TestCreateCheckoutSessionRejectsOversizedJSONBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := checkoutHandlerForTest(port.Customer{UserID: "u1", Email: "u@example.com"})
+	body := `{"product_type":"credits","quantity":1,"success_url":"https://app.test/success","cancel_url":"https://app.test/cancel","metadata":{"large":"` + strings.Repeat("x", int(maxJSONBodyBytes)) + `"}}`
+	req := httptest.NewRequest(http.MethodPost, "/stripe/checkout/session", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	handler.CreateCheckoutSession(c)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s, want 400", w.Code, w.Body.String())
+	}
+}
+
+func TestRespondAppErrorDoesNotLeakUnknownInternalError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/billing", nil)
+
+	respondAppError(c, errors.New("database password super-secret-value"))
+
+	if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "internal billing error") {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "super-secret-value") {
+		t.Fatalf("internal detail leaked: %s", w.Body.String())
 	}
 }
 
@@ -89,6 +132,12 @@ func (handlerTestProvider) EnsureCustomer(ctx context.Context, userID, email, ex
 }
 func (handlerTestProvider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) (*domain.CheckoutResult, error) {
 	return &domain.CheckoutResult{SessionID: "cs_test", CheckoutURL: "https://checkout.stripe.test/session"}, nil
+}
+func (handlerTestProvider) GetCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error) {
+	return &domain.CheckoutSessionSnapshot{SessionID: providerSessionID, State: domain.CheckoutSessionOpen}, nil
+}
+func (handlerTestProvider) FindCheckoutSession(ctx context.Context, providerCustomerID, reservationID string) (*domain.CheckoutSessionSnapshot, error) {
+	return nil, nil
 }
 func (handlerTestProvider) CancelSubscription(ctx context.Context, providerSubscriptionID string, mode domain.CancelMode) error {
 	return nil
@@ -166,6 +215,84 @@ type handlerTestBus struct{}
 
 func (handlerTestBus) Subscribe(kind event.Kind, listener port.Listener)     {}
 func (handlerTestBus) Publish(ctx context.Context, env event.Envelope) error { return nil }
+
+func checkoutHandlerForTest(customer port.Customer) *Handler {
+	return NewHandler(Deps{
+		Checkout: app.NewCheckoutService(handlerTestProvider{}, handlerTestCustomerStore{customer: customer}),
+		GetUserID: func(c *gin.Context) (string, bool) {
+			return "u1", true
+		},
+	})
+}
+
+func TestCreateCheckoutSessionReturnsConflictForOngoingSubscription(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := checkoutHandlerForTest(port.Customer{
+		UserID:                 "u1",
+		Email:                  "paid@example.com",
+		ProviderSubscriptionID: "sub_ongoing",
+		SubscriptionStatus:     domain.StatusActive,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/stripe/checkout/session", bytes.NewBufferString(`{
+		"product_type":"lifetime",
+		"success_url":"https://app.test/success",
+		"cancel_url":"https://app.test/cancel"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	handler.CreateCheckoutSession(c)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d body=%s, want 409", w.Code, w.Body.String())
+	}
+}
+
+func TestCreateCheckoutSessionRejectsInvalidCreditsQuantity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := checkoutHandlerForTest(port.Customer{UserID: "u1", Email: "u@example.com"})
+	for _, body := range []string{
+		`{"product_type":"credits","quantity":0,"success_url":"https://app.test/success","cancel_url":"https://app.test/cancel"}`,
+		`{"product_type":"credits","quantity":-1,"success_url":"https://app.test/success","cancel_url":"https://app.test/cancel"}`,
+		`{"product_type":"credits","quantity":101,"success_url":"https://app.test/success","cancel_url":"https://app.test/cancel"}`,
+		`{"product_type":"credits","quantity":1.5,"success_url":"https://app.test/success","cancel_url":"https://app.test/cancel"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/stripe/checkout/session", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = req
+
+		handler.CreateCheckoutSession(c)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("body=%s status=%d response=%s, want 400", body, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestCreateCheckoutSessionAllowsCreditsPriceIDOmission(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := checkoutHandlerForTest(port.Customer{UserID: "u1", Email: "u@example.com"})
+	req := httptest.NewRequest(http.MethodPost, "/stripe/checkout/session", bytes.NewBufferString(`{
+		"product_type":"credits",
+		"quantity":1,
+		"success_url":"https://app.test/success",
+		"cancel_url":"https://app.test/cancel"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = req
+
+	handler.CreateCheckoutSession(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s, want 200", w.Code, w.Body.String())
+	}
+}
 
 func TestChangeSubscriptionHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)

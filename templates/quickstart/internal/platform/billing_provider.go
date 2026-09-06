@@ -8,6 +8,7 @@ import (
 	billingeventbus "github.com/brizenchi/go-modules/modules/billing/adapter/eventbus"
 	billingrepo "github.com/brizenchi/go-modules/modules/billing/adapter/repo"
 	stripeadapter "github.com/brizenchi/go-modules/modules/billing/adapter/stripe"
+	billingapp "github.com/brizenchi/go-modules/modules/billing/app"
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/brizenchi/quickstart-template/internal/user"
 	"gorm.io/gorm"
@@ -22,6 +23,10 @@ func buildBilling(db *gorm.DB, cfg Config, users *user.Repository) (*billing.Mod
 		return nil, fmt.Errorf("platform: stripe secret_key and webhook_secret required when billing enabled")
 	}
 	lookup := user.NewBillingLookup(users)
+	returnURLs, err := billingapp.NewOriginReturnURLValidator(cfg.Auth.FrontendRedirect)
+	if err != nil {
+		return nil, fmt.Errorf("platform: billing frontend origin: %w", err)
+	}
 	return billing.New(billing.Deps{
 		Provider: stripeadapter.NewProvider(stripeadapter.Config{
 			Enabled:        true,
@@ -47,11 +52,12 @@ func buildBilling(db *gorm.DB, cfg Config, users *user.Repository) (*billing.Mod
 			CreditsPerUnit:  stripeCfg.Credits.PerPackage,
 			TrialDays:       stripeCfg.TrialDays,
 		}),
-		Bus:           billingeventbus.NewInProc(),
-		Customers:     billingrepo.NewCustomerStore(db, lookup),
-		EventRepo:     billingrepo.NewBillingEventRepo(db),
-		Subscriptions: billingrepo.NewSubscriptionRepo(db),
-		UserResolver:  billingrepo.NewUserResolver(db, lookup),
-		GetUserID:     userIDFromGin,
+		Bus:                billingeventbus.NewInProc(),
+		Customers:          billingrepo.NewCustomerStore(db, lookup),
+		EventRepo:          billingrepo.NewBillingEventRepo(db),
+		Subscriptions:      billingrepo.NewSubscriptionRepo(db),
+		UserResolver:       billingrepo.NewUserResolver(db, lookup),
+		GetUserID:          userIDFromGin,
+		ReturnURLValidator: returnURLs,
 	}), nil
 }

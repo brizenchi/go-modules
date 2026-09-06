@@ -11,6 +11,7 @@ import (
 
 	"github.com/brizenchi/go-modules/foundation/config"
 	"github.com/brizenchi/go-modules/foundation/pgx"
+	stripeadapter "github.com/brizenchi/go-modules/modules/billing/adapter/stripe"
 	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 	"github.com/brizenchi/quickstart-template/internal/platform"
 	"github.com/subosito/gotenv"
@@ -131,6 +132,9 @@ func applyDefaults(cfg *AppConfig) {
 	if strings.TrimSpace(cfg.HTTP.AllowedOrigins) == "" {
 		cfg.HTTP.AllowedOrigins = frontendOriginOrDefault(cfg.Auth.FrontendRedirect)
 	}
+	if strings.TrimSpace(cfg.Referral.BaseLink) == "" {
+		cfg.Referral.BaseLink = frontendOriginOrDefault(cfg.Auth.FrontendRedirect) + "/invite?ref="
+	}
 	if cfg.HTTP.ReadHeaderTimeoutSecond <= 0 {
 		cfg.HTTP.ReadHeaderTimeoutSecond = 10
 	}
@@ -160,6 +164,11 @@ func applyDefaults(cfg *AppConfig) {
 func (c AppConfig) Validate() error {
 	modules := c.ModuleConfig()
 	production := isProduction(c.Env)
+	if production {
+		if err := validateProductionDBTLS(c.DB); err != nil {
+			return err
+		}
+	}
 
 	origins := c.HTTP.AllowedOriginList()
 	if len(origins) == 0 {
@@ -173,6 +182,14 @@ func (c AppConfig) Validate() error {
 			if err := requireHTTPS("http.allowed_origins", origin); err != nil {
 				return err
 			}
+		}
+	}
+	if !modules.AuthEnabled() {
+		if modules.BillingEnabled() {
+			return fmt.Errorf("billing requires auth.enabled=true")
+		}
+		if modules.ReferralEnabled() {
+			return fmt.Errorf("referral requires auth.enabled=true")
 		}
 	}
 
@@ -216,9 +233,15 @@ func (c AppConfig) Validate() error {
 		if err := validateOAuthFrontendCORS(c.Auth.FrontendRedirect, origins); err != nil {
 			return err
 		}
+		if production && !modules.OAuthFlowCookieSecure() {
+			return fmt.Errorf("auth.oauth_cookie_secure must be true in production (omit it to derive from HTTPS callback URLs)")
+		}
 	}
 
 	if modules.BillingEnabled() {
+		if err := validateOAuthFrontendCORS(c.Auth.FrontendRedirect, origins); err != nil {
+			return fmt.Errorf("billing return URL origin: %w", err)
+		}
 		stripe := c.Billing.Stripe
 		if strings.TrimSpace(stripe.SecretKey) == "" {
 			return fmt.Errorf("billing.stripe.secret_key required when billing enabled")
@@ -229,8 +252,19 @@ func (c AppConfig) Validate() error {
 		if !hasStripePrice(stripe.Prices) {
 			return fmt.Errorf("billing.stripe.prices must configure at least one Checkout price")
 		}
-		if production && (unsafeCredential(stripe.SecretKey) || unsafeCredential(stripe.WebhookSecret)) {
-			return fmt.Errorf("billing.stripe credentials must not use template values in production")
+		if production {
+			if err := validateStripeCredentials(stripe.SecretKey, stripe.WebhookSecret); err != nil {
+				return err
+			}
+			if err := validateStripePriceIDs(stripe.Prices); err != nil {
+				return err
+			}
+		}
+	}
+
+	if modules.ReferralEnabled() {
+		if err := validateReferralBaseLink(c.Referral.BaseLink, production); err != nil {
+			return err
 		}
 	}
 
@@ -262,20 +296,23 @@ func validateOAuthFrontendCORS(frontendRedirect string, allowedOrigins []string)
 		return fmt.Errorf("auth.frontend_redirect must be an absolute URL for CORS validation: %w", err)
 	}
 	for _, allowed := range allowedOrigins {
-		if allowed == "*" || allowed == origin {
+		if allowed == origin {
 			return nil
 		}
 	}
-	return fmt.Errorf("http.allowed_origins must include OAuth frontend origin %q; set APP_HTTP_ALLOWED_ORIGINS=%s", origin, origin)
+	return fmt.Errorf("http.allowed_origins must explicitly include OAuth frontend origin %q; set APP_HTTP_ALLOWED_ORIGINS=%s", origin, origin)
 }
 
 func absoluteOrigin(rawURL string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if rawURL == "" || rawURL != strings.TrimSpace(rawURL) || strings.HasPrefix(rawURL, "//") {
+		return "", fmt.Errorf("absolute http(s) URL required")
+	}
+	parsed, err := url.ParseRequestURI(rawURL)
 	if err != nil {
 		return "", err
 	}
-	if parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("scheme and host required")
+	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Opaque != "" {
+		return "", fmt.Errorf("absolute http(s) URL without userinfo required")
 	}
 	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), nil
 }
@@ -283,6 +320,32 @@ func absoluteOrigin(rawURL string) (string, error) {
 func isProduction(env string) bool {
 	env = strings.ToLower(strings.TrimSpace(env))
 	return env == "prod" || env == "production"
+}
+
+func validateProductionDBTLS(cfg DBConfig) error {
+	mode := strings.ToLower(strings.TrimSpace(cfg.SSLMode))
+	if dsn := strings.TrimSpace(cfg.DSN); dsn != "" {
+		mode = ""
+		if parsed, err := url.Parse(dsn); err == nil &&
+			(strings.EqualFold(parsed.Scheme, "postgres") || strings.EqualFold(parsed.Scheme, "postgresql")) {
+			mode = strings.ToLower(strings.TrimSpace(parsed.Query().Get("sslmode")))
+		} else {
+			for _, field := range strings.Fields(dsn) {
+				key, value, ok := strings.Cut(field, "=")
+				if ok && strings.EqualFold(strings.TrimSpace(key), "sslmode") {
+					mode = strings.ToLower(strings.Trim(strings.TrimSpace(value), "'\""))
+					break
+				}
+			}
+		}
+	}
+
+	switch mode {
+	case "require", "verify-ca", "verify-full":
+		return nil
+	default:
+		return fmt.Errorf("db.ssl_mode must be require, verify-ca, or verify-full in production")
+	}
 }
 
 func unsafeSecret(value string) bool {
@@ -363,6 +426,20 @@ func requireHTTPS(name, value string) error {
 	return nil
 }
 
+func validateReferralBaseLink(value string, production bool) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("referral.base_link must be an absolute http(s) URL")
+	}
+	if parsed.Fragment != "" {
+		return fmt.Errorf("referral.base_link must not contain a fragment")
+	}
+	if production {
+		return requireHTTPS("referral.base_link", value)
+	}
+	return nil
+}
+
 func hasStripePrice(prices platform.StripePricesConfig) bool {
 	values := []string{
 		prices.StarterMonthly, prices.StarterYearly,
@@ -381,6 +458,76 @@ func hasStripePrice(prices platform.StripePricesConfig) bool {
 		}
 	}
 	return false
+}
+
+func validateStripeCredentials(secretKey, webhookSecret string) error {
+	if unsafeCredential(secretKey) || !validStripeSecretKey(secretKey) {
+		return fmt.Errorf("billing.stripe.secret_key must be a real Stripe secret key (sk_live_... or sk_test_...) in production")
+	}
+	if unsafeCredential(webhookSecret) || !validStripeCredential(webhookSecret, "whsec_") {
+		return fmt.Errorf("billing.stripe.webhook_secret must be a real Stripe signing secret (whsec_...) in production")
+	}
+	return nil
+}
+
+func validStripeSecretKey(value string) bool {
+	return validStripeCredential(value, "sk_live_") || validStripeCredential(value, "sk_test_")
+}
+
+func validStripeCredential(value, prefix string) bool {
+	if value != strings.TrimSpace(value) || !strings.HasPrefix(value, prefix) {
+		return false
+	}
+	suffix := strings.TrimPrefix(value, prefix)
+	if len(suffix) < 8 {
+		return false
+	}
+	for _, char := range suffix {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func validateStripePriceIDs(prices platform.StripePricesConfig) error {
+	configured := []struct {
+		name  string
+		value string
+	}{
+		{name: "starter_monthly", value: prices.StarterMonthly},
+		{name: "starter_yearly", value: prices.StarterYearly},
+		{name: "pro_monthly", value: prices.ProMonthly},
+		{name: "pro_yearly", value: prices.ProYearly},
+		{name: "premium_monthly", value: prices.PremiumMonthly},
+		{name: "premium_yearly", value: prices.PremiumYearly},
+		{name: "lifetime", value: prices.Lifetime},
+	}
+	seen := make(map[string]string, len(configured)+len(prices.Credits))
+	validateUnique := func(name, priceID string) error {
+		if strings.TrimSpace(priceID) == "" {
+			return nil
+		}
+		if !stripeadapter.ValidPriceID(priceID) {
+			return fmt.Errorf("billing.stripe.prices.%s must be a real Stripe Price ID (price_...)", name)
+		}
+		if previous, exists := seen[priceID]; exists {
+			return fmt.Errorf("billing.stripe.prices.%s duplicates %s; every subscription, lifetime, and credits Price ID must be unique", name, previous)
+		}
+		seen[priceID] = name
+		return nil
+	}
+	for _, price := range configured {
+		if err := validateUnique(price.name, price.value); err != nil {
+			return err
+		}
+	}
+	for index, priceID := range prices.Credits {
+		if err := validateUnique(fmt.Sprintf("credits[%d]", index), priceID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c DBConfig) PGXConfig(project, env string) pgx.Config {

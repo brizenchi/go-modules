@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	authapp "github.com/brizenchi/go-modules/modules/auth/app"
 	authdomain "github.com/brizenchi/go-modules/modules/auth/domain"
 	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
+	stripeadapter "github.com/brizenchi/go-modules/modules/billing/adapter/stripe"
 	billinghttp "github.com/brizenchi/go-modules/modules/billing/http"
 	referralhttp "github.com/brizenchi/go-modules/modules/referral/http"
 	"github.com/gin-gonic/gin"
@@ -17,7 +19,9 @@ import (
 
 type referralCodeContextKey struct{}
 
-func withReferralCode(ctx context.Context, code string) context.Context {
+// WithReferralCode carries a normalized referral code through the final auth
+// operation so template-owned signup/login listeners can persist attribution.
+func WithReferralCode(ctx context.Context, code string) context.Context {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return ctx
@@ -41,15 +45,44 @@ type verifyCodeRequest struct {
 }
 
 type exchangeTokenRequest struct {
-	Code         string `json:"code"`
-	ReferralCode string `json:"referral_code"`
+	Code          string `json:"code"`
+	OAuthVerifier string `json:"oauth_verifier"`
+	ReferralCode  string `json:"referral_code"`
 }
 
-// Mount exposes only routes for capabilities enabled in this SaaS.
+type capabilityState struct {
+	Enabled bool `json:"enabled"`
+}
+
+type authCapability struct {
+	EmailEnabled   bool     `json:"email_enabled"`
+	OAuthProviders []string `json:"oauth_providers"`
+}
+
+type billingCapability struct {
+	Enabled  bool          `json:"enabled"`
+	Provider string        `json:"provider"`
+	Offers   billingOffers `json:"offers"`
+}
+
+type billingOffers struct {
+	Subscriptions []subscriptionOffer `json:"subscriptions"`
+	Lifetime      bool                `json:"lifetime"`
+	Credits       bool                `json:"credits"`
+}
+
+type subscriptionOffer struct {
+	Plan      string   `json:"plan"`
+	Intervals []string `json:"intervals"`
+}
+
+// Mount exposes enabled capabilities, a public discovery endpoint, and a
+// structured 503 fallback for billing when no provider is configured.
 func (m *Modules) Mount(publicGroup, userGroup *gin.RouterGroup) {
 	if m == nil {
 		return
 	}
+	publicGroup.GET("/capabilities", m.getCapabilities)
 	if m.Auth != nil {
 		if m.emailAuthEnabled {
 			publicGroup.POST("/auth/send-code", m.Auth.Handler.SendCode)
@@ -66,20 +99,111 @@ func (m *Modules) Mount(publicGroup, userGroup *gin.RouterGroup) {
 	}
 	if m.Billing != nil {
 		billinghttp.Mount(m.Billing.Handler, publicGroup, userGroup)
+	} else {
+		mountBillingUnavailable(publicGroup, userGroup)
 	}
 	if m.Referral != nil {
 		referralhttp.Mount(m.Referral.Handler, userGroup)
 	}
 }
 
+func (m *Modules) getCapabilities(c *gin.Context) {
+	offers := billingOffers{Subscriptions: make([]subscriptionOffer, 0)}
+	if m.Billing != nil {
+		offers = configuredBillingOffers(m.Config.Billing.Stripe.Prices)
+	}
+	httpresp.OK(c, gin.H{
+		"auth":    m.configuredAuthCapability(),
+		"account": capabilityState{Enabled: m.Auth != nil && m.Users != nil},
+		"billing": billingCapability{
+			Enabled:  m.Billing != nil,
+			Provider: strings.ToLower(strings.TrimSpace(m.Config.Billing.Provider)),
+			Offers:   offers,
+		},
+		"referral": capabilityState{Enabled: m.Referral != nil},
+	})
+}
+
+func (m *Modules) configuredAuthCapability() authCapability {
+	capability := authCapability{OAuthProviders: make([]string, 0, 2)}
+	if m == nil || m.Auth == nil {
+		return capability
+	}
+
+	capability.EmailEnabled = m.emailAuthEnabled
+	// Keep the public contract deterministic instead of exposing Go map order.
+	// These are the providers the quickstart frontend knows how to render.
+	for _, provider := range []string{"google", "github"} {
+		if _, ok := m.Auth.Deps.IdentityProviders[provider]; ok {
+			capability.OAuthProviders = append(capability.OAuthProviders, provider)
+		}
+	}
+	return capability
+}
+
+func configuredBillingOffers(prices StripePricesConfig) billingOffers {
+	offers := billingOffers{
+		Subscriptions: make([]subscriptionOffer, 0, 3),
+		Lifetime:      stripeadapter.ValidPriceID(prices.Lifetime),
+	}
+	for _, value := range prices.Credits {
+		if stripeadapter.ValidPriceID(value) {
+			offers.Credits = true
+			break
+		}
+	}
+	for _, plan := range []struct {
+		name    string
+		monthly string
+		yearly  string
+	}{
+		{name: "starter", monthly: prices.StarterMonthly, yearly: prices.StarterYearly},
+		{name: "pro", monthly: prices.ProMonthly, yearly: prices.ProYearly},
+		{name: "premium", monthly: prices.PremiumMonthly, yearly: prices.PremiumYearly},
+	} {
+		intervals := make([]string, 0, 2)
+		if stripeadapter.ValidPriceID(plan.monthly) {
+			intervals = append(intervals, "monthly")
+		}
+		if stripeadapter.ValidPriceID(plan.yearly) {
+			intervals = append(intervals, "yearly")
+		}
+		if len(intervals) > 0 {
+			offers.Subscriptions = append(offers.Subscriptions, subscriptionOffer{
+				Plan:      plan.name,
+				Intervals: intervals,
+			})
+		}
+	}
+	return offers
+}
+
+func mountBillingUnavailable(publicGroup, userGroup *gin.RouterGroup) {
+	publicGroup.POST("/stripe/webhook", billingUnavailable)
+	userGroup.POST("/stripe/checkout/session", billingUnavailable)
+	userGroup.POST("/stripe/subscription/preview", billingUnavailable)
+	userGroup.POST("/stripe/subscription/change", billingUnavailable)
+	userGroup.POST("/stripe/subscription/cancel", billingUnavailable)
+	userGroup.POST("/stripe/subscription/reactivate", billingUnavailable)
+	userGroup.POST("/stripe/portal/session", billingUnavailable)
+	userGroup.GET("/stripe/subscription", billingUnavailable)
+	userGroup.GET("/stripe/invoices", billingUnavailable)
+}
+
+func billingUnavailable(c *gin.Context) {
+	httpresp.Custom(c, http.StatusServiceUnavailable, http.StatusServiceUnavailable, "billing is not configured", gin.H{
+		"capability": "billing",
+		"enabled":    false,
+	})
+}
+
 func (m *Modules) verifyCode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request verifyCodeRequest
-		if err := c.ShouldBindJSON(&request); err != nil {
-			httpresp.BadRequest(c, "invalid body")
+		if !authhttp.BindJSONBody(c, &request, false) {
 			return
 		}
-		ctx := withReferralCode(c.Request.Context(), request.ReferralCode)
+		ctx := WithReferralCode(c.Request.Context(), request.ReferralCode)
 		result, err := m.Auth.Login.VerifyCode(ctx, request.Email, request.Code)
 		if err != nil {
 			respondAuthError(c, err)
@@ -92,12 +216,11 @@ func (m *Modules) verifyCode() gin.HandlerFunc {
 func (m *Modules) exchangeToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request exchangeTokenRequest
-		if err := c.ShouldBindJSON(&request); err != nil {
-			httpresp.BadRequest(c, "invalid body")
+		if !authhttp.BindJSONBody(c, &request, false) {
 			return
 		}
-		ctx := withReferralCode(c.Request.Context(), request.ReferralCode)
-		result, err := m.Auth.OAuth.ExchangeToken(ctx, request.Code)
+		ctx := WithReferralCode(c.Request.Context(), request.ReferralCode)
+		result, err := m.Auth.OAuth.ExchangeToken(ctx, request.Code, request.OAuthVerifier)
 		if err != nil {
 			respondAuthError(c, err)
 			return
@@ -137,10 +260,12 @@ func respondAuthError(c *gin.Context, err error) {
 		httpresp.Unauthorized(c, err.Error())
 	case errors.Is(err, authdomain.ErrUserNotFound):
 		httpresp.NotFound(c, err.Error())
-	case errors.Is(err, authdomain.ErrProviderUnavailable):
+	case errors.Is(err, authdomain.ErrProviderUnavailable),
+		errors.Is(err, authdomain.ErrOAuthFlowUnavailable):
 		httpresp.Custom(c, http.StatusServiceUnavailable, http.StatusServiceUnavailable, err.Error(), nil)
 	default:
-		httpresp.Custom(c, http.StatusInternalServerError, http.StatusInternalServerError, err.Error(), nil)
+		slog.ErrorContext(c.Request.Context(), "auth: internal error", "error", err)
+		httpresp.Custom(c, http.StatusInternalServerError, http.StatusInternalServerError, "internal authentication error", nil)
 	}
 }
 

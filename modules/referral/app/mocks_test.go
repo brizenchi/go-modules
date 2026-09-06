@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/brizenchi/go-modules/modules/referral/domain"
 	"github.com/brizenchi/go-modules/modules/referral/event"
@@ -96,6 +98,13 @@ func (r *mockReferralRepo) Activate(_ context.Context, refereeID string, reward 
 	if v.Status == domain.StatusActivated {
 		return nil, domain.ErrAlreadyActivated
 	}
+	if v.Status == domain.StatusExpired || (v.ExpiresAt != nil && !time.Now().UTC().Before(v.ExpiresAt.UTC())) {
+		v.Status = domain.StatusExpired
+		v.ActivatedAt = nil
+		v.RewardCredits = 0
+		r.byRefere[refereeID] = v
+		return &v, domain.ErrExpired
+	}
 	v.Status = domain.StatusActivated
 	v.RewardCredits = reward
 	r.byRefere[refereeID] = v
@@ -150,14 +159,21 @@ func (g *mockGenerator) Generate(_ string) string {
 type mockBus struct {
 	mu        sync.Mutex
 	published []event.Envelope
+	failKind  event.Kind
+	failCount int
 }
 
 func (b *mockBus) Subscribe(event.Kind, port.Listener) {}
 
-func (b *mockBus) Publish(_ context.Context, env event.Envelope) {
+func (b *mockBus) Publish(_ context.Context, env event.Envelope) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.published = append(b.published, env)
+	if env.Kind == b.failKind && b.failCount > 0 {
+		b.failCount--
+		return errors.New("listener failed")
+	}
+	return nil
 }
 
 func (b *mockBus) GotKind(k event.Kind) []event.Envelope {

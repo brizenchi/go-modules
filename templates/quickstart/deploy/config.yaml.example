@@ -1,7 +1,8 @@
 project: quickstart
 env: dev
 
-# 这是一份可用于部署的安全基线；启动时环境变量仍会覆盖对应字段。
+# 这是本地开发基线；部署生产环境时请以 .env.production.example 为准。
+# 启动时环境变量会覆盖对应字段。
 
 server:
   name: quickstart        # 会作为每条日志里的 service 字段
@@ -34,12 +35,12 @@ db:
   user: app
   password: app
   name: quickstart
-  ssl_mode: disable
+  ssl_mode: disable        # 仅限本机开发；生产必须 require / verify-ca / verify-full
   time_zone: UTC
   log_level: warn
   slow_query_ms: 200
   # 兼容旧项目：也可以只提供一条连接字符串：
-  # dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC"
+  # dsn: "host=localhost user=app password=app dbname=quickstart port=5432 sslmode=disable TimeZone=UTC" # 仅本地
 
 # ---------- auth ----------
 auth:
@@ -49,6 +50,7 @@ auth:
   ws_ticket_ttl_seconds: 300       # 5 minutes
   admin_emails: []                 # 列表中的邮箱登录后获得 admin 角色
   frontend_redirect: "http://localhost:3000/login"  # OAuth 后端回调完成后的前端落点
+  oauth_cookie_secure:                  # 留空按 provider callback URL 推导；本地 HTTP=false，生产 HTTPS=true
 
   email:
     enabled: true                   # false 时关闭邮箱验证码路由
@@ -89,7 +91,7 @@ email:
 
 # ---------- billing ----------
 billing:
-  enabled: false                   # true 才创建 billing 模块并挂支付路由
+  enabled:                         # 留空时检测 Stripe 凭据；也可显式设为 true/false
   provider: stripe                 # 换供应商时改 internal/platform/buildBilling
   stripe:
     secret_key: ""

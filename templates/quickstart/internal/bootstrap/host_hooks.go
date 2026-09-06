@@ -56,6 +56,10 @@ func onSubscriptionActivated(_ context.Context, _ hostapi.Deps, _ billingevent.E
 	return nil
 }
 
+func onTrialConverted(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.TrialConverted) error {
+	return nil
+}
+
 func onSubscriptionRenewed(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.SubscriptionRenewed) error {
 	return nil
 }

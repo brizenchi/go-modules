@@ -23,7 +23,7 @@ func newTestConfig() Config {
 			},
 		},
 		LifetimePriceID: "price_lifetime",
-		CreditsPriceIDs: []string{"price_credits_a", "price_credits_b"},
+		CreditsPriceIDs: []string{"price_1CreditsAlpha123456789", "price_1CreditsBravo123456789"},
 		CreditsPerUnit:  40,
 	}
 }
@@ -74,13 +74,36 @@ func TestConfig_PlanForPrice(t *testing.T) {
 
 func TestConfig_IsCreditsPriceID(t *testing.T) {
 	c := newTestConfig()
-	if !c.IsCreditsPriceID("price_credits_a") {
-		t.Error("expected price_credits_a to be credits")
+	if !c.IsCreditsPriceID("price_1CreditsAlpha123456789") {
+		t.Error("expected configured valid price to be credits")
 	}
 	if c.IsCreditsPriceID("price_starter_m") {
 		t.Error("expected price_starter_m NOT to be credits")
 	}
 	if c.IsCreditsPriceID("") {
 		t.Error("expected empty to not be credits")
+	}
+}
+
+func TestValidPriceID(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{value: "price_1TBFpjQ4kdQzysE6eeAA5D38", want: true},
+		{value: ""},
+		{value: "price_..."},
+		{value: "prod_1TBFpjQ4kdQzysE6eeAA5D38"},
+		{value: "price_tooShort"},
+		{value: "price_placeholder123456789"},
+		{value: "price_1TBFpjQ4kdQzysE6_bad"},
+		{value: " price_1TBFpjQ4kdQzysE6eeAA5D38"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			if got := ValidPriceID(tt.value); got != tt.want {
+				t.Fatalf("ValidPriceID(%q) = %t, want %t", tt.value, got, tt.want)
+			}
+		})
 	}
 }

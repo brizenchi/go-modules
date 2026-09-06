@@ -59,8 +59,10 @@ type Deps struct {
 	// GetUserID extracts the authenticated user from a Gin context.
 	GetUserID httpapi.UserIDFunc
 
-	// BaseLink is appended in front of a code to form an invite URL,
-	// e.g. "https://app.example.com/invite?ref=".
+	// BaseLink is the invite page URL. The HTTP adapter safely sets or
+	// replaces its "ref" query parameter, so existing query values are kept.
+	// Both "https://app.example.com/invite" and the legacy
+	// "https://app.example.com/invite?ref=" form are accepted.
 	BaseLink string
 
 	// ActivationWindow, if > 0, sets ExpiresAt on new referrals; the

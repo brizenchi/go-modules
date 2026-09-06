@@ -345,6 +345,21 @@ button {
   font-size: 11px;
 }
 
+.menu-resource-state.auth,
+.menu-resource-state.configuration,
+.menu-resource-state.disabled {
+  color: #84651a;
+}
+
+.menu-resource-state.network,
+.menu-resource-state.unavailable {
+  color: #3d6782;
+}
+
+.menu-resource-state.unknown {
+  color: var(--danger);
+}
+
 .account-popover-meta {
   margin: 12px 0;
   padding: 13px 3px;
@@ -1636,6 +1651,89 @@ button {
   color: var(--danger);
 }
 
+.resource-feedback {
+  margin-top: 14px;
+  padding: 15px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid #edc9cb;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.resource-feedback.auth,
+.resource-feedback.configuration,
+.resource-feedback.disabled {
+  border-color: #e2d8b9;
+  background: #fffaf0;
+  color: #765b16;
+}
+
+.resource-feedback.network,
+.resource-feedback.unavailable {
+  border-color: #c9d8e7;
+  background: #f3f8fc;
+  color: #315b78;
+}
+
+.resource-feedback-mark {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.resource-feedback-copy {
+  min-width: 0;
+}
+
+.resource-feedback-copy strong {
+  display: block;
+  color: currentColor;
+  font-size: 13px;
+}
+
+.resource-feedback-copy p {
+  margin: 4px 0 0;
+  color: currentColor;
+  font-size: 12px;
+  line-height: 1.55;
+  opacity: 0.86;
+}
+
+.resource-feedback-actions {
+  margin-top: 12px;
+}
+
+.resource-feedback.compact {
+  margin-top: 0;
+  padding: 10px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 9px;
+}
+
+.resource-feedback.compact .resource-feedback-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.resource-feedback.compact .resource-feedback-copy strong {
+  font-size: 11px;
+}
+
+.resource-feedback.compact .resource-feedback-copy p {
+  display: none;
+}
+
 .code-block,
 .inline-code {
   font-family: var(--font-mono);
@@ -1730,6 +1828,17 @@ button {
 .field textarea:focus {
   border-color: #64b681;
   box-shadow: 0 0 0 3px rgba(56, 212, 119, 0.14);
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(199, 66, 73, 0.12);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .input-row,

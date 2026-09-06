@@ -2,7 +2,11 @@
 // It chooses adapters and module combinations; shared modules never import it.
 package platform
 
-import "time"
+import (
+	"net/url"
+	"strings"
+	"time"
+)
 
 type Config struct {
 	ServiceName string
@@ -13,15 +17,18 @@ type Config struct {
 }
 
 type AuthConfig struct {
-	Enabled            *bool           `mapstructure:"enabled"`
-	UserJWTSecret      string          `mapstructure:"user_jwt_secret"`
-	UserJWTExpireHours int             `mapstructure:"user_jwt_expire_hours"`
-	WSTicketTTLSeconds int             `mapstructure:"ws_ticket_ttl_seconds"`
-	AdminEmails        []string        `mapstructure:"admin_emails"`
-	FrontendRedirect   string          `mapstructure:"frontend_redirect"`
-	Email              AuthEmailConfig `mapstructure:"email"`
-	Google             GoogleConfig    `mapstructure:"google"`
-	GitHub             GitHubConfig    `mapstructure:"github"`
+	Enabled            *bool    `mapstructure:"enabled"`
+	UserJWTSecret      string   `mapstructure:"user_jwt_secret"`
+	UserJWTExpireHours int      `mapstructure:"user_jwt_expire_hours"`
+	WSTicketTTLSeconds int      `mapstructure:"ws_ticket_ttl_seconds"`
+	AdminEmails        []string `mapstructure:"admin_emails"`
+	FrontendRedirect   string   `mapstructure:"frontend_redirect"`
+	// OAuthCookieSecure may be explicitly set for unusual proxy setups. When
+	// nil, it is derived from the enabled providers' callback URL schemes.
+	OAuthCookieSecure *bool           `mapstructure:"oauth_cookie_secure"`
+	Email             AuthEmailConfig `mapstructure:"email"`
+	Google            GoogleConfig    `mapstructure:"google"`
+	GitHub            GitHubConfig    `mapstructure:"github"`
 }
 
 type AuthEmailConfig struct {
@@ -178,6 +185,31 @@ func (c Config) GoogleEnabled() bool {
 func (c Config) GitHubEnabled() bool {
 	configured := c.Auth.GitHub.ClientID != "" || c.Auth.GitHub.ClientSecret != ""
 	return c.AuthEnabled() && boolDefault(c.Auth.GitHub.Enabled, configured)
+}
+
+// OAuthFlowCookieSecure derives the safe cookie transport mode from all
+// enabled OAuth callback URLs unless the operator explicitly overrides it.
+func (c Config) OAuthFlowCookieSecure() bool {
+	if c.Auth.OAuthCookieSecure != nil {
+		return *c.Auth.OAuthCookieSecure
+	}
+	callbackURLs := make([]string, 0, 2)
+	if c.GoogleEnabled() {
+		callbackURLs = append(callbackURLs, c.Auth.Google.RedirectURL)
+	}
+	if c.GitHubEnabled() {
+		callbackURLs = append(callbackURLs, c.Auth.GitHub.RedirectURL)
+	}
+	if len(callbackURLs) == 0 {
+		return false
+	}
+	for _, rawURL := range callbackURLs {
+		parsed, err := url.Parse(strings.TrimSpace(rawURL))
+		if err != nil || !strings.EqualFold(parsed.Scheme, "https") {
+			return false
+		}
+	}
+	return true
 }
 
 func (c Config) BillingEnabled() bool {

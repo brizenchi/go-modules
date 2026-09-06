@@ -13,13 +13,18 @@ import (
 
 // SubscriptionService handles user-initiated subscription mutations.
 type SubscriptionService struct {
-	provider  port.Provider
-	customers port.CustomerStore
-	bus       port.EventBus
+	provider   port.Provider
+	customers  port.CustomerStore
+	bus        port.EventBus
+	returnURLs port.ReturnURLValidator
 }
 
-func NewSubscriptionService(p port.Provider, c port.CustomerStore, b port.EventBus) *SubscriptionService {
-	return &SubscriptionService{provider: p, customers: c, bus: b}
+func NewSubscriptionService(p port.Provider, c port.CustomerStore, b port.EventBus, validators ...port.ReturnURLValidator) *SubscriptionService {
+	var returnURLs port.ReturnURLValidator
+	if len(validators) > 0 {
+		returnURLs = validators[0]
+	}
+	return &SubscriptionService{provider: p, customers: c, bus: b, returnURLs: returnURLs}
 }
 
 // CancelResult describes when a cancellation will take effect.
@@ -166,6 +171,13 @@ func (s *SubscriptionService) Reactivate(ctx context.Context, userID string) (st
 	if subID == "" {
 		return "", domain.ErrNoSubscriptionToReactive
 	}
+	current, err := s.provider.GetSubscription(ctx, subID)
+	if err != nil {
+		return "", err
+	}
+	if current == nil || !subscriptionCanReactivate(*current, time.Now().UTC()) {
+		return "", domain.ErrNoSubscriptionToReactive
+	}
 	if err := s.provider.ReactivateSubscription(ctx, subID); err != nil {
 		return "", err
 	}
@@ -188,12 +200,32 @@ func (s *SubscriptionService) Reactivate(ctx context.Context, userID string) (st
 	return subID, nil
 }
 
+func subscriptionCanReactivate(snapshot domain.SubscriptionSnapshot, now time.Time) bool {
+	if snapshot.Status == domain.StatusCanceling {
+		return true
+	}
+	if snapshot.CancelEffectiveAt == nil || !snapshot.CancelEffectiveAt.After(now) {
+		return false
+	}
+	switch snapshot.Status {
+	case domain.StatusActive, domain.StatusTrialing, domain.StatusPastDue:
+		// Stripe represents an explicit cancel_at timestamp as an otherwise
+		// ongoing status plus a future cancellation deadline.
+		return true
+	default:
+		return false
+	}
+}
+
 // OpenBillingPortal returns a hosted self-serve billing management URL.
 func (s *SubscriptionService) OpenBillingPortal(ctx context.Context, userID, returnURL string) (*domain.PortalSessionResult, error) {
 	userID = strings.TrimSpace(userID)
 	returnURL = strings.TrimSpace(returnURL)
 	if returnURL == "" {
 		return nil, fmt.Errorf("%w: return_url required", domain.ErrInvalidInput)
+	}
+	if err := validateReturnURL(s.returnURLs, returnURL); err != nil {
+		return nil, err
 	}
 
 	cust, err := s.customers.LoadCustomer(ctx, userID)
@@ -250,9 +282,6 @@ func resolvePreviewMode(current *domain.SubscriptionSnapshot, in domain.Subscrip
 }
 
 func resolveChangeMode(current *domain.SubscriptionSnapshot, in domain.SubscriptionChangeInput) domain.SubscriptionChangeMode {
-	if in.Mode.Valid() {
-		return in.Mode
-	}
 	if current == nil {
 		return domain.ChangeModeImmediateProrated
 	}

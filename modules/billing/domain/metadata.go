@@ -17,6 +17,8 @@ var ReservedMetadataKeys = []string{
 	"product_type",
 	"price_id",
 	"quantity",
+	"trial_days",
+	"checkout_reservation_id",
 }
 
 // IsReservedMetadataKey reports whether k is owned by the billing layer.

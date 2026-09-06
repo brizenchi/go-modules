@@ -3,6 +3,8 @@ package github
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -87,11 +89,18 @@ func New(cfg Config) (*Provider, error) {
 
 func (p *Provider) Name() domain.Provider { return domain.ProviderGitHub }
 
+func (p *Provider) OAuthStateTTL() time.Duration { return p.cfg.StateTTL }
+
 func (p *Provider) IssueState() (string, error) {
+	jti, err := randomStateID()
+	if err != nil {
+		return "", err
+	}
 	now := time.Now().UTC()
 	claims := jwtv5.RegisteredClaims{
 		IssuedAt:  jwtv5.NewNumericDate(now),
 		ExpiresAt: jwtv5.NewNumericDate(now.Add(p.cfg.StateTTL)),
+		ID:        jti,
 	}
 	token := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, claims)
 	return token.SignedString([]byte(p.cfg.StateSecret))
@@ -102,11 +111,15 @@ func (p *Provider) VerifyState(state string) error {
 		return domain.ErrInvalidState
 	}
 	claims := &jwtv5.RegisteredClaims{}
-	parser := jwtv5.NewParser(jwtv5.WithLeeway(30 * time.Second))
+	parser := jwtv5.NewParser(
+		jwtv5.WithLeeway(30*time.Second),
+		jwtv5.WithExpirationRequired(),
+		jwtv5.WithValidMethods([]string{jwtv5.SigningMethodHS256.Alg()}),
+	)
 	token, err := parser.ParseWithClaims(state, claims, func(*jwtv5.Token) (any, error) {
 		return []byte(p.cfg.StateSecret), nil
 	})
-	if err != nil || !token.Valid {
+	if err != nil || !token.Valid || claims.ID == "" || claims.IssuedAt == nil {
 		return fmt.Errorf("%w: %v", domain.ErrInvalidState, err)
 	}
 	return nil
@@ -148,15 +161,18 @@ type emailResponse struct {
 }
 
 func (p *Provider) Exchange(ctx context.Context, query url.Values) (*domain.OAuthProfile, error) {
-	if oauthErr := strings.TrimSpace(query.Get("error")); oauthErr != "" {
-		return nil, fmt.Errorf("github: oauth error: %s", oauthErr)
+	if err := p.VerifyState(query.Get("state")); err != nil {
+		return nil, err
+	}
+	if oauthErr := strings.ToLower(strings.TrimSpace(query.Get("error"))); oauthErr != "" {
+		if oauthErr == "access_denied" {
+			return nil, domain.ErrOAuthDenied
+		}
+		return nil, domain.ErrOAuthCallback
 	}
 	code := strings.TrimSpace(query.Get("code"))
 	if code == "" {
-		return nil, fmt.Errorf("github: missing code in callback")
-	}
-	if err := p.VerifyState(query.Get("state")); err != nil {
-		return nil, err
+		return nil, domain.ErrOAuthCallback
 	}
 
 	accessToken, err := p.exchangeToken(ctx, code)
@@ -188,6 +204,14 @@ func (p *Provider) Exchange(ctx context.Context, query url.Values) (*domain.OAut
 		Username:  username,
 		AvatarURL: strings.TrimSpace(user.AvatarURL),
 	}, nil
+}
+
+func randomStateID() (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", fmt.Errorf("github: generate oauth state id: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
 }
 
 func (p *Provider) exchangeToken(ctx context.Context, code string) (string, error) {

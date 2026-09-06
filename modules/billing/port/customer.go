@@ -1,6 +1,10 @@
 package port
 
-import "context"
+import (
+	"context"
+
+	"github.com/brizenchi/go-modules/modules/billing/domain"
+)
 
 // AccountLookup is the only host-user projection required by billing.
 // Implement it in the host project; billing never queries a fixed users table.
@@ -42,4 +46,5 @@ type Customer struct {
 	Plan                   string
 	ProviderCustomerID     string
 	ProviderSubscriptionID string
+	SubscriptionStatus     domain.SubscriptionStatus
 }

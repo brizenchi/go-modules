@@ -10,7 +10,6 @@ const ENV_KEYS = [
   "NEXT_PUBLIC_DEFAULT_PLAN",
   "NEXT_PUBLIC_DEFAULT_INTERVAL",
   "NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY",
-  "NEXT_PUBLIC_CREDITS_PRICE_ID",
   "NEXT_PUBLIC_STRIPE_SUCCESS_PATH",
   "NEXT_PUBLIC_STRIPE_CANCEL_PATH"
 ] as const;
@@ -28,7 +27,7 @@ function loadApiModule(overrides: Partial<Record<(typeof ENV_KEYS)[number], stri
     }
   }
 
-  for (const mod of ["../lib/api", "../lib/env", "../lib/auth"]) {
+  for (const mod of ["../lib/api", "../lib/env", "../lib/auth", "../lib/oauth-flow"]) {
     const modPath = require.resolve(mod);
     delete require.cache[modPath];
   }
@@ -45,6 +44,33 @@ function jsonResponse(status: number, body: unknown) {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  Object.defineProperty(globalThis, "window", { configurable: true, value: undefined });
+});
+
+test("authenticated 401 clears only the stored matching session", async () => {
+  const values = new Map<string, string>();
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+        removeItem: (key: string) => values.delete(key)
+      },
+      dispatchEvent: () => true
+    }
+  });
+  const api = loadApiModule();
+  const auth = require("../lib/auth") as typeof import("../lib/auth");
+  auth.writeSession({
+    token: "stale-token",
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    user: { id: "user_1", email: "user@example.com" }
+  });
+  globalThis.fetch = (async () => jsonResponse(401, { code: 401, msg: "invalid token", data: null })) as typeof fetch;
+
+  await assert.rejects(api.getAccountProfile("stale-token"), api.ApiError);
+  assert.equal(auth.readSession(), null);
 });
 
 test("apiRequest builds auth and json headers against normalized api base url", async () => {
@@ -129,9 +155,22 @@ test("verifyCode forwards a trimmed referral code", async () => {
 test("getOAuthAuthorizeURL uses the selected provider route", async () => {
   const api = loadApiModule();
   let requestURL = "";
+	let requestInit: RequestInit | undefined;
+	const values = new Map<string, string>();
+	Object.defineProperty(globalThis, "window", {
+		configurable: true,
+		value: {
+			sessionStorage: {
+				getItem: (key: string) => values.get(key) ?? null,
+				setItem: (key: string, value: string) => values.set(key, value),
+				removeItem: (key: string) => values.delete(key)
+			}
+		}
+	});
 
-  globalThis.fetch = (async (input: string | URL | Request) => {
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     requestURL = typeof input === "string" ? input : String(input);
+		requestInit = init;
     return jsonResponse(200, {
       code: 200,
       msg: "ok",
@@ -141,8 +180,51 @@ test("getOAuthAuthorizeURL uses the selected provider route", async () => {
 
   const redirectURL = await api.getOAuthAuthorizeURL("github");
 
-  assert.equal(requestURL, "https://api.example.com/api/v1/auth/github/authorize");
+	assert.match(requestURL, /^https:\/\/api\.example\.com\/api\/v1\/auth\/github\/authorize\?challenge=[A-Za-z0-9_-]{43}$/);
+	assert.equal(requestInit?.credentials, "include");
+	assert.equal(values.size, 1);
   assert.equal(redirectURL, "https://github.com/login/oauth/authorize");
+});
+
+test("capabilities and account profile clients use the published contracts", async () => {
+  const api = loadApiModule();
+  const calls: Array<{ url: string; method?: string; body?: string }> = [];
+  const profile = {
+    id: "user_1",
+    email: "user@example.com",
+    email_verified: true,
+    username: "alice",
+    avatar_url: "https://example.com/alice.png",
+    role: "user",
+    credits: 50,
+    created_at: "2030-01-01T00:00:00Z",
+    updated_at: "2030-01-02T00:00:00Z"
+  };
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, method: init?.method, body: init?.body ? String(init.body) : undefined });
+    if (url.endsWith("/capabilities")) {
+      return jsonResponse(200, { code: 200, data: {
+        auth: { email_enabled: true, oauth_providers: ["google"] },
+        account: { enabled: true },
+        billing: { enabled: false, provider: "stripe", offers: { subscriptions: [], lifetime: false, credits: false } },
+        referral: { enabled: true }
+      } });
+    }
+    return jsonResponse(200, { code: 200, data: profile });
+  }) as typeof fetch;
+
+  const capabilities = await api.getCapabilities();
+  const loaded = await api.getAccountProfile("jwt-token");
+  const updated = await api.updateAccountProfile("jwt-token", { username: "alice", avatar_url: "" });
+
+  assert.equal(capabilities.billing.enabled, false);
+  assert.deepEqual(capabilities.auth, { email_enabled: true, oauth_providers: ["google"] });
+  assert.deepEqual(loaded, profile);
+  assert.deepEqual(updated, profile);
+  assert.equal(calls[1]?.url, "https://api.example.com/api/v1/account/profile");
+  assert.equal(calls[2]?.method, "PATCH");
+  assert.equal(calls[2]?.body, JSON.stringify({ username: "alice", avatar_url: "" }));
 });
 
 test("getSubscription maps provider payment fields into frontend shape", async () => {
@@ -265,6 +347,34 @@ test("preview/change subscription and billing portal hit the new billing endpoin
   assert.equal(preview.change_mode, "immediate_prorated");
   assert.equal(change.message, "subscription changed");
   assert.equal(portal.url, "https://billing.stripe.test/session_123");
+});
+
+test("credits checkout leaves price selection to the backend", async () => {
+  const api = loadApiModule();
+  let requestBody: unknown;
+
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    requestBody = JSON.parse(String(init?.body));
+    return jsonResponse(200, {
+      code: 200,
+      msg: "ok",
+      data: { session_id: "cs_credits", checkout_url: "https://checkout.stripe.test/cs_credits" }
+    });
+  }) as typeof fetch;
+
+  await api.createCheckoutSession("jwt-token", {
+    product_type: "credits",
+    quantity: 3,
+    success_url: "https://app.example.com/billing?checkout=success",
+    cancel_url: "https://app.example.com/billing?checkout=cancelled"
+  });
+
+  assert.deepEqual(requestBody, {
+    product_type: "credits",
+    quantity: 3,
+    success_url: "https://app.example.com/billing?checkout=success",
+    cancel_url: "https://app.example.com/billing?checkout=cancelled"
+  });
 });
 
 test("invoice, referral, and user helpers map backend payloads correctly", async () => {

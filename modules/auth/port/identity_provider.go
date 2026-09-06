@@ -4,6 +4,7 @@ package port
 import (
 	"context"
 	"net/url"
+	"time"
 
 	"github.com/brizenchi/go-modules/modules/auth/domain"
 )
@@ -32,4 +33,12 @@ type IdentityProvider interface {
 
 	// IssueState produces a fresh state value to embed in AuthorizeURL.
 	IssueState() (string, error)
+}
+
+// OAuthStateLifetime is an optional provider capability used to align the
+// server-side OAuth flow record and browser cookie with the signed state TTL.
+// Providers that do not implement it use the auth module's conservative
+// default.
+type OAuthStateLifetime interface {
+	OAuthStateTTL() time.Duration
 }

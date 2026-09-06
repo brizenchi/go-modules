@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
@@ -25,6 +26,7 @@ type SubscriptionView struct {
 	Interval          domain.BillingInterval    `json:"billing_cycle"`
 	CurrentPeriodEnd  string                    `json:"current_period_end,omitempty"`
 	CancelAtPeriodEnd bool                      `json:"cancel_at_period_end"`
+	CancelEffectiveAt string                    `json:"effective_cancel_at,omitempty"`
 	PaymentMethod     *domain.PaymentMethodCard `json:"payment_method,omitempty"`
 }
 
@@ -37,12 +39,27 @@ func (s *QueryService) GetSubscription(ctx context.Context, userID string) (*Sub
 
 	view := &SubscriptionView{Plan: domain.PlanFree, Status: domain.SubscriptionStatus("inactive")}
 	if cust.ProviderSubscriptionID != "" {
-		snap, err := s.provider.GetSubscription(ctx, cust.ProviderSubscriptionID)
-		if err == nil && snap != nil {
+		if subscriptionStatusEnded(cust.SubscriptionStatus) {
+			// Stripe may no longer return a deleted/expired subscription. The
+			// canonical terminal snapshot is sufficient to render the page and let
+			// the user start a new Checkout instead of turning that state into 500.
+			view.Plan = domain.PlanType(strings.ToLower(strings.TrimSpace(cust.Plan)))
+			view.Status = cust.SubscriptionStatus
+		} else {
+			snap, err := s.provider.GetSubscription(ctx, cust.ProviderSubscriptionID)
+			if err != nil {
+				return nil, fmt.Errorf("billing: refresh subscription from provider: %w", err)
+			}
+			if snap == nil {
+				return nil, fmt.Errorf("billing: provider returned no snapshot for subscription %q", cust.ProviderSubscriptionID)
+			}
 			view.Plan = snap.Plan
 			view.Status = snap.Status
 			view.Interval = snap.Interval
 			view.CancelAtPeriodEnd = snap.CancelAtPeriodEnd
+			if snap.CancelEffectiveAt != nil {
+				view.CancelEffectiveAt = snap.CancelEffectiveAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+			}
 			if snap.PeriodEnd != nil {
 				view.CurrentPeriodEnd = snap.PeriodEnd.UTC().Format("2006-01-02T15:04:05Z07:00")
 			}
@@ -60,6 +77,10 @@ func (s *QueryService) GetSubscription(ctx context.Context, userID string) (*Sub
 		view.Plan = domain.PlanFree
 	}
 	return view, nil
+}
+
+func subscriptionStatusEnded(status domain.SubscriptionStatus) bool {
+	return status == domain.StatusCanceled || status == domain.StatusIncompleteExpired
 }
 
 func customerLifetimePlan(cust port.Customer) bool {

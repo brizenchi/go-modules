@@ -33,37 +33,57 @@ func SetIdentity(c *gin.Context, id *domain.Identity) {
 // attaches the Identity. Aborts with 401 on missing/invalid token.
 func RequireUser(session *app.SessionService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := bearerToken(c)
-		if token == "" {
-			httpresp.Unauthorized(c, "missing bearer token")
+		if _, ok := authenticateRequest(c, session); !ok {
 			return
 		}
-		id, err := session.VerifyToken(token)
-		if err != nil {
-			httpresp.Unauthorized(c, err.Error())
-			return
-		}
-		SetIdentity(c, id)
-		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), fslog.UserIDKey, id.UserID))
 		c.Next()
 	}
 }
 
 // RequireAdmin extends RequireUser with a role check.
 func RequireAdmin(session *app.SessionService) gin.HandlerFunc {
-	authMW := RequireUser(session)
 	return func(c *gin.Context) {
-		authMW(c)
-		if c.IsAborted() {
+		id, ok := authenticateRequest(c, session)
+		if !ok {
 			return
 		}
-		id := Authenticated(c)
-		if id == nil || id.Role != domain.RoleAdmin {
+		if id.Role != domain.RoleAdmin {
 			httpresp.Forbidden(c, "admin role required")
+			c.Abort()
 			return
 		}
 		c.Next()
 	}
+}
+
+// authenticateRequest performs authentication without advancing Gin's handler
+// chain. This is shared by RequireUser and RequireAdmin so the admin role check
+// always happens before the protected handler is allowed to run.
+func authenticateRequest(c *gin.Context, session *app.SessionService) (*domain.Identity, bool) {
+	token := bearerToken(c)
+	if token == "" {
+		httpresp.Unauthorized(c, "missing bearer token")
+		c.Abort()
+		return nil, false
+	}
+	if session == nil {
+		httpresp.Unauthorized(c, "authentication unavailable")
+		c.Abort()
+		return nil, false
+	}
+	id, err := session.VerifyToken(token)
+	if err != nil || id == nil {
+		message := "invalid bearer token"
+		if err != nil {
+			message = err.Error()
+		}
+		httpresp.Unauthorized(c, message)
+		c.Abort()
+		return nil, false
+	}
+	SetIdentity(c, id)
+	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), fslog.UserIDKey, id.UserID))
+	return id, true
 }
 
 func bearerToken(c *gin.Context) string {

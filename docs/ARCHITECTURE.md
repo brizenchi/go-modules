@@ -80,7 +80,7 @@ quickstart 在 `internal/user/auth_store.go` 实现它。`User` 增加字段不�
 | 表 | 所有者 |
 | --- | --- |
 | `users`、`user_identities` | 当前 SaaS |
-| `auth_email_*`、`auth_exchange_codes` | auth 模块 |
+| `auth_email_*`、`auth_oauth_flows`、`auth_exchange_codes` | auth 模块 |
 | `billing_*` | billing 模块 |
 | `referral_codes`、`referrals` | referral 模块 |
 | `notes` 和其他产品表 | 当前 SaaS 的 feature |

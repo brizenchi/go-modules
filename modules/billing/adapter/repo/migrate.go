@@ -11,6 +11,7 @@ func AutoMigrateModels() []any {
 		&domain.BillingEvent{},
 		&domain.BillingCustomer{},
 		&domain.BillingSubscription{},
+		&domain.BillingCheckoutReservation{},
 	}
 }
 

@@ -92,22 +92,25 @@ func (i *Issuer) Issue(ctx context.Context, email string) (*domain.CodeIssueResu
 	now := time.Now().UTC()
 	dayBucket := now.Format("2006-01-02")
 
-	// Per-day cap (incremented optimistically; we accept that a failed
-	// send still consumes one slot — keeps the implementation atomic).
-	count, err := i.store.IncrDailyCount(ctx, email, dayBucket)
-	if err != nil {
-		return nil, err
-	}
-	if count > i.cfg.DailyCap {
-		return nil, domain.ErrCodeRateLimited
-	}
-
 	// Per-minute throttle.
 	_, lastSent, err := i.store.LoadCode(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 	if !lastSent.IsZero() && now.Sub(lastSent) < i.cfg.MinResendGap {
+		return nil, domain.ErrCodeRateLimited
+	}
+
+	// Per-day cap. Check the cheaper resend gap first so repeated clicks
+	// during the cooldown do not consume the user's daily allowance. The
+	// increment remains atomic, and a delivery failure intentionally counts
+	// as an issuance attempt to avoid turning provider failures into an
+	// unlimited email-sending retry path.
+	count, err := i.store.IncrDailyCount(ctx, email, dayBucket)
+	if err != nil {
+		return nil, err
+	}
+	if count > i.cfg.DailyCap {
 		return nil, domain.ErrCodeRateLimited
 	}
 

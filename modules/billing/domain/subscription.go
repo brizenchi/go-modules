@@ -26,6 +26,8 @@ type BillingSubscription struct {
 	PeriodStart            *time.Time      `json:"period_start,omitempty"`
 	PeriodEnd              *time.Time      `json:"period_end,omitempty"`
 	CancelEffectiveAt      *time.Time      `json:"cancel_effective_at,omitempty"`
+	SnapshotOccurredAt     *time.Time      `json:"snapshot_occurred_at,omitempty" gorm:"index"`
+	SnapshotEventID        string          `json:"snapshot_event_id,omitempty" gorm:"type:varchar(255)"`
 	RawSnapshotJSON        json.RawMessage `json:"raw_snapshot_json,omitempty" gorm:"type:jsonb"`
 	CreatedAt              time.Time
 	UpdatedAt              time.Time

@@ -41,6 +41,12 @@ func TestDeployConfigExampleMatchesAppConfig(t *testing.T) {
 	if modules.GoogleEnabled() || modules.GitHubEnabled() || modules.BillingEnabled() {
 		t.Fatal("没有第三方凭据的示例配置不应该启用 OAuth 或支付")
 	}
+	if cfg.Billing.Enabled != nil {
+		t.Fatal("示例配置的 billing.enabled 应留空，以便提供凭据后自动启用")
+	}
+	if cfg.Auth.OAuthCookieSecure != nil {
+		t.Fatal("示例配置的 oauth_cookie_secure 应留空，以便按 callback URL 推导")
+	}
 	if !modules.ReferralEnabled() {
 		t.Fatal("示例配置应该启用邀请模块")
 	}
@@ -49,11 +55,104 @@ func TestDeployConfigExampleMatchesAppConfig(t *testing.T) {
 	}
 }
 
+func TestApplyDefaultsDerivesReferralBaseLinkFromFrontendRedirect(t *testing.T) {
+	cfg := AppConfig{}
+	cfg.Auth.FrontendRedirect = "https://template.daobang.tech/login?source=oauth"
+
+	applyDefaults(&cfg)
+
+	if got, want := cfg.Referral.BaseLink, "https://template.daobang.tech/invite?ref="; got != want {
+		t.Fatalf("referral base link = %q, want %q", got, want)
+	}
+}
+
+func TestValidateProductionRejectsInvalidReferralBaseLink(t *testing.T) {
+	cfg := productionConfigForTest()
+	cfg.Referral.BaseLink = "http://app.example.com/invite?ref="
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "referral.base_link") {
+		t.Fatalf("expected referral base link error, got %v", err)
+	}
+}
+
+func TestValidateRejectsUserCapabilitiesWithoutAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*AppConfig)
+		want      string
+	}{
+		{
+			name: "billing",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Enabled = truePtr()
+				cfg.Referral.Enabled = falsePtr()
+			},
+			want: "billing requires auth.enabled=true",
+		},
+		{
+			name: "referral",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Enabled = falsePtr()
+				cfg.Referral.Enabled = truePtr()
+			},
+			want: "referral requires auth.enabled=true",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := AppConfig{}
+			applyDefaults(&cfg)
+			cfg.Auth.Enabled = falsePtr()
+			tt.configure(&cfg)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate error=%v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateProductionRejectsUnsafeDefaults(t *testing.T) {
 	cfg := productionConfigForTest()
 	cfg.Auth.UserJWTSecret = "CHANGE-ME-32-RANDOM-CHARS"
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "user_jwt_secret") {
 		t.Fatalf("expected unsafe JWT secret error, got %v", err)
+	}
+}
+
+func TestValidateProductionRequiresDatabaseTLS(t *testing.T) {
+	tests := []struct {
+		name string
+		dsn  string
+		mode string
+	}{
+		{name: "missing mode"},
+		{name: "structured disable", mode: "disable"},
+		{name: "keyword DSN disable", dsn: "host=db.example.com dbname=app sslmode=disable"},
+		{name: "URL DSN missing mode", dsn: "postgres://user:pass@db.example.com/app"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := productionConfigForTest()
+			cfg.DB.DSN = tt.dsn
+			cfg.DB.SSLMode = tt.mode
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "db.ssl_mode") {
+				t.Fatalf("Validate error=%v, want production database TLS rejection", err)
+			}
+		})
+	}
+}
+
+func TestValidateProductionAcceptsDatabaseTLSInDSN(t *testing.T) {
+	for _, dsn := range []string{
+		"host=db.example.com dbname=app sslmode=require",
+		"postgres://user:pass@db.example.com/app?sslmode=verify-full",
+	} {
+		cfg := productionConfigForTest()
+		cfg.DB.DSN = dsn
+		cfg.DB.SSLMode = ""
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate DSN %q: %v", dsn, err)
+		}
 	}
 }
 
@@ -132,6 +231,25 @@ func TestValidateAcceptsOAuthFrontendInCORSList(t *testing.T) {
 	}
 }
 
+func TestValidateProductionRejectsInsecureOAuthCookieOverride(t *testing.T) {
+	cfg := productionConfigForTest()
+	enableGoogleForTest(&cfg)
+	insecure := false
+	cfg.Auth.OAuthCookieSecure = &insecure
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "oauth_cookie_secure") {
+		t.Fatalf("Validate error=%v, want production secure-cookie rejection", err)
+	}
+}
+
+func TestValidateOAuthRequiresExplicitCORSOriginWhenCredentialsEnabled(t *testing.T) {
+	cfg := productionConfigForTest()
+	enableGoogleForTest(&cfg)
+	cfg.HTTP.AllowedOrigins = "*"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "allowed_origins") {
+		t.Fatalf("Validate error=%v, want wildcard rejection", err)
+	}
+}
+
 func TestValidateRejectsIncompleteStripeConfig(t *testing.T) {
 	cfg := productionConfigForTest()
 	enabled := true
@@ -139,6 +257,144 @@ func TestValidateRejectsIncompleteStripeConfig(t *testing.T) {
 	cfg.Billing.Stripe.SecretKey = "sk_live_valid"
 	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "webhook_secret") {
 		t.Fatalf("expected incomplete Stripe error, got %v", err)
+	}
+}
+
+func TestValidateProductionRejectsInvalidStripePriceIDs(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*AppConfig)
+		want      string
+	}{
+		{
+			name: "subscription placeholder",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.Prices.StarterMonthly = "price_..."
+			},
+			want: "starter_monthly",
+		},
+		{
+			name: "wrong object type",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.Prices.StarterMonthly = "prod_1TBFpjQ4kdQzysE6eeAA5D38"
+			},
+			want: "starter_monthly",
+		},
+		{
+			name: "credits placeholder",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.Prices.StarterMonthly = ""
+				cfg.Billing.Stripe.Prices.Credits = []string{"price_credits_placeholder"}
+			},
+			want: "credits[0]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := productionBillingConfigForTest()
+			tt.configure(&cfg)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate error = %v, want field %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateProductionRejectsInvalidStripeCredentialFormats(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*AppConfig)
+		want      string
+	}{
+		{
+			name: "secret key",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.SecretKey = "definitely-not-stripe"
+			},
+			want: "secret_key",
+		},
+		{
+			name: "webhook signing secret",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.WebhookSecret = "definitely-not-stripe"
+			},
+			want: "webhook_secret",
+		},
+		{
+			name: "secret key with surrounding whitespace",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.SecretKey = " sk_live_1234567890abcdef "
+			},
+			want: "secret_key",
+		},
+		{
+			name: "webhook secret with invalid characters",
+			configure: func(cfg *AppConfig) {
+				cfg.Billing.Stripe.WebhookSecret = "whsec_12345678!"
+			},
+			want: "webhook_secret",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := productionBillingConfigForTest()
+			tt.configure(&cfg)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate error = %v, want field %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateProductionAcceptsRealisticStripePriceIDs(t *testing.T) {
+	cfg := productionBillingConfigForTest()
+	cfg.Billing.Stripe.Prices.Lifetime = "price_1TBZGJQ4kdQzysE60zIoEmSP"
+	cfg.Billing.Stripe.Prices.Credits = []string{"price_1TBZGSQ4kdQzysE60OOpWjYs"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+}
+
+func TestValidateProductionRejectsDuplicateStripePriceIDsAcrossOffers(t *testing.T) {
+	const duplicate = "price_1DuplicateOffer123456789"
+	tests := []struct {
+		name      string
+		configure func(*AppConfig)
+	}{
+		{name: "subscription plans", configure: func(cfg *AppConfig) {
+			cfg.Billing.Stripe.Prices.StarterMonthly = duplicate
+			cfg.Billing.Stripe.Prices.ProYearly = duplicate
+		}},
+		{name: "lifetime and subscription", configure: func(cfg *AppConfig) {
+			cfg.Billing.Stripe.Prices.StarterMonthly = duplicate
+			cfg.Billing.Stripe.Prices.Lifetime = duplicate
+		}},
+		{name: "credits and subscription", configure: func(cfg *AppConfig) {
+			cfg.Billing.Stripe.Prices.StarterMonthly = duplicate
+			cfg.Billing.Stripe.Prices.Credits = []string{duplicate}
+		}},
+		{name: "credits list", configure: func(cfg *AppConfig) {
+			cfg.Billing.Stripe.Prices.Credits = []string{duplicate, duplicate}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := productionBillingConfigForTest()
+			tt.configure(&cfg)
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "duplicates") {
+				t.Fatalf("Validate error=%v, want duplicate price rejection", err)
+			}
+		})
+	}
+}
+
+func TestValidateBillingRequiresExplicitFrontendOrigin(t *testing.T) {
+	cfg := productionBillingConfigForTest()
+	cfg.Auth.FrontendRedirect = ""
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "frontend_redirect") {
+		t.Fatalf("Validate error=%v, want frontend origin rejection", err)
 	}
 }
 
@@ -151,6 +407,7 @@ func TestValidateAcceptsMinimalProductionConfig(t *testing.T) {
 
 func productionConfigForTest() AppConfig {
 	cfg := AppConfig{Env: "production"}
+	cfg.Auth.FrontendRedirect = "https://app.example.com/login"
 	applyDefaults(&cfg)
 	cfg.HTTP.AllowedOrigins = "https://app.example.com"
 	cfg.Auth.UserJWTSecret = "0123456789abcdef0123456789abcdef"
@@ -161,6 +418,17 @@ func productionConfigForTest() AppConfig {
 	cfg.Email.Resend.APIKey = "re_live_valid"
 	cfg.Email.Resend.SenderEmail = "no-reply@example.com"
 	cfg.Billing.Enabled = falsePtr()
+	cfg.DB.SSLMode = "require"
+	return cfg
+}
+
+func productionBillingConfigForTest() AppConfig {
+	cfg := productionConfigForTest()
+	cfg.Billing.Enabled = truePtr()
+	cfg.Billing.Provider = "stripe"
+	cfg.Billing.Stripe.SecretKey = "sk_live_1234567890abcdef"
+	cfg.Billing.Stripe.WebhookSecret = "whsec_1234567890abcdef"
+	cfg.Billing.Stripe.Prices.StarterMonthly = "price_1TBFpjQ4kdQzysE6eeAA5D38"
 	return cfg
 }
 

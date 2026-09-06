@@ -2,7 +2,7 @@
 //
 // It deliberately contains no user table. The host supplies its own
 // auth/port.UserStore while this adapter owns only verification codes,
-// per-day counters and single-use OAuth exchange codes.
+// per-day counters, browser-bound OAuth flows, and exchange codes.
 package gormstore
 
 import (
@@ -30,16 +30,28 @@ type emailCodeRow struct {
 func (emailCodeRow) TableName() string { return "auth_email_codes" }
 
 type exchangeCodeRow struct {
-	Code      string    `gorm:"primaryKey;type:varchar(255)"`
-	UserID    string    `gorm:"type:varchar(36);not null;index"`
-	Provider  string    `gorm:"type:varchar(32);not null"`
-	IsNew     bool      `gorm:"not null;default:false"`
-	ExpiresAt time.Time `gorm:"not null;index"`
-	UpdatedAt time.Time
-	CreatedAt time.Time
+	Code        string    `gorm:"primaryKey;type:varchar(255)"`
+	UserID      string    `gorm:"type:varchar(36);not null;index"`
+	Provider    string    `gorm:"type:varchar(32);not null"`
+	IsNew       bool      `gorm:"not null;default:false"`
+	BindingHash string    `gorm:"type:char(64);not null;default:''"`
+	ExpiresAt   time.Time `gorm:"not null;index"`
+	UpdatedAt   time.Time
+	CreatedAt   time.Time
 }
 
 func (exchangeCodeRow) TableName() string { return "auth_exchange_codes" }
+
+type oauthFlowRow struct {
+	StateHash         string    `gorm:"primaryKey;type:char(64)"`
+	Provider          string    `gorm:"type:varchar(32);not null"`
+	BindingHash       string    `gorm:"type:char(64);not null"`
+	VerifierChallenge string    `gorm:"type:varchar(64);not null"`
+	ExpiresAt         time.Time `gorm:"not null;index"`
+	CreatedAt         time.Time
+}
+
+func (oauthFlowRow) TableName() string { return "auth_oauth_flows" }
 
 type dailyCountRow struct {
 	Email     string `gorm:"primaryKey;type:varchar(255)"`
@@ -53,7 +65,7 @@ func (dailyCountRow) TableName() string { return "auth_email_daily_counts" }
 
 // Models returns the persistence models owned by the auth module.
 func Models() []any {
-	return []any{&emailCodeRow{}, &exchangeCodeRow{}, &dailyCountRow{}}
+	return []any{&emailCodeRow{}, &exchangeCodeRow{}, &oauthFlowRow{}, &dailyCountRow{}}
 }
 
 // AutoMigrate creates or updates the auth-owned tables.
@@ -61,7 +73,7 @@ func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(Models()...)
 }
 
-// Store implements CodeRateLimitStore and ExchangeCodeStore.
+// Store implements CodeRateLimitStore, OAuthFlowStore, and ExchangeCodeStore.
 type Store struct {
 	db *gorm.DB
 }
@@ -149,44 +161,87 @@ func (s *Store) IncrDailyCount(ctx context.Context, email, dayBucket string) (in
 
 func (s *Store) Save(ctx context.Context, code domain.ExchangeCode) error {
 	row := exchangeCodeRow{
-		Code:      strings.TrimSpace(code.Code),
-		UserID:    strings.TrimSpace(code.UserID),
-		Provider:  string(code.Provider),
-		IsNew:     code.IsNew,
-		ExpiresAt: code.ExpiresAt.UTC(),
+		Code:        strings.TrimSpace(code.Code),
+		UserID:      strings.TrimSpace(code.UserID),
+		Provider:    string(code.Provider),
+		IsNew:       code.IsNew,
+		BindingHash: strings.TrimSpace(code.BindingHash),
+		ExpiresAt:   code.ExpiresAt.UTC(),
 	}
-	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "code"}},
-		DoUpdates: clause.AssignmentColumns([]string{"user_id", "provider", "is_new", "expires_at", "updated_at"}),
-	}).Create(&row).Error
-}
-
-func (s *Store) Consume(ctx context.Context, code string) (*domain.ExchangeCode, error) {
-	code = strings.TrimSpace(code)
-	var row exchangeCodeRow
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("code = ?", code).
-			First(&row).Error; err != nil {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("expires_at <= ?", time.Now().UTC()).Delete(&exchangeCodeRow{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&exchangeCodeRow{}, "code = ?", code).Error
+		// A collision must fail closed rather than transfer an existing bearer
+		// exchange code to another login/browser.
+		return tx.Create(&row).Error
 	})
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, domain.ErrInvalidExchange
-		}
-		return nil, err
+}
+
+func (s *Store) Consume(ctx context.Context, code, bindingHash string) (*domain.ExchangeCode, error) {
+	code = strings.TrimSpace(code)
+	var row exchangeCodeRow
+	result := s.db.WithContext(ctx).
+		Clauses(clause.Returning{}).
+		Where("code = ? AND binding_hash = ? AND expires_at > ?", code, strings.TrimSpace(bindingHash), time.Now().UTC()).
+		Delete(&row)
+	if result.Error != nil {
+		return nil, result.Error
 	}
-	if time.Now().UTC().After(row.ExpiresAt) {
+	if result.RowsAffected != 1 {
 		return nil, domain.ErrInvalidExchange
 	}
 	return &domain.ExchangeCode{
-		Code:      row.Code,
-		UserID:    row.UserID,
-		Provider:  domain.Provider(row.Provider),
-		IsNew:     row.IsNew,
-		ExpiresAt: row.ExpiresAt,
+		Code:        row.Code,
+		UserID:      row.UserID,
+		Provider:    domain.Provider(row.Provider),
+		IsNew:       row.IsNew,
+		BindingHash: row.BindingHash,
+		ExpiresAt:   row.ExpiresAt,
+	}, nil
+}
+
+func (s *Store) SaveOAuthFlow(ctx context.Context, flow domain.OAuthFlow) error {
+	row := oauthFlowRow{
+		StateHash:         strings.TrimSpace(flow.StateHash),
+		Provider:          string(flow.Provider),
+		BindingHash:       strings.TrimSpace(flow.BindingHash),
+		VerifierChallenge: strings.TrimSpace(flow.VerifierChallenge),
+		ExpiresAt:         flow.ExpiresAt.UTC(),
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// OAuth starts are public and many flows are abandoned. Opportunistic
+		// indexed cleanup keeps the short-lived table bounded without a worker.
+		if err := tx.Where("expires_at <= ?", time.Now().UTC()).Delete(&oauthFlowRow{}).Error; err != nil {
+			return err
+		}
+		// Deliberately do not upsert. A state collision must fail closed rather
+		// than rebind an already-issued request to another browser.
+		return tx.Create(&row).Error
+	})
+}
+
+func (s *Store) ConsumeOAuthFlow(ctx context.Context, provider domain.Provider, stateHash, bindingHash string) (*domain.OAuthFlow, error) {
+	var row oauthFlowRow
+	result := s.db.WithContext(ctx).
+		Clauses(clause.Returning{}).
+		Where(
+			"state_hash = ? AND provider = ? AND binding_hash = ? AND expires_at > ?",
+			strings.TrimSpace(stateHash), string(provider), strings.TrimSpace(bindingHash), time.Now().UTC(),
+		).
+		Delete(&row)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return nil, domain.ErrInvalidState
+	}
+	return &domain.OAuthFlow{
+		StateHash:         row.StateHash,
+		Provider:          domain.Provider(row.Provider),
+		BindingHash:       row.BindingHash,
+		VerifierChallenge: row.VerifierChallenge,
+		ExpiresAt:         row.ExpiresAt,
 	}, nil
 }
 
@@ -196,3 +251,4 @@ func normalizeEmail(email string) string {
 
 var _ port.CodeRateLimitStore = (*Store)(nil)
 var _ port.ExchangeCodeStore = (*Store)(nil)
+var _ port.OAuthFlowStore = (*Store)(nil)

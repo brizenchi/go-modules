@@ -1,8 +1,8 @@
 // Package memstore is an in-memory implementation of port.CodeRateLimitStore
-// and port.ExchangeCodeStore.
+// plus single-instance OAuth flow and exchange-code stores.
 //
-// Use it for tests, single-instance dev environments, or as a fallback when
-// Redis is unavailable. NOT suitable for multi-instance production deployments.
+// Use it for tests or single-instance development. NOT suitable for
+// multi-instance production deployments.
 package memstore
 
 import (
@@ -101,16 +101,25 @@ func NewExchangeStore() *ExchangeStore {
 func (s *ExchangeStore) Save(_ context.Context, code domain.ExchangeCode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
+	for key, existing := range s.codes {
+		if !now.Before(existing.ExpiresAt) {
+			delete(s.codes, key)
+		}
+	}
+	if _, exists := s.codes[code.Code]; exists {
+		return domain.ErrInvalidExchange
+	}
 	s.codes[code.Code] = code
 	return nil
 }
 
 // Consume returns the code and atomically removes it.
-func (s *ExchangeStore) Consume(_ context.Context, code string) (*domain.ExchangeCode, error) {
+func (s *ExchangeStore) Consume(_ context.Context, code, bindingHash string) (*domain.ExchangeCode, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, ok := s.codes[code]
-	if !ok {
+	if !ok || c.BindingHash != bindingHash {
 		return nil, domain.ErrInvalidExchange
 	}
 	delete(s.codes, code)
@@ -121,3 +130,43 @@ func (s *ExchangeStore) Consume(_ context.Context, code string) (*domain.Exchang
 }
 
 var _ port.ExchangeCodeStore = (*ExchangeStore)(nil)
+
+// OAuthFlowStore is an in-memory OAuth browser-binding store. It is suitable
+// for tests and single-instance development only.
+type OAuthFlowStore struct {
+	mu    sync.Mutex
+	flows map[string]domain.OAuthFlow
+}
+
+func NewOAuthFlowStore() *OAuthFlowStore {
+	return &OAuthFlowStore{flows: make(map[string]domain.OAuthFlow)}
+}
+
+func (s *OAuthFlowStore) SaveOAuthFlow(_ context.Context, flow domain.OAuthFlow) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now().UTC()
+	for key, existing := range s.flows {
+		if !now.Before(existing.ExpiresAt) {
+			delete(s.flows, key)
+		}
+	}
+	if _, exists := s.flows[flow.StateHash]; exists {
+		return domain.ErrInvalidState
+	}
+	s.flows[flow.StateHash] = flow
+	return nil
+}
+
+func (s *OAuthFlowStore) ConsumeOAuthFlow(_ context.Context, provider domain.Provider, stateHash, bindingHash string) (*domain.OAuthFlow, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	flow, exists := s.flows[stateHash]
+	if !exists || flow.Provider != provider || flow.BindingHash != bindingHash || !time.Now().UTC().Before(flow.ExpiresAt) {
+		return nil, domain.ErrInvalidState
+	}
+	delete(s.flows, stateHash)
+	return &flow, nil
+}
+
+var _ port.OAuthFlowStore = (*OAuthFlowStore)(nil)

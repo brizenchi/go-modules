@@ -48,13 +48,16 @@ const (
 type SubscriptionStatus string
 
 const (
-	StatusTrialing      SubscriptionStatus = "trialing"
-	StatusActive        SubscriptionStatus = "active"
-	StatusPastDue       SubscriptionStatus = "past_due"
-	StatusCanceling     SubscriptionStatus = "canceling"
-	StatusCanceled      SubscriptionStatus = "canceled"
-	StatusIncomplete    SubscriptionStatus = "incomplete"
-	StatusPaymentFailed SubscriptionStatus = "payment_failed"
+	StatusTrialing   SubscriptionStatus = "trialing"
+	StatusActive     SubscriptionStatus = "active"
+	StatusPastDue    SubscriptionStatus = "past_due"
+	StatusCanceling  SubscriptionStatus = "canceling"
+	StatusCanceled   SubscriptionStatus = "canceled"
+	StatusIncomplete SubscriptionStatus = "incomplete"
+	// StatusIncompleteExpired is terminal: Stripe can no longer recover or
+	// activate the incomplete subscription.
+	StatusIncompleteExpired SubscriptionStatus = "incomplete_expired"
+	StatusPaymentFailed     SubscriptionStatus = "payment_failed"
 )
 
 // CancelMode controls when a cancellation takes effect.

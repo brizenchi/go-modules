@@ -13,6 +13,7 @@ func TestBuildCheckoutMetadata_SystemFieldsOverrideCaller(t *testing.T) {
 		Plan:        domain.PlanPro,
 		Interval:    domain.IntervalMonthly,
 		ProductType: domain.ProductSubscription,
+		TrialDays:   14,
 		Metadata: map[string]string{
 			"user_id":  "user-spoof", // attempt to override
 			"email":    "spoof@example.com",
@@ -44,6 +45,9 @@ func TestBuildCheckoutMetadata_SystemFieldsOverrideCaller(t *testing.T) {
 	}
 	if got := m["quantity"]; got != "1" {
 		t.Errorf("quantity = %q", got)
+	}
+	if got := m["trial_days"]; got != "14" {
+		t.Errorf("trial_days = %q", got)
 	}
 }
 

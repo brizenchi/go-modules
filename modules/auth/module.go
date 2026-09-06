@@ -28,6 +28,7 @@ type Deps struct {
 	TokenSigner       port.TokenSigner
 	WSTicketSigner    port.WSTicketSigner
 	ExchangeCodeStore port.ExchangeCodeStore
+	OAuthFlowStore    port.OAuthFlowStore
 	EmailCodeIssuer   port.EmailCodeIssuer
 	EmailCodeVerifier port.EmailCodeVerifier
 	IdentityProviders map[string]port.IdentityProvider
@@ -36,6 +37,10 @@ type Deps struct {
 	// FrontendURL is the SPA URL for OAuth callback browser redirects.
 	// When empty, the callback returns JSON instead of redirecting.
 	FrontendURL string
+
+	// OAuthCookieSecure must be true when OAuth callback URLs use HTTPS.
+	// Keep it false only for an explicitly local HTTP development setup.
+	OAuthCookieSecure bool
 }
 
 // New wires the module from its dependencies.
@@ -54,6 +59,7 @@ func New(d Deps) *Module {
 		Roles:         d.RoleResolver,
 		Signer:        d.TokenSigner,
 		ExchangeStore: d.ExchangeCodeStore,
+		FlowStore:     d.OAuthFlowStore,
 		Bus:           d.Bus,
 	})
 	session := app.NewSessionService(app.SessionDeps{
@@ -63,10 +69,11 @@ func New(d Deps) *Module {
 		TicketSigner: d.WSTicketSigner,
 	})
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Login:       login,
-		OAuth:       oauth,
-		Session:     session,
-		FrontendURL: d.FrontendURL,
+		Login:             login,
+		OAuth:             oauth,
+		Session:           session,
+		FrontendURL:       d.FrontendURL,
+		OAuthCookieSecure: d.OAuthCookieSecure,
 	})
 	return &Module{
 		Deps:    d,

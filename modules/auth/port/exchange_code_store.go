@@ -13,5 +13,5 @@ import (
 // AND deletes/marks it in one atomic step.
 type ExchangeCodeStore interface {
 	Save(ctx context.Context, code domain.ExchangeCode) error
-	Consume(ctx context.Context, code string) (*domain.ExchangeCode, error)
+	Consume(ctx context.Context, code, bindingHash string) (*domain.ExchangeCode, error)
 }

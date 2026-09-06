@@ -5,6 +5,7 @@ package http
 import (
 	stdhttp "net/http"
 
+	"github.com/brizenchi/go-modules/foundation/httpresp"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 	"github.com/gin-gonic/gin"
 )
@@ -27,16 +28,21 @@ func NewRouter(platform PlatformRoutes, deps hostapi.Deps) *Router {
 
 func (r *Router) RequireUser() gin.HandlerFunc {
 	if r == nil || r.platform == nil {
-		return func(c *gin.Context) { c.Next() }
+		return authenticationUnavailable
 	}
 	return r.platform.RequireUser()
 }
 
 func (r *Router) RequireAdmin() gin.HandlerFunc {
 	if r == nil || r.platform == nil {
-		return func(c *gin.Context) { c.Next() }
+		return authenticationUnavailable
 	}
 	return r.platform.RequireAdmin()
+}
+
+func authenticationUnavailable(c *gin.Context) {
+	httpresp.Custom(c, stdhttp.StatusServiceUnavailable, stdhttp.StatusServiceUnavailable, "authentication unavailable", nil)
+	c.Abort()
 }
 
 func (r *Router) Mount(g hostapi.Groups) {

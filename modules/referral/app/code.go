@@ -24,8 +24,8 @@ func NewCodeService(codes port.CodeRepository, generator port.CodeGenerator) *Co
 
 // GetOrCreate returns the user's existing code, or creates one and stores it.
 //
-// For deterministic generators, retries are not needed (user_id is unique).
-// For random generators, the loop catches collisions and regenerates.
+// The loop handles generated-value collisions. After every conflict it also
+// re-reads by user so concurrent first requests return the same winning row.
 func (s *CodeService) GetOrCreate(ctx context.Context, userID string) (*domain.Code, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
@@ -47,7 +47,18 @@ func (s *CodeService) GetOrCreate(ctx context.Context, userID string) (*domain.C
 		} else if !errors.Is(err, domain.ErrCodeCollision) {
 			return nil, err
 		}
-		// collision: try again with a new value (only useful for random generators).
+
+		// A concurrent request for the same user can win the unique user_id
+		// insert after our initial read. Re-read before treating the conflict as
+		// a value collision so both callers receive the one persisted code.
+		existing, err := s.codes.FindByUser(ctx, userID)
+		if err == nil {
+			return existing, nil
+		}
+		if !errors.Is(err, domain.ErrNotFound) {
+			return nil, err
+		}
+		// A different user owns this generated value; generate a new one.
 	}
 	return nil, domain.ErrCodeCollision
 }

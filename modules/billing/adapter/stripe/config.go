@@ -6,8 +6,12 @@
 package stripe
 
 import (
+	"strings"
+
 	"github.com/brizenchi/go-modules/modules/billing/domain"
 )
+
+const minPriceIDSuffixLength = 14
 
 // Config holds the static configuration for the Stripe provider.
 //
@@ -35,6 +39,31 @@ type Config struct {
 	// TrialDays is the number of free-trial days for new subscriptions.
 	// 0 disables the trial.
 	TrialDays int64
+}
+
+// ValidPriceID reports whether value has the shape of a real Stripe Price
+// object ID. It intentionally rejects documentation/template placeholders so
+// hosts do not advertise checkout options that Stripe cannot open.
+func ValidPriceID(value string) bool {
+	if value == "" || value != strings.TrimSpace(value) || !strings.HasPrefix(value, "price_") {
+		return false
+	}
+	suffix := strings.TrimPrefix(value, "price_")
+	if len(suffix) < minPriceIDSuffixLength {
+		return false
+	}
+	for _, char := range suffix {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') {
+			return false
+		}
+	}
+	normalized := strings.ToLower(suffix)
+	for _, marker := range []string{"placeholder", "changeme", "example", "yourprice"} {
+		if strings.Contains(normalized, marker) {
+			return false
+		}
+	}
+	return true
 }
 
 // PriceFor returns the Stripe price ID for a (plan, interval), or "" if missing.
@@ -69,6 +98,9 @@ func (c Config) PlanForPrice(priceID string) (domain.PlanType, domain.BillingInt
 
 // IsCreditsPriceID reports whether the price ID is a credits SKU.
 func (c Config) IsCreditsPriceID(priceID string) bool {
+	if !ValidPriceID(priceID) {
+		return false
+	}
 	for _, id := range c.CreditsPriceIDs {
 		if id == priceID {
 			return true

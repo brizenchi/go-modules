@@ -7,6 +7,15 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Security
+
+- OAuth state is now bound to the initiating browser with an HttpOnly flow
+  cookie and an atomically consumed shared-store record. Callback exchange
+  codes are additionally bound to a per-tab verifier, preventing login CSRF
+  and session swapping when callback URLs are copied to another browser.
+- Google and GitHub state JWTs now carry a fresh random `jti`, and abandoned
+  OAuth flow/exchange rows are cleaned opportunistically.
+
 ## [v0.1.1] — 2025
 
 ### Fixed

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/brizenchi/quickstart-template/internal/feature/account"
 	"github.com/brizenchi/quickstart-template/internal/feature/note"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 )
@@ -18,5 +19,6 @@ import (
 // Shared auth / billing / referral routes are already mounted by the time
 // this runs; do not re-declare them here.
 func registerHostRoutes(deps hostapi.Deps, g hostapi.Groups) {
+	account.New(deps.Users).Register(g)
 	note.New(deps.DB).Register(g)
 }

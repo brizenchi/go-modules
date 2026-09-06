@@ -59,7 +59,7 @@ func New(db *gorm.DB, cfg Config) (*Modules, error) {
 		modules.Referral = referral.New(referral.Deps{
 			Codes:            referralgormrepo.NewCodeRepo(db),
 			Referrals:        referralgormrepo.NewReferralRepo(db),
-			Generator:        codegen.NewDeterministic(cfg.Referral.Prefix, 8),
+			Generator:        codegen.NewRandom(cfg.Referral.Prefix, 10),
 			Bus:              referraleventbus.NewInProc(),
 			GetUserID:        userIDFromGin,
 			BaseLink:         cfg.Referral.BaseLink,

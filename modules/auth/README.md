@@ -36,11 +36,13 @@ module := auth.New(auth.Deps{
     TokenSigner:       signer,
     WSTicketSigner:    ticketSigner,
     ExchangeCodeStore: authStore,
+    OAuthFlowStore:    authStore,
     EmailCodeIssuer:   issuer,
     EmailCodeVerifier: verifier,
     IdentityProviders: providers,
     Bus:               eventbus.NewInProc(),
     FrontendURL:       "https://app.example.com/login",
+    OAuthCookieSecure: true,
 })
 ```
 
@@ -54,7 +56,27 @@ store := gormstore.New(db)
 ```
 
 它只创建 `auth_email_codes`、`auth_email_daily_counts`、
-`auth_exchange_codes`，不会创建 `users`。
+`auth_oauth_flows`、`auth_exchange_codes`，不会创建 `users`。
+
+## OAuth 浏览器绑定
+
+OAuth 登录使用两层一次性浏览器绑定：provider callback 必须带回签名 state，
+并匹配发起浏览器的 `HttpOnly; SameSite=Lax` flow cookie；callback 产生的短期
+exchange code 还必须与前端保存在 `sessionStorage` 的随机 verifier 一起提交。
+因此复制 callback 或前端 `?code=` URL 到另一浏览器不会登录攻击者账号。
+
+- `GET /auth/:provider/authorize` 必须带 `challenge`（随机 verifier 的 SHA-256，
+  unpadded base64url）。返回 JSON `redirect_url`；跨 origin fetch 必须使用
+  `credentials: include`。
+- 推荐浏览器入口是
+  `GET /auth/:provider/authorize?redirect=1&challenge=...`：后端设置 cookie 后直接
+  302 到 provider，避免第三方 cookie/CORS 对 flow cookie 的影响。
+- `POST /auth/exchange-token` 必须同时提交
+  `{"code":"...","oauth_verifier":"..."}`。verifier 只保存在发起 tab 的
+  `sessionStorage`，不得放入 URL。
+
+旧客户端如果没有发送 `challenge` 和 `oauth_verifier` 会得到 400，必须升级。
+生产 HTTPS callback 必须配置 `OAuthCookieSecure: true`；本地纯 HTTP 才使用 false。
 
 ## Provider
 

@@ -1,42 +1,97 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ResourceFailure, SignInRequired } from "@/components/resource-feedback";
 import { SiteShell } from "@/components/site-shell";
-import { EmptyState, Notice, Panel, DetailRows } from "@/components/ui";
+import { DetailRows, EmptyState, LabelPill, Notice, Panel } from "@/components/ui";
 import {
-  ApiError,
+  getAccountProfile,
+  getCapabilities,
   issueWSTicket,
   logout,
-  refreshSession
+  refreshSession,
+  updateAccountProfile,
+  type AccountProfile,
+  type CapabilitiesView,
+  type UpdateAccountProfilePayload
 } from "@/lib/api";
-import {
-  readSession,
-  SESSION_EVENT,
-  writeSession
-} from "@/lib/auth";
+import { clearSessionIfToken, readSession, SESSION_EVENT, writeSession } from "@/lib/auth";
 import { formatDate, maskToken } from "@/lib/format";
+import {
+  describeRequestFailure,
+  idleResource,
+  loadingResource,
+  readyResource,
+  settleResource,
+  type RequestFailure,
+  type ResourceState
+} from "@/lib/request-state";
+import {
+  beginRequestGeneration,
+  invalidateRequestGeneration,
+  isCurrentRequestGeneration
+} from "@/lib/request-generation";
 
-function messageFromError(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.message;
+function validateProfile(username: string, avatarURL: string): RequestFailure | null {
+  if (username.length > 100) {
+    return { kind: "configuration", title: "Username is too long", message: "Use 100 characters or fewer.", retryable: false };
   }
-  if (error instanceof Error) {
-    return error.message;
+  if (avatarURL.length > 512) {
+    return { kind: "configuration", title: "Avatar URL is too long", message: "Use 512 characters or fewer.", retryable: false };
   }
-  return "unexpected error";
+  if (avatarURL) {
+    try {
+      const parsed = new URL(avatarURL);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("invalid protocol");
+    } catch {
+      return { kind: "configuration", title: "Avatar URL is invalid", message: "Enter an absolute http(s) URL or leave it empty.", retryable: false };
+    }
+  }
+  return null;
 }
 
 export default function AccountPage() {
   const router = useRouter();
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState<"" | "refresh" | "logout" | "ticket">("");
-  const [ticket, setTicket] = useState<{ value: string; expiresAt: string } | null>(null);
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<CapabilitiesView>>(idleResource());
+  const [profileState, setProfileState] = useState<ResourceState<AccountProfile>>(idleResource());
+  const [username, setUsername] = useState("");
+  const [avatarURL, setAvatarURL] = useState("");
+  const [ticket, setTicket] = useState<{ value: string; expiresAt: string } | null>(null);
+  const [busy, setBusy] = useState<"" | "profile" | "refresh" | "logout" | "ticket">("");
+  const [status, setStatus] = useState("");
+  const [actionFailure, setActionFailure] = useState<RequestFailure | null>(null);
+  const capabilitiesGenerationRef = useRef(0);
+  const capabilitiesMountedRef = useRef(false);
+  const profileGenerationRef = useRef(0);
+  const actionGenerationRef = useRef(0);
+  const profile = profileState.data;
+  const accountEnabled = capabilitiesState.status === "ready" && capabilitiesState.data.account.enabled;
+  const profileDirty = Boolean(profile)
+    && (username.trim() !== profile?.username || avatarURL.trim() !== profile?.avatar_url);
+
+  const loadProfile = useCallback(async (token: string) => {
+    const generation = beginRequestGeneration(profileGenerationRef);
+    setProfileState(loadingResource());
+    const nextState = await settleResource(getAccountProfile(token), "Account profile");
+    if (
+      readSession()?.token !== token
+      || !isCurrentRequestGeneration(profileGenerationRef, generation)
+    ) return;
+    setProfileState(nextState);
+    if (nextState.status === "ready") {
+      setUsername(nextState.data.username || "");
+      setAvatarURL(nextState.data.avatar_url || "");
+    }
+  }, []);
 
   useEffect(() => {
-    const sync = () => setSession(readSession());
+    const sync = () => {
+      setSession(readSession());
+      setSessionReady(true);
+    };
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener(SESSION_EVENT, sync);
@@ -46,159 +101,288 @@ export default function AccountPage() {
     };
   }, []);
 
-  async function handleRefresh() {
-    if (!session) {
-      setError("sign in first");
+  useEffect(() => {
+    capabilitiesMountedRef.current = true;
+    void loadCapabilities();
+    return () => {
+      capabilitiesMountedRef.current = false;
+      invalidateRequestGeneration(capabilitiesGenerationRef);
+    };
+  }, []);
+
+  useEffect(() => {
+    invalidateRequestGeneration(actionGenerationRef);
+    setTicket(null);
+    setBusy("");
+    setStatus("");
+    setActionFailure(null);
+    if (!session?.token || !accountEnabled) {
+      invalidateRequestGeneration(profileGenerationRef);
+      setProfileState(idleResource());
+      setUsername("");
+      setAvatarURL("");
       return;
     }
-    setBusy("refresh");
-    setError("");
-    setStatus("");
+    void loadProfile(session.token);
+    return () => {
+      invalidateRequestGeneration(profileGenerationRef);
+      invalidateRequestGeneration(actionGenerationRef);
+    };
+  }, [session?.token, accountEnabled, loadProfile]);
 
+  async function loadCapabilities() {
+    if (!capabilitiesMountedRef.current) return;
+    const generation = beginRequestGeneration(capabilitiesGenerationRef);
+    setCapabilitiesState((current) => loadingResource(current.data));
+    const nextState = await settleResource(getCapabilities(), "API capabilities");
+    if (
+      capabilitiesMountedRef.current
+      && isCurrentRequestGeneration(capabilitiesGenerationRef, generation)
+    ) {
+      setCapabilitiesState(nextState);
+    }
+  }
+
+  async function handleSaveProfile() {
+    if (!session || !profile) return;
+    const requestToken = session.token;
+    const nextUsername = username.trim();
+    const nextAvatarURL = avatarURL.trim();
+    const validationFailure = validateProfile(nextUsername, nextAvatarURL);
+    if (validationFailure) {
+      setActionFailure(validationFailure);
+      return;
+    }
+    const payload: UpdateAccountProfilePayload = {};
+    if (nextUsername !== profile.username) payload.username = nextUsername;
+    if (nextAvatarURL !== profile.avatar_url) payload.avatar_url = nextAvatarURL;
+    if (Object.keys(payload).length === 0) {
+      setStatus("No profile changes to save.");
+      return;
+    }
+    const profileGeneration = beginRequestGeneration(profileGenerationRef);
+    const actionGeneration = beginRequestGeneration(actionGenerationRef);
+    setBusy("profile");
+    setStatus("");
+    setActionFailure(null);
     try {
-      const nextSession = await refreshSession(session.token);
-      writeSession(nextSession);
-      setSession(nextSession);
-      setStatus("Session refreshed.");
-    } catch (err) {
-      setError(messageFromError(err));
+      const updated = await updateAccountProfile(requestToken, payload);
+      const currentSession = readSession();
+      if (
+        !currentSession
+        || currentSession.token !== requestToken
+        || !isCurrentRequestGeneration(profileGenerationRef, profileGeneration)
+        || !isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) return;
+      setProfileState(readyResource(updated));
+      setUsername(updated.username || "");
+      setAvatarURL(updated.avatar_url || "");
+      writeSession({
+        ...currentSession,
+        user: { ...currentSession.user, username: updated.username, avatar: updated.avatar_url }
+      });
+      setStatus("Profile saved.");
+    } catch (error) {
+      if (
+        readSession()?.token === requestToken
+        && isCurrentRequestGeneration(profileGenerationRef, profileGeneration)
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setActionFailure(describeRequestFailure(error, "Account profile"));
+      }
     } finally {
-      setBusy("");
+      if (
+        readSession()?.token === requestToken
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setBusy("");
+      }
+    }
+  }
+
+  async function handleRefresh() {
+    if (!session) return;
+    const requestToken = session.token;
+    const actionGeneration = beginRequestGeneration(actionGenerationRef);
+    setBusy("refresh");
+    setStatus("");
+    setActionFailure(null);
+    try {
+      const refreshed = await refreshSession(requestToken);
+      const currentSession = readSession();
+      if (
+        !currentSession
+        || currentSession.token !== requestToken
+        || !isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) return;
+      writeSession(refreshed);
+      setStatus("Session refreshed.");
+    } catch (error) {
+      if (
+        readSession()?.token === requestToken
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setActionFailure(describeRequestFailure(error, "Session refresh"));
+      }
+    } finally {
+      if (
+        readSession()?.token === requestToken
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setBusy("");
+      }
     }
   }
 
   async function handleLogout() {
-    if (!session) {
-      writeSession(null);
-      router.push("/login");
-      return;
-    }
+    const requestToken = session?.token || "";
+    const actionGeneration = beginRequestGeneration(actionGenerationRef);
     setBusy("logout");
-    setError("");
-    setStatus("");
-
     try {
-      await logout(session.token);
-      writeSession(null);
-      setTicket(null);
-      setStatus("Session cleared locally.");
-      router.push("/login");
-    } catch (err) {
-      setError(messageFromError(err));
+      if (requestToken) await logout(requestToken);
+    } catch {
+      // Local sign-out must still succeed if the backend or token is unavailable.
     } finally {
-      setBusy("");
+      if (requestToken) {
+        clearSessionIfToken(requestToken);
+      } else {
+        writeSession(null);
+      }
+      if (
+        !readSession()
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setTicket(null);
+        setBusy("");
+        router.push("/login");
+      }
     }
   }
 
   async function handleIssueTicket() {
-    if (!session) {
-      setError("sign in first");
-      return;
-    }
+    if (!session) return;
+    const requestToken = session.token;
+    const actionGeneration = beginRequestGeneration(actionGenerationRef);
     setBusy("ticket");
-    setError("");
+    setTicket(null);
     setStatus("");
-
+    setActionFailure(null);
     try {
-      const res = await issueWSTicket(session.token);
-      setTicket({ value: res.ticket, expiresAt: res.expires_at });
-      setStatus("WS ticket issued.");
-    } catch (err) {
-      setError(messageFromError(err));
+      const result = await issueWSTicket(requestToken);
+      if (
+        readSession()?.token !== requestToken
+        || !isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) return;
+      setTicket({ value: result.ticket, expiresAt: result.expires_at });
+      setStatus("WebSocket ticket issued.");
+    } catch (error) {
+      if (
+        readSession()?.token === requestToken
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setActionFailure(describeRequestFailure(error, "WebSocket ticket"));
+      }
     } finally {
-      setBusy("");
+      if (
+        readSession()?.token === requestToken
+        && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
+      ) {
+        setBusy("");
+      }
     }
   }
+
+  const capabilityFailure: RequestFailure | null = capabilitiesState.status === "error"
+    ? capabilitiesState.failure
+    : capabilitiesState.status === "ready" && !capabilitiesState.data.account.enabled
+      ? { kind: "disabled", title: "Account settings are not enabled", message: "Deploy a backend with the account profile capability enabled.", retryable: false }
+      : null;
 
   return (
     <SiteShell
       eyebrow="Account Settings"
-      title="Use the account page as a real settings surface, not just a debug screen."
-      description="This page still validates JWT refresh, logout, and ticket issuance, but it is framed as the starting point for an actual settings area. In a real product, profile preferences, security controls, and workspace settings would grow from here."
-      sideTitle="Account contract"
-      sideBody={
-        <DetailRows
-          rows={[
-            { label: "Refresh", value: <span className="inline-code">POST /auth/refresh</span> },
-            { label: "Logout", value: <span className="inline-code">POST /auth/logout</span> },
-            { label: "WS ticket", value: <span className="inline-code">POST /websocket/ticket</span> }
-          ]}
-        />
-      }
+      title="Keep your identity and account access up to date."
+      description="Update the profile fields supported by the API, review account details, and manage the session on this device."
+      accountMenuData={{ capabilities: capabilitiesState }}
+      sideTitle="Account security"
+      sideBody={<DetailRows rows={[
+        { label: "Email", value: <span>Verified by the authentication provider</span> },
+        { label: "Session", value: <span>Stored only on this device</span> },
+        { label: "Profile", value: <span>Saved through the authenticated API</span> }
+      ]} />}
       toc={[
-        { id: "session", label: "Current session" },
-        { id: "ticket", label: "WebSocket ticket" }
+        { id: "profile", label: "Profile" },
+        { id: "security", label: "Security" },
+        { id: "developer-access", label: "Developer access" }
       ]}
     >
       <div className="page-grid">
-        <Panel className="span-7" title="Current session" subtitle="Loaded from localStorage.">
-          <div id="session" />
-          {session ? (
-            <div className="details-list">
-              <div className="details-row">
-                <strong>User ID</strong>
-                <span className="inline-code">{session.user.id}</span>
+        {sessionReady && !session ? <div className="span-12"><SignInRequired message="Sign in to view and update your account." /></div> : null}
+        {capabilityFailure ? <div className="span-12"><ResourceFailure failure={capabilityFailure} onRetry={capabilitiesState.status === "error" ? () => void loadCapabilities() : undefined} /></div> : null}
+
+        <Panel className="span-7" title="Profile" subtitle="Username and avatar URL are the editable fields supported by this backend.">
+          <div id="profile" />
+          {profile ? (
+            <div className="input-row">
+              <div className="field">
+                <label htmlFor="account-email">Email</label>
+                <input id="account-email" value={profile.email} readOnly aria-readonly="true" />
               </div>
-              <div className="details-row">
-                <strong>Email</strong>
-                <span>{session.user.email}</span>
+              <div className="field">
+                <label htmlFor="account-username">Username</label>
+                <input id="account-username" maxLength={100} value={username} onChange={(event) => setUsername(event.target.value)} />
               </div>
-              <div className="details-row">
-                <strong>Role</strong>
-                <span>{session.user.role || "user"}</span>
+              <div className="field">
+                <label htmlFor="account-avatar">Avatar URL</label>
+                <input id="account-avatar" type="url" maxLength={512} placeholder="https://example.com/avatar.png" value={avatarURL} onChange={(event) => setAvatarURL(event.target.value)} />
               </div>
-              <div className="details-row">
-                <strong>Username</strong>
-                <span>{session.user.username || "-"}</span>
-              </div>
-              <div className="details-row">
-                <strong>Token</strong>
-                <span className="inline-code">{maskToken(session.token)}</span>
-              </div>
-              <div className="details-row">
-                <strong>Expires</strong>
-                <span>{formatDate(session.expires_at)}</span>
+              <div className="button-row">
+                <button className="button primary" type="button" disabled={!profileDirty || busy !== ""} onClick={() => void handleSaveProfile()}>{busy === "profile" ? "Saving..." : "Save changes"}</button>
+                <button className="button" type="button" disabled={!profileDirty || busy !== ""} onClick={() => { setUsername(profile.username); setAvatarURL(profile.avatar_url); }}>Reset</button>
               </div>
             </div>
+          ) : profileState.status === "error" ? (
+            <ResourceFailure failure={profileState.failure} onRetry={session ? () => void loadProfile(session.token) : undefined} />
           ) : (
-            <EmptyState>No session found. Open `/login` first.</EmptyState>
+            <EmptyState>{profileState.status === "loading" ? "Loading profile..." : "Sign in to load your profile."}</EmptyState>
           )}
-
-          <div className="button-row">
-            <button className="button primary" disabled={busy !== ""} onClick={handleRefresh}>
-              {busy === "refresh" ? "Refreshing..." : "Refresh Session"}
-            </button>
-            <button className="button" disabled={busy !== ""} onClick={handleIssueTicket}>
-              {busy === "ticket" ? "Issuing..." : "Issue WS Ticket"}
-            </button>
-            <button className="button danger" disabled={busy !== ""} onClick={handleLogout}>
-              {busy === "logout" ? "Logging out..." : "Logout"}
-            </button>
-          </div>
-
           {status ? <Notice tone="success">{status}</Notice> : null}
-          {error ? <Notice tone="error">{error}</Notice> : null}
+          {actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
         </Panel>
 
-        <Panel className="span-5" title="WebSocket ticket" subtitle="Useful when your host app has privileged browser->WS entry points.">
-          <div id="ticket" />
-          {ticket ? (
-            <div className="details-list">
-              <div className="details-row">
-                <strong>Ticket</strong>
-                <span className="inline-code">{ticket.value}</span>
-              </div>
-              <div className="details-row">
-                <strong>Expires</strong>
-                <span>{formatDate(ticket.expiresAt)}</span>
-              </div>
-            </div>
-          ) : (
-            <EmptyState>No ticket issued yet.</EmptyState>
-          )}
-          <p className="footer-note">
-            The auth module only issues the ticket. How your host verifies scope and turns that into product behavior remains host-specific.
-          </p>
+        <Panel className="span-5" title="Account details" subtitle="Read-only identity and product state.">
+          {profile ? <DetailRows rows={[
+            { label: "User ID", value: <span className="inline-code">{profile.id}</span> },
+            { label: "Email status", value: <LabelPill>{profile.email_verified ? "Verified" : "Unverified"}</LabelPill> },
+            { label: "Role", value: <span>{profile.role || "user"}</span> },
+            { label: "Credits", value: <span>{profile.credits}</span> },
+            { label: "Created", value: <span>{formatDate(profile.created_at)}</span> },
+            { label: "Updated", value: <span>{formatDate(profile.updated_at)}</span> }
+          ]} /> : <EmptyState>Account details appear after the profile loads.</EmptyState>}
+        </Panel>
+
+        <Panel className="span-7" title="Session & security" subtitle="Refresh or end the current session on this device.">
+          <div id="security" />
+          {session ? <DetailRows rows={[
+            { label: "Signed in as", value: <span>{session.user.email}</span> },
+            { label: "Access token", value: <span className="inline-code">{maskToken(session.token)}</span> },
+            { label: "Expires", value: <span>{formatDate(session.expires_at)}</span> }
+          ]} /> : <EmptyState>No active session.</EmptyState>}
+          <div className="button-row">
+            <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleRefresh()}>{busy === "refresh" ? "Refreshing..." : "Refresh session"}</button>
+            <button className="button danger" type="button" disabled={busy !== ""} onClick={() => void handleLogout()}>{busy === "logout" ? "Signing out..." : "Sign out"}</button>
+          </div>
+        </Panel>
+
+        <Panel className="span-5" title="Developer access" subtitle="Issue a short-lived ticket only when a browser WebSocket needs it.">
+          <div id="developer-access" />
+          {ticket ? <DetailRows rows={[
+            { label: "Ticket", value: <span className="inline-code">{ticket.value}</span> },
+            { label: "Expires", value: <span>{formatDate(ticket.expiresAt)}</span> }
+          ]} /> : <EmptyState>No WebSocket ticket issued.</EmptyState>}
+          <div className="button-row">
+            <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleIssueTicket()}>{busy === "ticket" ? "Issuing..." : "Issue ticket"}</button>
+          </div>
         </Panel>
       </div>
     </SiteShell>

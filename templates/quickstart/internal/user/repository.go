@@ -49,6 +49,33 @@ func (r *Repository) Save(ctx context.Context, user *User) error {
 	return r.db.WithContext(ctx).Save(user).Error
 }
 
+// UpdateProfile changes only the host-owned, user-editable profile fields.
+// Email, role, credits, and provider identities are intentionally excluded.
+func (r *Repository) UpdateProfile(ctx context.Context, userID string, username, avatarURL *string) (*User, error) {
+	updates := make(map[string]any, 3)
+	if username != nil {
+		updates["username"] = strings.TrimSpace(*username)
+	}
+	if avatarURL != nil {
+		updates["avatar_url"] = strings.TrimSpace(*avatarURL)
+	}
+	if len(updates) == 0 {
+		return r.FindByID(ctx, userID)
+	}
+	updates["updated_at"] = time.Now().UTC()
+	result := r.db.WithContext(ctx).
+		Model(&User{}).
+		Where("id = ?", strings.TrimSpace(userID)).
+		Updates(updates)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return r.FindByID(ctx, userID)
+}
+
 func (r *Repository) LinkIdentity(ctx context.Context, userID string, provider authdomain.Provider, subject string) error {
 	identity := &Identity{
 		UserID:   strings.TrimSpace(userID),

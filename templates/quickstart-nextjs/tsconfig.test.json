@@ -4,12 +4,13 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "target": "ES2022",
+    "jsx": "react-jsx",
     "rootDir": ".",
     "outDir": "./.test-dist",
     "noEmit": false,
     "incremental": false,
     "types": ["node"]
   },
-  "include": ["lib/**/*.ts", "tests/**/*.ts"],
+  "include": ["lib/**/*.ts", "components/resource-feedback.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
   "exclude": ["node_modules", ".next"]
 }

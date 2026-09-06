@@ -51,13 +51,14 @@ type Module struct {
 
 // Deps describes the host-supplied collaborators.
 type Deps struct {
-	Provider      port.Provider
-	Bus           port.EventBus
-	Customers     port.CustomerStore
-	EventRepo     port.BillingEventRepository
-	Subscriptions port.SubscriptionRepository
-	UserResolver  port.UserResolver
-	GetUserID     httpapi.UserIDFunc
+	Provider           port.Provider
+	Bus                port.EventBus
+	Customers          port.CustomerStore
+	EventRepo          port.BillingEventRepository
+	Subscriptions      port.SubscriptionRepository
+	UserResolver       port.UserResolver
+	GetUserID          httpapi.UserIDFunc
+	ReturnURLValidator port.ReturnURLValidator
 }
 
 // New wires the module from its dependencies.
@@ -66,9 +67,10 @@ type Deps struct {
 // when a webhook payload doesn't carry the user ID directly). Pass nil
 // to disable resolution.
 func New(d Deps) *Module {
-	checkout := app.NewCheckoutService(d.Provider, d.Customers)
-	subs := app.NewSubscriptionService(d.Provider, d.Customers, d.Bus)
-	webhook := app.NewWebhookService(d.Provider, d.EventRepo, d.Subscriptions, d.UserResolver, d.Bus)
+	reservations, _ := d.Customers.(port.CheckoutReservationRepository)
+	checkout := app.NewCheckoutService(d.Provider, d.Customers, d.ReturnURLValidator)
+	subs := app.NewSubscriptionService(d.Provider, d.Customers, d.Bus, d.ReturnURLValidator)
+	webhook := app.NewWebhookService(d.Provider, d.EventRepo, d.Subscriptions, d.UserResolver, d.Bus, reservations)
 	query := app.NewQueryService(d.Provider, d.Customers)
 
 	handler := httpapi.NewHandler(httpapi.Deps{

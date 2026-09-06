@@ -1,21 +1,27 @@
 import {
+  getCapabilities,
   getReferralStats,
   getSubscription,
+  type CapabilitiesView,
   type ReferralStats,
   type SubscriptionView
 } from "./api";
+import { settleResource, type ResourceState } from "./request-state";
 
 export type AccountSummary = {
-  subscription: SubscriptionView | null;
-  referralStats: ReferralStats | null;
+  capabilities: ResourceState<CapabilitiesView>;
+  subscription: ResourceState<SubscriptionView>;
+  referralStats: ResourceState<ReferralStats>;
 };
 
 type SummaryDeps = {
+  getCapabilities: typeof getCapabilities;
   getSubscription: typeof getSubscription;
   getReferralStats: typeof getReferralStats;
 };
 
 const defaultDeps: SummaryDeps = {
+  getCapabilities,
   getSubscription,
   getReferralStats
 };
@@ -24,13 +30,15 @@ export async function loadAccountSummary(
   token: string,
   deps: SummaryDeps = defaultDeps
 ): Promise<AccountSummary> {
-  const [subscription, referralStats] = await Promise.allSettled([
-    deps.getSubscription(token),
-    deps.getReferralStats(token)
+  const [capabilities, subscription, referralStats] = await Promise.all([
+    settleResource(deps.getCapabilities(), "API capabilities"),
+    settleResource(deps.getSubscription(token), "Subscription billing"),
+    settleResource(deps.getReferralStats(token), "Referral center")
   ]);
 
   return {
-    subscription: subscription.status === "fulfilled" ? subscription.value : null,
-    referralStats: referralStats.status === "fulfilled" ? referralStats.value : null
+    capabilities,
+    subscription,
+    referralStats
   };
 }

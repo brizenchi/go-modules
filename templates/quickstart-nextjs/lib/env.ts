@@ -23,7 +23,7 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 export type OAuthProvider = "google" | "github";
 
 function parseOAuthProviders(value: string | undefined): OAuthProvider[] {
-  const raw = value === undefined ? "google" : value;
+  const raw = value || "";
   return Array.from(new Set(
     raw
       .split(",")
@@ -34,14 +34,17 @@ function parseOAuthProviders(value: string | undefined): OAuthProvider[] {
 
 export const appEnv = {
   appName: (process.env.NEXT_PUBLIC_APP_NAME || "Clawmesh Quickstart Frontend").trim(),
+  // Presentation only. Actual test/live payments are controlled by backend Stripe credentials.
+  demoMode: parseBoolean(process.env.NEXT_PUBLIC_DEMO_MODE, true),
   appUrl: normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL, "http://localhost:3000"),
   apiBaseUrl: normalizeOrigin(process.env.NEXT_PUBLIC_API_BASE_URL, "http://localhost:8080/api/v1"),
+  authEmailConfigured: process.env.NEXT_PUBLIC_AUTH_EMAIL_ENABLED !== undefined,
   authEmailEnabled: parseBoolean(process.env.NEXT_PUBLIC_AUTH_EMAIL_ENABLED, true),
+  authOAuthProvidersConfigured: process.env.NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS !== undefined,
   authOAuthProviders: parseOAuthProviders(process.env.NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS),
   defaultPlan: (process.env.NEXT_PUBLIC_DEFAULT_PLAN || "pro").trim(),
   defaultInterval: (process.env.NEXT_PUBLIC_DEFAULT_INTERVAL || "monthly").trim(),
   defaultCreditsQuantity: parsePositiveInt(process.env.NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY, 1),
-  creditsPriceId: (process.env.NEXT_PUBLIC_CREDITS_PRICE_ID || "").trim(),
   stripeSuccessPath: normalizePath(process.env.NEXT_PUBLIC_STRIPE_SUCCESS_PATH, "/billing?checkout=success"),
   stripeCancelPath: normalizePath(process.env.NEXT_PUBLIC_STRIPE_CANCEL_PATH, "/billing?checkout=cancelled")
 };

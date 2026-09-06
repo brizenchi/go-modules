@@ -41,6 +41,11 @@ type SubscriptionActivated struct {
 // SubscriptionRenewed is emitted on recurring invoice payment success.
 type SubscriptionRenewed struct {
 	Snapshot domain.SubscriptionSnapshot
+	// AmountPaid is expressed in the provider currency's smallest unit. A zero
+	// value is a renewed billing cycle, but not proof of a qualifying payment
+	// (for example, a 100% coupon).
+	AmountPaid int64
+	Currency   string
 }
 
 // SubscriptionUpdated is emitted for non-billing subscription mutations.

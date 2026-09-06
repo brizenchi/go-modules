@@ -9,6 +9,12 @@ import (
 	"github.com/brizenchi/go-modules/modules/billing/event"
 )
 
+// ReturnURLValidator enforces host-owned redirect boundaries for checkout and
+// billing portal URLs supplied by clients.
+type ReturnURLValidator interface {
+	ValidateReturnURL(rawURL string) error
+}
+
 // Provider abstracts a payment service (Stripe, Paddle, Alipay, ...).
 //
 // Implementations must be safe for concurrent use.
@@ -25,6 +31,16 @@ type Provider interface {
 
 	// CreateCheckout opens a hosted checkout session.
 	CreateCheckout(ctx context.Context, in domain.CheckoutInput) (*domain.CheckoutResult, error)
+
+	// GetCheckoutSession fetches authoritative provider-side checkout state.
+	// Unknown states and provider errors must be returned as errors so callers
+	// cannot replace a reservation without terminal proof.
+	GetCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error)
+
+	// FindCheckoutSession locates a Session using the server-generated
+	// reservation metadata. A nil result after an exhaustive provider query is
+	// authoritative evidence that no Session exists for that reservation.
+	FindCheckoutSession(ctx context.Context, providerCustomerID, reservationID string) (*domain.CheckoutSessionSnapshot, error)
 
 	// CancelSubscription cancels a subscription according to the given mode.
 	CancelSubscription(ctx context.Context, providerSubscriptionID string, mode domain.CancelMode) error
@@ -78,11 +94,15 @@ type Provider interface {
 // ProviderEventID + Type identify the event. Envelopes are the domain
 // events to publish. Envelopes may be empty for events we do not act on.
 type WebhookParseResult struct {
-	ProviderEventID string
-	Type            string
-	UserHint        UserHint
-	RawPayload      []byte
-	Envelopes       []event.Envelope
+	ProviderEventID            string
+	Type                       string
+	UserHint                   UserHint
+	RawPayload                 []byte
+	Envelopes                  []event.Envelope
+	CheckoutSessionID          string
+	CheckoutReservationID      string
+	CheckoutSubscriptionID     string
+	ReleaseCheckoutReservation bool
 }
 
 // UserHint carries identifiers extracted from a webhook payload that may

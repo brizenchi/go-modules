@@ -11,7 +11,10 @@ import (
 // Returning an error from a listener does NOT prevent other listeners from
 // running. Publish aggregates those errors so a webhook caller can leave the
 // provider event unprocessed and let the provider retry it. Listeners must be
-// idempotent because earlier listeners may run again on that retry.
+// idempotent because earlier listeners may run again on that retry. Stripe can
+// also deliver events out of order: stateful listeners should compare
+// Envelope.OccurredAt or query the canonical subscription before mutating
+// their own read model.
 type Listener func(ctx context.Context, env event.Envelope) error
 
 // EventBus dispatches domain events to subscribers.

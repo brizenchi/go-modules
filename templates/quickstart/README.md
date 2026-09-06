@@ -43,6 +43,7 @@ internal/
 │   ├── host_migrate.go     产品功能模型
 │   └── host_jobs.go        后台任务
 ├── feature/
+│   ├── account/            用户资料读取与更新 API
 │   └── note/               service/repository/handler 参考功能
 ├── hostapi/                传给产品功能的依赖和路由组
 └── hostcfg/                当前 SaaS 的业务配置
@@ -71,9 +72,20 @@ curl http://localhost:8080/health
 [配置与上线指南](../../docs/SETUP_ZH.md)。`APP_ENV=production` 时，模板会在连接数据库
 之前拒绝弱密钥、HTTP 回调、通配 CORS、调试验证码和不完整的 Stripe/邮件配置。
 
+如果这个后端仍在原始 `go-modules` monorepo 内，Dokploy 必须以仓库根目录 `/` 为构建
+上下文并使用根目录 `/Dockerfile`。当前目录中的 Dockerfile 是给复制后的独立项目使用的，
+它只读取这里的 `go.mod`，因此只会构建已经发布并锁定的共享模块版本。
+
 部署到前后端不同域名时，设置 `APP_HTTP_ALLOWED_ORIGINS` 为前端 origin（只有协议和域名，
 不要包含 `/login` 路径），例如 `https://app.example.com`。未显式设置时，容器会从
 `APP_AUTH_FRONTEND_REDIRECT` 自动提取该 origin；OAuth 启用时，启动校验也会确认两者一致。
+
+OAuth 登录按钮会先在当前 tab 的 `sessionStorage` 生成一次性 verifier，然后顶层跳转到
+后端 `/auth/:provider/authorize?redirect=1&challenge=...`。后端用 HttpOnly flow cookie
+绑定 provider callback，最终 `/auth/exchange-token` 还会核对 verifier，防止 state 或
+前端 `?code=` 被复制到另一浏览器造成 session swapping。生产环境必须保持
+`APP_AUTH_OAUTH_COOKIE_SECURE=true`；本地 `http://localhost` 使用 false。旧前端若未发送
+`challenge`/`oauth_verifier` 会收到 400，需要与本次后端一起升级。
 
 ## 修改用户字段
 
@@ -202,6 +214,16 @@ handler.go     HTTP 输入输出
 | `g.Admin` | 用户 JWT + admin 角色 |
 
 auth 被关闭时，`g.User` 和 `g.Admin` 返回 503，不会退化成匿名访问。
+
+模板内置两个前端可直接消费的宿主接口：
+
+- `GET /api/v1/account/profile`：读取当前用户的公开资料和只读账户状态；
+- `PATCH /api/v1/account/profile`：只允许更新 `username` 与 `avatar_url`；
+- `GET /api/v1/capabilities`：匿名读取 account、billing、referral 的启用状态，以及实际
+  配置的订阅 plan/interval、Lifetime、Credits offer；不会返回 Stripe price ID 或密钥。
+
+Billing 未配置时仍保留 `/stripe/*` 路径并返回结构化 503，便于前端区分“功能未配置”与
+“地址写错”。是否显示购买入口应以 `capabilities.billing.offers` 为准。
 
 ## 后台任务
 

@@ -3,3 +3,6 @@
 *.log
 deploy/config.yaml
 .env
+.env.*
+!.env.example
+!.env.production.example

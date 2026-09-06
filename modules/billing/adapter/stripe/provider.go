@@ -2,6 +2,8 @@ package stripe
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -19,6 +21,11 @@ import (
 	"github.com/stripe/stripe-go/v76/subscriptionschedule"
 )
 
+func stableIdempotencyKey(scope string, values ...string) string {
+	sum := sha256.Sum256([]byte(strings.Join(values, "\x00")))
+	return fmt.Sprintf("go-modules-%s-%x", scope, sum)
+}
+
 // Provider implements port.Provider for Stripe.
 type Provider struct {
 	cfg Config
@@ -29,7 +36,7 @@ type Provider struct {
 // collision — this prevents request bodies that pass-through Metadata
 // (e.g. for Rewardful) from spoofing user_id / email / plan.
 func buildCheckoutMetadata(in domain.CheckoutInput, priceID string, quantity int64) map[string]string {
-	m := make(map[string]string, len(in.Metadata)+8)
+	m := make(map[string]string, len(in.Metadata)+9)
 	for k, v := range in.Metadata {
 		m[k] = v
 	}
@@ -40,6 +47,8 @@ func buildCheckoutMetadata(in domain.CheckoutInput, priceID string, quantity int
 	m["product_type"] = string(in.ProductType)
 	m["price_id"] = priceID
 	m["quantity"] = strconv.FormatInt(quantity, 10)
+	m["trial_days"] = strconv.FormatInt(in.TrialDays, 10)
+	m["checkout_reservation_id"] = in.CheckoutReservationID
 	return m
 }
 
@@ -69,12 +78,22 @@ func (p *Provider) EnsureCustomer(ctx context.Context, userID, email, existingID
 		return "", domain.ErrProviderDisabled
 	}
 	if existingID != "" {
-		if cust, err := customer.Get(existingID, nil); err == nil && cust != nil {
+		cust, err := customer.Get(existingID, nil)
+		if err == nil && cust != nil && !cust.Deleted {
 			return cust.ID, nil
+		}
+		if err != nil {
+			var stripeErr *stripesdk.Error
+			if !errors.As(err, &stripeErr) || stripeErr.Code != stripesdk.ErrorCodeResourceMissing {
+				return "", fmt.Errorf("stripe: verify existing customer %q: %w", existingID, err)
+			}
+		} else if cust == nil {
+			return "", fmt.Errorf("stripe: verify existing customer %q: empty response", existingID)
 		}
 		slog.WarnContext(ctx, "stripe: existing customer not found, creating new", "customer_id", existingID, "user_id", userID)
 	}
 	params := &stripesdk.CustomerParams{Email: stripesdk.String(email)}
+	params.SetIdempotencyKey(stableIdempotencyKey("customer", strings.TrimSpace(userID)))
 	params.AddMetadata("user_id", userID)
 	cust, err := customer.New(params)
 	if err != nil {
@@ -94,22 +113,26 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		priceID string
 		mode    stripesdk.CheckoutSessionMode
 	)
-	quantity := in.Quantity
-	if quantity <= 0 {
-		quantity = 1
-	}
+	quantity := int64(1)
 
 	switch in.ProductType {
 	case domain.ProductCredits:
-		priceID = in.PriceID
-		if priceID == "" && len(p.cfg.CreditsPriceIDs) > 0 {
-			priceID = p.cfg.CreditsPriceIDs[0]
+		if in.Quantity < 1 || in.Quantity > 100 {
+			return nil, fmt.Errorf("%w: credits quantity must be between 1 and 100", domain.ErrInvalidInput)
+		}
+		quantity = in.Quantity
+		// CreditsPerUnit is global, so accepting a client-selected SKU would let
+		// callers choose a cheaper configured Price while receiving the same
+		// credits. Always use the first valid server-configured offer so checkout
+		// and the capabilities document agree even in non-production hosts.
+		for _, configuredPriceID := range p.cfg.CreditsPriceIDs {
+			if ValidPriceID(configuredPriceID) {
+				priceID = configuredPriceID
+				break
+			}
 		}
 		if priceID == "" {
-			return nil, fmt.Errorf("%w: price_id required for credits", domain.ErrInvalidInput)
-		}
-		if !p.cfg.IsCreditsPriceID(priceID) {
-			return nil, domain.ErrInvalidPriceID
+			return nil, fmt.Errorf("%w: no usable credits price configured", domain.ErrPriceNotFound)
 		}
 		mode = stripesdk.CheckoutSessionModePayment
 	case domain.ProductLifetime:
@@ -126,6 +149,12 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		if priceID == "" {
 			return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
 		}
+		// TrialDays < 0 means "explicitly skip trial" (e.g. returning user).
+		// TrialDays == 0 means "use config default".
+		// TrialDays > 0 means "override with this value".
+		if in.TrialDays == 0 {
+			in.TrialDays = p.cfg.TrialDays
+		}
 		mode = stripesdk.CheckoutSessionModeSubscription
 	default:
 		return nil, fmt.Errorf("%w: unknown product_type", domain.ErrInvalidInput)
@@ -141,18 +170,33 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		ClientReferenceID:   stripesdk.String(in.UserID),
 		AllowPromotionCodes: stripesdk.Bool(true),
 	}
+	if in.ProductType == domain.ProductSubscription || in.ProductType == domain.ProductLifetime {
+		if in.CheckoutReservationID != "" {
+			params.SetIdempotencyKey(stableIdempotencyKey("checkout-reservation", in.CheckoutReservationID))
+		} else {
+			params.SetIdempotencyKey(stableIdempotencyKey(
+				"checkout",
+				strings.TrimSpace(in.UserID),
+				strings.TrimSpace(in.CustomerID),
+				string(in.ProductType),
+				string(in.Plan),
+				string(in.Interval),
+				priceID,
+				strconv.FormatInt(quantity, 10),
+				strconv.FormatInt(in.TrialDays, 10),
+				strings.TrimSpace(in.SuccessURL),
+				strings.TrimSpace(in.CancelURL),
+			))
+		}
+		if !in.CheckoutExpiresAt.IsZero() {
+			params.ExpiresAt = stripesdk.Int64(in.CheckoutExpiresAt.UTC().Unix())
+		}
+	}
 
 	if in.ProductType == domain.ProductSubscription {
-		// TrialDays < 0 means "explicitly skip trial" (e.g. returning user).
-		// TrialDays == 0 means "use config default".
-		// TrialDays > 0 means "override with this value".
-		trial := in.TrialDays
-		if trial == 0 {
-			trial = p.cfg.TrialDays
-		}
-		if trial > 0 {
+		if in.TrialDays > 0 {
 			params.SubscriptionData = &stripesdk.CheckoutSessionSubscriptionDataParams{
-				TrialPeriodDays: stripesdk.Int64(trial),
+				TrialPeriodDays: stripesdk.Int64(in.TrialDays),
 			}
 			params.PaymentMethodCollection = stripesdk.String("always")
 		}
@@ -185,6 +229,73 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 	}
 	slog.InfoContext(ctx, "stripe: checkout created", "session_id", sess.ID, "user_id", in.UserID, "plan", in.Plan)
 	return &domain.CheckoutResult{SessionID: sess.ID, CheckoutURL: sess.URL}, nil
+}
+
+func (p *Provider) GetCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	providerSessionID = strings.TrimSpace(providerSessionID)
+	if providerSessionID == "" {
+		return nil, fmt.Errorf("%w: checkout session id required", domain.ErrInvalidInput)
+	}
+	sess, err := session.Get(providerSessionID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("stripe: get checkout session: %w", err)
+	}
+	if sess == nil {
+		return nil, fmt.Errorf("stripe: checkout session %q returned empty response", providerSessionID)
+	}
+	return checkoutSessionSnapshot(sess)
+}
+
+func (p *Provider) FindCheckoutSession(ctx context.Context, providerCustomerID, reservationID string) (*domain.CheckoutSessionSnapshot, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	providerCustomerID = strings.TrimSpace(providerCustomerID)
+	reservationID = strings.TrimSpace(reservationID)
+	if providerCustomerID == "" || reservationID == "" {
+		return nil, fmt.Errorf("%w: customer id and checkout reservation id required", domain.ErrInvalidInput)
+	}
+	params := &stripesdk.CheckoutSessionListParams{Customer: stripesdk.String(providerCustomerID)}
+	params.Limit = stripesdk.Int64(100)
+	iter := session.List(params)
+	for iter.Next() {
+		sess := iter.CheckoutSession()
+		if sess == nil || sess.Metadata["checkout_reservation_id"] != reservationID {
+			continue
+		}
+		return checkoutSessionSnapshot(sess)
+	}
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("stripe: find checkout session: %w", err)
+	}
+	return nil, nil
+}
+
+func checkoutSessionSnapshot(sess *stripesdk.CheckoutSession) (*domain.CheckoutSessionSnapshot, error) {
+	var state domain.CheckoutSessionState
+	switch sess.Status {
+	case stripesdk.CheckoutSessionStatusOpen:
+		state = domain.CheckoutSessionOpen
+	case stripesdk.CheckoutSessionStatusComplete:
+		state = domain.CheckoutSessionComplete
+	case stripesdk.CheckoutSessionStatusExpired:
+		state = domain.CheckoutSessionExpired
+	default:
+		return nil, fmt.Errorf("stripe: checkout session %q has unknown status %q", sess.ID, sess.Status)
+	}
+	snapshot := &domain.CheckoutSessionSnapshot{
+		SessionID:     sess.ID,
+		CheckoutURL:   sess.URL,
+		State:         state,
+		PaymentStatus: string(sess.PaymentStatus),
+	}
+	if sess.Subscription != nil {
+		snapshot.ProviderSubscriptionID = sess.Subscription.ID
+	}
+	return snapshot, nil
 }
 
 // CancelSubscription schedules cancellation according to mode.
@@ -235,11 +346,11 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
 	}
-	if current == nil || len(current.Items.Data) == 0 || current.Items.Data[0] == nil {
-		return nil, fmt.Errorf("%w: missing subscription item", domain.ErrInvalidInput)
+	item, err := primarySubscriptionItem(current)
+	if err != nil {
+		return nil, err
 	}
 
-	item := current.Items.Data[0]
 	params := &stripesdk.SubscriptionParams{
 		Items: []*stripesdk.SubscriptionItemsParams{
 			{
@@ -259,6 +370,9 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 	updated, err := subscription.Update(subID, params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: change subscription: %w", err)
+	}
+	if updated == nil {
+		return nil, fmt.Errorf("%w: stripe returned an empty updated subscription", domain.ErrInvalidInput)
 	}
 	slog.InfoContext(
 		ctx,
@@ -288,7 +402,16 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
 	}
-	if current == nil || current.Schedule == nil || current.Schedule.ID == "" {
+	item, err := scheduleSourceSubscriptionItem(current)
+	if err != nil {
+		return nil, err
+	}
+
+	scheduleID := ""
+	if current.Schedule != nil {
+		scheduleID = strings.TrimSpace(current.Schedule.ID)
+	}
+	if scheduleID == "" {
 		schedule, err := subscriptionschedule.New(&stripesdk.SubscriptionScheduleParams{
 			FromSubscription: stripesdk.String(subID),
 			EndBehavior:      stripesdk.String(string(stripesdk.SubscriptionScheduleEndBehaviorRelease)),
@@ -296,22 +419,25 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 		if err != nil {
 			return nil, fmt.Errorf("stripe: create subscription schedule: %w", err)
 		}
+		scheduleID, err = validSubscriptionScheduleID(schedule)
+		if err != nil {
+			return nil, err
+		}
 		current.Schedule = schedule
 	}
 
-	scheduleID := current.Schedule.ID
 	schedule, err := subscriptionschedule.Get(scheduleID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get subscription schedule: %w", err)
 	}
-	if schedule == nil || schedule.CurrentPhase == nil || schedule.Subscription == nil {
+	if schedule == nil || schedule.CurrentPhase == nil || schedule.Subscription == nil || strings.TrimSpace(schedule.Subscription.ID) == "" {
 		return nil, fmt.Errorf("%w: active subscription schedule required", domain.ErrInvalidInput)
 	}
 
 	start := schedule.CurrentPhase.StartDate
 	end := schedule.CurrentPhase.EndDate
-	if end <= 0 {
-		return nil, fmt.Errorf("%w: current phase end required", domain.ErrInvalidInput)
+	if start <= 0 || end <= start {
+		return nil, fmt.Errorf("%w: valid current subscription schedule phase required", domain.ErrInvalidInput)
 	}
 
 	params := &stripesdk.SubscriptionScheduleParams{
@@ -323,8 +449,8 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 				EndDate:   stripesdk.Int64(end),
 				Items: []*stripesdk.SubscriptionSchedulePhaseItemParams{
 					{
-						Price:    stripesdk.String(current.Items.Data[0].Price.ID),
-						Quantity: stripesdk.Int64(current.Items.Data[0].Quantity),
+						Price:    stripesdk.String(item.Price.ID),
+						Quantity: stripesdk.Int64(item.Quantity),
 					},
 				},
 			},
@@ -333,7 +459,7 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 				Items: []*stripesdk.SubscriptionSchedulePhaseItemParams{
 					{
 						Price:    stripesdk.String(priceID),
-						Quantity: stripesdk.Int64(current.Items.Data[0].Quantity),
+						Quantity: stripesdk.Int64(item.Quantity),
 					},
 				},
 				ProrationBehavior: stripesdk.String("none"),
@@ -341,8 +467,12 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 		},
 	}
 
-	if _, err := subscriptionschedule.Update(scheduleID, params); err != nil {
+	updatedSchedule, err := subscriptionschedule.Update(scheduleID, params)
+	if err != nil {
 		return nil, fmt.Errorf("stripe: schedule subscription change: %w", err)
+	}
+	if _, err := validSubscriptionScheduleID(updatedSchedule); err != nil {
+		return nil, err
 	}
 
 	snap := p.snapshotFromSubscription(current)
@@ -498,8 +628,9 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
 	}
-	if current == nil || len(current.Items.Data) == 0 || current.Items.Data[0] == nil {
-		return nil, fmt.Errorf("%w: missing subscription item", domain.ErrInvalidInput)
+	item, err := primarySubscriptionItem(current)
+	if err != nil {
+		return nil, err
 	}
 
 	targetPriceID := p.cfg.PriceFor(in.Plan, in.Interval)
@@ -530,7 +661,7 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 		Subscription: stripesdk.String(subID),
 		SubscriptionItems: []*stripesdk.SubscriptionItemsParams{
 			{
-				ID:    stripesdk.String(current.Items.Data[0].ID),
+				ID:    stripesdk.String(item.ID),
 				Price: stripesdk.String(targetPriceID),
 			},
 		},
@@ -545,6 +676,9 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 	upcoming, err := invoice.Upcoming(params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: preview subscription change: %w", err)
+	}
+	if upcoming == nil {
+		return nil, fmt.Errorf("%w: stripe returned an empty invoice preview", domain.ErrInvalidInput)
 	}
 
 	preview.AmountDueNow = float64(upcoming.AmountDue) / 100.0
@@ -563,11 +697,47 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 	return preview, nil
 }
 
+// primarySubscriptionItem validates the minimum Stripe shape required by all
+// subscription mutation paths. Provider responses are external input: a
+// partial object must fail closed instead of panicking or issuing an update
+// without a concrete subscription item.
+func primarySubscriptionItem(current *stripesdk.Subscription) (*stripesdk.SubscriptionItem, error) {
+	if current == nil || current.Items == nil || len(current.Items.Data) == 0 || current.Items.Data[0] == nil {
+		return nil, fmt.Errorf("%w: missing subscription item", domain.ErrInvalidInput)
+	}
+	item := current.Items.Data[0]
+	if strings.TrimSpace(item.ID) == "" {
+		return nil, fmt.Errorf("%w: missing subscription item id", domain.ErrInvalidInput)
+	}
+	return item, nil
+}
+
+func scheduleSourceSubscriptionItem(current *stripesdk.Subscription) (*stripesdk.SubscriptionItem, error) {
+	item, err := primarySubscriptionItem(current)
+	if err != nil {
+		return nil, err
+	}
+	if item.Price == nil || strings.TrimSpace(item.Price.ID) == "" {
+		return nil, fmt.Errorf("%w: missing subscription item price", domain.ErrInvalidInput)
+	}
+	if item.Quantity <= 0 {
+		return nil, fmt.Errorf("%w: invalid subscription item quantity", domain.ErrInvalidInput)
+	}
+	return item, nil
+}
+
+func validSubscriptionScheduleID(schedule *stripesdk.SubscriptionSchedule) (string, error) {
+	if schedule == nil || strings.TrimSpace(schedule.ID) == "" {
+		return "", fmt.Errorf("%w: stripe returned an empty subscription schedule", domain.ErrInvalidInput)
+	}
+	return strings.TrimSpace(schedule.ID), nil
+}
+
 // snapshotFromSubscription maps a stripe.Subscription to a domain snapshot.
 func (p *Provider) snapshotFromSubscription(sub *stripesdk.Subscription) *domain.SubscriptionSnapshot {
 	snap := &domain.SubscriptionSnapshot{
 		ProviderSubscriptionID: sub.ID,
-		Status:                 normalizeStripeStatus(string(sub.Status), sub.CancelAtPeriodEnd),
+		Status:                 normalizeStripeStatus(string(sub.Status), sub.CancelAtPeriodEnd || sub.CancelAt > 0),
 		CancelAtPeriodEnd:      sub.CancelAtPeriodEnd,
 	}
 	if sub.Customer != nil {
@@ -584,7 +754,7 @@ func (p *Provider) snapshotFromSubscription(sub *stripesdk.Subscription) *domain
 	} else if sub.CancelAtPeriodEnd && snap.PeriodEnd != nil {
 		snap.CancelEffectiveAt = snap.PeriodEnd
 	}
-	if len(sub.Items.Data) > 0 && sub.Items.Data[0] != nil && sub.Items.Data[0].Price != nil {
+	if sub.Items != nil && len(sub.Items.Data) > 0 && sub.Items.Data[0] != nil && sub.Items.Data[0].Price != nil {
 		price := sub.Items.Data[0].Price
 		snap.ProviderPriceID = price.ID
 		if price.Product != nil {

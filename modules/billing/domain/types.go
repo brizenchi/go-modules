@@ -16,12 +16,38 @@ type CheckoutInput struct {
 	CancelURL   string
 	TrialDays   int64 // 0 = no trial
 	Metadata    map[string]string
+
+	// CheckoutReservationID and CheckoutExpiresAt are assigned by the app
+	// service for entitlement-bearing purchases. Providers use them to make a
+	// reserved Checkout Session both idempotent and no longer lived than the
+	// repository reservation.
+	CheckoutReservationID string
+	CheckoutExpiresAt     time.Time
 }
 
 // CheckoutResult is the result of CreateCheckout.
 type CheckoutResult struct {
 	SessionID   string
 	CheckoutURL string
+}
+
+// CheckoutSessionState is the provider-side lifecycle state used to decide
+// whether an entitlement checkout reservation can be safely replaced.
+type CheckoutSessionState string
+
+const (
+	CheckoutSessionOpen     CheckoutSessionState = "open"
+	CheckoutSessionComplete CheckoutSessionState = "complete"
+	CheckoutSessionExpired  CheckoutSessionState = "expired"
+	CheckoutSessionFailed   CheckoutSessionState = "failed"
+)
+
+type CheckoutSessionSnapshot struct {
+	SessionID              string
+	CheckoutURL            string
+	ProviderSubscriptionID string
+	State                  CheckoutSessionState
+	PaymentStatus          string
 }
 
 // SubscriptionChangeInput describes a professional in-place plan change.

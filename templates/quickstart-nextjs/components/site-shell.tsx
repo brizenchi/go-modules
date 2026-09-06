@@ -10,10 +10,16 @@ import { usePathname } from "next/navigation";
 import { appEnv } from "@/lib/env";
 import { logout, userLabel, type ReferralStats, type SubscriptionView } from "@/lib/api";
 import { loadAccountSummary, type AccountSummary } from "@/lib/account-summary";
-import { readSession, SESSION_EVENT, writeSession, type AuthSession } from "@/lib/auth";
+import { clearSessionIfToken, readSession, SESSION_EVENT, writeSession, type AuthSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { humanizeSegment } from "@/lib/locale";
+import {
+  describeRequestFailure,
+  failedResource,
+  loadingResource,
+  type ResourceState
+} from "@/lib/request-state";
 import { SignInDialog } from "@/components/sign-in-dialog";
 
 type NavItem = {
@@ -41,6 +47,7 @@ type SiteShellProps = {
   description: string;
   sideTitle?: string;
   sideBody?: React.ReactNode;
+  showEnvironment?: boolean;
   children: React.ReactNode;
   actions?: React.ReactNode;
   breadcrumbs?: Array<{ href?: string; label: string }>;
@@ -48,10 +55,7 @@ type SiteShellProps = {
   accountMenuData?: Partial<AccountSummary>;
 };
 
-type AccountMenuData = {
-  subscription?: SubscriptionView | null;
-  referralStats?: ReferralStats | null;
-};
+type AccountMenuData = Partial<AccountSummary>;
 
 function Breadcrumbs({
   items
@@ -143,12 +147,10 @@ function buildBreadcrumbs(pathname: string): Array<{ href?: string; label: strin
 
 function AccountMenu({
   session,
-  details,
-  detailsLoading
+  details
 }: {
   session: AuthSession | null;
   details?: AccountMenuData;
-  detailsLoading?: boolean;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -157,6 +159,7 @@ function AccountMenu({
 
   useEffect(() => {
     setOpen(false);
+    setBusy(false);
   }, [session?.token]);
 
   async function handleLogout() {
@@ -164,17 +167,25 @@ function AccountMenu({
       return;
     }
 
+    const requestToken = session?.token || "";
     setBusy(true);
     try {
-      if (session?.token) {
-        await logout(session.token);
+      if (requestToken) {
+        await logout(requestToken);
       }
     } catch {
       // Local sign-out should still succeed even if backend logout fails.
     } finally {
-      writeSession(null);
-      setBusy(false);
-      setOpen(false);
+      if (requestToken) {
+        clearSessionIfToken(requestToken);
+      } else {
+        writeSession(null);
+      }
+      const currentToken = readSession()?.token || "";
+      if (!currentToken || currentToken === requestToken) {
+        setBusy(false);
+        setOpen(false);
+      }
     }
   }
 
@@ -194,16 +205,55 @@ function AccountMenu({
   const initials = (session.user.username || session.user.email || session.user.id)
     .slice(0, 2)
     .toUpperCase();
-  const subscriptionText = details?.subscription
-    ? `${details.subscription.plan} · ${details.subscription.status}`
-    : detailsLoading
-      ? t({ en: "Loading...", zh: "加载中..." })
-      : t({ en: "Unavailable", zh: "不可用" });
-  const referralText = details?.referralStats
-    ? `${details.referralStats.activated}/${details.referralStats.total_referred}`
-    : detailsLoading
-      ? t({ en: "Loading...", zh: "加载中..." })
-      : t({ en: "Unavailable", zh: "不可用" });
+  function stateText<T>(state: ResourceState<T> | undefined, format: (data: T) => string): string {
+    if (!state || state.status === "idle" || state.status === "loading") {
+      return t({ en: "Loading...", zh: "加载中..." });
+    }
+    if (state.status === "ready") {
+      return format(state.data);
+    }
+    switch (state.failure.kind) {
+      case "auth":
+        return t({ en: "Sign in again", zh: "请重新登录" });
+      case "disabled":
+        return t({ en: "Not enabled", zh: "尚未启用" });
+      case "configuration":
+        return t({ en: "Setup required", zh: "需要配置" });
+      case "network":
+        return t({ en: "API unreachable", zh: "无法连接 API" });
+      case "unavailable":
+        return t({ en: "Temporarily unavailable", zh: "暂时不可用" });
+      default:
+        return t({ en: "Request failed", zh: "请求失败" });
+    }
+  }
+
+  const capabilities = details?.capabilities?.data;
+  const accountText = capabilities && !capabilities.account.enabled
+    ? t({ en: "Not enabled on this API", zh: "API 尚未启用" })
+    : t({ en: "Profile, identity and security", zh: "个人资料、身份与安全" });
+  const subscriptionText = capabilities && !capabilities.billing.enabled
+    ? t({ en: "Stripe setup required", zh: "需要配置 Stripe" })
+    : stateText(details?.subscription, (value) => {
+    const subscription = value as SubscriptionView;
+    return `${subscription.plan} · ${subscription.status}`;
+  });
+  const referralText = capabilities && !capabilities.referral.enabled
+    ? t({ en: "Not enabled", zh: "尚未启用" })
+    : stateText(details?.referralStats, (value) => {
+    const stats = value as ReferralStats;
+    return `${stats.activated}/${stats.total_referred}`;
+  });
+  const subscriptionFailure = capabilities && !capabilities.billing.enabled
+    ? "configuration"
+    : details?.subscription?.status === "error"
+    ? details.subscription.failure.kind
+    : "";
+  const referralFailure = capabilities && !capabilities.referral.enabled
+    ? "disabled"
+    : details?.referralStats?.status === "error"
+    ? details.referralStats.failure.kind
+    : "";
 
   return (
     <div className="account-menu">
@@ -229,15 +279,19 @@ function AccountMenu({
           <div className="account-popover-grid">
             <Link className="popover-link-card" href="/account" onClick={() => setOpen(false)}>
               <span>{t({ en: "Settings", zh: "设置" })}</span>
-              <small>{t({ en: "Identity, tokens, websocket ticket", zh: "身份、令牌、WebSocket 凭证" })}</small>
+              <small>{accountText}</small>
             </Link>
             <Link className="popover-link-card" href="/billing" onClick={() => setOpen(false)}>
               <span>{t({ en: "Subscription", zh: "订阅管理" })}</span>
-              <small>{subscriptionText}</small>
+              <small className={subscriptionFailure ? `menu-resource-state ${subscriptionFailure}` : ""}>{subscriptionText}</small>
             </Link>
             <Link className="popover-link-card" href="/referrals" onClick={() => setOpen(false)}>
               <span>{t({ en: "Referral Center", zh: "推荐中心" })}</span>
-              <small>{t({ en: "Activated / total", zh: "已激活 / 总数" })}: {referralText}</small>
+              <small className={referralFailure ? `menu-resource-state ${referralFailure}` : ""}>
+                {details?.referralStats?.status === "ready"
+                  ? `${t({ en: "Activated / total", zh: "已激活 / 总数" })}: ${referralText}`
+                  : referralText}
+              </small>
             </Link>
           </div>
 
@@ -267,7 +321,6 @@ export function SiteShell(props: SiteShellProps) {
   const isHome = pathname === "/";
   const [session, setSession] = useState<AuthSession | null>(null);
   const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
-  const [accountDetailsLoading, setAccountDetailsLoading] = useState(false);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -286,13 +339,16 @@ export function SiteShell(props: SiteShellProps) {
 
     if (!session?.token) {
       setAccountDetails(null);
-      setAccountDetailsLoading(false);
       return () => {
         cancelled = true;
       };
     }
 
-    setAccountDetailsLoading(true);
+    setAccountDetails({
+      capabilities: loadingResource(),
+      subscription: loadingResource(),
+      referralStats: loadingResource()
+    });
 
     void loadAccountSummary(session.token)
       .then((details) => {
@@ -302,15 +358,12 @@ export function SiteShell(props: SiteShellProps) {
       })
       .catch(() => {
         if (!cancelled) {
+          const failure = describeRequestFailure(new Error("Account summary request failed."), "Account summary");
           setAccountDetails({
-            subscription: null,
-            referralStats: null
+            capabilities: failedResource(failure),
+            subscription: failedResource(failure),
+            referralStats: failedResource(failure)
           });
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setAccountDetailsLoading(false);
         }
       });
 
@@ -326,8 +379,9 @@ export function SiteShell(props: SiteShellProps) {
 
   const navItems = useMemo(() => topNav, []);
   const mergedAccountDetails: AccountMenuData = {
-    subscription: props.accountMenuData?.subscription ?? accountDetails?.subscription ?? null,
-    referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats ?? null
+    capabilities: props.accountMenuData?.capabilities ?? accountDetails?.capabilities,
+    subscription: props.accountMenuData?.subscription ?? accountDetails?.subscription,
+    referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats
   };
 
   return (
@@ -364,7 +418,6 @@ export function SiteShell(props: SiteShellProps) {
             <AccountMenu
               session={session}
               details={mergedAccountDetails}
-              detailsLoading={accountDetailsLoading}
             />
           </div>
         </div>
@@ -384,10 +437,10 @@ export function SiteShell(props: SiteShellProps) {
             <div className="hero-side-card">
               <div className="panel-title-row compact">
                 <div>
-                  <span className="panel-kicker">{t({ en: "Environment", zh: "环境" })}</span>
+                  {props.showEnvironment !== false ? <span className="panel-kicker">{t({ en: "Environment", zh: "环境" })}</span> : null}
                   <h3>{props.sideTitle || t({ en: "Context", zh: "上下文" })}</h3>
                 </div>
-                <span className="badge">{appEnv.appUrl}</span>
+                {props.showEnvironment !== false ? <span className="badge">{appEnv.appUrl}</span> : null}
               </div>
               {props.sideBody}
             </div>

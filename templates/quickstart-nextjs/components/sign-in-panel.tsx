@@ -1,23 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ResourceFailure } from "@/components/resource-feedback";
 import { Notice } from "@/components/ui";
 import {
   ApiError,
-  getOAuthAuthorizeURL,
+  getCapabilities,
   sendCode,
   verifyCode,
   type OAuthProvider
 } from "@/lib/api";
+import { getOAuthRedirectURL } from "@/lib/oauth-flow";
+import { resolveAuthMethods } from "@/lib/auth-methods";
 import {
   clearReferralCode,
   readReferralCode,
+  readSession,
+  REFERRAL_EVENT,
   writeReferralCode,
   writeSession,
   type AuthSession
 } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { appEnv } from "@/lib/env";
+import {
+  beginRequestGeneration,
+  invalidateRequestGeneration,
+  isCurrentRequestGeneration
+} from "@/lib/request-generation";
+import {
+  idleResource,
+  loadingResource,
+  settleResource,
+  type ResourceState
+} from "@/lib/request-state";
 
 function messageFromError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -52,19 +68,77 @@ export function SignInPanel({
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<Awaited<ReturnType<typeof getCapabilities>>>>(idleResource());
+  const mountedRef = useRef(false);
+  const capabilitiesGenerationRef = useRef(0);
+  const emailActionGenerationRef = useRef(0);
   const codeIssued = !!sendResult;
+  const authMethods = capabilitiesState.status === "ready"
+    ? resolveAuthMethods(capabilitiesState.data, {
+        emailConfigured: appEnv.authEmailConfigured,
+        emailEnabled: appEnv.authEmailEnabled,
+        oauthProvidersConfigured: appEnv.authOAuthProvidersConfigured,
+        oauthProviders: appEnv.authOAuthProviders
+      })
+    : null;
+  const emailEnabled = authMethods?.emailEnabled ?? false;
+  const oauthProviders = authMethods?.oauthProviders ?? [];
 
   useEffect(() => {
-    setReferralCode(readReferralCode());
+    mountedRef.current = true;
+    const syncReferral = () => setReferralCode(readReferralCode());
+    syncReferral();
+    void loadCapabilities();
+    window.addEventListener(REFERRAL_EVENT, syncReferral);
+    window.addEventListener("storage", syncReferral);
+
+    return () => {
+      window.removeEventListener(REFERRAL_EVENT, syncReferral);
+      window.removeEventListener("storage", syncReferral);
+      mountedRef.current = false;
+      invalidateRequestGeneration(capabilitiesGenerationRef);
+      invalidateRequestGeneration(emailActionGenerationRef);
+    };
   }, []);
 
+  async function loadCapabilities() {
+    if (!mountedRef.current) return;
+    const generation = beginRequestGeneration(capabilitiesGenerationRef);
+    setCapabilitiesState((current) => loadingResource(current.data));
+    const nextState = await settleResource(getCapabilities(), "Sign-in methods");
+    if (
+      mountedRef.current
+      && isCurrentRequestGeneration(capabilitiesGenerationRef, generation)
+    ) {
+      setCapabilitiesState(nextState);
+    }
+  }
+
+  function isLatestMountedEmailAction(generation: number): boolean {
+    return mountedRef.current
+      && isCurrentRequestGeneration(emailActionGenerationRef, generation);
+  }
+
+  function canCommitEmailAction(
+    generation: number,
+    initialSessionToken: string
+  ): boolean {
+    return isLatestMountedEmailAction(generation)
+      && (readSession()?.token || "") === initialSessionToken;
+  }
+
   async function handleSendCode() {
+    const generation = beginRequestGeneration(emailActionGenerationRef);
+    const initialSessionToken = readSession()?.token || "";
     setBusy("send");
     setError("");
     setStatus("");
 
     try {
       const res = await sendCode(email);
+      if (!canCommitEmailAction(generation, initialSessionToken)) {
+        return;
+      }
       setSendResult({
         email: res.email,
         expiresAt: res.expires_at,
@@ -75,31 +149,49 @@ export function SignInPanel({
         zh: `验证码已发送到 ${res.email}。`
       }));
     } catch (err) {
-      setError(messageFromError(err));
+      if (canCommitEmailAction(generation, initialSessionToken)) {
+        setError(messageFromError(err));
+      }
     } finally {
-      setBusy("");
+      if (isLatestMountedEmailAction(generation)) {
+        setBusy("");
+      }
     }
   }
 
   async function handleVerifyCode() {
+    if (!sendResult) {
+      return;
+    }
+
+    const verificationEmail = sendResult.email;
+    const generation = beginRequestGeneration(emailActionGenerationRef);
+    const initialSessionToken = readSession()?.token || "";
     setBusy("verify");
     setError("");
     setStatus("");
 
     try {
-      const session = await verifyCode(email, code, referralCode);
+      const session = await verifyCode(verificationEmail, code, readReferralCode());
+      if (!canCommitEmailAction(generation, initialSessionToken)) {
+        return;
+      }
       clearReferralCode();
       setReferralCode("");
       writeSession(session);
       setStatus(t({
-        en: "Email login succeeded. Session saved in localStorage.",
-        zh: "邮箱登录成功，会话已保存到 localStorage。"
+        en: "You're signed in.",
+        zh: "登录成功。"
       }));
       onSuccess?.(session);
     } catch (err) {
-      setError(messageFromError(err));
+      if (canCommitEmailAction(generation, initialSessionToken)) {
+        setError(messageFromError(err));
+      }
     } finally {
-      setBusy("");
+      if (isLatestMountedEmailAction(generation)) {
+        setBusy("");
+      }
     }
   }
 
@@ -113,7 +205,7 @@ export function SignInPanel({
     }));
 
     try {
-      const redirectURL = await getOAuthAuthorizeURL(provider);
+      const redirectURL = await getOAuthRedirectURL(provider);
       window.location.href = redirectURL;
     } catch (err) {
       setError(messageFromError(err));
@@ -124,7 +216,31 @@ export function SignInPanel({
 
   return (
     <div className={`sign-in-stack${compact ? " compact" : ""}`}>
-      {appEnv.authOAuthProviders.map((provider) => {
+      {showReferralField ? (
+        <div className="field">
+          <label htmlFor="sign-in-referral">{t({ en: "Referral code (optional)", zh: "邀请码（选填）" })}</label>
+          <input
+            id="sign-in-referral"
+            value={referralCode}
+            maxLength={64}
+            disabled={busy !== ""}
+            placeholder="INV123456"
+            onChange={(event) => setReferralCode(writeReferralCode(event.target.value))}
+          />
+        </div>
+      ) : referralCode ? (
+        <div className="sign-in-caption" role="status">
+          {t({ en: "Invite code saved", zh: "已记录邀请码" })}: <span className="inline-code">{referralCode}</span>
+          <p>{t({ en: "Applied when you create a new account with any sign-in method. Existing accounts cannot accept a new invitation.", zh: "使用下方任一方式首次注册时，将校验并使用此邀请码。已有账号不能重新绑定邀请。" })}</p>
+        </div>
+      ) : null}
+      {capabilitiesState.status === "idle" || capabilitiesState.status === "loading" ? (
+        <Notice>{t({ en: "Loading available sign-in methods...", zh: "正在加载可用登录方式..." })}</Notice>
+      ) : capabilitiesState.status === "error" ? (
+        <ResourceFailure failure={capabilitiesState.failure} onRetry={() => void loadCapabilities()} />
+      ) : null}
+
+      {oauthProviders.map((provider) => {
         const providerName = provider === "github" ? "GitHub" : "Google";
         return (
           <button
@@ -157,13 +273,13 @@ export function SignInPanel({
         );
       })}
 
-      {appEnv.authEmailEnabled && appEnv.authOAuthProviders.length > 0 ? (
+      {emailEnabled && oauthProviders.length > 0 ? (
         <div className="sign-in-divider">
           <span>{t({ en: "or continue with email", zh: "或使用邮箱登录" })}</span>
         </div>
       ) : null}
 
-      {appEnv.authEmailEnabled && (!codeIssued ? (
+      {emailEnabled && (!codeIssued ? (
         <div className="sign-in-step">
           <div className="field">
             <label htmlFor="sign-in-email">{t({ en: "Email", zh: "邮箱" })}</label>
@@ -175,23 +291,6 @@ export function SignInPanel({
               onChange={(event) => setEmail(event.target.value)}
             />
           </div>
-
-          {showReferralField ? (
-            <div className="field">
-              <label htmlFor="sign-in-referral">{t({ en: "Referral code", zh: "邀请码" })}</label>
-              <input
-                id="sign-in-referral"
-                value={referralCode}
-                placeholder="INV123456"
-                onChange={(event) => setReferralCode(writeReferralCode(event.target.value))}
-              />
-            </div>
-          ) : referralCode ? (
-            <div className="sign-in-caption">
-              {t({ en: "Captured referral code", zh: "已捕获邀请码" })}:{" "}
-              <span className="inline-code">{referralCode}</span>
-            </div>
-          ) : null}
 
           <div className="button-row">
             <button className="button primary sign-in-send-button" type="button" disabled={busy !== ""} onClick={handleSendCode}>
@@ -230,9 +329,9 @@ export function SignInPanel({
         </div>
       ))}
 
-      {!appEnv.authEmailEnabled && appEnv.authOAuthProviders.length === 0 ? (
+      {capabilitiesState.status === "ready" && !emailEnabled && oauthProviders.length === 0 ? (
         <Notice tone="error">
-          {t({ en: "No login method is enabled.", zh: "当前没有启用任何登录方式。" })}
+          {t({ en: "This API has no compatible login method enabled.", zh: "当前 API 没有启用可兼容的登录方式。" })}
         </Notice>
       ) : null}
 
@@ -247,12 +346,6 @@ export function SignInPanel({
       {status ? <Notice tone="success">{status}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
-      <p className="footer-note">
-        {t({
-          en: "OAuth sign-in uses the backend redirect flow. Email sign-in stays in this UI.",
-          zh: "OAuth 登录走后端重定向流程，邮箱登录则直接在当前界面完成。"
-        })}
-      </p>
     </div>
   );
 }

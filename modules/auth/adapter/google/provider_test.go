@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,28 @@ func TestProvider_StateRoundTrip(t *testing.T) {
 	}
 	if err := p.VerifyState(state); err != nil {
 		t.Errorf("VerifyState: %v", err)
+	}
+}
+
+func TestProvider_IssueStateAlwaysUsesFreshRandomID(t *testing.T) {
+	p := newTestProvider(t)
+	first, err := p.IssueState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := p.IssueState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("two OAuth flows issued in the same instant shared a state")
+	}
+	claims := &jwtv5.RegisteredClaims{}
+	if _, _, err := jwtv5.NewParser().ParseUnverified(first, claims); err != nil {
+		t.Fatal(err)
+	}
+	if claims.ID == "" {
+		t.Fatal("state JWT omitted random jti")
 	}
 }
 
@@ -82,6 +105,7 @@ func TestProvider_VerifyStateRejectsExpired(t *testing.T) {
 	claims := jwtv5.RegisteredClaims{
 		IssuedAt:  jwtv5.NewNumericDate(now.Add(-2 * time.Minute)),
 		ExpiresAt: jwtv5.NewNumericDate(now.Add(-time.Minute)),
+		ID:        "expired-state-id",
 	}
 	state, err := jwtv5.NewWithClaims(jwtv5.SigningMethodHS256, claims).SignedString([]byte(p.cfg.StateSecret))
 	if err != nil {
@@ -96,6 +120,13 @@ func TestProvider_DefaultStateTTLIsTwentyMinutes(t *testing.T) {
 	p := newTestProvider(t)
 	if p.cfg.StateTTL != 20*time.Minute {
 		t.Fatalf("StateTTL = %v, want 20m", p.cfg.StateTTL)
+	}
+}
+
+func TestProvider_ExposesOAuthStateTTL(t *testing.T) {
+	p := newTestProvider(t)
+	if got := p.OAuthStateTTL(); got != 20*time.Minute {
+		t.Fatalf("OAuthStateTTL=%v, want 20m", got)
 	}
 }
 
@@ -136,6 +167,42 @@ func TestProvider_AuthorizeURL(t *testing.T) {
 	mustContain(t, url, "client_id=cid")
 	mustContain(t, url, "redirect_uri=")
 	mustContain(t, url, "state="+state[:20]) // partial match — query encoded
+}
+
+func TestProvider_ExchangeNormalizesCallbackErrors(t *testing.T) {
+	p := newTestProvider(t)
+	state, err := p.IssueState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		oauthErr string
+		want     error
+	}{
+		{name: "user denied", oauthErr: "access_denied", want: domain.ErrOAuthDenied},
+		{name: "provider callback failure", oauthErr: "server_error", want: domain.ErrOAuthCallback},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, gotErr := p.Exchange(t.Context(), url.Values{
+				"state":             {state},
+				"error":             {tt.oauthErr},
+				"error_description": {"provider detail must not leak"},
+			})
+			if !errors.Is(gotErr, tt.want) {
+				t.Fatalf("error=%v, want %v", gotErr, tt.want)
+			}
+			if strings.Contains(gotErr.Error(), "provider detail") || strings.Contains(gotErr.Error(), tt.oauthErr) {
+				t.Fatalf("provider callback detail leaked: %v", gotErr)
+			}
+		})
+	}
+
+	_, err = p.Exchange(t.Context(), url.Values{"state": {state}})
+	if !errors.Is(err, domain.ErrOAuthCallback) {
+		t.Fatalf("missing code error=%v, want ErrOAuthCallback", err)
+	}
 }
 
 func TestProvider_FetchUserInfoRequiresVerifiedEmail(t *testing.T) {

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"sync"
 	"time"
@@ -165,16 +166,21 @@ func (m *mockVerifier) Verify(_ context.Context, email, code string) error {
 // --- mockProvider (OAuth) ---------------------------------------------
 
 type mockProvider struct {
+	mu          sync.Mutex
 	name        domain.Provider
 	exchangeErr error
 	profile     *domain.OAuthProfile
 	stateOK     bool
+	stateCount  int
+	exchanges   int
+	stateTTL    time.Duration
 }
 
 func newMockProvider() *mockProvider {
 	return &mockProvider{
-		name:    domain.ProviderGoogle,
-		stateOK: true,
+		name:     domain.ProviderGoogle,
+		stateOK:  true,
+		stateTTL: 5 * time.Minute,
 		profile: &domain.OAuthProfile{
 			Provider: domain.ProviderGoogle,
 			Subject:  "sub-1",
@@ -188,17 +194,31 @@ func (p *mockProvider) AuthorizeURL(state string, _ url.Values) (string, error) 
 	return "https://provider/authz?state=" + state, nil
 }
 func (p *mockProvider) Exchange(_ context.Context, _ url.Values) (*domain.OAuthProfile, error) {
+	p.mu.Lock()
+	p.exchanges++
+	p.mu.Unlock()
 	if p.exchangeErr != nil {
 		return nil, p.exchangeErr
 	}
 	return p.profile, nil
 }
-func (p *mockProvider) IssueState() (string, error) { return "state-1", nil }
+func (p *mockProvider) IssueState() (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.stateCount++
+	return fmt.Sprintf("state-%d", p.stateCount), nil
+}
 func (p *mockProvider) VerifyState(s string) error {
 	if !p.stateOK {
 		return domain.ErrInvalidState
 	}
 	return nil
+}
+func (p *mockProvider) OAuthStateTTL() time.Duration { return p.stateTTL }
+func (p *mockProvider) exchangeCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.exchanges
 }
 
 // --- mockExchangeStore ------------------------------------------------
@@ -216,11 +236,11 @@ func (s *mockExchange) Save(_ context.Context, c domain.ExchangeCode) error {
 	s.m[c.Code] = c
 	return nil
 }
-func (s *mockExchange) Consume(_ context.Context, code string) (*domain.ExchangeCode, error) {
+func (s *mockExchange) Consume(_ context.Context, code, bindingHash string) (*domain.ExchangeCode, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, ok := s.m[code]
-	if !ok {
+	if !ok || c.BindingHash != bindingHash {
 		return nil, domain.ErrInvalidExchange
 	}
 	delete(s.m, code)
@@ -228,6 +248,38 @@ func (s *mockExchange) Consume(_ context.Context, code string) (*domain.Exchange
 		return nil, domain.ErrInvalidExchange
 	}
 	return &c, nil
+}
+
+// --- mockOAuthFlowStore -----------------------------------------------
+
+type mockOAuthFlowStore struct {
+	mu    sync.Mutex
+	flows map[string]domain.OAuthFlow
+}
+
+func newMockOAuthFlowStore() *mockOAuthFlowStore {
+	return &mockOAuthFlowStore{flows: make(map[string]domain.OAuthFlow)}
+}
+
+func (s *mockOAuthFlowStore) SaveOAuthFlow(_ context.Context, flow domain.OAuthFlow) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.flows[flow.StateHash]; exists {
+		return domain.ErrInvalidState
+	}
+	s.flows[flow.StateHash] = flow
+	return nil
+}
+
+func (s *mockOAuthFlowStore) ConsumeOAuthFlow(_ context.Context, provider domain.Provider, stateHash, bindingHash string) (*domain.OAuthFlow, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	flow, exists := s.flows[stateHash]
+	if !exists || flow.Provider != provider || flow.BindingHash != bindingHash || !time.Now().UTC().Before(flow.ExpiresAt) {
+		return nil, domain.ErrInvalidState
+	}
+	delete(s.flows, stateHash)
+	return &flow, nil
 }
 
 // avoid unused import if helpers change

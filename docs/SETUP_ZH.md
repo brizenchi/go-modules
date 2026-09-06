@@ -66,6 +66,7 @@ APP_AUTH_USER_JWT_SECRET=至少32位随机值
 APP_AUTH_USER_JWT_EXPIRE_HOURS=168
 APP_AUTH_WS_TICKET_TTL_SECONDS=300
 APP_AUTH_FRONTEND_REDIRECT=https://app.example.com/login
+APP_AUTH_OAUTH_COOKIE_SECURE=true
 APP_AUTH_EMAIL_ENABLED=true
 APP_AUTH_EMAIL_DEBUG=false
 APP_AUTH_EMAIL_CODE_TTL_MINUTES=10
@@ -98,10 +99,14 @@ APP_BILLING_STRIPE_PRICES_PRO_YEARLY=price_...
 APP_BILLING_STRIPE_PRICES_CREDITS=price_...
 APP_BILLING_STRIPE_CREDITS_PER_PACKAGE=100
 
-# 宿主业务默认保持关闭，按产品规则再开启
+# 宿主业务；邀请中心默认可用，奖励规则可按产品调整
 APP_HOST_SIGNUP_CREDITS=0
 APP_HOST_WELCOME_EMAIL_ENABLED=false
-APP_REFERRAL_ENABLED=false
+APP_REFERRAL_ENABLED=true
+APP_REFERRAL_PREFIX=INV
+APP_REFERRAL_BASE_LINK=https://app.example.com/invite?ref=
+APP_REFERRAL_ACTIVATION_REWARD=50
+APP_REFERRAL_ACTIVATION_WINDOW_DAYS=0
 ```
 
 前端只需要公开配置，不放任何 secret：
@@ -110,12 +115,9 @@ APP_REFERRAL_ENABLED=false
 NEXT_PUBLIC_APP_URL=https://app.example.com
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1
 NEXT_PUBLIC_APP_NAME=My SaaS
-NEXT_PUBLIC_AUTH_EMAIL_ENABLED=true
-NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS=google
 NEXT_PUBLIC_DEFAULT_PLAN=pro
 NEXT_PUBLIC_DEFAULT_INTERVAL=monthly
 NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY=1
-NEXT_PUBLIC_CREDITS_PRICE_ID=price_...
 NEXT_PUBLIC_STRIPE_SUCCESS_PATH=/billing?checkout=success
 NEXT_PUBLIC_STRIPE_CANCEL_PATH=/billing?checkout=cancelled
 ```
@@ -144,7 +146,9 @@ APP_DB_SSL_MODE=disable
 APP_DB_TIME_ZONE=UTC
 ```
 
-托管数据库通常要求 `APP_DB_SSL_MODE=require`。
+上面的 `disable` 只适用于同机本地开发。`APP_ENV=production` 时程序会拒绝它；生产必须使用
+`APP_DB_SSL_MODE=require`，条件允许时优先 `verify-full` 并配置数据库 CA。通过
+`APP_DB_DSN` 连接时也必须显式包含 `sslmode=require`、`verify-ca` 或 `verify-full`。
 
 启动时会迁移：
 
@@ -184,6 +188,9 @@ APP_EMAIL_PROVIDER=log
 ```
 
 线上必须把 `APP_AUTH_EMAIL_DEBUG=false`。
+启用 OAuth 的生产环境还必须使用 HTTPS callback 和
+`APP_AUTH_OAUTH_COOKIE_SECURE=true`。本地 HTTP 开发才设置为 false；省略时模板会按所有
+已启用 provider 的 callback URL 推导。
 
 不需要邮箱登录：
 
@@ -214,6 +221,11 @@ APP_AUTH_GOOGLE_SCOPE=openid email profile
 ```
 
 代码传给 Google 的 redirect URI 必须和控制台登记值一致。
+
+当前前端会生成一次性 verifier，并通过顶层
+`/auth/google/authorize?redirect=1&challenge=...` 启动登录。回调 state 会同时核对后端
+HttpOnly cookie 和数据库中的一次性 flow；最终 exchange code 还必须带原 tab 保存的
+`oauth_verifier`。请同步部署新版前后端，旧客户端缺少这两个参数会返回 400。
 
 ### GitHub OAuth
 
@@ -316,6 +328,10 @@ APP_BILLING_STRIPE_PRICES_CREDITS=price_...
 APP_BILLING_STRIPE_CREDITS_PER_PACKAGE=100
 ```
 
+这里的 `price_...` 只是文档占位符，部署时必须替换为 Stripe Dashboard 中真实的
+Price 对象 ID；生产环境会拒绝占位值、`prod_...` 以及格式错误的订阅、终身版和积分包
+Price ID，避免前端展示无法结算的商品。
+
 当前前端只创建后端托管的 Stripe Checkout Session，不在浏览器创建 PaymentIntent，
 所以不需要 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`。后端保留的 publishable key 字段也是
 可选兼容项，不属于最小配置。
@@ -323,10 +339,13 @@ APP_BILLING_STRIPE_CREDITS_PER_PACKAGE=100
 `APP_BILLING_STRIPE_PRICES_CREDITS` 对应 `[]string`，环境变量包含多个值时按当前
 配置库支持的逗号分隔格式填写；不使用积分包就留空。
 
-Stripe Workbench/Dashboard 的 Webhook 只订阅下面六个事件：
+Stripe Workbench/Dashboard 的 Webhook 订阅下面九个事件：
 
 ```text
 checkout.session.completed
+checkout.session.async_payment_succeeded
+checkout.session.async_payment_failed
+checkout.session.expired
 customer.subscription.created
 customer.subscription.updated
 customer.subscription.deleted
@@ -334,8 +353,8 @@ invoice.paid
 invoice.payment_failed
 ```
 
-不要再同时订阅 `invoice.payment_succeeded`；适配器为旧项目保留了兼容解析，但新项目
-只用 `invoice.paid`，避免同一张续费账单触发两次业务监听器。Webhook 使用与 API key
+不要再同时订阅 `invoice.payment_succeeded`；适配器只处理 `invoice.paid`，避免同一张
+续费账单触发两次业务监听器。Webhook 使用与 API key
 相同的 test/live 模式，并把该 endpoint 生成的 signing secret 填入
 `APP_BILLING_STRIPE_WEBHOOK_SECRET`。反向代理不能改写请求 body。
 
@@ -359,7 +378,7 @@ stripe listen --forward-to http://localhost:8080/api/v1/stripe/webhook
 | --- | --- | --- |
 | Google Cloud OAuth Client | Authorized redirect URI | `https://api.example.com/api/v1/auth/google/callback` |
 | GitHub OAuth App | Authorization callback URL | `https://api.example.com/api/v1/auth/github/callback` |
-| Stripe Webhook | Endpoint URL | `https://api.example.com/api/v1/stripe/webhook`，订阅上面的六个事件 |
+| Stripe Webhook | Endpoint URL | `https://api.example.com/api/v1/stripe/webhook`，订阅上面的九个事件 |
 | Resend / Brevo | 发信域名 DNS | 按平台给出的 SPF、DKIM 等记录验证；基础登录不需要邮件 Webhook |
 
 OAuth 回调和 Stripe Webhook 都指向后端。前端域名只用于登录落地、Checkout 返回地址和
@@ -400,12 +419,17 @@ APP_REFERRAL_BASE_LINK=https://app.example.com/invite?ref=
 ```dotenv
 NEXT_PUBLIC_APP_URL=https://app.example.com
 NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1
-NEXT_PUBLIC_AUTH_EMAIL_ENABLED=true
-NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS=google,github
 ```
 
-前端登录开关只控制显示，必须和后端启用的登录方式一致。只用 GitHub 时把邮箱设为
-`false`，Provider 列表设为 `github`。
+登录 UI 会先读取后端 `/capabilities`，因此不会展示后端未启用的邮箱或 OAuth 入口。
+通常不要设置前端登录开关。仅需进一步收窄后端返回的方式时才设置：只允许 GitHub 时
+使用 `NEXT_PUBLIC_AUTH_EMAIL_ENABLED=false` 和 `NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS=github`；
+完全不设置时采用后端返回值，显式留空 Provider 列表则隐藏 OAuth。
+
+`NEXT_PUBLIC_*` 会在 Next.js 构建阶段写入浏览器产物，不是容器启动后再读取。修改 API
+域名或登录开关后必须重新构建前端。升级这套模板时先发布同一提交的后端，确认
+`GET https://api.example.com/api/v1/capabilities` 返回 200，再重新构建并发布前端；不要让新
+前端长期连接缺少 `capabilities`、账户或计费路由的旧后端。
 
 ## 8. 链路追踪（可选）
 
@@ -421,10 +445,38 @@ APP_TRACING_AUTHORIZATION=
 
 ## 9. 发布、服务器启动与测试
 
+### 直接从本仓库部署 quickstart（Dokploy）
+
+当后端仍位于本仓库的 `templates/quickstart` 时，不要把该子目录单独作为 Docker 构建
+上下文。它的 `go.mod` 有意锁定到最后一个已发布的 `go-modules` 版本，子目录构建会看不到
+同一次提交中的 `foundation/*` 和 `modules/*` 修改。
+
+Dokploy 使用以下设置：
+
+```text
+Git Build Path: /
+Build Type: Dockerfile
+Dockerfile Path: Dockerfile
+Docker Context Path: .
+Container Port: 8080
+```
+
+仓库根目录的 Dockerfile 会通过 `go.work` 使用当前提交中的两个 Go module。这样一次提交、
+一次部署即可同时发布共享模块修复和 quickstart 组合代码，不需要先创建 Go module 标签。
+环境变量仍按本章的生产配置填写。镜像内置对 `/health` 的健康检查；若在 Dokploy 的
+Advanced → Swarm Health Check 中覆盖它，请使用镜像已有的 BusyBox `wget`，例如：
+
+```text
+["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+```
+
+TLS 在 Dokploy/Traefik 终止时，还应由 Traefik 为公网域名添加
+`Strict-Transport-Security`，并启用部署失败自动回滚。
+
 ### 首次发布共享模块
 
-quickstart 已使用本次新增的 GitHub/GORM auth 适配器，所以必须先发布新模块版本，再让
-模板脱离 `go.work`：
+只有把 quickstart 复制成独立后端，或直接使用 `templates/quickstart/Dockerfile` 时，才需
+要先发布共享模块版本，再让模板脱离 `go.work`：
 
 ```bash
 # 在仓库根目录，先提交并 push 当前代码
@@ -481,15 +533,20 @@ curl -fsS https://api.example.com/api/v1/auth/send-code \
   -H 'Content-Type: application/json' \
   --data '{"email":"you@example.com"}'
 
-# OAuth authorize 接口应返回 redirect_url
-curl -fsS https://api.example.com/api/v1/auth/google/authorize
+# OAuth authorize 必须携带浏览器生成的 SHA-256 verifier challenge；这里的 RFC 7636
+# 示例值只验证 302 与 Set-Cookie，完整登录请从当前前端的 Google 按钮发起
+curl -fsS -D - -o /dev/null \
+  'https://api.example.com/api/v1/auth/google/authorize?redirect=1&challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
+
+# 功能状态及实际可售套餐；响应不会包含 Stripe price ID 或密钥
+curl -fsS https://api.example.com/api/v1/capabilities
 ```
 
 Stripe 先用 test key 和 test prices。在本地另开终端：
 
 ```bash
 stripe listen \
-  --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed \
+  --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed \
   --forward-to http://localhost:8080/api/v1/stripe/webhook
 ```
 
@@ -510,7 +567,8 @@ stripe listen \
 5. Stripe Webhook 验签成功，重复事件不会重复处理；
 6. 邀请注册后能查到 pending 关系；
 7. 被邀请人付费后关系 activated，奖励只入账一次；
-8. 关闭的模块没有对应路由和数据表。
+8. `GET /api/v1/capabilities` 与实际模块状态、可售套餐一致；
+9. 关闭的模块不创建对应数据表，关闭的 Billing 接口返回结构化 503。
 
 ## 上线检查
 
@@ -521,6 +579,7 @@ stripe listen \
 - [ ] OAuth 回调使用正式 HTTPS 域名
 - [ ] Stripe 测试密钥、价格和 Webhook 已全部换成正式环境的一套
 - [ ] 关闭不使用的模块和登录方式
+- [ ] Billing 或 Referral 启用时 Auth 同时启用
 - [ ] 欢迎邮件、注册送积分、邀请奖励规则已按当前 SaaS 审核
 
 ## 常见错误
@@ -532,6 +591,6 @@ stripe listen \
 | 邮箱登录启动失败 | `email.provider` 是否被设成 none |
 | OAuth provider unavailable | 对应 Provider 是否真正启用并注册 |
 | `redirect_uri_mismatch` | 代码配置与服务商控制台回调地址是否一致 |
-| 支付路由 404 | `billing.enabled` 是否为 true |
+| 支付接口 503 `billing is not configured` | 配置 Stripe secret、webhook secret、至少一个 price，并启用或省略 `billing.enabled` 让凭据自动推断 |
 | Stripe Webhook 失败 | webhook secret、公开 URL、事件模式是否匹配 |
 | 邀请码没归因 | 注册请求是否把 `referral_code` 传给最终登录接口 |

@@ -1,0 +1,11 @@
+.shareLink { overflow-wrap: anywhere; user-select: all; }
+.stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.history { max-width: 100%; overflow-x: auto; }
+.history table { min-width: 780px; }
+.account { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.status { display: inline-block; padding: 5px 9px; border-radius: 6px; white-space: nowrap; font-size: 12px; }
+.pending { color: #80530f; background: #fff3d6; }
+.activated { color: #1c6243; background: #e7f5ec; }
+.expired { color: #656565; background: #eee; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 20px 0; color: var(--muted); font-size: 13px; flex-wrap: wrap; }
+.pagination > div { margin: 0; }

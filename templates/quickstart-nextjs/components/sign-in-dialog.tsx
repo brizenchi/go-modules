@@ -69,15 +69,15 @@ export function SignInDialog({ open, onClose }: SignInDialogProps) {
             <h2>{t({ en: `Welcome to ${appEnv.appName}!`, zh: `欢迎使用 ${appEnv.appName}` })}</h2>
             <p>
               {t({
-                en: "Use Google to continue instantly, or sign in with a one-time email verification code.",
-                zh: "可以直接使用 Google 继续，也可以通过一次性邮箱验证码登录。"
+                en: "Choose one of the sign-in methods currently enabled for this workspace.",
+                zh: "请选择当前工作区已启用的登录方式。"
               })}
             </p>
           </div>
 
           <div className="dialog-auth-block">
             <p className="dialog-auth-copy">
-              {t({ en: "Continue with Google, or use email below.", zh: "优先使用 Google，也可以改用下方邮箱登录。" })}
+              {t({ en: "Available methods are loaded from the backend before you continue.", zh: "继续前会先从后端加载实际可用的登录方式。" })}
             </p>
             <SignInPanel compact onSuccess={() => onClose()} />
           </div>

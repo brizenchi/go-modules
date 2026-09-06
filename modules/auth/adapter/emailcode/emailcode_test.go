@@ -9,6 +9,7 @@ import (
 
 	"github.com/brizenchi/go-modules/modules/auth/adapter/memstore"
 	"github.com/brizenchi/go-modules/modules/auth/domain"
+	"github.com/brizenchi/go-modules/modules/auth/port"
 )
 
 type captureMailer struct {
@@ -110,7 +111,8 @@ func TestIssuer_RejectsInvalidEmail(t *testing.T) {
 }
 
 func TestIssuer_PerMinuteRateLimit(t *testing.T) {
-	issuer := NewIssuer(Config{Debug: true, MinResendGap: time.Hour}, memstore.NewCodeStore(), nil)
+	store := &dailyCountTrackingStore{CodeRateLimitStore: memstore.NewCodeStore()}
+	issuer := NewIssuer(Config{Debug: true, MinResendGap: time.Hour}, store, nil)
 	if _, err := issuer.Issue(context.Background(), "a@b"); err != nil {
 		t.Fatalf("first issue: %v", err)
 	}
@@ -118,6 +120,28 @@ func TestIssuer_PerMinuteRateLimit(t *testing.T) {
 	if !errors.Is(err, domain.ErrCodeRateLimited) {
 		t.Errorf("expected rate-limited, got %v", err)
 	}
+	if got := store.calls(); got != 1 {
+		t.Errorf("daily counter calls = %d, want 1; cooldown retries must not consume the daily cap", got)
+	}
+}
+
+type dailyCountTrackingStore struct {
+	port.CodeRateLimitStore
+	mu         sync.Mutex
+	dailyCalls int
+}
+
+func (s *dailyCountTrackingStore) IncrDailyCount(ctx context.Context, email, dayBucket string) (int, error) {
+	s.mu.Lock()
+	s.dailyCalls++
+	s.mu.Unlock()
+	return s.CodeRateLimitStore.IncrDailyCount(ctx, email, dayBucket)
+}
+
+func (s *dailyCountTrackingStore) calls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.dailyCalls
 }
 
 func TestIssuer_DailyCap(t *testing.T) {
