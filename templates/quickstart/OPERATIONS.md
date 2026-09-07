@@ -21,6 +21,7 @@
 | `/admin/referrals` | 查询邀请状态；带原因重试已激活邀请的原奖励 |
 | `/admin/credits` | 按用户查询流水，发放有到期时间的积分，退回原消费 |
 | `/admin/settings` | 修改品牌、介绍、支持邮箱/HTTPS 链接、每次导出积分价格 |
+| `/admin/integrations` | 配置 Resend 与 Stripe，查看配置来源和是否需要重启 |
 | `/admin/audit` | 查询设置与奖励核对的操作人、原因和结果；积分调整在积分流水中 |
 | `/credits` | 个人可用积分、未来 30 天到期积分和完整流水 |
 | `/notes` | 免费保存笔记，确认积分价格后生成 Markdown 文件 |
@@ -33,7 +34,7 @@
 ## 配置
 
 1. 在后端设置 `APP_AUTH_ADMIN_EMAIL=owner@example.com` 和 `APP_AUTH_ADMIN_PASSWORD`，重启后在 `/admin` 输入邮箱与密码。密码长度为 12–72 字节，建议使用独立生成的随机 ASCII 密码；不需要先注册。两项都留空时关闭密码登录，只填一项或密码不符合要求会阻止启动。身份和权限由后端检查。
-2. 使用 `/admin/settings` 保存公开配置并填写修改原因。导出默认消耗 1 积分，允许 1–1,000,000 的整数。登录、Stripe、Resend、存储密钥继续使用服务端环境变量。
+2. 使用 `/admin/settings` 保存公开配置并填写修改原因。导出默认消耗 1 积分，允许 1–1,000,000 的整数。Resend 与 Stripe 在 `/admin/integrations` 配置；数据库、JWT、管理员密码、OAuth 与存储凭据仍使用服务端环境变量。
 3. 开启注册赠送可设置 `APP_HOST_SIGNUP_CREDITS`。邀请奖励由 `APP_REFERRAL_ACTIVATION_REWARD` 与奖励期限配置决定；管理员核对按钮不会把待激活邀请变成已激活。
 4. 本地图片上传配置 `APP_HOST_UPLOADS_ENABLED=true`、`APP_HOST_UPLOADS_PROVIDER=local` 和 `APP_HOST_UPLOADS_DIRECTORY=./var/uploads`。支持 JPEG、PNG、GIF、WebP，每张最多 5 MiB；SVG 不支持。
 5. 生产多实例部署使用 `provider=s3`，填写 bucket、region 和需要的 endpoint；R2 使用账户 S3 endpoint 与 `region=auto`。桶必须保持私有。服务端携带凭据读写，前端通过带登录凭据的 API 获取图片。切换存储不会自动搬迁已有文件。
@@ -53,12 +54,37 @@
 
 公共文章、更新记录和隐私/条款模板在前端本地内容文件中编辑，见 [内容编辑指南](../quickstart-nextjs/CONTENT.md)。上线前填写真实经营者、支持渠道和实际数据政策。
 
+### 在后台配置 Resend 与 Stripe
+
+先用环境变量配置数据库、JWT、管理员邮箱与密码、前后端域名，再启动后端并登录
+`/admin/integrations`。尚未接好外部服务时，可以先关闭邮箱登录与 Billing，保留管理员
+密码登录；完整的首次启动示例见 [配置与上线指南](../../docs/SETUP_ZH.md#先启动后台再接服务)。
+
+- Resend：填写自己的 API Key、已验证的发件邮箱与发件名称，按需启用邮箱登录。
+- Stripe：填写同一测试或正式环境的 secret key、Webhook 签名密钥与价格 ID，再启用支付。
+  Webhook 地址和 Customer Portal 仍需在 Stripe 配置。
+- 保存到当前后端的数据库，**密钥按明文保存，但不会通过读取接口回显**；页面只显示
+  是否已配置。修改密钥时输入新值，留空保留已有值。
+- 保存某个服务后，该服务使用数据库配置覆盖原环境配置；未保存的服务继续回退到
+  环境变量。页面显示配置来源。需要改回环境变量时，先补齐环境配置，再使用恢复环境配置操作。
+- 保存不会热更新服务。**必须重启所有后端实例**，新的登录邮件与支付请求才使用新配置；
+  只刷新页面、重启前端或重新登录都不会使其生效。恢复环境配置也需重启后端。
+- 保存时只检查字段格式与配置完整性，不验证密钥是否有权限、邮件是否送达或支付是否成功。
+  重启后再用自己的邮箱和 Stripe 测试环境验收。
+
+服务配置修改会留下操作记录，记录不包含密钥。仅管理员可以管理这些配置，公开网站设置
+和用户工作台不会返回服务凭据。数据库备份同样包含明文服务密钥。
+
+隔离的 `cmd/preview` 可用于测试表单保存与权限；配置仅存在临时 SQLite 中。即使保存
+Resend 或 Stripe 启用状态，也不会调用外部服务；重启预览会重新建立临时数据。
+
 ## 现有数据库升级
 
 升级文件已提供，**没有自动执行**：
 
 1. [20260906_credit_ledger.sql](migrations/20260906_credit_ledger.sql)：保留当前余额、建立积分批次与流水、保留历史支付/邀请去重记录。
 2. [20260906_operations.sql](migrations/20260906_operations.sql)：运营设置、审计和上传元数据表。
+3. [20260907_service_provider_settings.sql](migrations/20260907_service_provider_settings.sql)：保存 Resend / Stripe 明文配置；仅创建表，不复制任何现有凭据。
 
 由维护者审阅并选择维护窗口，停止应用写入并备份后，按上述顺序对 PostgreSQL 显式执行，再发布对应版本。原有启动流程会自动补表，但不会迁移旧余额；未迁移的旧账号仍可查看原余额，积分操作会返回 `503 credit_ledger_migration_required`。不要把启动 AutoMigrate 当成旧余额升级。
 

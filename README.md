@@ -86,6 +86,11 @@ go run ./cmd/quickstart
 例如“Google 注册成功后由 Resend 发欢迎邮件”完全发生在模板中：Google 和
 Resend 只是注入的适配器，`onUserSignedUp` 才是当前 SaaS 的规则。
 
+配套前端的 `/admin/integrations` 可管理 Resend 与 Stripe：后台填写的服务配置以明文
+保存在当前 SaaS 的数据库中，读取接口不返回密钥。数据库配置优先于该服务的环境配置；
+保存后需要重启所有后端实例才生效。数据库连接、JWT、管理员登录和域名仍从环境配置起步。
+首次设置与验收见 [运营功能使用指南](templates/quickstart/OPERATIONS.md#在后台配置-resend-与-stripe)。
+
 ## 用户字段怎么改
 
 用户模型在：

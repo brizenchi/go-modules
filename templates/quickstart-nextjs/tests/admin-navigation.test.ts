@@ -19,6 +19,7 @@ test("administrator sections belong to a separate route space from the customer 
 
 test("admin navigation accepts known sections only and handles query strings", () => {
   assert.equal(activeAdminSection("/admin/credits?user_id=customer#form"), "credits");
+  assert.equal(activeAdminSection("/admin/integrations"), "integrations");
   assert.equal(activeAdminSection("/admin/"), "overview");
   for (const path of ["/administrator", "/admin/settings/extra", "/admin/unknown", "//admin", "/"]) assert.equal(activeAdminSection(path), null);
 });

@@ -12,6 +12,7 @@ import (
 	authdomain "github.com/brizenchi/go-modules/modules/auth/domain"
 	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
+	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -47,6 +48,8 @@ func (m *Module) Register(g hostapi.Groups) {
 	admin.GET("/audit", m.audit)
 	admin.GET("/settings", m.getSettings)
 	admin.PATCH("/settings", m.patchSettings)
+	admin.GET("/integrations", m.getIntegrations)
+	admin.PATCH("/integrations/:provider", m.patchIntegration)
 }
 
 func requireAdmin(c *gin.Context) {
@@ -129,4 +132,6 @@ type Upload struct {
 
 func (Upload) TableName() string { return "private_image_uploads" }
 
-func Models() []any { return []any{&SiteSettings{}, &AuditEvent{}, &Upload{}} }
+func Models() []any {
+	return append([]any{&SiteSettings{}, &AuditEvent{}, &Upload{}}, serviceconfig.Models()...)
+}

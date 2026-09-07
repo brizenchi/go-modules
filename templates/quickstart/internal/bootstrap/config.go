@@ -76,6 +76,12 @@ type DBConfig struct {
 }
 
 func LoadConfig() (AppConfig, error) {
+	return loadConfig(true)
+}
+
+// Startup must read database-owned provider settings before validating those
+// providers. The exported loader retains full validation for existing callers.
+func loadConfig(validateProviders bool) (AppConfig, error) {
 	if err := LoadDotEnv(".env"); err != nil {
 		return AppConfig{}, err
 	}
@@ -92,10 +98,23 @@ func LoadConfig() (AppConfig, error) {
 	applyAdminPasswordEnvironment(&cfg)
 
 	applyDefaults(&cfg)
-	if err := cfg.Validate(); err != nil {
+	validate := cfg.Validate
+	if !validateProviders {
+		validate = cfg.validateDeployment
+	}
+	if err := validate(); err != nil {
 		return AppConfig{}, err
 	}
 	return cfg, nil
+}
+
+// Validate deployment-only boundaries before connecting to the database. Resend
+// and Stripe are validated again with their effective settings after DB loading.
+func (c AppConfig) validateDeployment() error {
+	off := false
+	c.Auth.Email.Enabled = &off
+	c.Billing.Enabled = &off
+	return c.Validate()
 }
 
 // Viper's unmarshal only discovers environment keys present in older config
@@ -477,7 +496,7 @@ func hasStripePrice(prices platform.StripePricesConfig) bool {
 
 func validateStripeCredentials(secretKey, webhookSecret string) error {
 	if unsafeCredential(secretKey) || !validStripeSecretKey(secretKey) {
-		return fmt.Errorf("billing.stripe.secret_key must be a real Stripe secret key (sk_live_... or sk_test_...) in production")
+		return fmt.Errorf("billing.stripe.secret_key must use a valid Stripe secret or restricted key format (sk_live_, sk_test_, rk_live_, or rk_test_) in production")
 	}
 	if unsafeCredential(webhookSecret) || !validStripeCredential(webhookSecret, "whsec_") {
 		return fmt.Errorf("billing.stripe.webhook_secret must be a real Stripe signing secret (whsec_...) in production")
@@ -486,7 +505,8 @@ func validateStripeCredentials(secretKey, webhookSecret string) error {
 }
 
 func validStripeSecretKey(value string) bool {
-	return validStripeCredential(value, "sk_live_") || validStripeCredential(value, "sk_test_")
+	return validStripeCredential(value, "sk_live_") || validStripeCredential(value, "sk_test_") ||
+		validStripeCredential(value, "rk_live_") || validStripeCredential(value, "rk_test_")
 }
 
 func validStripeCredential(value, prefix string) bool {

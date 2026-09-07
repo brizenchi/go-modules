@@ -147,7 +147,7 @@ test("OAuth accepts only known internal destinations and gates admin return on t
     assert.equal(flow.resolveOAuthReturnTo(path, "admin"), "/account");
   }
   assert.equal(values.size, 0);
-  for (const path of ["/admin", "/admin/users", "/admin/orders", "/admin/subscriptions", "/admin/referrals", "/admin/credits", "/admin/settings", "/admin/audit"]) {
+  for (const path of ["/admin", "/admin/users", "/admin/orders", "/admin/subscriptions", "/admin/referrals", "/admin/credits", "/admin/settings", "/admin/integrations", "/admin/audit"]) {
     assert.equal(flow.resolveOAuthReturnTo(path, "admin"), path);
     assert.equal(flow.resolveOAuthReturnTo(path, "user"), "/account");
     assert.equal(flow.resolveOAuthReturnTo(path), "/account");

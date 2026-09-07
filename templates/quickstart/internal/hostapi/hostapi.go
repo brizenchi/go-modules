@@ -12,6 +12,7 @@ package hostapi
 import (
 	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 	"github.com/brizenchi/quickstart-template/internal/platform"
+	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 	"github.com/brizenchi/quickstart-template/internal/user"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -41,4 +42,8 @@ type Deps struct {
 
 	// Config is your own business config from internal/hostcfg.
 	Config hostcfg.Config
+
+	// ServiceSettings manages administrator-owned provider configuration. Saved
+	// changes apply on the next backend start; nil disables configuration editing.
+	ServiceSettings *serviceconfig.Manager
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { OperatorConsole, type OperatorSection } from "@/components/operator-console";
-const sections = ["users", "orders", "subscriptions", "referrals", "credits", "settings", "audit"];
+import { adminSections } from "@/lib/admin-navigation";
+const sections: readonly string[] = adminSections.filter((section) => section !== "overview");
 export function generateStaticParams() { return sections.map((section) => ({ section })); }
 export default async function AdminSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;

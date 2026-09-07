@@ -34,7 +34,7 @@ export default function HomePage() {
         { label: "已内置 / 用户", value: "累计注册用户", detail: "运营后台读取真实账号总数，并支持按邮箱、用户名或账号 ID 查询用户。" },
         { label: "已内置 / 订阅", value: "有效订阅", detail: "查看当前有效订阅数量、套餐状态和支付记录，掌握产品的基本运营情况。" },
         { label: "已内置 / 邀请", value: "待激活与已激活", detail: "查看邀请总量与激活进展，按状态查找记录，并核对已激活邀请的奖励。" },
-        { label: "已内置 / 运营操作", value: "积分与网站配置", detail: "发放或退回积分，修改品牌与支持信息，并查询相关操作记录。服务商密钥通过后端环境变量配置。" }
+        { label: "已内置 / 运营操作", value: "积分与网站配置", detail: "发放或退回积分，修改品牌与支持信息，并查询相关操作记录。Resend 和 Stripe 可在管理员后台配置，保存后重启后端生效。" }
       ],
       steps: [
         { title: "注册并登录", description: "点击登录，使用页面提供的邮箱或第三方登录方式。新用户首次完成验证时会自动创建账号。", result: "完成后：账户页可以看到自己的账号。", href: "/login", action: "注册 / 登录" },
@@ -69,7 +69,7 @@ export default function HomePage() {
         { label: "Included / Users", value: "Registered accounts", detail: "Read the real account total in the operator console and find users by email, username, or account ID." },
         { label: "Included / Subscriptions", value: "Active subscriptions", detail: "Review the active subscription count, plan status, and payment records for day-to-day operations." },
         { label: "Included / Invitations", value: "Pending and activated", detail: "Follow invitation totals and activation progress, filter records by status, and reconcile activated rewards." },
-        { label: "Included / Operations", value: "Credits and site settings", detail: "Grant or refund credits, update branding and support details, and review recorded operations. Provider secrets stay in backend environment variables." }
+        { label: "Included / Operations", value: "Credits and site settings", detail: "Grant or refund credits, update branding and support details, and review recorded operations. Configure Resend and Stripe in the admin console, then restart the backend to apply changes." }
       ],
       steps: [
         { title: "Create your account", description: "Choose an available email or social sign-in option. Completing verification for the first time automatically creates your account.", result: "Then: find your identity on the account page.", href: "/login", action: "Sign up / sign in" },
@@ -229,7 +229,7 @@ export default function HomePage() {
             <li key={item.title}><span className={styles.stepNumber} aria-hidden="true">0{index + 1}</span><div><h3>{item.title}</h3><p>{item.description}</p><Link className="text-link" href={item.href}>{item.action} ↗</Link></div></li>
           ))}
         </ol>
-        <p className={styles.setupNote}>{t({ en: "The guide contains the environment variables and setup checks for each step. Keep Stripe, Resend, database, and administrator credentials on the backend. The frontend demo flag changes copy only; it does not switch payment mode.", zh: "每一步的环境变量和检查方法都在使用指南中。Stripe、Resend、数据库与管理员密码只放后端配置；前端的演示开关只改变提示文案，不会切换支付模式。" })}</p>
+        <p className={styles.setupNote}>{t({ en: "The guide explains each setup step. Configure Stripe and Resend in the admin console, then restart the backend. Database and administrator credentials remain in backend environment variables. The frontend demo flag changes copy only; it does not switch payment mode.", zh: "每一步的配置和检查方法都在使用指南中。Stripe 与 Resend 可在后台填写，保存后重启后端；数据库与管理员登录信息保留在后端环境变量中。前端的演示开关只改变提示文案，不会切换支付模式。" })}</p>
         <p className={styles.setupNote}>{t({ en: "The template is free. Hosting, domains, and email services are billed separately by your chosen providers. If you purchase through a link marked as a referral, the author may earn a commission to support maintenance. You can choose other providers.", zh: "模板免费提供。部署、域名、邮件等第三方服务，由你选择的平台单独计费。如果你通过标注为推荐的链接购买服务，作者可能获得佣金，用于支持模板维护；你也可以选择其他服务商。" })}</p>
         <div className="cta-strip"><div><span className="panel-kicker">{t({ en: "FREE TEMPLATE. YOUR NEXT SAAS.", zh: "免费模板，开启你的下一个 SaaS。" })}</span><strong>{t({ en: "Spend your next sprint on your core product.", zh: "把下一轮开发，留给你的核心业务。" })}</strong></div><div className="cta-strip-actions"><CTAButton href="/login" primary>{content.start}</CTAButton><CTAButton href="/pricing">{t({ en: "Explore example plans", zh: "查看套餐示例" })}</CTAButton></div></div>
       </PageSection>

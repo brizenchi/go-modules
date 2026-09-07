@@ -30,7 +30,7 @@ export const documentation: DocumentationSection[] = [
     items: [
       { title: { en: "Public website", zh: "公开网站 · 向访客介绍产品" }, body: { en: "Overview, pricing, setup guide, searchable blog, updates, contact, privacy, and terms pages. Chinese and English copy, sharing metadata, and a sitemap are included.", zh: "总览、价格、使用指南、可搜索的博客、更新记录、联系、隐私与条款页面，带有中英文文案、分享信息和站点地图。" } },
       { title: { en: "Customer account center", zh: "用户工作台 · 管理自己的账户" }, body: { en: "Account settings at /account, subscriptions and invoices at /billing, and invitation links, progress, and rewards at /referrals. Email-code login and optional Google/GitHub sign-in connect to the Go API.", zh: "在 /account 管理账户资料，在 /billing 管理自己的订阅和账单，在 /referrals 分享邀请链接、查看进展与奖励。支持邮箱验证码登录，也可配置 Google / GitHub 登录。" } },
-      { title: { en: "Administrator console", zh: "管理员后台 · 运营整个网站" }, body: { en: "At /admin, authorized administrators can view users, payment records, subscriptions, referrals, credit records, and audit logs, and edit public brand, support, and example export settings. Ordinary accounts cannot access it.", zh: "在 /admin 查看全站用户、支付记录、订阅、邀请、积分和操作审计，并修改品牌、支持渠道和示例导出定价。需要管理员权限，普通用户无法进入。" } },
+      { title: { en: "Administrator console", zh: "管理员后台 · 运营整个网站" }, body: { en: "At /admin, authorized administrators can view users, payment records, subscriptions, referrals, credits, and audit logs, edit public site settings, and configure Resend and Stripe at /admin/integrations. Ordinary accounts cannot access it.", zh: "在 /admin 查看全站用户、支付记录、订阅、邀请、积分和操作审计，修改公开网站设置，并在 /admin/integrations 配置 Resend 与 Stripe。需要管理员权限，普通用户无法进入。" } },
       { title: { en: "Examples you can extend", zh: "业务示例 · 改造成你自己的产品" }, body: { en: "Use /notes for free note creation and credit-based exports, /credits for balance and transaction history, and /files for private image uploads when enabled. They demonstrate how to connect a customer action to ownership, billing, and records.", zh: "在 /notes 体验免费创建笔记、用积分导出，在 /credits 查看余额和流水，在启用上传后使用 /files 保存私有图片。这些示例展示如何把用户操作、数据归属和计费记录接起来，你可以据此开发自己的功能。" } }
     ],
     links: [{ href: "/docs#launch", label: { en: "See what to add before launch", zh: "查看上线前还需要补什么" } }]
@@ -71,33 +71,53 @@ export const documentation: DocumentationSection[] = [
     id: "auth-email",
     title: { en: "2. Enable customer sign-in with Resend", zh: "2. 接入 Resend，配置用户登录" },
     paragraphs: [
-      { en: "Resend is already integrated for email delivery. Add your own API key and verified sender on the backend, then enable email-code sign-in. The local example uses the log provider and debug codes; use Resend and turn debug codes off for a deployed service.", zh: "模板已经集成 Resend 邮件发送。你需要在后端填写自己的 API key 和经过验证的发件人，再开启邮箱验证码登录。本地示例使用日志邮件和调试验证码；部署服务时改用 Resend 并关闭调试验证码。" },
+      { en: "Resend is integrated for email delivery. After setting up administrator access, open /admin/integrations, enter your API key and verified sender, and enable Resend and email-code sign-in. Save and restart all backend instances, then test delivery. The environment variables below remain an alternative when no Resend settings have been saved in the console.", zh: "模板已集成 Resend。先配置管理员账号，再到 /admin/integrations 填写自己的 API key 和经过验证的发件人，启用 Resend 与邮箱验证码登录。保存并重启所有后端实例，再验收收码。未保存后台 Resend 配置时，也可以使用下面的环境变量。" },
       { en: "Google and GitHub sign-in are optional. Configure their client credentials and callback URLs on the backend when you need them. The frontend shows methods enabled by the API. Verify sign-in, account creation, and sign-out with an email you control before inviting customers.", zh: "Google 和 GitHub 登录按需启用，在后端填写对应应用凭证和回调地址即可。前端会读取 API 提供的登录方式。邀请真实客户之前，先用自己的邮箱验证收码、注册、登录和退出。" }
     ],
     code: "APP_AUTH_EMAIL_ENABLED=true\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_EMAIL_PROVIDER=resend\nAPP_EMAIL_RESEND_API_KEY=<your-resend-api-key>\nAPP_EMAIL_RESEND_SENDER_EMAIL=<your-verified-sender>",
-    links: [{ href: "/account", label: { en: "Check customer sign-in", zh: "检查用户登录" } }]
+    links: [
+      { href: "/docs#integrations", label: { en: "How service settings take effect", zh: "服务配置如何生效" } },
+      { href: "https://resend.com/docs/dashboard/api-keys/introduction", label: { en: "Get a Resend API key", zh: "获取 Resend API Key" } },
+      { href: "/account", label: { en: "Check customer sign-in", zh: "检查用户登录" } }
+    ]
   },
   {
     id: "admin",
     title: { en: "3. Set your administrator email and password", zh: "3. 设置管理员邮箱和密码" },
     paragraphs: [
       { en: "Set both variables below in the backend environment, restart the backend, and open /admin. Sign in with that email and password; you do not need to register the administrator account first. There is no shared default administrator password. Use a generated password of 12–72 bytes; ASCII characters make the byte length easy to check.", zh: "在后端环境变量中同时填写下面两项，重启后端，再打开 /admin，用设置的邮箱和密码登录，无需提前注册管理员账号。模板没有通用的默认管理员密码。密码要求为 12–72 字节，建议使用随机生成的英数符号密码，便于确认长度。" },
-      { en: "In site settings, update the public brand, description, support channels, and example export cost. Provider credentials, database settings, and administrator passwords stay in backend configuration. The customer account center is for each customer’s own profile, subscriptions, and invitations.", zh: "登录后，在网站设置中修改公开品牌、简介、支持渠道和示例导出价格。服务密钥、数据库配置和管理员密码继续放在后端配置中。用户工作台则用于每个客户管理自己的资料、订阅和邀请。" }
+      { en: "Use site settings for your public brand, description, support details, and example export cost. Use /admin/integrations for Resend and Stripe. Database connections, JWT, administrator passwords, domains, and OAuth credentials remain in backend environment configuration. Customers manage their own profiles, subscriptions, and invitations in the account center.", zh: "登录后，在网站设置中修改公开品牌、简介、支持渠道和示例导出价格，在 /admin/integrations 配置 Resend 与 Stripe。数据库连接、JWT、管理员密码、域名和 OAuth 凭据仍通过后端环境变量配置。用户工作台供客户管理自己的资料、订阅和邀请。" }
     ],
     code: "APP_AUTH_ADMIN_EMAIL=<your-admin-email>\nAPP_AUTH_ADMIN_PASSWORD=<your-generated-password>",
     links: [{ href: "/admin", label: { en: "Open administrator sign-in", zh: "打开管理员登录" } }]
   },
   {
+    id: "integrations",
+    title: { en: "Save Resend and Stripe settings in the admin console", zh: "在后台保存 Resend 与 Stripe 配置" },
+    paragraphs: [
+      { en: "For your first deployment, configure the database, JWT, administrator email and password, and frontend/API domains in the backend environment. If email and payments are not ready, use the switches below to start with administrator password access. Then open /admin/integrations to connect the services.", zh: "首次部署，先在后端环境变量配置数据库、JWT、管理员邮箱与密码、前后端域名。尚未接好邮件和支付时，可用下面的开关先启动管理员密码登录，再进入 /admin/integrations 接入服务。" },
+      { en: "Saved credentials are stored as plaintext in your backend database and its backups. Read APIs never return the keys: the page shows only whether each secret is configured. Enter a new key to replace it; leave the field blank to keep its existing value.", zh: "保存的凭据以明文存在后端数据库及其备份中。读取接口不会返回密钥，页面只显示是否已配置。更换密钥时填写新值；留空保留原值。" }
+    ],
+    items: [
+      { title: { en: "Where the settings come from", zh: "配置从哪里读取" }, body: { en: "Saving creates a full settings snapshot for that provider, based on its current configuration. Database settings then override its environment settings; a provider you have not saved still uses the environment. The page shows the source, and Restore environment settings removes the override.", zh: "首次保存会基于当前配置建立该服务的完整快照，之后该服务优先使用数据库配置；未保存的服务继续使用环境变量。页面会显示来源，可用“恢复环境配置”清除该服务的数据库覆盖。" } },
+      { title: { en: "When changes apply", zh: "什么时候生效" }, body: { en: "Save or restore, then restart every backend instance. Current services keep running with their previous settings until restart; refreshing the page or restarting the frontend is not enough. Check the pending restart status before testing.", zh: "保存或恢复后，需要重启所有后端实例。重启之前，服务继续使用原配置；刷新页面、重新登录或重启前端都不会生效。测试前检查是否仍提示待重启。" } },
+      { title: { en: "What saving verifies", zh: "保存会检查什么" }, body: { en: "Only field format and completeness are checked. Saving does not verify API permissions, deliver a message, or test a charge. After restarting, verify email delivery and Stripe test payments yourself. The isolated local preview stores temporary settings but never activates either external service.", zh: "保存只检查字段格式与配置完整性，不验证 API 权限、不发邮件，也不测试扣款。重启后需要自行验收发信和 Stripe 测试支付。隔离的本地 preview 只保存临时配置，始终不会启用外部邮件或支付。" } }
+    ],
+    code: "# First boot only; also configure your database, JWT, admin credentials and domains.\nAPP_AUTH_ENABLED=true\nAPP_AUTH_EMAIL_ENABLED=false\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_AUTH_GOOGLE_ENABLED=false\nAPP_AUTH_GITHUB_ENABLED=false\nAPP_EMAIL_PROVIDER=none\nAPP_BILLING_ENABLED=false",
+    links: [{ href: "/admin/integrations", label: { en: "Open service settings", zh: "打开服务配置" } }]
+  },
+  {
     id: "payments",
     title: { en: "4. Configure your plans and Stripe", zh: "4. 配置自己的套餐与 Stripe" },
     paragraphs: [
-      { en: "Create your products and prices in Stripe’s test environment. Add the matching secret key, price IDs, and webhook signing secret to the backend .env. Keep the frontend plan descriptions aligned with the catalog. Set the webhook destination to https://your-api-domain/api/v1/stripe/webhook and enable Stripe Customer Portal. Payment events must reach the backend before subscriptions and invitation rewards can update.", zh: "先在 Stripe 测试环境创建商品与价格。在后端 .env 填写同一环境的 secret key、价格 ID 和 webhook 签名密钥，并让前端套餐文案与商品配置一致。Webhook 地址为 https://你的后端域名/api/v1/stripe/webhook，并在 Stripe 启用 Customer Portal。支付事件送达后端后，订阅状态和邀请奖励才会更新。" },
+      { en: "Create products and prices in Stripe’s test environment. At /admin/integrations, choose test mode and enter the matching secret key, price IDs, and webhook signing secret. Save and restart all backend instances. You can instead use the environment variables below when no Stripe override is saved. Keep plan descriptions aligned with the catalog, set the webhook destination to https://your-api-domain/api/v1/stripe/webhook, and enable Stripe Customer Portal. Payment events must reach the backend to update subscriptions and rewards.", zh: "先在 Stripe 测试环境创建商品与价格，再到 /admin/integrations 选择测试模式，填写同一环境的 secret key、价格 ID 和 webhook 签名密钥，保存并重启所有后端实例。未保存后台 Stripe 配置时，也可使用下方环境变量。让前端套餐文案与商品一致，将 Webhook 设为 https://你的后端域名/api/v1/stripe/webhook，并启用 Stripe Customer Portal。支付事件送达后端后，订阅与奖励才会更新。" },
       { en: "Use Stripe’s official test card only in its test environment: 4242 4242 4242 4242, a future expiry, and any three-digit CVC. When asked for billing details, complete the required test form fields. A test-mode purchase does not charge a real card.", zh: "仅在 Stripe 测试环境使用官方测试卡：4242 4242 4242 4242，填写未来有效期和任意三位 CVC；如果表单要求账单信息，补齐相应测试字段。测试模式的购买不会扣取真实银行卡资金。" },
       { en: "NEXT_PUBLIC_DEMO_MODE controls the on-page demo notice only. The backend Stripe credentials determine whether payments are in test or live mode. Missing payment configuration disables checkout; switching to live credentials can create real charges. Complete the test journey before configuring live products and keys.", zh: "NEXT_PUBLIC_DEMO_MODE 只控制页面的演示提示。支付处于测试还是正式模式，由后端 Stripe 凭证决定；缺少支付配置时无法发起结账，换成正式凭证后可能产生真实扣款。先完成测试流程，再配置正式商品和密钥。" }
     ],
     code: "APP_BILLING_ENABLED=true\nAPP_BILLING_STRIPE_SECRET_KEY=sk_test_...\nAPP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...\nAPP_BILLING_STRIPE_PRICES_PRO_MONTHLY=price_...\nAPP_BILLING_STRIPE_PRICES_CREDITS=price_...",
     links: [
       { href: "/billing", label: { en: "Check subscriptions and billing", zh: "检查订阅和账单" } },
+      { href: "https://docs.stripe.com/keys", label: { en: "Get Stripe API keys", zh: "获取 Stripe API 密钥" } },
       { href: "https://docs.stripe.com/testing", label: { en: "Stripe testing reference", zh: "Stripe 测试说明" } }
     ]
   },

@@ -47,10 +47,49 @@ APP_AUTH_ADMIN_PASSWORD=请替换成独立随机密码
 授权验证码 / OAuth 管理员，不会让这些邮箱共用上述密码。配置的单个管理员邮箱
 也可以通过已启用的验证码 / OAuth 登录，密码登录不是二次验证。
 
+### 先启动后台，再接服务
+
+Resend 和 Stripe 可以在管理员后台配置。先准备数据库、前后端域名、JWT 以及上面的
+管理员邮箱和密码。若首次启动时还没有邮件或支付凭据，在后端环境配置中关闭这些服务：
+
+```dotenv
+APP_AUTH_ENABLED=true
+APP_AUTH_EMAIL_ENABLED=false
+APP_AUTH_EMAIL_DEBUG=false
+APP_AUTH_GOOGLE_ENABLED=false
+APP_AUTH_GITHUB_ENABLED=false
+APP_EMAIL_PROVIDER=none
+APP_BILLING_ENABLED=false
+```
+
+这些开关是首次启动的补充，不是完整 `.env`。数据库 TLS、JWT、管理员账号和 HTTPS/CORS
+仍需按部署环境填写。启动后端并登录前端 `/admin`，进入 `/admin/integrations`：
+
+1. 在 Resend 中填写 API Key、已验证的发件邮箱和发件名称，启用 Resend 并按需开启邮箱登录。
+2. 在 Stripe 中选择测试或正式模式，填写同一环境的 secret key、Webhook 签名密钥、价格 ID，
+   配置试用和积分包数额，再启用支付。Customer Portal 和 Webhook 事件仍需在 Stripe 配置。
+3. 保存后重启**全部后端实例**，再检查收码、注册、Stripe 测试购买和 Webhook。只刷新页面
+   或重启前端不会应用新配置。
+
+保存的服务配置以**明文**存在当前 SaaS 数据库中，备份也包含这些值。密钥不通过读取接口
+回显；修改时填写新值，留空保留已有值。首次保存会以当前有效配置为基础，保存该服务的
+完整配置快照；之后该服务从数据库读取，优先于原环境变量。另一项未保存的服务仍使用
+环境配置。页面显示来源和待重启状态；选择恢复环境配置会清除该服务的数据库覆盖，也需
+重启所有后端实例。已有覆盖时，单改 `.env` 不会替换该服务的数据库配置。
+
+Resend 关闭时也会关闭邮箱验证码登录；管理员密码登录不受影响。启用 Resend 会关闭调试
+验证码。Google/GitHub、管理员密码、JWT、数据库连接和域名仍通过后端环境变量配置。
+
+保存仅检查格式与完整性，不调用服务商验证权限、发信或扣款。请从
+[Resend API Keys](https://resend.com/docs/dashboard/api-keys/introduction) 和
+[Stripe API keys](https://docs.stripe.com/keys) 获取自己的凭据，并在重启后完成实际验收。
+`cmd/preview` 只演示保存流程，配置写入临时数据库，始终不启用外部邮件或支付。
+
 ### 最小生产环境变量
 
-这是“邮箱 + Google + Pro 月付/年付 + 固定积分包”的推荐最小集合。未使用的套餐、
-GitHub、邀请奖励和 tracing 可以不配置。
+下面是使用环境变量配置“邮箱 + Google + Pro 月付/年付 + 固定积分包”的示例。
+也可以按上一节先启动后台，再配置 Resend 与 Stripe。未使用的套餐、GitHub、邀请奖励
+和 tracing 可以不配置；已有后台覆盖时，相应服务以数据库配置为准。
 
 ```dotenv
 # process / HTTP
@@ -146,8 +185,9 @@ NEXT_PUBLIC_STRIPE_CANCEL_PATH=/billing?checkout=cancelled
 openssl rand -hex 32
 ```
 
-`APP_ENV=production` 时，后端会在连接数据库之前校验 HTTPS/CORS、弱密钥、调试验证码、
-邮件发送配置和 Stripe 必填项。只使用 Google/GitHub 时必须显式关闭邮箱登录，否则生产
+`APP_ENV=production` 时，后端会在连接数据库之前校验 JWT、管理员凭据、数据库 TLS、
+HTTPS/CORS 等启动边界；读取并合并后台保存的配置后，再校验邮件与 Stripe 必填项，
+随后创建服务模块。只使用 Google/GitHub 时必须关闭有效配置中的邮箱登录，否则生产
 校验会要求 Resend 或 Brevo。
 
 ## 1. 配置数据库
@@ -283,6 +323,9 @@ APP_EMAIL_PROVIDER=none
 [域名验证说明](https://resend.com/docs/dashboard/domains/introduction)
 添加其显示的 SPF 和 DKIM 等 DNS 记录，域名状态变成 verified 后创建 API Key。
 
+在 `/admin/integrations` 的 Resend 表单填写并保存，重启所有后端实例后验收发信。
+也可使用下面的环境变量；它们仅在没有 Resend 数据库覆盖时生效。
+
 ```dotenv
 APP_EMAIL_PROVIDER=resend
 APP_EMAIL_RESEND_API_KEY=re_...
@@ -327,7 +370,8 @@ secret key，并根据官方 [Webhook 指南](https://docs.stripe.com/webhooks)
 https://api.example.com/api/v1/stripe/webhook
 ```
 
-填写：
+在 `/admin/integrations` 的 Stripe 表单中选择测试模式并填写这些值，保存后重启所有后端
+实例。也可用下面的环境变量；已保存后台 Stripe 配置时，以数据库快照为准。
 
 ```dotenv
 APP_BILLING_ENABLED=true
@@ -594,6 +638,7 @@ stripe listen \
 - [ ] JWT、Google state、GitHub state 使用不同随机密钥
 - [ ] `.env` 没有进入镜像和 Git
 - [ ] 数据库启用了正确 TLS 模式并已备份
+- [ ] 已检查 Resend / Stripe 配置来源，后台保存后已重启所有后端实例并完成实际验收
 - [ ] OAuth 回调使用正式 HTTPS 域名
 - [ ] Stripe 测试密钥、价格和 Webhook 已全部换成正式环境的一套
 - [ ] 关闭不使用的模块和登录方式
@@ -611,4 +656,7 @@ stripe listen \
 | `redirect_uri_mismatch` | 代码配置与服务商控制台回调地址是否一致 |
 | 支付接口 503 `billing is not configured` | 配置 Stripe secret、webhook secret、至少一个 price，并启用或省略 `billing.enabled` 让凭据自动推断 |
 | Stripe Webhook 失败 | webhook secret、公开 URL、事件模式是否匹配 |
+| 后台保存后服务未变化 | 保存仅写入数据库，需重启所有后端实例；刷新页面或重启前端无效 |
+| 修改环境变量后服务未变化 | `/admin/integrations` 是否仍使用数据库配置；恢复环境配置后再重启后端 |
+| 本地 preview 保存后仍无法发送邮件或支付 | 预览只验证表单与权限，不激活外部服务；使用实际开发或部署环境验收 |
 | 邀请码没归因 | 注册请求是否把 `referral_code` 传给最终登录接口 |

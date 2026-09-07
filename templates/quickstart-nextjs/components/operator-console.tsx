@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import { getBusinessSettings, getOperatorOverview, grantCredits, listCreditTransactions, listOperator, refundCredits, retryReferralReward, saveBusinessSettings, type BusinessSettings, type PageResult } from "@/lib/operations-api";
 import { SITE_SETTINGS_EVENT } from "@/lib/site-settings";
 import { adminSections, adminSectionNames } from "@/lib/admin-navigation";
+import { IntegrationsConsole } from "./integrations-console";
 
 export const operatorSections = adminSections;
 export type OperatorSection = typeof operatorSections[number];
@@ -25,7 +26,7 @@ const columns: Partial<Record<OperatorSection, Array<[string, { en: string; zh: 
   audit: [["status", { en: "Outcome", zh: "结果" }], ["actor_id", { en: "Operator", zh: "操作人" }], ["action", { en: "Action", zh: "操作" }], ["target_id", { en: "Target", zh: "对象" }], ["reason", { en: "Reason", zh: "原因" }], ["created_at", { en: "Recorded", zh: "时间" }]]
 };
 
-function OperatorConsoleInner({ section }: { section: OperatorSection }) {
+function OperatorConsoleInner({ section }: { section: Exclude<OperatorSection, "integrations"> }) {
   const { t, locale } = useI18n();
   const params = useSearchParams();
   const { session, ready } = useConsoleSession();
@@ -130,7 +131,7 @@ function OperatorConsoleInner({ section }: { section: OperatorSection }) {
             <div className={styles.full}><button className="button" type="submit" disabled={action.busy || !validReason}>{t({ en: "Confirm credit refund", zh: "确认退回积分" })}</button></div>
           </form></Panel>
         </> : null}
-        {section === "settings" && settings ? <Panel title={t({ en: "Brand and support", zh: "品牌与支持" })} subtitle={t({ en: "These public business settings take effect after saving. Provider credentials remain in server deployment configuration.", zh: "这些公开业务配置保存后生效，服务商密钥仍由后端部署配置管理。" })}><form className={styles.formGrid} onSubmit={saveSettings}>
+        {section === "settings" && settings ? <Panel title={t({ en: "Brand and support", zh: "品牌与支持" })} subtitle={t({ en: "These public business settings take effect after saving. Manage Resend and Stripe in Services.", zh: "这些公开业务配置保存后生效。Resend 和 Stripe 请在「服务配置」中管理。" })}><form className={styles.formGrid} onSubmit={saveSettings}>
           {([ ["brand_name", { en: "Product name", zh: "产品名称" }], ["description", { en: "Product description", zh: "产品介绍" }], ["support_email", { en: "Support email", zh: "支持邮箱" }], ["support_url", { en: "Support URL (HTTPS)", zh: "支持页面（HTTPS）" }] ] as const).map(([key, label]) => <div className="field" key={key}><label htmlFor={`setting-${key}`}>{t(label)}</label><input id={`setting-${key}`} type={key === "support_email" ? "email" : key === "support_url" ? "url" : "text"} required={key === "brand_name"} pattern={key === "support_url" ? "https://.+" : undefined} maxLength={key === "brand_name" ? 100 : key === "description" ? 500 : key === "support_url" ? 1024 : 255} value={settings[key]} onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} /></div>)}
           <div className="field"><label htmlFor="export-cost">{t({ en: "Credits per note export", zh: "每次笔记导出消耗积分" })}</label><input id="export-cost" type="number" required min={1} max={1000000} step={1} value={settings.export_credit_cost} onChange={(event) => setSettings({ ...settings, export_credit_cost: Number(event.target.value) })} /></div>
           <div className="field"><label htmlFor="settings-reason">{t({ en: "Change reason", zh: "修改原因" })}</label><input id="settings-reason" required minLength={3} maxLength={500} placeholder={t({ en: "At least 3 characters", zh: "至少填写 3 个字" })} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
@@ -140,4 +141,7 @@ function OperatorConsoleInner({ section }: { section: OperatorSection }) {
     </ConsoleGate>
   </>;
 }
-export function OperatorConsole({ section }: { section: OperatorSection }) { return <Suspense fallback={null}><OperatorConsoleInner key={section} section={section} /></Suspense>; }
+export function OperatorConsole({ section }: { section: OperatorSection }) {
+  if (section === "integrations") return <IntegrationsConsole />;
+  return <Suspense fallback={null}><OperatorConsoleInner key={section} section={section} /></Suspense>;
+}

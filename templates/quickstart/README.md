@@ -7,7 +7,7 @@
 
 配套前端已包含运营后台、积分流水与有效期、付费笔记导出、私有图片上传，以及博客、
 更新日志、联系页和搜索。管理员可查询用户、支付记录、订阅和邀请，补发或退回积分，
-核对已达标邀请的奖励，修改公开品牌与支持信息。
+核对已达标邀请的奖励，修改公开品牌与支持信息，并在 `/admin/integrations` 配置 Resend 与 Stripe。
 
 新功能配置、旧库升级和验收路径见 [运营功能使用指南](OPERATIONS.md)。现有数据库
 升级前需要显式执行提供的积分迁移 SQL；本次开发没有运行部署数据库迁移。
@@ -15,11 +15,13 @@
 ```text
 cmd/quickstart/main.go
   → bootstrap.New()
-    → LoadConfig()                         读取 YAML / .env / 环境变量
+    → 加载基础配置                         读取 YAML / .env / 环境变量，校验启动边界
     → foundation 日志与追踪
     → pgx.Open()                           连接数据库并健康检查
+    → serviceconfig                        确保配置表、读取数据库覆盖、校验有效配置
     → platform.Migrate()                   User + 已启用模块的表
     → platform.New()                       选择适配器并创建模块
+    → hostModels()                         产品功能表
     → subscribeModuleEvents()              连接注册、支付和邀请事件
     → http.NewRouter()                     挂模块路由和产品路由
     → buildHostJobs()                      创建后台任务
@@ -55,6 +57,7 @@ internal/
 │   ├── credits/            积分生命周期、管理调整与付费导出
 │   └── operations/         运营查询、设置、审计与私有上传
 ├── hostapi/                传给产品功能的依赖和路由组
+├── serviceconfig/          Resend / Stripe 数据库覆盖与重启生效状态
 └── hostcfg/                当前 SaaS 的业务配置
 ```
 
@@ -78,8 +81,15 @@ curl http://localhost:8080/health
 
 新版本发布后，删除本地 replace，并把 `go-modules` 依赖升级到发布标签。
 生产环境变量、Google/GitHub 回调、Stripe Webhook 和上线验收见
-[配置与上线指南](../../docs/SETUP_ZH.md)。`APP_ENV=production` 时，模板会在连接数据库
-之前拒绝弱密钥、HTTP 回调、通配 CORS、调试验证码和不完整的 Stripe/邮件配置。
+[配置与上线指南](../../docs/SETUP_ZH.md)。`APP_ENV=production` 时，模板在连接数据库
+之前校验 JWT、管理员凭据、数据库 TLS、HTTPS/CORS 等启动边界；合并数据库中的服务
+配置后，再校验邮件与 Stripe，随后创建模块。
+
+Resend 与 Stripe 可从 `/admin/integrations` 保存到当前 SaaS 数据库；服务密钥以明文
+保存，读取接口只显示是否配置，不回显密钥。已保存服务的数据库配置优先于环境配置，
+未保存的服务继续使用环境变量。保存或恢复环境配置后需要重启所有后端实例，才会改变
+实际使用的服务；保存仅验证格式与完整性，不会测试外部连接。首次启动仍需配置数据库、
+JWT、管理员邮箱与密码及域名，详见 [后台服务配置](OPERATIONS.md#在后台配置-resend-与-stripe)。
 
 如果这个后端仍在原始 `go-modules` monorepo 内，Dokploy 必须以仓库根目录 `/` 为构建
 上下文并使用根目录 `/Dockerfile`。当前目录中的 Dockerfile 是给复制后的独立项目使用的，

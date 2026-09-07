@@ -1,4 +1,4 @@
-export const adminSections = ["overview", "users", "orders", "subscriptions", "referrals", "credits", "settings", "audit"] as const;
+export const adminSections = ["overview", "users", "orders", "subscriptions", "referrals", "credits", "settings", "integrations", "audit"] as const;
 export type AdminSection = typeof adminSections[number];
 
 export const adminSectionNames: Record<AdminSection, { en: string; zh: string }> = {
@@ -9,6 +9,7 @@ export const adminSectionNames: Record<AdminSection, { en: string; zh: string }>
   referrals: { en: "Invitations", zh: "邀请管理" },
   credits: { en: "Credit adjustments", zh: "积分管理" },
   settings: { en: "Site settings", zh: "网站配置" },
+  integrations: { en: "Services", zh: "服务配置" },
   audit: { en: "Audit log", zh: "操作记录" }
 };
 

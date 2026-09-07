@@ -39,6 +39,7 @@ import (
 	apphttp "github.com/brizenchi/quickstart-template/internal/http"
 	"github.com/brizenchi/quickstart-template/internal/http/middleware"
 	"github.com/brizenchi/quickstart-template/internal/platform"
+	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 	"github.com/brizenchi/quickstart-template/internal/user"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -154,6 +155,12 @@ func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 	if err = db.AutoMigrate(models...); err != nil {
 		return nil, err
 	}
+	serviceSettings := serviceconfig.NewManager(db, cfg, true)
+	// The manager exposes saved settings for UI testing. Preview mode never
+	// applies external provider settings to these isolated fixture modules.
+	if _, err = serviceSettings.Load(context.Background()); err != nil {
+		return nil, err
+	}
 	app.modules, err = platform.New(db, cfg)
 	if err != nil {
 		return nil, err
@@ -169,7 +176,7 @@ func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 		}
 	}
 	installPreviewListeners(app.modules)
-	deps := hostapi.Deps{DB: db, Modules: app.modules, Users: app.modules.Users, Config: hostcfg.Config{SignupCredits: previewInitialCredits, Uploads: hostcfg.UploadConfig{Enabled: true, Provider: "local", Directory: filepath.Join(directory, "private-images")}}}
+	deps := hostapi.Deps{DB: db, Modules: app.modules, Users: app.modules.Users, ServiceSettings: serviceSettings, Config: hostcfg.Config{SignupCredits: previewInitialCredits, Uploads: hostcfg.UploadConfig{Enabled: true, Provider: "local", Directory: filepath.Join(directory, "private-images")}}}
 	// Reuse production auth middleware, API routes, settings, and feature wiring.
 	app.handler = middleware.BuildRouter(middleware.RouterConfig{ServiceName: cfg.ServiceName, AllowedOrigins: []string{frontend, "http://localhost:3000", "http://localhost:3100", "http://127.0.0.1:3000", "http://127.0.0.1:3100"}}, apphttp.NewRouter(app.modules, deps))
 	return app, nil

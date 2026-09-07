@@ -7,7 +7,7 @@ const MAX_PARALLEL_FLOWS = 8;
 
 const OAUTH_RETURN_PATHS = [
   "/account", "/admin", "/admin/users", "/admin/orders", "/admin/subscriptions",
-  "/admin/referrals", "/admin/credits", "/admin/settings", "/admin/audit"
+  "/admin/referrals", "/admin/credits", "/admin/settings", "/admin/integrations", "/admin/audit"
 ] as const;
 export type OAuthReturnTo = (typeof OAUTH_RETURN_PATHS)[number];
 

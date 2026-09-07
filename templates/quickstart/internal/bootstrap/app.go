@@ -19,6 +19,7 @@ import (
 	apphttp "github.com/brizenchi/quickstart-template/internal/http"
 	httpmiddleware "github.com/brizenchi/quickstart-template/internal/http/middleware"
 	"github.com/brizenchi/quickstart-template/internal/platform"
+	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 )
 
 // shutdownTimeout bounds graceful shutdown: in-flight requests first,
@@ -35,7 +36,7 @@ type App struct {
 }
 
 func New() (app *App, err error) {
-	cfg, err := LoadConfig()
+	cfg, err := loadConfig(false)
 	if err != nil {
 		return nil, fmt.Errorf("config: %w", err)
 	}
@@ -75,6 +76,15 @@ func New() (app *App, err error) {
 	}
 	slog.Info("db ready", "dsn_safe", cfg.DB.SafeString())
 
+	// This independent table has no module/user foreign keys. Read service
+	// overrides before selecting which provider modules and tables to initialize.
+	if err := db.AutoMigrate(serviceconfig.Models()...); err != nil {
+		return nil, fmt.Errorf("migrate service settings: %w", err)
+	}
+	serviceSettings, err := loadServiceSettings(context.Background(), db, &cfg)
+	if err != nil {
+		return nil, err
+	}
 	moduleCfg := cfg.ModuleConfig()
 	if err := platform.Migrate(db, moduleCfg); err != nil {
 		return nil, fmt.Errorf("platform.Migrate: %w", err)
@@ -93,7 +103,7 @@ func New() (app *App, err error) {
 		slog.Info("host models migrated", "count", len(models))
 	}
 
-	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: cfg.Host}
+	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: cfg.Host, ServiceSettings: serviceSettings}
 	subscribeModuleEvents(deps, cfg)
 
 	router := apphttp.NewRouter(modules, deps)
