@@ -84,6 +84,18 @@ func onPaymentFailed(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope,
 	return nil
 }
 
+func onRefundUpdated(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.RefundUpdated) error {
+	return nil
+}
+
+func onChargeRefunded(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.ChargeRefunded) error {
+	return nil
+}
+
+func onDisputeUpdated(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope, _ billingevent.DisputeUpdated) error {
+	return nil
+}
+
 func onCreditsPurchased(ctx context.Context, deps hostapi.Deps, envelope billingevent.Envelope, event billingevent.CreditsPurchased) error {
 	if event.TotalCredits == 0 {
 		return nil

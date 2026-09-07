@@ -35,6 +35,8 @@ module := auth.New(auth.Deps{
     RoleResolver:      hostRoleResolver,
     TokenSigner:       signer,
     WSTicketSigner:    ticketSigner,
+    TokenTTL:          time.Hour,
+    WSTicketTTL:       30 * time.Second,
     ExchangeCodeStore: authStore,
     OAuthFlowStore:    authStore,
     EmailCodeIssuer:   issuer,
@@ -56,7 +58,27 @@ store := gormstore.New(db)
 ```
 
 它只创建 `auth_email_codes`、`auth_email_daily_counts`、
-`auth_oauth_flows`、`auth_exchange_codes`，不会创建 `users`。
+`auth_oauth_flows`、`auth_exchange_codes`、`auth_token_revocations`，不会创建 `users`。
+
+## 有效期与退出
+
+`auth.Deps.TokenTTL` 同时控制邮箱登录、OAuth 换取令牌和刷新；`WSTicketTTL` 控制
+WebSocket ticket。未配置时分别保留 7 天、5 分钟默认值。JWT adapter 的 TTL 配置只是
+调用方未指定有效期时的后备值，宿主需要把配置同时传入模块的 `Deps`。
+
+需要服务端退出时，将 `jwt.Config.Revocations` 配置为 `gormstore.New(db)`。
+`POST /auth/logout` 持久化当前 bearer token 的 SHA-256 和到期时间，不保存原始 token；
+之后该 token 不能访问受保护接口或刷新。不同进程使用同一数据库即可共享吊销状态。
+每个新 access token 都有独立 `jti`，退出不会误伤同一秒登录的其他会话。
+
+这是单 token 吊销，不是全设备退出：之前通过 refresh 签发的独立 token、已有 WS ticket
+和已建立的 WebSocket 连接不会被一并关闭。已经开始执行的请求也不会被撤回。
+过期吊销记录在后续退出时清理；如果不再发生退出，记录可保留但不再影响验证。
+
+`TokenSigner` 接口保持兼容。适配器可额外实现 `ContextTokenVerifier`、`TokenRevoker`；
+中间件使用请求 context 验证 token。未实现吊销，或吊销存储读写失败时，退出返回 503，
+不会假装成功；配置了存储后，验证遇到存储故障也返回 503，拒绝放行。前端应仅在退出
+成功或 token 已无效（401）时清除当前凭证，其他错误保留凭证供重试。
 
 ## OAuth 浏览器绑定
 

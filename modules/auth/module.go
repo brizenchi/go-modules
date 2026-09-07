@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"time"
+
 	"github.com/brizenchi/go-modules/modules/auth/app"
 	"github.com/brizenchi/go-modules/modules/auth/event"
 	httpapi "github.com/brizenchi/go-modules/modules/auth/http"
@@ -27,6 +29,8 @@ type Deps struct {
 	RoleResolver      port.RoleResolver
 	TokenSigner       port.TokenSigner
 	WSTicketSigner    port.WSTicketSigner
+	TokenTTL          time.Duration
+	WSTicketTTL       time.Duration
 	ExchangeCodeStore port.ExchangeCodeStore
 	OAuthFlowStore    port.OAuthFlowStore
 	EmailCodeIssuer   port.EmailCodeIssuer
@@ -51,6 +55,7 @@ func New(d Deps) *Module {
 		Users:    d.UserStore,
 		Roles:    d.RoleResolver,
 		Signer:   d.TokenSigner,
+		TokenTTL: d.TokenTTL,
 		Bus:      d.Bus,
 	})
 	oauth := app.NewOAuthService(app.OAuthDeps{
@@ -58,6 +63,7 @@ func New(d Deps) *Module {
 		Users:         d.UserStore,
 		Roles:         d.RoleResolver,
 		Signer:        d.TokenSigner,
+		TokenTTL:      d.TokenTTL,
 		ExchangeStore: d.ExchangeCodeStore,
 		FlowStore:     d.OAuthFlowStore,
 		Bus:           d.Bus,
@@ -67,6 +73,8 @@ func New(d Deps) *Module {
 		Roles:        d.RoleResolver,
 		Signer:       d.TokenSigner,
 		TicketSigner: d.WSTicketSigner,
+		TokenTTL:     d.TokenTTL,
+		WSTicketTTL:  d.WSTicketTTL,
 	})
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Login:             login,

@@ -65,7 +65,7 @@ func (dailyCountRow) TableName() string { return "auth_email_daily_counts" }
 
 // Models returns the persistence models owned by the auth module.
 func Models() []any {
-	return []any{&emailCodeRow{}, &exchangeCodeRow{}, &oauthFlowRow{}, &dailyCountRow{}}
+	return []any{&emailCodeRow{}, &exchangeCodeRow{}, &oauthFlowRow{}, &dailyCountRow{}, &tokenRevocationRow{}}
 }
 
 // AutoMigrate creates or updates the auth-owned tables.

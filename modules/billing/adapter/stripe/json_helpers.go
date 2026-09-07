@@ -1,5 +1,14 @@
 package stripe
 
+import "strings"
+
+func stripeObjectID(data map[string]any, key string) string {
+	if value := getString(data, key); value != "" {
+		return strings.TrimSpace(value)
+	}
+	return strings.TrimSpace(getString(getMap(data, key), "id"))
+}
+
 func getString(m map[string]any, key string) string {
 	if m == nil {
 		return ""

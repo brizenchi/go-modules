@@ -23,10 +23,12 @@ func buildAuth(db *gorm.DB, cfg Config, users *user.Repository, emailModule *ema
 	if strings.TrimSpace(cfg.Auth.UserJWTSecret) == "" {
 		return nil, fmt.Errorf("platform: auth.user_jwt_secret required when auth enabled")
 	}
+	store := authgormstore.New(db)
 	signer, err := authjwt.NewSigner(authjwt.Config{
-		Secret:  cfg.Auth.UserJWTSecret,
-		Issuer:  cfg.ServiceName,
-		UserTTL: time.Duration(cfg.Auth.UserJWTExpireHours) * time.Hour,
+		Revocations: store,
+		Secret:      cfg.Auth.UserJWTSecret,
+		Issuer:      cfg.ServiceName,
+		UserTTL:     time.Duration(cfg.Auth.UserJWTExpireHours) * time.Hour,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("platform: init jwt signer: %w", err)
@@ -40,7 +42,6 @@ func buildAuth(db *gorm.DB, cfg Config, users *user.Repository, emailModule *ema
 		return nil, fmt.Errorf("platform: init websocket ticket signer: %w", err)
 	}
 
-	store := authgormstore.New(db)
 	var issuer authport.EmailCodeIssuer
 	var verifier authport.EmailCodeVerifier
 	if cfg.EmailAuthEnabled() {
@@ -71,6 +72,8 @@ func buildAuth(db *gorm.DB, cfg Config, users *user.Repository, emailModule *ema
 		RoleResolver:      user.NewRoleResolver(adminEmails),
 		TokenSigner:       signer,
 		WSTicketSigner:    ticketSigner,
+		TokenTTL:          time.Duration(cfg.Auth.UserJWTExpireHours) * time.Hour,
+		WSTicketTTL:       time.Duration(cfg.Auth.WSTicketTTLSeconds) * time.Second,
 		ExchangeCodeStore: store,
 		OAuthFlowStore:    store,
 		EmailCodeIssuer:   issuer,

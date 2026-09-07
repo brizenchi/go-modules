@@ -7,8 +7,13 @@
 package jwt
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/brizenchi/go-modules/modules/auth/domain"
@@ -18,10 +23,11 @@ import (
 
 // Config holds the static configuration for HS256 signing.
 type Config struct {
-	Secret    string
-	Issuer    string        // optional, embedded as "iss" claim
-	UserTTL   time.Duration // default token TTL when caller passes 0
-	TicketTTL time.Duration // default ws ticket TTL when caller passes 0
+	Revocations port.TokenRevocationStore
+	Secret      string
+	Issuer      string        // optional, embedded as "iss" claim
+	UserTTL     time.Duration // default token TTL when caller passes 0
+	TicketTTL   time.Duration // default ws ticket TTL when caller passes 0
 }
 
 const (
@@ -63,6 +69,7 @@ func (s *Signer) Issue(id domain.Identity, ttl time.Duration) (*domain.Token, er
 	now := time.Now().UTC()
 	claims := userClaims{
 		RegisteredClaims: jwtv5.RegisteredClaims{
+			ID:        rand.Text(),
 			Issuer:    s.cfg.Issuer,
 			Subject:   id.UserID,
 			IssuedAt:  jwtv5.NewNumericDate(now),
@@ -82,10 +89,54 @@ func (s *Signer) Issue(id domain.Identity, ttl time.Duration) (*domain.Token, er
 }
 
 func (s *Signer) Parse(value string) (*domain.Identity, error) {
+	return s.ParseContext(context.Background(), value)
+}
+
+func (s *Signer) ParseContext(ctx context.Context, value string) (*domain.Identity, error) {
+	claims, err := s.parseClaims(value)
+	if err != nil {
+		return nil, err
+	}
+	if s.cfg.Revocations != nil {
+		revoked, err := s.cfg.Revocations.IsRevoked(ctx, tokenHash(value))
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", domain.ErrSessionUnavailable, err)
+		}
+		if revoked {
+			return nil, domain.ErrInvalidToken
+		}
+	}
+	return &domain.Identity{UserID: claims.Subject, Email: claims.Email, Role: domain.Role(claims.Role)}, nil
+}
+
+func (s *Signer) Revoke(ctx context.Context, value string) error {
+	claims, err := s.parseClaims(value)
+	if err != nil {
+		return err
+	}
+	if s.cfg.Revocations == nil {
+		return domain.ErrSessionUnavailable
+	}
+	if err := s.cfg.Revocations.RevokeToken(ctx, tokenHash(value), claims.ExpiresAt.Time); err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrSessionUnavailable, err)
+	}
+	return nil
+}
+
+func tokenHash(value string) string {
+	digest := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(digest[:])
+}
+
+func (s *Signer) parseClaims(value string) (*userClaims, error) {
+	if strings.ContainsAny(value, "\r\n") {
+		return nil, domain.ErrInvalidToken
+	}
 	claims := &userClaims{}
 	options := []jwtv5.ParserOption{
 		jwtv5.WithValidMethods([]string{jwtv5.SigningMethodHS256.Alg()}),
 		jwtv5.WithExpirationRequired(),
+		jwtv5.WithStrictDecoding(),
 	}
 	if s.cfg.Issuer != "" {
 		options = append(options, jwtv5.WithIssuer(s.cfg.Issuer))
@@ -107,11 +158,8 @@ func (s *Signer) Parse(value string) (*domain.Identity, error) {
 	if uid == "" {
 		return nil, fmt.Errorf("%w: user id required", domain.ErrInvalidToken)
 	}
-	return &domain.Identity{
-		UserID: uid,
-		Email:  claims.Email,
-		Role:   domain.Role(claims.Role),
-	}, nil
+	claims.Subject = uid
+	return claims, nil
 }
 
 // TicketSigner implements port.WSTicketSigner.

@@ -75,6 +75,40 @@ func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs
 	}
 
 	switch evtType {
+	case "refund.created", "refund.updated", "refund.failed", "charge.refund.updated":
+		return []event.Envelope{mk(event.KindRefundUpdated, event.RefundUpdated{
+			ProviderEventType:       evtType,
+			ProviderRefundID:        getString(data, "id"),
+			ProviderChargeID:        stripeObjectID(data, "charge"),
+			ProviderPaymentIntentID: stripeObjectID(data, "payment_intent"),
+			Status:                  getString(data, "status"),
+			Reason:                  getString(data, "reason"),
+			FailureReason:           getString(data, "failure_reason"),
+			Amount:                  getInt64(data, "amount"),
+			Currency:                getString(data, "currency"),
+		})}, nil
+	case "charge.refunded":
+		return []event.Envelope{mk(event.KindChargeRefunded, event.ChargeRefunded{
+			ProviderChargeID:        getString(data, "id"),
+			ProviderPaymentIntentID: stripeObjectID(data, "payment_intent"),
+			ProviderCustomerID:      stripeObjectID(data, "customer"),
+			Amount:                  getInt64(data, "amount"),
+			AmountRefunded:          getInt64(data, "amount_refunded"),
+			FullyRefunded:           getBool(data, "refunded"),
+			Currency:                getString(data, "currency"),
+		})}, nil
+	case "charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed",
+		"charge.dispute.funds_withdrawn", "charge.dispute.funds_reinstated":
+		return []event.Envelope{mk(event.KindDisputeUpdated, event.DisputeUpdated{
+			ProviderEventType:       evtType,
+			ProviderDisputeID:       getString(data, "id"),
+			ProviderChargeID:        stripeObjectID(data, "charge"),
+			ProviderPaymentIntentID: stripeObjectID(data, "payment_intent"),
+			Status:                  getString(data, "status"),
+			Reason:                  getString(data, "reason"),
+			Amount:                  getInt64(data, "amount"),
+			Currency:                getString(data, "currency"),
+		})}, nil
 	case "checkout.session.completed":
 		return p.onCheckoutCompleted(data, false, mk)
 	case "checkout.session.async_payment_succeeded":
@@ -385,8 +419,8 @@ func extractUserHint(data map[string]any, evtType string) port.UserHint {
 	if hint.Email == "" {
 		hint.Email = strings.TrimSpace(getString(data, "receipt_email"))
 	}
-	hint.ProviderCustomerID = strings.TrimSpace(getString(data, "customer"))
-	hint.ProviderSubscriptionID = strings.TrimSpace(getString(data, "subscription"))
+	hint.ProviderCustomerID = stripeObjectID(data, "customer")
+	hint.ProviderSubscriptionID = stripeObjectID(data, "subscription")
 	if hint.ProviderSubscriptionID == "" && strings.HasPrefix(evtType, "customer.subscription.") {
 		hint.ProviderSubscriptionID = strings.TrimSpace(getString(data, "id"))
 	}

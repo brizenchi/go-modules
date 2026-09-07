@@ -97,6 +97,9 @@ func subscribeModuleEvents(deps hostapi.Deps, cfg AppConfig) {
 		modules.Billing.Subscribe(billingevent.KindSubscriptionCanceling, billingListener(deps, onSubscriptionCanceling))
 		modules.Billing.Subscribe(billingevent.KindSubscriptionCanceled, billingListener(deps, onSubscriptionCanceled))
 		modules.Billing.Subscribe(billingevent.KindPaymentFailed, billingListener(deps, onPaymentFailed))
+		modules.Billing.Subscribe(billingevent.KindRefundUpdated, billingListener(deps, onRefundUpdated))
+		modules.Billing.Subscribe(billingevent.KindChargeRefunded, billingListener(deps, onChargeRefunded))
+		modules.Billing.Subscribe(billingevent.KindDisputeUpdated, billingListener(deps, onDisputeUpdated))
 		modules.Billing.Subscribe(billingevent.KindCreditsPurchased, func(ctx context.Context, envelope billingevent.Envelope) error {
 			payload, ok := envelope.Payload.(billingevent.CreditsPurchased)
 			if !ok {
@@ -169,7 +172,10 @@ type billingPayload interface {
 		billingevent.SubscriptionReactivated |
 		billingevent.SubscriptionCanceling |
 		billingevent.SubscriptionCanceled |
-		billingevent.PaymentFailed
+		billingevent.PaymentFailed |
+		billingevent.RefundUpdated |
+		billingevent.ChargeRefunded |
+		billingevent.DisputeUpdated
 }
 
 func billingListener[T billingPayload](deps hostapi.Deps, callback func(context.Context, hostapi.Deps, billingevent.Envelope, T) error) func(context.Context, billingevent.Envelope) error {

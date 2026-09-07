@@ -11,7 +11,7 @@ import { appEnv } from "@/lib/env";
 import { getPublicSiteSettings, publicSiteSettingsFallback, SITE_SETTINGS_EVENT } from "@/lib/site-settings";
 import { logout, userLabel, type ReferralStats, type SubscriptionView } from "@/lib/api";
 import { loadAccountSummary, type AccountSummary } from "@/lib/account-summary";
-import { clearSessionIfToken, readSession, SESSION_EVENT, writeSession, type AuthSession } from "@/lib/auth";
+import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { humanizeSegment } from "@/lib/locale";
@@ -41,7 +41,7 @@ type NavItem = {
 const topNav: NavItem[] = [
   { href: "/", label: { en: "Overview", zh: "总览" } },
   { href: "/pricing", label: { en: "Pricing", zh: "价格" } },
-  { href: "/docs", label: { en: "Docs", zh: "文档" } },
+  { href: "/docs", label: { en: "Guide", zh: "使用指南" } },
   { href: "/blog", label: { en: "Blog", zh: "文章" } },
   { href: "/updates", label: { en: "Updates", zh: "更新" } }
 ];
@@ -196,10 +196,12 @@ function AccountMenu({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
 
   useEffect(() => {
     setOpen(false);
     setBusy(false);
+    setLogoutError(false);
   }, [session?.token]);
 
   async function handleLogout() {
@@ -209,22 +211,18 @@ function AccountMenu({
 
     const requestToken = session?.token || "";
     setBusy(true);
+    setLogoutError(false);
     try {
       if (requestToken) {
         await logout(requestToken);
       }
+      if (!readSession() || readSession()?.token === requestToken) setOpen(false);
     } catch {
-      // Local sign-out should still succeed even if backend logout fails.
+      if (readSession()?.token === requestToken) setLogoutError(true);
     } finally {
-      if (requestToken) {
-        clearSessionIfToken(requestToken);
-      } else {
-        writeSession(null);
-      }
       const currentToken = readSession()?.token || "";
       if (!currentToken || currentToken === requestToken) {
         setBusy(false);
-        setOpen(false);
       }
     }
   }
@@ -354,6 +352,7 @@ function AccountMenu({
           >
             {busy ? t({ en: "Signing out...", zh: "退出中..." }) : t({ en: "Sign Out", zh: "退出登录" })}
           </button>
+          {logoutError ? <p role="alert">{t({ en: "Sign-out failed. Your session is still active; please retry.", zh: "退出失败，会话仍有效，请重试。" })}</p> : null}
         </div>
       ) : null}
     </div>
@@ -646,7 +645,7 @@ export function SiteShell(props: SiteShellProps) {
             <span>{siteSettings.brand_name}</span>
           </Link>
           <nav className="footer-links" aria-label="Footer">
-            <Link href="/docs">{t({ en: "Documentation", zh: "文档" })}</Link>
+            <Link href="/docs">{t({ en: "User guide", zh: "使用指南" })}</Link>
             <Link href="/pricing">{t({ en: "Pricing", zh: "价格" })}</Link>
             <Link href="/contact">{t({ en: "Contact", zh: "联系支持" })}</Link>
             <Link href="/privacy">{t({ en: "Privacy", zh: "隐私" })}</Link>

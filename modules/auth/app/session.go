@@ -77,10 +77,25 @@ func (s *SessionService) IssueWSTicket(ctx context.Context, userID string, scope
 
 // VerifyToken parses and validates a session token.
 func (s *SessionService) VerifyToken(value string) (*domain.Identity, error) {
+	return s.VerifyTokenContext(context.Background(), value)
+}
+
+func (s *SessionService) VerifyTokenContext(ctx context.Context, value string) (*domain.Identity, error) {
 	if s.signer == nil {
 		return nil, domain.ErrProviderUnavailable
 	}
+	if verifier, ok := s.signer.(port.ContextTokenVerifier); ok {
+		return verifier.ParseContext(ctx, value)
+	}
 	return s.signer.Parse(value)
+}
+
+func (s *SessionService) Logout(ctx context.Context, value string) error {
+	revoker, ok := s.signer.(port.TokenRevoker)
+	if !ok {
+		return domain.ErrSessionUnavailable
+	}
+	return revoker.Revoke(ctx, value)
 }
 
 // VerifyWSTicket parses a WebSocket ticket.

@@ -254,10 +254,21 @@ export async function refreshSession(token: string): Promise<VerifyResult> {
 }
 
 export async function logout(token: string): Promise<{ ok: boolean }> {
-  return apiRequest<{ ok: boolean }>("/auth/logout", {
-    method: "POST",
-    authToken: token
-  });
+  try {
+    const result = await apiRequest<{ ok: boolean }>("/auth/logout", {
+      method: "POST",
+      authToken: token
+    });
+    if (!result.ok) throw new Error("Sign-out was not confirmed. Please try again.");
+    clearSessionIfToken(token);
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      clearSessionIfToken(token);
+      return { ok: true };
+    }
+    throw error;
+  }
 }
 
 export async function issueWSTicket(token: string): Promise<WSTicketResult> {

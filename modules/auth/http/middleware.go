@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
@@ -71,7 +72,12 @@ func authenticateRequest(c *gin.Context, session *app.SessionService) (*domain.I
 		c.Abort()
 		return nil, false
 	}
-	id, err := session.VerifyToken(token)
+	id, err := session.VerifyTokenContext(c.Request.Context(), token)
+	if errors.Is(err, domain.ErrSessionUnavailable) {
+		respondAppError(c, err)
+		c.Abort()
+		return nil, false
+	}
 	if err != nil || id == nil {
 		message := "invalid bearer token"
 		if err != nil {

@@ -36,9 +36,16 @@ if [[ ! "$go_modules_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.+][A-Za-z0-9.-]+)?$
 fi
 
 mkdir -p "$destination/backend" "$destination/frontend"
-tar -C "$repo_root/templates/quickstart" \
-  --exclude='.env' --exclude='.cache' --exclude='quickstart' \
-  -cf - . | tar -C "$destination/backend" -xf -
+(
+  cd "$repo_root/templates/quickstart"
+  shopt -s dotglob
+  backend_entries=()
+  for entry in *; do
+    case "$entry" in .env|.cache|quickstart) continue ;; esac
+    backend_entries+=("$entry")
+  done
+  tar -cf - "${backend_entries[@]}"
+) | tar -C "$destination/backend" -xf -
 tar -C "$repo_root/templates/quickstart-nextjs" \
   --exclude='.env.local' --exclude='.next' --exclude='node_modules' \
   -cf - . | tar -C "$destination/frontend" -xf -

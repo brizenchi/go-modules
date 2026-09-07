@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { ApiError, logout } from "@/lib/api";
-import { clearSessionIfToken } from "@/lib/auth";
 import { activeAdminSection, adminSectionHref, adminSectionNames, adminSections } from "@/lib/admin-navigation";
 import { getOperatorOverview } from "@/lib/operations-api";
 import { getPublicSiteSettings, publicSiteSettingsFallback, SITE_SETTINGS_EVENT } from "@/lib/site-settings";
@@ -52,7 +51,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   function signOut() {
     void action.run(async () => {
-      clearSessionIfToken(token);
       await logout(token);
     }, () => {});
   }

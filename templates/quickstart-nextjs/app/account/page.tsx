@@ -16,7 +16,7 @@ import {
   type CapabilitiesView,
   type UpdateAccountProfilePayload
 } from "@/lib/api";
-import { clearSessionIfToken, readSession, SESSION_EVENT, writeSession } from "@/lib/auth";
+import { readSession, SESSION_EVENT, writeSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -241,16 +241,9 @@ export default function AccountPage() {
     const requestToken = session?.token || "";
     const actionGeneration = beginRequestGeneration(actionGenerationRef);
     setBusy("logout");
+    setActionFailure(null);
     try {
       if (requestToken) await logout(requestToken);
-    } catch {
-      // Local sign-out must still succeed if the backend or token is unavailable.
-    } finally {
-      if (requestToken) {
-        clearSessionIfToken(requestToken);
-      } else {
-        writeSession(null);
-      }
       if (
         !readSession()
         && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
@@ -259,6 +252,12 @@ export default function AccountPage() {
         setBusy("");
         router.push("/login");
       }
+    } catch (error) {
+      if (readSession()?.token === requestToken && isCurrentRequestGeneration(actionGenerationRef, actionGeneration)) {
+        setActionFailure(describeRequestFailure(error, "Sign out"));
+      }
+    } finally {
+      if (isCurrentRequestGeneration(actionGenerationRef, actionGeneration)) setBusy("");
     }
   }
 

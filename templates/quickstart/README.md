@@ -96,6 +96,22 @@ OAuth 登录按钮会先在当前 tab 的 `sessionStorage` 生成一次性 verif
 `APP_AUTH_OAUTH_COOKIE_SECURE=true`；本地 `http://localhost` 使用 false。旧前端若未发送
 `challenge`/`oauth_verifier` 会收到 400，需要与本次后端一起升级。
 
+## 本次优先修复的升级事项
+
+- JWT 与 WebSocket ticket 的实际有效期现在遵循 `APP_AUTH_USER_JWT_EXPIRE_HOURS`、
+  `APP_AUTH_WS_TICKET_TTL_SECONDS`。已签发 token 的到期时间不会追溯修改。
+- 退出会吊销提交的 access token。旧库部署前，请审阅并自行安排执行
+  [吊销表迁移](migrations/20260907_auth_token_revocations.sql)。本次没有连接或迁移线上数据库。
+  现有启动流程仍会 AutoMigrate 补表；如果 SaaS 自行关闭了自动迁移，必须先建表，
+  否则认证检查会返回 503。本次不改变启动迁移策略。
+- Stripe 退款、拒付只提供 [业务 hook](PAYMENT_HOOKS.md)，不自动扣积分、取消订阅或收回权限。
+- `go.mod` / `go.sum` 已补齐 S3 所需 AWS SDK 间接依赖。monorepo 部署使用根目录 Dockerfile。
+  复制为独立项目时，必须先发布包含本次 auth/event 接口的共享模块，再执行
+  `make pin-template-version VERSION=<已发布版本>`。当前锁定的旧版并不包含这些新接口。
+  `make verify-template-copy` 只验证当前本地源码；不能替代发布版本验证。
+  CI 分别运行 monorepo Linux 构建和脱离 `go.work` 的临时副本构建；后者只在临时目录
+  使用本地 replace。发布后另运行 `make verify-template-release VERSION=<已发布版本>`。
+
 ## 修改用户字段
 
 只修改 `internal/user/model.go`：

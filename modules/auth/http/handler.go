@@ -315,7 +315,14 @@ func (h *Handler) Refresh(c *gin.Context) {
 }
 
 func (h *Handler) Logout(c *gin.Context) {
-	// Stateless JWT: nothing to do server-side. Clients drop the token.
+	if h.session == nil {
+		respondAppError(c, domain.ErrSessionUnavailable)
+		return
+	}
+	if err := h.session.Logout(c.Request.Context(), bearerToken(c)); err != nil {
+		respondAppError(c, err)
+		return
+	}
 	httpresp.OK(c, gin.H{"ok": true})
 }
 
@@ -380,6 +387,9 @@ func respondError(c *gin.Context, status int, msg string) {
 
 func respondAppError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, domain.ErrSessionUnavailable):
+		slog.ErrorContext(c.Request.Context(), "auth: session unavailable", "error", err)
+		respondError(c, http.StatusServiceUnavailable, domain.ErrSessionUnavailable.Error())
 	case errors.Is(err, domain.ErrInvalidEmail),
 		errors.Is(err, domain.ErrInvalidCode),
 		errors.Is(err, domain.ErrInvalidExchange),

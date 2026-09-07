@@ -52,17 +52,28 @@
 .referralFlow article + article { border-left: 1px solid var(--line); }
 .referralFlow h3 { font-size: 20px; }
 
-.configuration { border-top: 1px solid var(--line-strong); }
-.configItem { border-bottom: 1px solid var(--line-strong); }
-.configItem summary { display: flex; align-items: center; gap: 24px; padding: 25px 4px; cursor: pointer; list-style: none; font-size: 19px; font-weight: 600; }
-.configItem summary::-webkit-details-marker { display: none; }
-.configNumber { color: var(--muted); font: 13px var(--font-mono); }
-.expandIcon { margin-left: auto; color: var(--accent-ink); font-size: 26px; font-weight: 400; }
-.configItem[open] .expandIcon { transform: rotate(45deg); }
-.configBody { max-width: 860px; padding: 0 4px 26px 44px; }
-.configBody > p { margin-top: 0; line-height: 1.8; }
-.fileLabel { display: block; margin: 20px 0 8px; color: var(--muted-strong); font: 12px/1.8 var(--font-mono); overflow-wrap: anywhere; }
-.configBody pre { padding: 20px; margin: 0 0 16px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font: 12px/2 var(--font-mono); }
+.introduction { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+.introduction article { border-top: 1px solid var(--line-strong); padding-top: 24px; }
+.introduction h3, .examples h3, .launchSteps h3 { margin: 12px 0; font-size: 21px; line-height: 1.5; font-weight: 650; }
+.introduction p, .examples p, .launchSteps p { margin: 0; color: var(--muted-strong); line-height: 1.85; overflow-wrap: anywhere; }
+.examples { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 36px; margin-top: 28px; padding: 28px; border-left: 3px solid var(--accent-ink); background: var(--accent-soft); }
+.exampleLinks { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 16px; }
+.exampleLinks a, .areaTable a { color: var(--accent-ink); text-underline-offset: 4px; font-weight: 600; }
+.exampleLinks small { color: var(--muted); line-height: 1.7; }
+.areaTable { max-width: 100%; overflow-x: auto; border-block: 1px solid var(--line-strong); }
+.areaTable table { width: 100%; min-width: 560px; border-collapse: collapse; text-align: left; font-size: 14px; line-height: 1.85; }
+.areaTable th, .areaTable td { padding: 22px 16px; vertical-align: top; }
+.areaTable thead { background: var(--surface); color: var(--muted); font-size: 12px; }
+.areaTable th { font-weight: 600; }
+.areaTable tbody tr + tr { border-top: 1px solid var(--line); }
+.areaTable tbody th { width: 20%; }
+.areaTable td:last-child { width: 25%; }
+.areaTable code { font-size: 13px; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.launchSteps { list-style: none; margin: 32px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.launchSteps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 16px; padding-top: 24px; border-top: 1px solid var(--line-strong); }
+.launchSteps h3 { margin-top: 0; }
+.launchSteps a { display: inline-block; margin-top: 14px; }
 .setupNote { max-width: 860px; margin: 22px 0 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
 
 @media (max-width: 1000px) {
@@ -80,11 +91,12 @@
   .testCard { width: 100%; max-width: 460px; }
   .cardNumber { font-size: clamp(18px, 5.5vw, 28px); }
   .referralFlow article + article { border-left: 0; border-top: 1px solid var(--line); }
+  .introduction, .examples, .launchSteps { grid-template-columns: 1fr; }
+  .introduction { gap: 24px; }
+  .examples { padding: 22px; gap: 24px; }
 }
 
 @media (max-width: 480px) {
   .journey { grid-template-columns: 1fr; }
-  .configItem summary { gap: 14px; font-size: 16px; }
-  .configBody { padding-left: 0; }
-  .configBody pre { padding: 14px; font-size: 11px; }
+  .launchSteps li { gap: 10px; }
 }
