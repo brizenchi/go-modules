@@ -22,6 +22,9 @@ import {
   type ResourceState
 } from "@/lib/request-state";
 import { SignInDialog } from "@/components/sign-in-dialog";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { SiteFooter } from "@/components/site-footer";
+import { publicPaths } from "@/lib/seo";
 import {
   activeWorkspaceHref,
   auxiliaryWorkspaceItems,
@@ -52,6 +55,7 @@ type TOCItem = {
 };
 
 type SiteShellProps = {
+  variant?: "article";
   eyebrow: string;
   title: string;
   description: string;
@@ -66,30 +70,6 @@ type SiteShellProps = {
 };
 
 type AccountMenuData = Partial<AccountSummary>;
-
-function Breadcrumbs({
-  items
-}: {
-  items?: Array<{ href?: string; label: string }>;
-}) {
-  if (!items || items.length === 0) {
-    return null;
-  }
-
-  return (
-    <nav className="breadcrumbs" aria-label="Breadcrumb">
-      {items.map((item, index) => {
-        const isLast = index === items.length - 1;
-        return (
-          <span className="breadcrumb-item" key={`${item.label}-${index}`}>
-            {item.href && !isLast ? <Link href={item.href}>{item.label}</Link> : <span>{item.label}</span>}
-            {!isLast ? <span className="breadcrumb-sep">/</span> : null}
-          </span>
-        );
-      })}
-    </nav>
-  );
-}
 
 function LocaleSwitch() {
   const { locale, setLocale } = useI18n();
@@ -565,8 +545,12 @@ export function SiteShell(props: SiteShellProps) {
     );
   }
 
+  const Content = props.variant === "article" ? "article" : "div";
+  const hasPublicSchema = publicPaths.includes(pathname) || pathname.startsWith("/docs/") || pathname.startsWith("/blog/");
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${props.variant === "article" ? " article-shell" : ""}`}>
+      <a className="skip-content" href="#main-content">{t({ en: "Skip to content", zh: "跳到正文" })}</a>
       <header className="topbar">
         <div className="topbar-inner">
           <Link className="brand-lockup" href="/">
@@ -587,7 +571,8 @@ export function SiteShell(props: SiteShellProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`main-nav-link${pathname === item.href ? " active" : ""}`}
+                className={`main-nav-link${pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`)) ? " active" : ""}`}
+                aria-current={pathname === item.href ? "page" : undefined}
               >
                 {t(item.label)}
               </Link>
@@ -601,59 +586,42 @@ export function SiteShell(props: SiteShellProps) {
         </div>
       </header>
 
-      <main className={`page-shell${isHome ? " home-page-shell" : ""}`}>
-        <section className={`hero-grid${isHome ? " home-hero" : ""}`}>
-          <div className="hero-main-card">
-            {!isHome ? <Breadcrumbs items={breadcrumbs} /> : null}
-            <span className="eyebrow">{props.eyebrow}</span>
-            <h1>{props.title}</h1>
-            <p>{isHome && customDescription ? customDescription : props.description}</p>
-            {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
-          </div>
-
-          <div className="hero-side-stack">
-            <div className="hero-side-card">
-              <div className="panel-title-row compact">
-                <div>
-                  {props.showEnvironment !== false ? <span className="panel-kicker">{t({ en: "Environment", zh: "环境" })}</span> : null}
-                  <h3>{props.sideTitle || t({ en: "Context", zh: "上下文" })}</h3>
-                </div>
-                {props.showEnvironment !== false ? <span className="badge">{appEnv.appUrl}</span> : null}
-              </div>
-              {props.sideBody}
+      <main id="main-content" tabIndex={-1} className={`page-shell${isHome ? " home-page-shell" : ""}`}>
+        {!isHome ? <Breadcrumbs items={breadcrumbs} path={pathname} label={t({ en: "Breadcrumb", zh: "面包屑导航" })} structured={hasPublicSchema} /> : null}
+        <Content aria-label={props.variant === "article" ? props.title : undefined}>
+          <section className={`hero-grid${isHome ? " home-hero" : ""}`}>
+            <div className="hero-main-card">
+              <span className="eyebrow">{props.eyebrow}</span>
+              <h1>{props.title}</h1>
+              <p>{isHome && customDescription ? customDescription : props.description}</p>
+              {props.variant === "article" ? <div className="article-byline">{props.sideBody}</div> : null}
+              {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
             </div>
 
-            <TableOfContents
-              items={props.toc}
-              title={t({ en: "On this page", zh: "本页目录" })}
-            />
-          </div>
-        </section>
+            {props.variant !== "article" ? <div className="hero-side-stack">
+              <div className="hero-side-card">
+                <div className="panel-title-row compact">
+                  <div>
+                    {props.showEnvironment !== false ? <span className="panel-kicker">{t({ en: "Environment", zh: "环境" })}</span> : null}
+                    <h2>{props.sideTitle || t({ en: "Context", zh: "上下文" })}</h2>
+                  </div>
+                  {props.showEnvironment !== false ? <span className="badge">{appEnv.appUrl}</span> : null}
+                </div>
+                {props.sideBody}
+              </div>
 
-        {props.children}
+              <TableOfContents
+                items={props.toc}
+                title={t({ en: "On this page", zh: "本页目录" })}
+              />
+            </div> : null}
+          </section>
+
+          {props.children}
+        </Content>
       </main>
 
-      <footer className="site-footer">
-        <div className="site-footer-inner">
-          <Link className="footer-brand" href="/">
-            <span className="brand-mark small" aria-hidden="true">
-              <svg viewBox="0 0 28 28" role="img">
-                <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
-                <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
-              </svg>
-            </span>
-            <span>{siteSettings.brand_name}</span>
-          </Link>
-          <nav className="footer-links" aria-label="Footer">
-            <Link href="/docs">{t({ en: "User guide", zh: "使用指南" })}</Link>
-            <Link href="/pricing">{t({ en: "Pricing", zh: "价格" })}</Link>
-            <Link href="/contact">{t({ en: "Contact", zh: "联系支持" })}</Link>
-            <Link href="/privacy">{t({ en: "Privacy", zh: "隐私" })}</Link>
-            <Link href="/terms">{t({ en: "Terms", zh: "条款" })}</Link>
-          </nav>
-          <p>{customDescription || t({ en: "A production-minded SaaS starter.", zh: "面向生产环境的 SaaS 启动模板。" })}</p>
-        </div>
-      </footer>
+      <SiteFooter name={siteSettings.brand_name} description={customDescription} />
     </div>
   );
 }

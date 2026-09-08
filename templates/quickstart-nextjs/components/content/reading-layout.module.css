@@ -1,0 +1,28 @@
+.layout { display: grid; grid-template-columns: minmax(0, 760px) minmax(180px, 1fr); align-items: start; gap: 80px; padding-top: 48px; }
+.body { min-width: 0; font-size: 17px; line-height: 1.9; color: var(--muted-strong); overflow-wrap: anywhere; }
+.body section { scroll-margin-top: 120px; margin-bottom: 42px; }
+.body h2 { color: var(--text); margin: 0 0 18px; font-size: clamp(23px, 2.5vw, 30px); font-weight: 600; line-height: 1.3; letter-spacing: -.035em; }
+.body p { margin: 0 0 20px; }
+.body a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 4px; }
+.body a:hover { text-decoration-thickness: 2px; }
+.aside { position: sticky; top: 112px; border-left: 1px solid var(--line); padding-left: 24px; }
+.aside h2 { margin: 0 0 18px; font-size: 12px; letter-spacing: .04em; }
+.aside ol { display: grid; gap: 14px; padding: 0; list-style: none; margin: 0; }
+.aside a { color: var(--muted-strong); font-size: 13px; line-height: 1.5; }
+.aside a:hover { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 4px; }
+.support { display: flex; gap: 12px; justify-content: space-between; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.related { border-top: 1px solid var(--line); padding-top: 32px; margin-top: 48px; }
+.related ul { list-style: none; display: grid; gap: 16px; padding: 0; }
+.pagination { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; border-top: 1px solid var(--line); padding-top: 28px; margin-top: 32px; }
+.pagination a { font-size: 15px; text-decoration: none; }
+.pagination span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 8px; }
+@media (max-width: 900px) {
+  .layout { gap: 36px; grid-template-columns: minmax(0, 1fr) 190px; }
+}
+@media (max-width: 700px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 32px; padding-top: 28px; }
+  .aside { position: static; grid-row: 1; padding: 20px; border: 1px solid var(--line); border-radius: 12px; }
+  .aside ol { gap: 10px; }
+  .body { font-size: 16px; }
+  .pagination { grid-template-columns: minmax(0, 1fr); }
+}

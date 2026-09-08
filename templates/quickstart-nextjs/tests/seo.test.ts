@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { canonicalURL, privatePaths, publicMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
 import { articles } from "../content/articles";
+import { documentation } from "../content/docs";
 
 test("canonical URLs strip tracking and invitation values and reject foreign origins", () => {
   assert.equal(canonicalURL("/blog?ref=secret#content"), `${siteOrigin}/blog`);
@@ -21,4 +22,15 @@ test("sitemap includes only public content, with no account or invitation URLs",
     assert.ok(!privatePaths.some((path) => url.pathname === path || url.pathname.startsWith(`${path}/`)));
   }
   for (const article of articles) assert.ok(entries.some((entry) => entry.url.endsWith(`/blog/${article.slug}`)));
+  for (const guide of documentation) assert.ok(entries.some((entry) => entry.url === canonicalURL(`/docs/${guide.id}`)));
+});
+
+test("guide metadata describes an article without inventing a publication date", () => {
+  for (const guide of documentation) {
+    const metadata = publicMetadata(guide.title.en, guide.summary.en, `/docs/${guide.id}`, {});
+    assert.equal(metadata.description, guide.summary.en);
+    assert.equal(metadata.alternates?.canonical, canonicalURL(`/docs/${guide.id}`));
+    assert.ok(metadata.openGraph && "type" in metadata.openGraph && metadata.openGraph.type === "article");
+    assert.ok(!("publishedTime" in metadata.openGraph));
+  }
 });

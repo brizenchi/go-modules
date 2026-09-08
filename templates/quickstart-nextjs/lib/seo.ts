@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { articles } from "../content/articles";
+import { documentation } from "../content/docs";
 import { appEnv } from "./env";
 
 export const siteDescription = "Launch your SaaS faster with a free Next.js and Go template. Authentication, Stripe subscriptions, credits, referrals, Resend email, and a public website are already integrated.";
@@ -17,7 +18,7 @@ export function canonicalURL(path: string): string {
   return url.toString();
 }
 
-export function publicMetadata(title: string, description: string, path: string, article?: { publishedAt: string }): Metadata {
+export function publicMetadata(title: string, description: string, path: string, article?: { publishedAt?: string }): Metadata {
   const url = canonicalURL(path);
   const fullTitle = `${title} · ${appEnv.appName}`;
   return {
@@ -29,7 +30,7 @@ export function publicMetadata(title: string, description: string, path: string,
       type: article ? "article" : "website",
       locale: "en_US",
       images: [{ url: canonicalURL("/opengraph-image"), width: 1200, height: 630, alt: appEnv.appName }],
-      ...(article ? { publishedTime: article.publishedAt } : {})
+      ...(article?.publishedAt ? { publishedTime: article.publishedAt } : {})
     },
     twitter: { card: "summary_large_image", title: fullTitle, description, images: [canonicalURL("/opengraph-image")] }
   };
@@ -38,6 +39,7 @@ export function publicMetadata(title: string, description: string, path: string,
 export function sitemapEntries(): Array<{ url: string; lastModified?: string }> {
   return [
     ...publicPaths.map((path) => ({ url: canonicalURL(path) })),
+    ...documentation.map((guide) => ({ url: canonicalURL(`/docs/${guide.id}`) })),
     ...articles.map((article) => ({ url: canonicalURL(`/blog/${article.slug}`), lastModified: article.publishedAt }))
   ];
 }

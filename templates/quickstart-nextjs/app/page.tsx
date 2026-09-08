@@ -1,19 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { SiteShell } from "@/components/site-shell";
 import { CTAButton, DetailRows, PageSection } from "@/components/ui";
 import { FeatureCard, MetricCard } from "@/components/marketing";
+import { documentation } from "@/content/docs";
+import guideStyles from "@/components/content/docs.module.css";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import styles from "./overview.module.css";
 
-const testCard = "4242 4242 4242 4242";
-
 export default function HomePage() {
   const { t } = useI18n();
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const demo = appEnv.demoMode;
   const content = t({
     zh: {
@@ -39,16 +37,8 @@ export default function HomePage() {
       steps: [
         { title: "注册并登录", description: "点击登录，使用页面提供的邮箱或第三方登录方式。新用户首次完成验证时会自动创建账号。", result: "完成后：账户页可以看到自己的账号。", href: "/login", action: "注册 / 登录" },
         { title: "体验订阅与计费", description: "价格页展示模板支持的 SaaS 收费方式，不是模板售价。进入订阅管理选择套餐与周期，或体验一次性积分包。", result: "完成后：进入 Stripe 收银台。", href: "/pricing", action: "查看套餐示例" },
-        { title: demo ? "完成测试购买" : "购买并管理订阅", description: demo ? "在 Stripe 测试收银台填写下方测试卡。测试模式下的订阅、买断和积分包付款不涉及真实资金。" : "在 Stripe 收银台确认订单与金额。返回后可查看账单，或管理套餐、取消与恢复订阅。", result: "完成后：返回订阅管理，等待支付结果同步后刷新查看。", href: demo ? "#test-payment" : "/billing", action: demo ? "获取测试卡" : "订阅管理" },
+        { title: demo ? "完成测试购买" : "购买并管理订阅", description: demo ? "参照体验指南，在 Stripe 测试收银台填写测试卡。测试模式下的订阅、买断和积分包付款不涉及真实资金。" : "在 Stripe 收银台确认订单与金额。返回后可查看账单，或管理套餐、取消与恢复订阅。", result: "完成后：返回订阅管理，等待支付结果同步后刷新查看。", href: demo ? "/docs/try-demo#details" : "/billing", action: demo ? "获取测试卡" : "订阅管理" },
         { title: "分享给一个新用户", description: "到推荐中心复制自己的邀请链接，用另一个浏览器或无痕窗口打开，并使用尚未注册的账号完成注册。", result: "完成后：回到原账号查看邀请记录。", href: "/referrals", action: "打开推荐中心" }
-      ],
-      configuration: [
-        { title: "获取前后端源码", description: "从仓库获取模板。templates/quickstart-nextjs 是前端，templates/quickstart 是后端；按各自 README 安装依赖并准备配置。", href: "/docs#overview", action: "从源码开始" },
-        { title: "连接数据库、域名和邮件", description: "使用自己的 PostgreSQL 数据库，连接前端与 API，配置 Resend 发信和需要的登录方式，让用户可以真实注册。", href: "/docs#auth-email", action: "配置登录与邮件" },
-        { title: "设置你的管理员账号", description: "在后端环境变量里设置管理员邮箱和密码，再登录 /admin 管理品牌、支持信息及全站记录。", href: "/docs#admin", action: "配置管理员登录" },
-        { title: "确定收费和邀请规则", description: "选择订阅、终身套餐或积分计费，在 Stripe 测试环境配置价格，并设定符合条件的邀请奖励。", href: "/docs#payments", action: "配置套餐与测试支付" },
-        { title: "接入自己的核心业务", description: "把用户真正需要的工具或服务接进来。可从笔记与积分导出示例开始修改，再替换官网、价格和帮助文案。", href: "/docs#features", action: "查看可复用的功能" },
-        { title: "验收后部署上线", description: "验证注册、购买、权益和邀请流程，完善隐私与支持信息。正式收费时，将 Stripe 密钥、价格和 Webhook 一起切换到正式环境。", href: "/docs#launch", action: "查看上线检查" }
       ]
     },
     en: {
@@ -74,28 +64,11 @@ export default function HomePage() {
       steps: [
         { title: "Create your account", description: "Choose an available email or social sign-in option. Completing verification for the first time automatically creates your account.", result: "Then: find your identity on the account page.", href: "/login", action: "Sign up / sign in" },
         { title: "Explore subscriptions and billing", description: "Pricing demonstrates ways to charge for your own SaaS; the template itself is free. Choose a plan and interval in billing, or try a one-time credit package.", result: "Then: continue to Stripe Checkout.", href: "/pricing", action: "Explore example plans" },
-        { title: demo ? "Make a test purchase" : "Buy and manage your subscription", description: demo ? "Enter the test card below in Stripe test Checkout. In test mode, subscription, lifetime, and credit package payments move no real money." : "Confirm the order and amount in Stripe Checkout. Return to view invoices, change plans, or cancel and resume a subscription.", result: "Then: return to billing and refresh after the payment result syncs.", href: demo ? "#test-payment" : "/billing", action: demo ? "Get the test card" : "Manage billing" },
+        { title: demo ? "Make a test purchase" : "Buy and manage your subscription", description: demo ? "Follow the demo guide to enter a test card in Stripe test Checkout. In test mode, subscription, lifetime, and credit package payments move no real money." : "Confirm the order and amount in Stripe Checkout. Return to view invoices, change plans, or cancel and resume a subscription.", result: "Then: return to billing and refresh after the payment result syncs.", href: demo ? "/docs/try-demo#details" : "/billing", action: demo ? "Get the test card" : "Manage billing" },
         { title: "Invite a new customer", description: "Copy your invite link from the referral center. Open it in another browser or private window and register with an account that has never signed up here.", result: "Then: return to your original account to see the referral.", href: "/referrals", action: "Open referrals" }
-      ],
-      configuration: [
-        { title: "Get the frontend and backend source", description: "Get the template from the repository. templates/quickstart-nextjs is the frontend; templates/quickstart is the backend. Follow each README to install dependencies and prepare configuration.", href: "/docs#overview", action: "Start with the source" },
-        { title: "Connect data, domains, and email", description: "Use your own PostgreSQL database, connect the frontend to the API, and configure Resend and your chosen sign-in methods so customers can register.", href: "/docs#auth-email", action: "Set up sign-in and email" },
-        { title: "Create your administrator access", description: "Set the administrator email and password in backend environment variables. Sign in at /admin to manage your branding, support information, and site-wide records.", href: "/docs#admin", action: "Configure admin sign-in" },
-        { title: "Choose pricing and referral rules", description: "Choose subscriptions, lifetime access, or credit billing. Configure Stripe prices in a test environment and set rewards for qualifying referrals.", href: "/docs#payments", action: "Configure test payments" },
-        { title: "Add the service you want to sell", description: "Build the tool or service your customers need. Adapt the notes and credit-based export example, then replace website, pricing, and help content with your own.", href: "/docs#features", action: "Explore the included features" },
-        { title: "Verify the journey and deploy", description: "Check registration, purchases, access, and referrals. Complete your privacy and support pages. Switch Stripe keys, prices, and webhooks together to live mode when you are ready to charge.", href: "/docs#launch", action: "Check your launch setup" }
       ]
     }
   });
-
-  async function copyTestCard() {
-    try {
-      await navigator.clipboard.writeText(testCard.replaceAll(" ", ""));
-      setCopyState("copied");
-    } catch {
-      setCopyState("error");
-    }
-  }
 
   return (
     <SiteShell
@@ -114,8 +87,7 @@ export default function HomePage() {
       toc={[
         { id: "what-is-template", label: t({ en: "What is Template?", zh: "Template 是什么" }) },
         { id: "included", label: content.included }, { id: "who-uses-what", label: t({ en: "Customer and admin areas", zh: "用户与管理员怎么用" }) }, { id: "try-it", label: content.tryIt },
-        ...(demo ? [{ id: "test-payment", label: content.payment }] : []),
-        { id: "sharing", label: content.sharing }, { id: "setup", label: content.setup }
+        { id: "setup", label: t({ en: "Guides & next steps", zh: "指南与下一步" }) }
       ]}
     >
       <PageSection id="what-is-template" title={t({ en: "A starting point for the SaaS you want to build.", zh: "把通用功能准备好，让你从自己的业务开始。" })} description={t({ en: "A SaaS is a service people use online, often through a subscription or usage credits. Template gives you its common foundations as source code, ready for you to customize.", zh: "SaaS 就是用户在线使用、按订阅或用量付费的软件服务。Template 把这类产品常见的基础功能整合成源码，供你在自己的项目里使用。" })}>
@@ -133,7 +105,7 @@ export default function HomePage() {
             <strong>{t({ en: "Try real accounts and referrals, with Stripe test payments.", zh: "真实体验注册与邀请，用 Stripe 测试支付走完购买流程。" })}</strong>
             <p>{t({ en: "Account and referral records are saved by the backend. Payments in a Stripe test environment simulate purchases without moving money. Check that Checkout shows test mode before using the test card. Available features depend on the services enabled for this site.", zh: "账号和邀请关系由后端实际保存。在标有测试模式的 Stripe 收银台中，可以模拟付款而不扣真实资金。使用测试卡前确认收银台模式；具体可体验的功能，以当前站点已启用的服务为准。" })}</p>
           </div>
-          <a className="text-link" href="#test-payment">{t({ en: "View test card ↗", zh: "查看测试卡 ↗" })}</a>
+          <Link className="text-link" href="/docs/payments">{t({ en: "View test card ↗", zh: "查看测试卡 ↗" })}</Link>
         </aside>
       )}
 
@@ -150,7 +122,7 @@ export default function HomePage() {
           <table><caption className={styles.srOnly}>{t({ en: "Who uses each part of the template", zh: "模板各页面的使用者与用途" })}</caption><thead><tr><th scope="col">{t({ en: "Who", zh: "谁来用" })}</th><th scope="col">{t({ en: "What they do", zh: "能做什么" })}</th><th scope="col">{t({ en: "Where to start", zh: "从哪里进入" })}</th></tr></thead><tbody>
             <tr><th scope="row">{t({ en: "Visitors", zh: "尚未登录的访客" })}</th><td>{t({ en: "Learn about the product, browse plans and guides, then sign up.", zh: "了解产品、查看套餐与使用指南，再决定是否注册。" })}</td><td><Link href="/pricing">{t({ en: "Website and pricing", zh: "官网与套餐示例" })} ↗</Link></td></tr>
             <tr><th scope="row">{t({ en: "Customers", zh: "注册用户" })}</th><td>{t({ en: "Manage their own account, subscription, invoices, and invitations. They cannot change site settings or access other users' records.", zh: "管理自己的账户、订阅、账单和邀请；无法修改网站配置或查看其他用户的数据。" })}</td><td><Link href="/account">{t({ en: "My workspace", zh: "进入用户工作台" })} ↗</Link></td></tr>
-            <tr><th scope="row">{t({ en: "Website administrators", zh: "网站管理员" })}</th><td>{t({ en: "Review site-wide records, grant or refund credits, update public settings, and check operational activity.", zh: "查询全站用户与业务记录，发放或退回积分，修改公开网站配置，查看相关操作记录。" })}</td><td><code>/admin</code><br /><Link href="/docs#admin">{t({ en: "Configure admin access", zh: "查看管理员配置方法" })} ↗</Link></td></tr>
+            <tr><th scope="row">{t({ en: "Website administrators", zh: "网站管理员" })}</th><td>{t({ en: "Review site-wide records, grant or refund credits, update public settings, and check operational activity.", zh: "查询全站用户与业务记录，发放或退回积分，修改公开网站配置，查看相关操作记录。" })}</td><td><code>/admin</code><br /><Link href="/docs/admin">{t({ en: "Configure admin access", zh: "查看管理员配置方法" })} ↗</Link></td></tr>
           </tbody></table>
         </div>
         <p className={styles.helper}>{t({ en: "Signing up creates a customer account. To operate your own deployment, configure a separate administrator email and password on the backend, then sign in at /admin.", zh: "普通注册只会获得用户账号。部署自己的站点后，在后端环境变量中配置管理员邮箱与密码，再从 /admin 登录后台。" })}</p>
@@ -184,54 +156,16 @@ export default function HomePage() {
         <p className={styles.helper}>{t({ en: "If a service is shown as unavailable, try the enabled features first. A site owner needs to configure payment or email providers to open those flows; the isolated local preview deliberately leaves payments disabled.", zh: "如果页面提示某项服务尚未开放，可以先体验已启用的功能。支付、邮件等流程需站点完成相应服务配置；独立的本地预览模式默认关闭支付。" })}</p>
       </PageSection>
 
-      {demo && (
-        <PageSection id="test-payment" title={t({ en: "Try a purchase in test mode.", zh: "用测试卡，体验购买流程。" })} description={t({ en: "Use this card in Stripe Checkout when it shows test mode. Use test details only; you do not need your own bank card.", zh: "在标有测试模式的 Stripe 收银台中，使用下面的测试卡完成付款。只填写测试信息，不需要使用自己的银行卡。" })}>
-          <div className={styles.paymentGrid}>
-            <div className={styles.testCard}>
-              <div className={styles.cardHeading}><span>STRIPE / TEST</span><span>VISA</span></div>
-              <span className={styles.cardLabel}>{t({ en: "Successful payment", zh: "支付成功测试卡" })}</span>
-              <code className={styles.cardNumber}>{testCard}</code>
-              <div className={styles.cardFields}>
-                <div><span>{t({ en: "EXPIRY", zh: "有效期" })}</span><strong>{t({ en: "Any future date", zh: "任意未来日期" })}</strong></div>
-                <div><span>CVC</span><strong>123</strong></div>
-              </div>
-              <button className="button primary wide" type="button" onClick={() => void copyTestCard()}>{copyState === "copied" ? t({ en: "Copied", zh: "已复制卡号" }) : t({ en: "Copy test card number", zh: "复制测试卡号" })}</button>
-              <p className={styles.copyStatus} role="status">{copyState === "error" ? t({ en: "Could not copy. Select and copy the card number above.", zh: "复制失败，请选中上方卡号手动复制。" }) : copyState === "copied" ? t({ en: "Paste this number into Stripe test Checkout.", zh: "可以粘贴到 Stripe 测试收银台了。" }) : t({ en: "Test card only · no real funds", zh: "仅用于测试 · 不涉及真实资金" })}</p>
-            </div>
-            <div className={styles.paymentGuide}>
-              <h3>{t({ en: "What to enter, and what happens next", zh: "怎么填，付完会发生什么" })}</h3>
-              <DetailRows rows={[
-                { label: t({ en: "Expiry / CVC", zh: "有效期 / 安全码" }), value: t({ en: "Any future month/year and any 3 digits, e.g. 123.", zh: "有效期选未来的月份和年份；安全码填任意 3 位数字，如 123。" }) },
-                { label: t({ en: "Other details", zh: "其他信息" }), value: t({ en: "Use test name and address details if requested.", zh: "若收银台要求姓名、地址等信息，填写符合格式的测试内容即可。" }) },
-                { label: t({ en: "After checkout", zh: "购买完成后" }), value: t({ en: "Return to billing. Allow the payment result to sync, then refresh your subscription and invoices.", zh: "返回订阅管理，等待支付结果同步，再刷新查看套餐和账单。" }) },
-                { label: t({ en: "Try a decline", zh: "测试支付失败" }), value: <><code>4000 0000 0000 0002</code><br />{t({ en: "Simulates a declined card.", zh: "这张测试卡会模拟拒付。" })}</> }
-              ]} />
-              <p className={styles.helper}>{t({ en: "Your plan updates after the payment result arrives. If it has not updated yet, refresh shortly or contact the site owner.", zh: "套餐会在支付结果同步后更新。若暂时没有变化，可以稍后刷新或联系站点负责人。" })}</p>
-              <div className="button-row"><CTAButton href="/billing" primary>{t({ en: "Try a purchase", zh: "去测试购买" })}</CTAButton><a className="text-link" href="https://docs.stripe.com/testing" target="_blank" rel="noreferrer">{t({ en: "Stripe test card guide ↗", zh: "Stripe 官方测试说明 ↗" })}</a></div>
-            </div>
-          </div>
-        </PageSection>
-      )}
-
-      <PageSection id="sharing" title={t({ en: "Test the invitation journey with two accounts.", zh: "用两个账号，走完邀请流程。" })} description={t({ en: "The inviter does not need to purchase first. Use two accounts to follow sharing, sign-up, and activation; opening a link alone does not create a referral.", zh: "邀请人无需先购买。用两个账号，验证从分享链接到注册、激活和奖励的完整流程；仅打开链接不会产生注册记录。" })}>
-        <div className={styles.referralFlow}>
-          <article><span className="panel-kicker">{t({ en: "YOU / ACCOUNT A", zh: "你 / 账号 A" })}</span><h3>{t({ en: "Copy your invite link", zh: "复制你的专属邀请链接" })}</h3><p>{t({ en: "Sign in and open the referral center. Copy your link and share it, or open it yourself in a separate private window.", zh: "登录后进入推荐中心，复制链接。可以分享给其他人，也可以自己在独立的无痕窗口中打开。" })}</p><Link className="text-link" href="/referrals">{t({ en: "Get my invite link ↗", zh: "获取我的邀请链接 ↗" })}</Link></article>
-          <article><span className="panel-kicker">{t({ en: "NEW CUSTOMER / ACCOUNT B", zh: "新用户 / 账号 B" })}</span><h3>{t({ en: "Register through that link", zh: "通过链接注册新账号" })}</h3><p>{demo ? t({ en: "Use a different email or social account that has never registered here. Complete sign-up, then make a subscription purchase using the test card above.", zh: "使用从未在本站注册过的另一邮箱或第三方账号完成注册。随后使用上面的测试卡，体验一次订阅购买。" }) : t({ en: "Use a different email or social account that has never registered here. After sign-up, the new customer can choose a subscription.", zh: "使用从未在本站注册过的另一邮箱或第三方账号完成注册。注册后，新用户可以选择订阅套餐。" })}</p></article>
-          <article><span className="panel-kicker">{t({ en: "BACK TO ACCOUNT A", zh: "回到账号 A" })}</span><h3>{t({ en: "See the relationship and reward", zh: "查看邀请关系与奖励" })}</h3><p>{t({ en: "Reopen or refresh the referral center. Sign-up creates a pending record; the first qualifying subscription or lifetime payment activates it and grants the configured credit reward.", zh: "重新进入或刷新推荐中心。注册后先出现待激活记录；新用户首次符合条件的订阅或终身套餐付款后，邀请状态更新，并按配置发放积分奖励。" })}</p></article>
+      <PageSection id="setup" title={t({ en: "A little guidance for your next step.", zh: "下一步，需要的指南都在这里。" })} description={t({ en: "Find full instructions, configuration examples, and checks in a dedicated guide.", zh: "具体操作、配置示例与检查步骤，都在独立指南里展开。" })}>
+        <div className={guideStyles.cards}>
+          {["domains", "payments", "invitations"].map((slug) => {
+            const guide = documentation.find((item) => item.id === slug)!;
+            return <Link className={guideStyles.card} href={`/docs/${guide.id}`} id={slug === "payments" ? "test-payment" : slug === "invitations" ? "sharing" : undefined} key={guide.id}>
+              <h3>{t(guide.title)}</h3><p>{t(guide.summary)}</p><span className={guideStyles.read}>{t({ en: "Read guide", zh: "阅读指南" })} <span aria-hidden="true">↗</span></span>
+            </Link>;
+          })}
         </div>
-        <p className={styles.helper}>{t({ en: "Free trials earn a reward after the first qualifying payment. Buying a credit package alone does not activate a referral. Rewards are in-product credits. Registering through a link must happen before activation and within the site's invitation rules.", zh: "免费试用需在首次符合条件的付款后才发放奖励；单独购买积分包不触发邀请奖励。奖励是产品内积分。请先通过链接完成新账号注册，再按站点公布的期限与规则完成激活。" })}</p>
-      </PageSection>
-
-      <PageSection id="setup" title={t({ en: "From a free template to your own SaaS.", zh: "从免费模板，到你自己的 SaaS。" })} description={t({ en: "For developers: use the included Next.js frontend and Go backend. Configure your brand, database, authentication, Resend email, Stripe billing, and referrals, then add your core service and deploy.", zh: "给开发者：使用配套的 Next.js 前端和 Go 后端，配置品牌、数据库、登录方式、Resend 邮件、Stripe 支付和邀请规则，接上核心业务后部署上线。" })}>
-        <div className="button-row"><a className="button primary" href="https://github.com/brizenchi/go-modules" target="_blank" rel="noreferrer">{t({ en: "Get the template source", zh: "获取模板源码" })} ↗</a><CTAButton href="/docs">{t({ en: "Read the step-by-step guide", zh: "打开完整使用指南" })}</CTAButton></div>
-        <ol className={styles.launchSteps}>
-          {content.configuration.map((item, index) => (
-            <li key={item.title}><span className={styles.stepNumber} aria-hidden="true">0{index + 1}</span><div><h3>{item.title}</h3><p>{item.description}</p><Link className="text-link" href={item.href}>{item.action} ↗</Link></div></li>
-          ))}
-        </ol>
-        <p className={styles.setupNote}>{t({ en: "The guide explains each setup step. Configure Stripe and Resend in the admin console, then restart the backend. Database and administrator credentials remain in backend environment variables. The frontend demo flag changes copy only; it does not switch payment mode.", zh: "每一步的配置和检查方法都在使用指南中。Stripe 与 Resend 可在后台填写，保存后重启后端；数据库与管理员登录信息保留在后端环境变量中。前端的演示开关只改变提示文案，不会切换支付模式。" })}</p>
-        <p className={styles.setupNote}>{t({ en: "The template is free. Hosting, domains, and email services are billed separately by your chosen providers. If you purchase through a link marked as a referral, the author may earn a commission to support maintenance. You can choose other providers.", zh: "模板免费提供。部署、域名、邮件等第三方服务，由你选择的平台单独计费。如果你通过标注为推荐的链接购买服务，作者可能获得佣金，用于支持模板维护；你也可以选择其他服务商。" })}</p>
-        <div className="cta-strip"><div><span className="panel-kicker">{t({ en: "FREE TEMPLATE. YOUR NEXT SAAS.", zh: "免费模板，开启你的下一个 SaaS。" })}</span><strong>{t({ en: "Spend your next sprint on your core product.", zh: "把下一轮开发，留给你的核心业务。" })}</strong></div><div className="cta-strip-actions"><CTAButton href="/login" primary>{content.start}</CTAButton><CTAButton href="/pricing">{t({ en: "Explore example plans", zh: "查看套餐示例" })}</CTAButton></div></div>
+        <div className="cta-strip"><div><span className="panel-kicker">{t({ en: "FREE TEMPLATE. YOUR NEXT SAAS.", zh: "免费模板，开启你的下一个 SaaS。" })}</span><strong>{t({ en: "Spend your next sprint on your core product.", zh: "把下一轮开发，留给你的核心业务。" })}</strong></div><div className="cta-strip-actions"><CTAButton href="/docs" primary>{t({ en: "Explore all guides", zh: "浏览全部指南" })}</CTAButton><a className="button" href="https://github.com/brizenchi/go-modules">{t({ en: "Get the source ↗", zh: "获取模板源码 ↗" })}</a></div></div>
       </PageSection>
     </SiteShell>
   );

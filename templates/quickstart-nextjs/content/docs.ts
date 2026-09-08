@@ -1,6 +1,15 @@
 import type { ArticleSection, LocalizedText } from "./articles";
+import type { Locale } from "../lib/locale";
+
+export const documentationGroups = [
+  { id: "start", title: { en: "Start here", zh: "开始使用" }, description: { en: "Get to know the template and try the customer journey.", zh: "了解模板能力，先体验一次完整用户流程。" } },
+  { id: "configure", title: { en: "Connect your services", zh: "连接你的服务" }, description: { en: "Bring your own domains, authentication, email, and payments.", zh: "接入域名、登录、邮件和支付，搭建自己的产品。" } },
+  { id: "launch", title: { en: "Make it your product", zh: "准备上线" }, description: { en: "Shape your content and check the journey before launch.", zh: "完善产品内容与用户流程，做好上线准备。" } }
+] as const;
 
 export type DocumentationSection = ArticleSection & {
+  group: typeof documentationGroups[number]["id"];
+  summary: LocalizedText;
   items?: { title: LocalizedText; body: LocalizedText }[];
   ordered?: boolean;
   code?: string;
@@ -10,6 +19,8 @@ export type DocumentationSection = ArticleSection & {
 export const documentation: DocumentationSection[] = [
   {
     id: "overview",
+    group: "start",
+    summary: { en: "Understand the free Next.js and Go starter, what it includes, and what you build yourself.", zh: "了解免费的 Next.js 与 Go 模板包含什么，以及哪些业务需要自己开发。" },
     title: { en: "What you can build with this template", zh: "这个模板能帮你做什么" },
     paragraphs: [
       { en: "This is a free Next.js + Go starter for building your own SaaS: a website where customers register, use your service, and manage a paid subscription. It connects the public website, customer account center, and administrator console so you can focus on the service you want to sell.", zh: "这是一个免费的 Next.js + Go SaaS 启动模板，用来搭建你自己的在线产品：用户注册、使用服务、购买和管理订阅。模板已经连接好公开网站、用户工作台和管理员后台，你可以把开发精力放在真正要出售的服务上。" },
@@ -17,12 +28,14 @@ export const documentation: DocumentationSection[] = [
     ],
     links: [
       { href: "https://github.com/brizenchi/go-modules/tree/main/templates", label: { en: "Get the template source", zh: "获取模板源码" } },
-      { href: "/docs#try-demo", label: { en: "Try the customer journey", zh: "先体验用户流程" } },
-      { href: "/docs#domains", label: { en: "Set up your own project", zh: "开始配置自己的项目" } }
+      { href: "/docs/try-demo", label: { en: "Try the customer journey", zh: "先体验用户流程" } },
+      { href: "/docs/domains", label: { en: "Set up your own project", zh: "开始配置自己的项目" } }
     ]
   },
   {
     id: "features",
+    group: "start",
+    summary: { en: "Explore the public website, customer workspace, admin console, and reusable examples.", zh: "浏览产品官网、用户工作台、管理员后台与可复用的功能示例。" },
     title: { en: "What is included, and where to find it", zh: "已经有什么功能，分别在哪里" },
     paragraphs: [
       { en: "Each part has a different audience. Your customers manage their own accounts; the site owner uses a separate administrator console to run the service.", zh: "不同页面服务不同的人。你的客户在工作台管理自己的账号；网站所有者使用独立的管理员后台运营整个网站。" }
@@ -33,10 +46,12 @@ export const documentation: DocumentationSection[] = [
       { title: { en: "Administrator console", zh: "管理员后台 · 运营整个网站" }, body: { en: "At /admin, authorized administrators can view users, payment records, subscriptions, referrals, credits, and audit logs, edit public site settings, and configure Resend and Stripe at /admin/integrations. Ordinary accounts cannot access it.", zh: "在 /admin 查看全站用户、支付记录、订阅、邀请、积分和操作审计，修改公开网站设置，并在 /admin/integrations 配置 Resend 与 Stripe。需要管理员权限，普通用户无法进入。" } },
       { title: { en: "Examples you can extend", zh: "业务示例 · 改造成你自己的产品" }, body: { en: "Use /notes for free note creation and credit-based exports, /credits for balance and transaction history, and /files for private image uploads when enabled. They demonstrate how to connect a customer action to ownership, billing, and records.", zh: "在 /notes 体验免费创建笔记、用积分导出，在 /credits 查看余额和流水，在启用上传后使用 /files 保存私有图片。这些示例展示如何把用户操作、数据归属和计费记录接起来，你可以据此开发自己的功能。" } }
     ],
-    links: [{ href: "/docs#launch", label: { en: "See what to add before launch", zh: "查看上线前还需要补什么" } }]
+    links: [{ href: "/docs/launch", label: { en: "See what to add before launch", zh: "查看上线前还需要补什么" } }]
   },
   {
     id: "try-demo",
+    group: "start",
+    summary: { en: "Walk through registration, a Stripe test purchase, and an invitation with two accounts.", zh: "完成注册、Stripe 测试购买，并用两个账号体验邀请流程。" },
     title: { en: "Try a complete customer journey", zh: "按这三步，体验完整用户流程" },
     paragraphs: [
       { en: "Registration, account changes, and invitation records use the backend and its database. Payment testing uses Stripe’s test environment when configured. The isolated local preview keeps temporary data and has payments disabled, so a checkout cannot be completed there.", zh: "注册、账户修改和邀请记录会经过后端并写入数据库。支付体验需要接入 Stripe 测试环境。隔离的本地 preview 使用临时数据，支付默认关闭，因此不能在其中完成购买。" }
@@ -49,13 +64,15 @@ export const documentation: DocumentationSection[] = [
     ],
     links: [
       { href: "/account", label: { en: "Start with an account", zh: "从注册账号开始" } },
-      { href: "/docs#invitations", label: { en: "Read the reward conditions", zh: "查看邀请奖励条件" } },
+      { href: "/docs/invitations", label: { en: "Read the reward conditions", zh: "查看邀请奖励条件" } },
       { href: "https://docs.stripe.com/testing", label: { en: "Stripe’s official test cards", zh: "Stripe 官方测试卡说明" } }
     ]
   },
   {
     id: "domains",
-    title: { en: "1. Connect your frontend and backend", zh: "1. 准备项目，连接前后端" },
+    group: "configure",
+    summary: { en: "Connect the frontend and API domains, prepare environment variables, and configure CORS.", zh: "连接前端与 API 域名，准备环境变量并配置跨域访问。" },
+    title: { en: "Connect your frontend and backend", zh: "准备项目，连接前后端" },
     paragraphs: [
       { en: "The source contains two projects: templates/quickstart-nextjs for the Next.js frontend and templates/quickstart for the Go API. Use both for the full SaaS workflow. Follow their READMEs for the matching runtime, dependency, and database setup.", zh: "源码包含两个配套项目：templates/quickstart-nextjs 是 Next.js 前端，templates/quickstart 是 Go API。完整的 SaaS 流程需要两者一起运行。先按各自 README 准备运行环境、依赖和自己的数据库。" },
       { en: "For local development, copy the frontend .env.example to .env.local and the backend .env.example to .env; also copy the backend deploy/config.yaml.example to deploy/config.yaml. Replace example secrets. For deployment, start from the .env.production.example files and configure your own HTTPS domains and database.", zh: "本地开发时，将前端 .env.example 复制为 .env.local，后端 .env.example 复制为 .env，并将后端 deploy/config.yaml.example 复制为 deploy/config.yaml，替换示例密钥。部署时从 .env.production.example 开始，配置自己的 HTTPS 域名和数据库。" },
@@ -69,21 +86,25 @@ export const documentation: DocumentationSection[] = [
   },
   {
     id: "auth-email",
-    title: { en: "2. Enable customer sign-in with Resend", zh: "2. 接入 Resend，配置用户登录" },
+    group: "configure",
+    summary: { en: "Set up Resend email delivery and enable the sign-in methods your product needs.", zh: "配置 Resend 发信，启用产品需要的邮箱或第三方登录方式。" },
+    title: { en: "Enable customer sign-in with Resend", zh: "接入 Resend，配置用户登录" },
     paragraphs: [
       { en: "Resend is integrated for email delivery. After setting up administrator access, open /admin/integrations, enter your API key and verified sender, and enable Resend and email-code sign-in. Save and restart all backend instances, then test delivery. The environment variables below remain an alternative when no Resend settings have been saved in the console.", zh: "模板已集成 Resend。先配置管理员账号，再到 /admin/integrations 填写自己的 API key 和经过验证的发件人，启用 Resend 与邮箱验证码登录。保存并重启所有后端实例，再验收收码。未保存后台 Resend 配置时，也可以使用下面的环境变量。" },
       { en: "Google and GitHub sign-in are optional. Configure their client credentials and callback URLs on the backend when you need them. The frontend shows methods enabled by the API. Verify sign-in, account creation, and sign-out with an email you control before inviting customers.", zh: "Google 和 GitHub 登录按需启用，在后端填写对应应用凭证和回调地址即可。前端会读取 API 提供的登录方式。邀请真实客户之前，先用自己的邮箱验证收码、注册、登录和退出。" }
     ],
     code: "APP_AUTH_EMAIL_ENABLED=true\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_EMAIL_PROVIDER=resend\nAPP_EMAIL_RESEND_API_KEY=<your-resend-api-key>\nAPP_EMAIL_RESEND_SENDER_EMAIL=<your-verified-sender>",
     links: [
-      { href: "/docs#integrations", label: { en: "How service settings take effect", zh: "服务配置如何生效" } },
+      { href: "/docs/integrations", label: { en: "How service settings take effect", zh: "服务配置如何生效" } },
       { href: "https://resend.com/docs/dashboard/api-keys/introduction", label: { en: "Get a Resend API key", zh: "获取 Resend API Key" } },
       { href: "/account", label: { en: "Check customer sign-in", zh: "检查用户登录" } }
     ]
   },
   {
     id: "admin",
-    title: { en: "3. Set your administrator email and password", zh: "3. 设置管理员邮箱和密码" },
+    group: "configure",
+    summary: { en: "Configure administrator credentials and understand which settings belong in the console.", zh: "配置管理员账号，了解后台设置与后端环境变量各自负责的内容。" },
+    title: { en: "Set your administrator email and password", zh: "设置管理员邮箱和密码" },
     paragraphs: [
       { en: "Set both variables below in the backend environment, restart the backend, and open /admin. Sign in with that email and password; you do not need to register the administrator account first. There is no shared default administrator password. Use a generated password of 12–72 bytes; ASCII characters make the byte length easy to check.", zh: "在后端环境变量中同时填写下面两项，重启后端，再打开 /admin，用设置的邮箱和密码登录，无需提前注册管理员账号。模板没有通用的默认管理员密码。密码要求为 12–72 字节，建议使用随机生成的英数符号密码，便于确认长度。" },
       { en: "Use site settings for your public brand, description, support details, and example export cost. Use /admin/integrations for Resend and Stripe. Database connections, JWT, administrator passwords, domains, and OAuth credentials remain in backend environment configuration. Customers manage their own profiles, subscriptions, and invitations in the account center.", zh: "登录后，在网站设置中修改公开品牌、简介、支持渠道和示例导出价格，在 /admin/integrations 配置 Resend 与 Stripe。数据库连接、JWT、管理员密码、域名和 OAuth 凭据仍通过后端环境变量配置。用户工作台供客户管理自己的资料、订阅和邀请。" }
@@ -93,6 +114,8 @@ export const documentation: DocumentationSection[] = [
   },
   {
     id: "integrations",
+    group: "configure",
+    summary: { en: "Understand service credentials, configuration overrides, and when a backend restart is needed.", zh: "了解服务密钥、配置覆盖规则，以及哪些修改需要重启后端。" },
     title: { en: "Save Resend and Stripe settings in the admin console", zh: "在后台保存 Resend 与 Stripe 配置" },
     paragraphs: [
       { en: "For your first deployment, configure the database, JWT, administrator email and password, and frontend/API domains in the backend environment. If email and payments are not ready, use the switches below to start with administrator password access. Then open /admin/integrations to connect the services.", zh: "首次部署，先在后端环境变量配置数据库、JWT、管理员邮箱与密码、前后端域名。尚未接好邮件和支付时，可用下面的开关先启动管理员密码登录，再进入 /admin/integrations 接入服务。" },
@@ -108,11 +131,17 @@ export const documentation: DocumentationSection[] = [
   },
   {
     id: "payments",
-    title: { en: "4. Configure your plans and Stripe", zh: "4. 配置自己的套餐与 Stripe" },
+    group: "configure",
+    summary: { en: "Connect Stripe prices and webhooks, test checkout, and prepare for live payments.", zh: "连接 Stripe 价格与 Webhook，测试结账流程，再准备正式收款。" },
+    title: { en: "Configure your plans and Stripe", zh: "配置自己的套餐与 Stripe" },
     paragraphs: [
       { en: "Create products and prices in Stripe’s test environment. At /admin/integrations, choose test mode and enter the matching secret key, price IDs, and webhook signing secret. Save and restart all backend instances. You can instead use the environment variables below when no Stripe override is saved. Keep plan descriptions aligned with the catalog, set the webhook destination to https://your-api-domain/api/v1/stripe/webhook, and enable Stripe Customer Portal. Payment events must reach the backend to update subscriptions and rewards.", zh: "先在 Stripe 测试环境创建商品与价格，再到 /admin/integrations 选择测试模式，填写同一环境的 secret key、价格 ID 和 webhook 签名密钥，保存并重启所有后端实例。未保存后台 Stripe 配置时，也可使用下方环境变量。让前端套餐文案与商品一致，将 Webhook 设为 https://你的后端域名/api/v1/stripe/webhook，并启用 Stripe Customer Portal。支付事件送达后端后，订阅与奖励才会更新。" },
       { en: "Use Stripe’s official test card only in its test environment: 4242 4242 4242 4242, a future expiry, and any three-digit CVC. When asked for billing details, complete the required test form fields. A test-mode purchase does not charge a real card.", zh: "仅在 Stripe 测试环境使用官方测试卡：4242 4242 4242 4242，填写未来有效期和任意三位 CVC；如果表单要求账单信息，补齐相应测试字段。测试模式的购买不会扣取真实银行卡资金。" },
       { en: "NEXT_PUBLIC_DEMO_MODE controls the on-page demo notice only. The backend Stripe credentials determine whether payments are in test or live mode. Missing payment configuration disables checkout; switching to live credentials can create real charges. Complete the test journey before configuring live products and keys.", zh: "NEXT_PUBLIC_DEMO_MODE 只控制页面的演示提示。支付处于测试还是正式模式，由后端 Stripe 凭证决定；缺少支付配置时无法发起结账，换成正式凭证后可能产生真实扣款。先完成测试流程，再配置正式商品和密钥。" }
+    ],
+    items: [
+      { title: { en: "After checkout", zh: "购买完成后" }, body: { en: "Return to billing and allow the payment result to sync before refreshing your subscription and invoices. If your plan has not updated, refresh shortly or contact the site owner.", zh: "返回订阅管理，等待支付结果同步，再刷新套餐与账单。如果暂时没有更新，可以稍后重试或联系站点负责人。" } },
+      { title: { en: "Test a declined payment", zh: "测试支付失败" }, body: { en: "In Stripe test mode only, use 4000 0000 0000 0002 to simulate a declined card. Check that the failed payment does not grant paid access.", zh: "仅在 Stripe 测试模式使用 4000 0000 0000 0002 模拟银行卡拒付，并检查失败的支付没有开通付费权益。" } }
     ],
     code: "APP_BILLING_ENABLED=true\nAPP_BILLING_STRIPE_SECRET_KEY=sk_test_...\nAPP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...\nAPP_BILLING_STRIPE_PRICES_PRO_MONTHLY=price_...\nAPP_BILLING_STRIPE_PRICES_CREDITS=price_...",
     links: [
@@ -123,7 +152,9 @@ export const documentation: DocumentationSection[] = [
   },
   {
     id: "invitations",
-    title: { en: "5. Set invitation rules and verify rewards", zh: "5. 配置邀请规则，验证奖励到账" },
+    group: "configure",
+    summary: { en: "Configure referral conditions and verify attribution, activation, and credit rewards.", zh: "设置邀请条件，核对注册归因、激活状态与积分奖励。" },
+    title: { en: "Set invitation rules and verify rewards", zh: "配置邀请规则，验证奖励到账" },
     paragraphs: [
       { en: "Enable referrals with APP_REFERRAL_ENABLED, set APP_REFERRAL_BASE_LINK to your frontend /invite?ref= address, and define APP_REFERRAL_ACTIVATION_REWARD and APP_REFERRAL_ACTIVATION_WINDOW_DAYS. These are product credits awarded for a qualifying invitation.", zh: "通过 APP_REFERRAL_ENABLED 开启邀请，将 APP_REFERRAL_BASE_LINK 设为自己前端的 /invite?ref= 地址，再用 APP_REFERRAL_ACTIVATION_REWARD 设置奖励积分、APP_REFERRAL_ACTIVATION_WINDOW_DAYS 设置激活期限。奖励发放的是你产品内的积分。" },
       { en: "A new account created through an invitation starts as pending. Its first qualifying paid subscription or lifetime purchase can activate the invitation. A free trial must convert to a paid subscription; buying a credit pack alone does not qualify. The activation deadline and configured rules also apply.", zh: "新用户通过邀请注册后，关系先记为“待激活”。首次符合条件的订阅付款或终身套餐付款可以激活邀请；免费试用需要转为付费，单独购买积分包不会触发奖励，同时还需满足激活期限和站点配置的规则。" },
@@ -134,7 +165,9 @@ export const documentation: DocumentationSection[] = [
   },
   {
     id: "content",
-    title: { en: "6. Replace the public content", zh: "6. 换成你的产品介绍与支持信息" },
+    group: "launch",
+    summary: { en: "Replace starter branding and publish your own guides, articles, and support content.", zh: "替换模板品牌，发布自己的指南、文章与支持内容。" },
+    title: { en: "Replace the public content", zh: "换成你的产品介绍与支持信息" },
     paragraphs: [
       { en: "Explain the problem your product solves on the overview page and describe exactly what each plan includes. Replace the template’s example business workflow with your own. In the administrator’s site settings, add a support email or HTTPS help page that you maintain.", zh: "在总览页写清楚自己的产品解决什么问题，在套餐页说明每档价格包含什么，并把模板的示例业务替换成自己的功能。在管理员的网站设置中填写有人维护的支持邮箱或 HTTPS 帮助页面。" },
       { en: "Edit content/articles.ts for bilingual blog posts, content/updates.ts for releases, and content/policies.ts for your actual privacy and terms. CONTENT.md covers publishing and metadata. Chinese and English share the same page URL; public pages include sharing metadata and a sitemap, while account and admin routes are excluded.", zh: "在 content/articles.ts 编辑中英文博客，在 content/updates.ts 发布更新，在 content/policies.ts 按实际业务完善隐私与条款。CONTENT.md 说明发布与元信息配置。中英文使用同一页面 URL；公开页面带有分享信息和站点地图，账户及管理路由不会出现在站点地图中。" }
@@ -146,6 +179,8 @@ export const documentation: DocumentationSection[] = [
   },
   {
     id: "launch",
+    group: "launch",
+    summary: { en: "Add your core business feature and review the customer journey before going live.", zh: "接入核心业务功能，并在上线前检查完整用户流程与生产配置。" },
     title: { en: "What remains before your product launches", zh: "上线自己的产品，还需要完成什么" },
     paragraphs: [
       { en: "The template includes basic operational metrics: total users, subscriptions, payments, and invitation records. It does not yet include DAU, retention analysis, or project analytics. Those need your product’s own activity events and project model before they can be measured meaningfully.", zh: "模板已提供基础运营指标，可以查看用户总数、订阅、支付和邀请记录。目前还没有内置 DAU（日活跃用户数）、留存分析或项目数量分析。这些需要先定义你的产品中什么算活跃、什么是项目，再接入对应业务数据。" },
@@ -158,3 +193,21 @@ export const documentation: DocumentationSection[] = [
     ]
   }
 ];
+
+export function findDocumentation(slug: string): DocumentationSection | undefined {
+  return documentation.find((guide) => guide.id === slug);
+}
+
+export function searchDocumentation(query: string, locale: Locale): DocumentationSection[] {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return documentation.filter((guide) => {
+    const text = [
+      guide.title[locale], guide.summary[locale],
+      ...guide.paragraphs.map((paragraph) => paragraph[locale]),
+      ...(guide.items ?? []).flatMap((item) => [item.title[locale], item.body[locale]]),
+      ...(guide.links ?? []).map((link) => link.label[locale]),
+      guide.code ?? ""
+    ].join(" ").toLocaleLowerCase();
+    return terms.every((term) => text.includes(term));
+  });
+}

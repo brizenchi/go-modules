@@ -1,19 +1,20 @@
 # Publishing content
 
-The public website includes `/docs`, `/pricing`, `/blog`, `/blog/[slug]`, `/updates`, `/contact`, `/privacy`, and `/terms`. Content is stored with the source code and published by rebuilding the Next.js application. No separate CMS or search service is required.
+The public website includes `/docs`, `/docs/[slug]`, `/pricing`, `/blog`, `/blog/[slug]`, `/updates`, `/contact`, `/privacy`, and `/terms`. Content is stored with the source code and published by rebuilding the Next.js application. No separate CMS or search service is required.
 
 ## Add or edit an article
 
 1. Edit `content/articles.ts`. Each article needs a unique lowercase `slug`, a real publication date (`YYYY-MM-DD`), a category, title, summary, and sections.
 2. Supply both `en` and `zh` text. Section IDs must be unique within the article; keep published slugs and IDs stable so existing links still work.
 3. The list, full-text search, article routes, metadata, and sitemap use the same article collection. Unknown article slugs return 404. Search is local and matches title, category, summary, and body in the currently selected language.
-4. Run `npm test`, `npm run lint`, and `npm run build` with Node 22 before publishing. Check the changed page in both languages and on a narrow screen.
+4. Run `npm run verify` with Node 22 before publishing. It runs tests, lint, a production build, and checks the generated HTML for headings, anchors, canonical URLs, structured data, directory links, and sitemap coverage. Check the changed page in both languages and on a narrow screen.
 
 The included articles are starter guides, not testimonials or customer case studies. Replace them with useful content for your own product. Keep unpublished drafts outside the exported `articles` collection. The current implementation builds all exported articles, including a future-dated entry, so only add content when ready to publish.
 
 ## Documentation and release notes
 
-- Edit `content/docs.ts` to change the searchable setup documentation.
+- Edit `content/docs.ts` to change the setup guides. Each entry needs a stable lowercase `id` (its URL slug), a `group` from `documentationGroups`, a concise bilingual `summary`, a title, and the full article content. Keep long instructions and configuration examples here, not on the homepage or directory.
+- `/docs` displays grouped summaries and searches the full guide content in the selected language. `/docs/[slug]` renders each full guide with its own canonical, article metadata, table of contents, and previous/next links. Unknown slugs return 404. Keep IDs stable: old `/docs#id` bookmarks still land on the matching directory card, while new links should use `/docs/id`.
 - Edit `content/updates.ts` for release notes. Use real dates and link to shipped pages or published guides. The newest entries should appear first.
 - Edit `components/content/pricing.tsx` for plan copy. The sample prices are unchanged from the original template; keep them aligned with the backend Stripe catalog before launching. The template is free, while these plans demonstrate your product’s commercial offer.
 
@@ -43,7 +44,9 @@ Optional build-time fallback settings are `NEXT_PUBLIC_SUPPORT_EMAIL` and `NEXT_
 
 Set `NEXT_PUBLIC_APP_URL` to the actual public frontend origin before building. `lib/seo.ts` creates absolute canonical URLs and page-specific Open Graph / Twitter metadata. Canonicals omit queries such as invitation and checkout markers. `app/opengraph-image.tsx` generates the default 1200 × 630 PNG sharing card using the configured frontend brand; no remote image service is called.
 
-`/sitemap.xml` includes only real public routes and published article slugs. `/robots.txt` excludes account, billing, dashboard, referral, credits, files, notes, admin, login, invite, OAuth, and API paths, plus sensitive query patterns. Robots exclusions guide crawlers; backend authorization remains necessary for private data.
+`/sitemap.xml` includes only real public routes and published blog and guide slugs. `/robots.txt` excludes account, billing, dashboard, referral, credits, files, notes, admin, login, invite, OAuth, and API paths, plus sensitive query patterns. Robots exclusions guide crawlers; backend authorization remains necessary for private data.
+
+Public pages render semantic breadcrumbs with matching `BreadcrumbList` JSON-LD. Guides and blog articles also render `Article` JSON-LD, a single page title, readable body sections, and contextual links. Structured data is present in the initial HTML and safely escaped. Only existing blog publication dates are emitted; guides do not invent publication dates or author identities. Supply accurate author and image information if you add it to the content model later. These structures help describe content, but do not guarantee rich results or rankings. Validate deployed URLs in Google's Rich Results Test and Search Console.
 
 The existing language switch uses one URL for both languages and persists the preference in the browser. The initial server rendering and metadata are English. This is bilingual UI, **not separate indexed English and Chinese route trees**; the template does not claim `/zh` URLs or emit inaccurate `hreflang` alternatives. Add server-resolved locale routes separately if your product needs independently indexed translated pages.
 

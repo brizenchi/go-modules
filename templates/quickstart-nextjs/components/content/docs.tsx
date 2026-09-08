@@ -3,69 +3,58 @@
 import Link from "next/link";
 import { useState } from "react";
 import { SiteShell } from "@/components/site-shell";
-import { DocArticle } from "@/components/marketing";
-import { documentation } from "@/content/docs";
+import { documentation, documentationGroups, searchDocumentation } from "@/content/docs";
 import { useI18n } from "@/lib/i18n";
 import styles from "./content.module.css";
 import guideStyles from "./docs.module.css";
 
 export function Documentation() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [query, setQuery] = useState("");
-  const needle = query.trim().toLocaleLowerCase();
-  const matches = documentation.filter((section) => [
-    t(section.title),
-    ...section.paragraphs.map((paragraph) => t(paragraph)),
-    ...(section.items ?? []).flatMap((item) => [t(item.title), t(item.body)]),
-    ...(section.links ?? []).map((link) => t(link.label)),
-    section.code ?? ""
-  ].join(" ").toLocaleLowerCase().includes(needle));
+  const matches = searchDocumentation(query, locale);
 
   return (
     <SiteShell
-      eyebrow={t({ en: "Template guide", zh: "模板使用指南" })}
-      title={t({ en: "From trying the template to launching your SaaS.", zh: "从体验模板，到上线自己的 SaaS。" })}
-      description={t({ en: "Understand what is included, try the customer journey, then connect your services and add the feature your customers will pay for.", zh: "先了解模板已经做好的功能，体验一次完整用户流程，再接入自己的服务，加入客户愿意付费的核心业务。" })}
-      sideTitle={t({ en: "Two ways to start", zh: "从这里开始" })}
+      eyebrow={t({ en: "The field guide", zh: "模板使用指南" })}
+      title={t({ en: "Your next step starts here.", zh: "下一步，从这里开始。" })}
+      description={t({ en: "One guide, one task. Explore the template, connect your services, and get your own SaaS ready to launch.", zh: "一篇指南，解决一个问题。从了解模板、连接服务，到上线自己的 SaaS，按需要开始阅读。" })}
+      sideTitle={t({ en: "New to the template?", zh: "第一次使用？" })}
       showEnvironment={false}
       sideBody={<div className={guideStyles.startLinks}>
-        <Link href="/docs#try-demo" onClick={() => setQuery("")}>{t({ en: "I want to try the demo →", zh: "我想先体验演示 →" })}</Link>
-        <Link href="/docs#domains" onClick={() => setQuery("")}>{t({ en: "I want to build my SaaS →", zh: "我想搭建自己的 SaaS →" })}</Link>
-        <p>{t({ en: "The template is free. Add your own business feature and connect your service accounts to make it your product.", zh: "模板免费。加入自己的业务功能，接入自己的服务账号，把它变成你的产品。" })}</p>
+        <Link href="/docs/try-demo">{t({ en: "Try the customer journey →", zh: "先体验完整用户流程 →" })}</Link>
+        <Link href="/docs/domains">{t({ en: "Set up your own project →", zh: "开始配置自己的项目 →" })}</Link>
+        <p>{t({ en: "Free source. Your own services. A foundation for the product you want to build.", zh: "免费源码，接入自己的服务，为你想做的产品打好基础。" })}</p>
       </div>}
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { label: t({ en: "Guide", zh: "使用指南" }) }]}
-      toc={matches.map((section) => ({ id: section.id, label: t(section.title) }))}
     >
       <div className={styles.toolbar}>
         <label className={styles.search}>
-          {t({ en: "Search the guide", zh: "搜索使用指南" })}
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t({ en: "Try test cards, Resend, admin, or invitations…", zh: "搜索测试卡、Resend、管理员或邀请…" })} />
+          {t({ en: "Find your guide", zh: "查找指南" })}
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t({ en: "Search domains, Stripe, email…", zh: "搜索域名、Stripe、邮件…" })} />
         </label>
-        <span className={styles.resultCount} role="status">{t({ en: `${matches.length} sections`, zh: `${matches.length} 个章节` })}</span>
+        <span className={styles.resultCount} role="status">{t({ en: `${matches.length} of ${documentation.length} guides`, zh: `共 ${documentation.length} 篇，找到 ${matches.length} 篇` })}</span>
       </div>
-      <div className={`doc-layout ${guideStyles.layout}`}>
-        {matches.map((section) => {
-          const List = section.ordered ? "ol" : "ul";
-          return <DocArticle key={section.id} id={section.id} title={t(section.title)}>
-            {section.paragraphs.map((paragraph, index) => <p key={index}>{t(paragraph)}</p>)}
-            {section.items ? <List className={`${guideStyles.items}${section.ordered ? ` ${guideStyles.steps}` : ""}`}>
-              {section.items.map((item) => <li key={item.title.en}>
-                <strong>{t(item.title)}</strong>
-                <p>{t(item.body)}</p>
-              </li>)}
-            </List> : null}
-            {section.code ? <pre className={guideStyles.code}><code>{section.code}</code></pre> : null}
-            {section.links ? <div className={guideStyles.sectionLinks}>{section.links.map((link) => <Link href={link.href} key={link.href} onClick={link.href.startsWith("/docs#") ? () => setQuery("") : undefined}>{t(link.label)}<span aria-hidden="true"> ↗</span></Link>)}</div> : null}
-          </DocArticle>;
-        })}
-      </div>
+      <nav className={guideStyles.categories} aria-label={t({ en: "Guide categories", zh: "指南分类" })}>
+        {documentationGroups.filter((group) => matches.some((guide) => guide.group === group.id)).map((group) => <a href={`#group-${group.id}`} key={group.id}>{t(group.title)} <span aria-hidden="true">↓</span></a>)}
+      </nav>
+      {documentationGroups.map((group) => {
+        const guides = matches.filter((guide) => guide.group === group.id);
+        if (guides.length === 0) return null;
+        return <section className={guideStyles.group} id={`group-${group.id}`} aria-labelledby={`heading-${group.id}`} key={group.id}>
+          <div className={guideStyles.groupHeading}><h2 id={`heading-${group.id}`}>{t(group.title)}</h2><p>{t(group.description)}</p></div>
+          <div className={guideStyles.cards}>{guides.map((guide) => <Link className={guideStyles.card} href={`/docs/${guide.id}`} id={guide.id} key={guide.id}>
+            <h3>{t(guide.title)}</h3><p>{t(guide.summary)}</p><span className={guideStyles.read}>{t({ en: "Read guide", zh: "阅读指南" })} <span aria-hidden="true">↗</span></span>
+          </Link>)}</div>
+        </section>;
+      })}
       {matches.length === 0 ? <div className={styles.empty}>
-        <p>{t({ en: "No matching sections. Try another search.", zh: "没有找到相关章节，请尝试其他关键词。" })}</p>
+        <h2>{t({ en: "No matching guides", zh: "没有找到相关指南" })}</h2>
+        <p>{t({ en: "Try another topic or browse all guides.", zh: "换一个关键词，或浏览全部指南。" })}</p>
         <button className="button" type="button" onClick={() => setQuery("")}>{t({ en: "Clear search", zh: "清除搜索" })}</button>
       </div> : null}
       <div className={styles.endLinks}>
-        <Link className="button primary" href="/account">{t({ en: "Try the account center", zh: "体验用户工作台" })}</Link>
-        <Link className="button" href="/contact">{t({ en: "Get help", zh: "获取帮助" })}</Link>
+        <Link className="button" href="/blog">{t({ en: "Explore the product journal", zh: "阅读产品文章" })}</Link>
+        <Link className="button" href="/contact">{t({ en: "Need a hand?", zh: "需要帮助？" })}</Link>
       </div>
     </SiteShell>
   );

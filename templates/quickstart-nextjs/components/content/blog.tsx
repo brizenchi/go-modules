@@ -5,6 +5,10 @@ import { useState } from "react";
 import { SiteShell } from "@/components/site-shell";
 import { articles, formatContentDate, searchArticles, type Article } from "@/content/articles";
 import { useI18n } from "@/lib/i18n";
+import { StructuredData } from "@/components/structured-data";
+import { articleStructuredData } from "@/lib/structured-data";
+import { ReadingLayout } from "./reading-layout";
+import readingStyles from "./reading-layout.module.css";
 import styles from "./content.module.css";
 
 export function BlogIndex() {
@@ -51,16 +55,21 @@ export function BlogArticle({ article }: { article: Article }) {
   const { t, locale } = useI18n();
   return (
     <SiteShell
+      variant="article"
       eyebrow={t(article.category)} title={t(article.title)} description={t(article.summary)}
       sideTitle={t({ en: "Guide details", zh: "指南信息" })} showEnvironment={false}
       sideBody={<div className={styles.meta}><span>{t({ en: "Published", zh: "发布日期" })}</span><time dateTime={article.publishedAt}>{formatContentDate(article.publishedAt, locale)}</time><Link href="/blog">{t({ en: "← All guides", zh: "← 全部指南" })}</Link></div>}
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { href: "/blog", label: t({ en: "Blog", zh: "博客" }) }, { label: t(article.title) }]}
-      toc={article.sections.map((section) => ({ id: section.id, label: t(section.title) }))}
     >
-      <article className={styles.body}>
-        {article.sections.map((section) => <section className={styles.section} id={section.id} key={section.id}><h2>{t(section.title)}</h2>{section.paragraphs.map((paragraph, index) => <p key={index}>{t(paragraph)}</p>)}</section>)}
-        <div className={styles.endLinks}><Link className="button primary" href="/docs">{t({ en: "Open the setup guide", zh: "查看配置文档" })}</Link><Link className="button" href="/contact">{t({ en: "Get help", zh: "获取帮助" })}</Link></div>
-      </article>
+      <StructuredData data={articleStructuredData({ title: t(article.title), description: t(article.summary), path: `/blog/${article.slug}`, publishedAt: article.publishedAt, language: locale === "zh" ? "zh-CN" : "en" })} />
+      <ReadingLayout toc={article.sections.map((section) => ({ id: section.id, label: t(section.title) }))} title={t({ en: "On this page", zh: "本页目录" })} supportLabel={t({ en: "Have a question?", zh: "有疑问？" })}>
+        {article.sections.map((section) => <section id={section.id} key={section.id}><h2>{t(section.title)}</h2>{section.paragraphs.map((paragraph, index) => <p key={index}>{t(paragraph)}</p>)}</section>)}
+        <section className={readingStyles.related}>
+          <h2>{t({ en: "Keep reading", zh: "继续阅读" })}</h2>
+          <ul>{articles.filter((item) => item.slug !== article.slug).slice(0, 2).map((item) => <li key={item.slug}><Link href={`/blog/${item.slug}`}>{t(item.title)} <span aria-hidden="true">↗</span></Link></li>)}</ul>
+          <Link href="/docs">{t({ en: "Browse all setup guides →", zh: "浏览全部配置指南 →" })}</Link>
+        </section>
+      </ReadingLayout>
     </SiteShell>
   );
 }
