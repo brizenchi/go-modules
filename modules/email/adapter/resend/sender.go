@@ -21,7 +21,7 @@ func New(cfg Config) (*Sender, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	client := resendSDK.NewClient(cfg.APIKey)
+	client := resendSDK.NewCustomClient(cfg.HTTPClient, cfg.APIKey)
 	if cfg.BaseURL != "" {
 		u, err := url.Parse(cfg.BaseURL)
 		if err != nil {

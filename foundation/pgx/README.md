@@ -66,6 +66,9 @@ pgx.Config{
 | `LogLevel`            | `warn`  | `silent` / `error` / `warn` / `info` |
 | `Project`             | `""`    | Optional project field added to DB logs |
 | `Environment`         | `""`    | Optional env field added to DB logs |
+| `Tracing`             | `false` | `otelsql` span per statement + pool metrics; bind values never recorded |
+| `LogSQLParams`        | `false` | Print bind values in SQL logs; local debugging only |
+| `LogRecordNotFound`   | `false` | Log `gorm.ErrRecordNotFound` at ERROR |
 
 ## Slow query logging
 

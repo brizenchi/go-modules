@@ -41,6 +41,11 @@ type Config struct {
 	StateSecret string
 	StateTTL    time.Duration
 	HTTPTimeout time.Duration
+
+	// HTTPClient is used for token, user and email calls when set, e.g. a
+	// foundation/httpx client with tracing and logging. Its Transport is
+	// reused; the timeout is always HTTPTimeout.
+	HTTPClient *http.Client
 }
 
 func (c Config) withDefaults() Config {
@@ -84,7 +89,16 @@ func New(cfg Config) (*Provider, error) {
 	if strings.TrimSpace(cfg.StateSecret) == "" {
 		return nil, fmt.Errorf("github: state_secret required")
 	}
-	return &Provider{cfg: cfg, client: &http.Client{Timeout: cfg.HTTPTimeout}}, nil
+	return &Provider{cfg: cfg, client: newHTTPClient(cfg.HTTPClient, cfg.HTTPTimeout)}, nil
+}
+
+func newHTTPClient(base *http.Client, timeout time.Duration) *http.Client {
+	if base == nil {
+		return &http.Client{Timeout: timeout}
+	}
+	client := *base
+	client.Timeout = timeout
+	return &client
 }
 
 func (p *Provider) Name() domain.Provider { return domain.ProviderGitHub }

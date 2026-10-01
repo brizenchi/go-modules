@@ -3,9 +3,12 @@
 package platform
 
 import (
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/brizenchi/go-modules/foundation/httpx"
 )
 
 type Config struct {
@@ -14,6 +17,22 @@ type Config struct {
 	Email       EmailConfig
 	Billing     BillingConfig
 	Referral    ReferralConfig
+
+	// HTTPClient is shared by every third-party adapter (OAuth, email,
+	// payment). Defaults to NewOutboundHTTPClient so each outbound call
+	// gets a client span, metrics and a log record.
+	HTTPClient *http.Client `mapstructure:"-"`
+}
+
+// NewOutboundHTTPClient builds the instrumented client used for calls to
+// third-party APIs. Retries stay off: payment and email requests are not
+// idempotent, and stripe-go retries on its own.
+func NewOutboundHTTPClient() *http.Client {
+	return httpx.NewClient(httpx.Config{
+		Timeout: 30 * time.Second,
+		Tracing: true,
+		Logging: true,
+	})
 }
 
 type AuthConfig struct {
@@ -126,6 +145,9 @@ type ReferralConfig struct {
 func (c Config) withDefaults() Config {
 	if c.ServiceName == "" {
 		c.ServiceName = "quickstart"
+	}
+	if c.HTTPClient == nil {
+		c.HTTPClient = NewOutboundHTTPClient()
 	}
 	if c.Auth.UserJWTExpireHours <= 0 {
 		c.Auth.UserJWTExpireHours = 168

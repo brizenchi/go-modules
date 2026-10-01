@@ -1,81 +1,91 @@
 package tracing
 
 import (
+	"context"
 	"net/http"
 
+	flog "github.com/brizenchi/go-modules/foundation/slog"
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
 	// TraceIDKey is the gin-context key for the active trace ID.
+	//
+	// Deprecated: the middleware no longer copies ids into the gin
+	// context. Use TraceID(c.Request.Context()).
 	TraceIDKey = "trace_id"
 	// SpanIDKey is the gin-context key for the active span ID.
+	//
+	// Deprecated: use SpanID(c.Request.Context()).
 	SpanIDKey = "span_id"
+
+	// RequestIDAttribute is the span attribute that carries the
+	// X-Request-ID assigned by foundation/ginx.RequestID.
+	RequestIDAttribute = attribute.Key("http.request_id")
 )
 
-// Trace returns a Gin middleware that:
-//
-//  1. Extracts W3C Trace Context (traceparent) from the inbound request.
-//  2. Starts a server span using the global tracer provider.
-//  3. Stores trace_id / span_id in the gin context so downstream
-//     middleware and handlers can attach them to logs and responses.
-//  4. Tags the span with the X-Request-ID when available.
-//
-// Place it AFTER ginx.RequestID() so the request ID is available as a
-// span attribute.
+// MiddlewareConfig configures Middleware.
+type MiddlewareConfig struct {
+	// ServiceName is the logical server name recorded on spans and metrics.
+	ServiceName string
+	// SkipPaths are exact-match paths that are neither traced nor
+	// measured (e.g. "/health").
+	SkipPaths []string
+}
+
+// Trace returns Middleware with only the service name set.
 func Trace(serviceName string) gin.HandlerFunc {
-	tracer := otel.Tracer(serviceName)
+	return Middleware(MiddlewareConfig{ServiceName: serviceName})
+}
 
-	return func(c *gin.Context) {
-		ctx := otel.GetTextMapPropagator().Extract(c.Request.Context(), propagation.HeaderCarrier(c.Request.Header))
-		spanName := c.Request.Method + " " + c.Request.URL.Path
-		if route := c.FullPath(); route != "" {
-			spanName = c.Request.Method + " " + route
+// Middleware returns a Gin middleware built on the official otelgin
+// instrumentation. For every request it:
+//
+//  1. Extracts W3C Trace Context and Baggage from the inbound headers.
+//  2. Starts a server span named "METHOD /route/:template" with
+//     semantic-convention attributes (http.request.method, url.path,
+//     http.route, http.response.status_code, client.address, ...).
+//  3. Marks 5xx and gin errors (c.Error) as span errors.
+//  4. Records http.server.request.duration and request/response body
+//     size metrics through the global MeterProvider.
+//
+// The request id from foundation/ginx.RequestID is copied onto the
+// server span as http.request_id by the span processor installed in
+// Setup. Place it after ginx.RequestID and before ginx.AccessLog and
+// ginx.Recover.
+func Middleware(cfg MiddlewareConfig) gin.HandlerFunc {
+	var opts []otelgin.Option
+	if len(cfg.SkipPaths) > 0 {
+		skip := make(map[string]struct{}, len(cfg.SkipPaths))
+		for _, p := range cfg.SkipPaths {
+			skip[p] = struct{}{}
 		}
+		opts = append(opts, otelgin.WithFilter(func(r *http.Request) bool {
+			_, skipped := skip[r.URL.Path]
+			return !skipped
+		}))
+	}
+	return otelgin.Middleware(cfg.ServiceName, opts...)
+}
 
-		ctx, span := tracer.Start(ctx, spanName, oteltrace.WithSpanKind(oteltrace.SpanKindServer))
-		defer span.End()
+// requestIDProcessor copies the request id stored by ginx.RequestID onto
+// server spans, so a request id reported by a user leads straight to its
+// trace.
+type requestIDProcessor struct{}
 
-		c.Request = c.Request.WithContext(ctx)
-		sc := span.SpanContext()
-		if sc.HasTraceID() {
-			traceID := sc.TraceID().String()
-			c.Set(TraceIDKey, traceID)
-			c.Set("trace_id", traceID)
-		}
-		if sc.HasSpanID() {
-			spanID := sc.SpanID().String()
-			c.Set(SpanIDKey, spanID)
-			c.Set("span_id", spanID)
-		}
-		if rid := c.GetString("request_id"); rid != "" {
-			span.SetAttributes(attribute.String("http.request_id", rid))
-		}
-
-		c.Next()
-
-		status := c.Writer.Status()
-		span.SetAttributes(
-			attribute.String("http.method", c.Request.Method),
-			attribute.String("url.path", c.Request.URL.Path),
-			attribute.Int("http.status_code", status),
-		)
-		if route := c.FullPath(); route != "" {
-			span.SetAttributes(attribute.String("http.route", route))
-		}
-		if status >= http.StatusInternalServerError {
-			span.SetStatus(codes.Error, http.StatusText(status))
-		}
-		if len(c.Errors) > 0 {
-			span.SetStatus(codes.Error, c.Errors.String())
-			for _, err := range c.Errors {
-				span.RecordError(err.Err)
-			}
-		}
+func (requestIDProcessor) OnStart(parent context.Context, s tracesdk.ReadWriteSpan) {
+	if s.SpanKind() != oteltrace.SpanKindServer {
+		return
+	}
+	if rid := flog.RequestIDFromContext(parent); rid != "" {
+		s.SetAttributes(RequestIDAttribute.String(rid))
 	}
 }
+
+func (requestIDProcessor) OnEnd(tracesdk.ReadOnlySpan)      {}
+func (requestIDProcessor) Shutdown(context.Context) error   { return nil }
+func (requestIDProcessor) ForceFlush(context.Context) error { return nil }

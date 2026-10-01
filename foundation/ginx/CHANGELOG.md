@@ -9,6 +9,25 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Added
 
+- `AccessLog` records `user_agent`, `request_size`, `response_size` and
+  gin errors; panics that reach it are logged as 500 and re-raised.
+- `Recover` records the panic on the active span (exception event + error
+  status), logs the full stack, re-raises `http.ErrAbortHandler`, and logs
+  client disconnects at WARN.
+- `MaxRequestIDLength`.
+
+### Changed
+
+- `RequestID` replaces inbound ids that are longer than 128 characters or
+  contain characters outside `[A-Za-z0-9._:-]` (log-injection guard), and
+  also stores the id under `foundation/slog.RequestIDKey`, so every
+  `slog.*Context` record carries `request_id`.
+- `AccessLog` reads `trace_id` / `span_id` from the request context instead
+  of gin keys. Recommended order is now
+  `RequestID → tracing → AccessLog → Recover`.
+
+### Added
+
 - `RequestIDFromContext(*gin.Context)` helper for retrieving the
   propagated request id from handlers and middleware.
 

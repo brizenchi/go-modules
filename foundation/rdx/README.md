@@ -56,6 +56,8 @@ defer lock.Unlock(ctx)
 | `ReadTimeout`   | 3s      |  |
 | `WriteTimeout`  | 3s      |  |
 | `KeyPrefix`     | —       | Useful when one Redis serves many envs |
+| `Tracing`       | `false` | `redisotel` span per command; arguments not recorded |
+| `Metrics`       | `false` | `redisotel` pool and latency metrics |
 
 ## Lock semantics
 

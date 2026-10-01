@@ -41,6 +41,11 @@ type Config struct {
 	StateSecret string        // HS256 secret for state JWT
 	StateTTL    time.Duration // default 20m
 	HTTPTimeout time.Duration // default 15s
+
+	// HTTPClient is used for token and userinfo calls when set, e.g. a
+	// foundation/httpx client with tracing and logging. Its Transport is
+	// reused; the timeout is always HTTPTimeout.
+	HTTPClient *http.Client
 }
 
 const (
@@ -92,7 +97,16 @@ func New(cfg Config) (*Provider, error) {
 	if cfg.StateSecret == "" {
 		return nil, fmt.Errorf("google: state_secret required")
 	}
-	return &Provider{cfg: cfg, client: &http.Client{Timeout: cfg.HTTPTimeout}}, nil
+	return &Provider{cfg: cfg, client: newHTTPClient(cfg.HTTPClient, cfg.HTTPTimeout)}, nil
+}
+
+func newHTTPClient(base *http.Client, timeout time.Duration) *http.Client {
+	if base == nil {
+		return &http.Client{Timeout: timeout}
+	}
+	client := *base
+	client.Timeout = timeout
+	return &client
 }
 
 func (p *Provider) Name() domain.Provider { return p.cfg.ProviderName }

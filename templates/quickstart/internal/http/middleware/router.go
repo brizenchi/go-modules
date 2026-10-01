@@ -17,22 +17,32 @@ type RouterConfig struct {
 func BuildRouter(cfg RouterConfig, router *apphttp.Router) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(
-		ginx.Recover(),
-		ginx.RequestID(),
-		tracing.Trace(cfg.ServiceName),
-		ginx.AccessLog(ginx.AccessLogConfig{SkipPaths: []string{"/health"}}),
-	)
 	origins := cfg.AllowedOrigins
 	if len(origins) == 0 {
 		origins = []string{"http://localhost:3000"}
 	}
-	r.Use(ginx.CORS(ginx.CORSConfig{
-		AllowedOrigins:   origins,
-		AllowCredentials: true,
-		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept", "Authorization", "Idempotency-Key", "X-Request-ID", "traceparent", "tracestate", "baggage"},
-	}))
-	r.Use(ginx.NoCache(), ginx.Secure(ginx.SecureConfig{}))
+	skip := []string{"/health"}
+	// Order matters:
+	//   CORS       answers preflights before they become spans and logs.
+	//   RequestID  must precede tracing so the id lands on the server span.
+	//   Middleware opens the server span; everything below runs inside it.
+	//   AccessLog  logs after the handler with request_id/trace_id/span_id.
+	//   Recover    is innermost so a panic still ends as a 500 span, a 500
+	//              access-log record and a stack trace linked to the trace.
+	r.Use(
+		ginx.CORS(ginx.CORSConfig{
+			AllowedOrigins:   origins,
+			AllowCredentials: true,
+			AllowedHeaders:   []string{"Origin", "Content-Type", "Accept", "Authorization", "Idempotency-Key", "X-Request-ID", "traceparent", "tracestate", "baggage"},
+			ExposedHeaders:   []string{"X-Request-ID"},
+		}),
+		ginx.RequestID(),
+		tracing.Middleware(tracing.MiddlewareConfig{ServiceName: cfg.ServiceName, SkipPaths: skip}),
+		ginx.AccessLog(ginx.AccessLogConfig{SkipPaths: skip}),
+		ginx.Recover(),
+		ginx.NoCache(),
+		ginx.Secure(ginx.SecureConfig{}),
+	)
 	r.GET("/health", apphttp.HealthHandler)
 
 	if router != nil {

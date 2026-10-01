@@ -51,6 +51,7 @@ func buildBilling(db *gorm.DB, cfg Config, users *user.Repository) (*billing.Mod
 			CreditsPriceIDs: stripeCfg.Prices.Credits,
 			CreditsPerUnit:  stripeCfg.Credits.PerPackage,
 			TrialDays:       stripeCfg.TrialDays,
+			HTTPClient:      cfg.HTTPClient,
 		}),
 		Bus:                billingeventbus.NewInProc(),
 		Customers:          billingrepo.NewCustomerStore(db, lookup),

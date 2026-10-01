@@ -39,7 +39,7 @@ func New(db *gorm.DB, cfg Config) (*Modules, error) {
 		return nil, err
 	}
 	users := user.NewRepository(db)
-	emailModule, err := buildEmail(cfg.Email)
+	emailModule, err := buildEmail(cfg.Email, cfg.HTTPClient)
 	if err != nil {
 		return nil, err
 	}

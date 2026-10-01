@@ -42,9 +42,11 @@ func New() (app *App, err error) {
 	}
 
 	fslog.Setup(fslog.Config{
-		Level:    cfg.Log.Level,
-		Format:   fslog.Format(cfg.Log.Format),
-		Defaults: logDefaults(cfg),
+		Level:      cfg.Log.Level,
+		Format:     fslog.Format(cfg.Log.Format),
+		AddSource:  cfg.Log.AddSource,
+		Defaults:   logDefaults(cfg),
+		RedactKeys: cfg.Log.RedactKeys,
 	})
 
 	traceShutdown, err := tracing.Setup(tracing.Config{
@@ -57,6 +59,11 @@ func New() (app *App, err error) {
 		SampleRate:  cfg.Tracing.SampleRate,
 		Headers:     cfg.Tracing.ExporterHeaders(),
 		URLPath:     cfg.Tracing.URLPath,
+
+		ServiceVersion:  cfg.Server.Version,
+		Metrics:         cfg.Tracing.Metrics.Enabled,
+		MetricsURLPath:  cfg.Tracing.Metrics.URLPath,
+		MetricsInterval: time.Duration(cfg.Tracing.Metrics.IntervalSeconds) * time.Second,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tracing.Setup: %w", err)

@@ -31,6 +31,9 @@ func New(cfg Config) (*Sender, error) {
 	} else {
 		apiCfg.BasePath = DefaultBaseURL
 	}
+	if cfg.HTTPClient != nil {
+		apiCfg.HTTPClient = cfg.HTTPClient
+	}
 	return &Sender{cfg: cfg, client: brevoSDK.NewAPIClient(apiCfg)}, nil
 }
 

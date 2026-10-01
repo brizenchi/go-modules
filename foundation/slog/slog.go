@@ -17,6 +17,15 @@
 // All other code (including business modules) should keep calling
 // log/slog directly — never import this package's helpers in library
 // code, only at app boot.
+//
+// Records written through the *Context methods (slog.InfoContext etc.)
+// automatically carry the request-scoped correlation fields stored in
+// ctx: request_id, project, env, tenant_id, user_id, plus trace_id,
+// span_id and trace_flags from the active OpenTelemetry span. A field the
+// caller already supplied is never written twice.
+//
+// Values of well-known secret keys (password, token, authorization, ...)
+// are replaced with "[REDACTED]" before they reach the output.
 package slog
 
 import (
@@ -38,6 +47,20 @@ const (
 	FormatJSON Format = "json" // structured for log shippers
 )
 
+// Redacted replaces the value of every attribute whose key is treated
+// as secret.
+const Redacted = "[REDACTED]"
+
+// DefaultRedactKeys are the attribute keys whose values are always
+// replaced with Redacted. Matching is case-insensitive and treats "-"
+// and "_" as equal, so "X-Api-Key" matches "x_api_key".
+var DefaultRedactKeys = []string{
+	"password", "passwd", "secret", "client_secret", "token",
+	"access_token", "refresh_token", "id_token", "api_key", "apikey",
+	"x_api_key", "authorization", "proxy_authorization", "cookie",
+	"set_cookie", "private_key", "webhook_secret", "jwt_secret",
+}
+
 // Config drives Setup.
 type Config struct {
 	// Level: "debug" | "info" | "warn" | "error". Default "info".
@@ -50,6 +73,9 @@ type Config struct {
 	Output io.Writer
 	// Default attributes attached to every record (e.g. service name, env).
 	Defaults map[string]any
+	// RedactKeys extends DefaultRedactKeys with project-specific secret
+	// attribute keys.
+	RedactKeys []string
 }
 
 // Setup builds an slog.Logger from cfg, attaches default attributes,
@@ -64,8 +90,9 @@ func Setup(cfg Config) *slog.Logger {
 	}
 	level := parseLevel(cfg.Level)
 	opts := &slog.HandlerOptions{
-		Level:     level,
-		AddSource: cfg.AddSource,
+		Level:       level,
+		AddSource:   cfg.AddSource,
+		ReplaceAttr: redactor(cfg.RedactKeys),
 	}
 	var handler slog.Handler
 	switch normalizeFormat(cfg.Format) {
@@ -90,7 +117,7 @@ func Setup(cfg Config) *slog.Logger {
 }
 
 // RequestIDKey is the context key under which a request id is stored
-// (and pulled back out by With). Compatible with foundation/ginx.
+// (and pulled back out by With). foundation/ginx.RequestID writes it.
 const RequestIDKey ctxKey = "request_id"
 
 // ProjectKey is the context key under which a project id/name may be stored.
@@ -107,8 +134,29 @@ const UserIDKey ctxKey = "user_id"
 
 type ctxKey string
 
+// ContextWithRequestID returns a copy of ctx carrying id under RequestIDKey.
+func ContextWithRequestID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, RequestIDKey, id)
+}
+
+// RequestIDFromContext returns the request id stored under RequestIDKey, or "".
+func RequestIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	id, _ := ctx.Value(RequestIDKey).(string)
+	return id
+}
+
+// contextHandler appends request-scoped attributes from ctx. bound holds
+// the top-level keys already attached through WithAttrs so they are not
+// emitted twice. Once a group is open the correlation fields land inside
+// that group, so only keys bound in the same group would collide; bound
+// is frozen at that point.
 type contextHandler struct {
-	next slog.Handler
+	next    slog.Handler
+	bound   map[string]struct{}
+	grouped bool
 }
 
 func (h contextHandler) Enabled(ctx context.Context, level slog.Level) bool {
@@ -116,18 +164,47 @@ func (h contextHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h contextHandler) Handle(ctx context.Context, r slog.Record) error {
-	for _, attr := range attrsFromContext(ctx) {
+	attrs := attrsFromContext(ctx)
+	if len(attrs) == 0 {
+		return h.next.Handle(ctx, r)
+	}
+	present := make(map[string]struct{}, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		present[a.Key] = struct{}{}
+		return true
+	})
+	for _, attr := range attrs {
+		if _, ok := present[attr.Key]; ok {
+			continue
+		}
+		if _, ok := h.bound[attr.Key]; ok {
+			continue
+		}
 		r.AddAttrs(attr)
 	}
 	return h.next.Handle(ctx, r)
 }
 
 func (h contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return contextHandler{next: h.next.WithAttrs(attrs)}
+	next := contextHandler{next: h.next.WithAttrs(attrs), bound: h.bound, grouped: h.grouped}
+	if h.grouped {
+		return next
+	}
+	next.bound = make(map[string]struct{}, len(h.bound)+len(attrs))
+	for k := range h.bound {
+		next.bound[k] = struct{}{}
+	}
+	for _, a := range attrs {
+		next.bound[a.Key] = struct{}{}
+	}
+	return next
 }
 
 func (h contextHandler) WithGroup(name string) slog.Handler {
-	return contextHandler{next: h.next.WithGroup(name)}
+	if name == "" {
+		return h
+	}
+	return contextHandler{next: h.next.WithGroup(name), bound: h.bound, grouped: true}
 }
 
 // With returns a logger with request-scoped attributes (request_id,
@@ -138,7 +215,7 @@ func (h contextHandler) WithGroup(name string) slog.Handler {
 // Returns slog.Default() when no fields are present, so it's always
 // safe to call.
 func With(c *gin.Context) *slog.Logger {
-	if c == nil {
+	if c == nil || c.Request == nil {
 		return slog.Default()
 	}
 	attrs := attrsFromContext(c.Request.Context())
@@ -151,16 +228,6 @@ func With(c *gin.Context) *slog.Logger {
 			attrs = append(attrs, slog.String("request_id", rid))
 		}
 	}
-	if tid := traceID(c); tid != "" {
-		if _, ok := seen["trace_id"]; !ok {
-			attrs = append(attrs, slog.String("trace_id", tid))
-		}
-		if sid := spanID(c); sid != "" {
-			if _, ok := seen["span_id"]; !ok {
-				attrs = append(attrs, slog.String("span_id", sid))
-			}
-		}
-	}
 	if len(attrs) == 0 {
 		return slog.Default()
 	}
@@ -171,40 +238,21 @@ func With(c *gin.Context) *slog.Logger {
 	return slog.Default().With(args...)
 }
 
-func traceID(c *gin.Context) string {
-	sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
-	if sc.HasTraceID() {
-		return sc.TraceID().String()
-	}
-	return ""
-}
-
-func spanID(c *gin.Context) string {
-	sc := trace.SpanFromContext(c.Request.Context()).SpanContext()
-	if sc.HasSpanID() {
-		return sc.SpanID().String()
-	}
-	return ""
-}
-
 func requestID(c *gin.Context) string {
 	if v := c.GetString("request_id"); v != "" {
 		return v
 	}
-	if v := c.GetHeader("X-Request-ID"); v != "" {
+	if v := RequestIDFromContext(c.Request.Context()); v != "" {
 		return v
 	}
-	if v, ok := c.Request.Context().Value(RequestIDKey).(string); ok {
-		return v
-	}
-	return ""
+	return c.GetHeader("X-Request-ID")
 }
 
 func attrsFromContext(ctx context.Context) []slog.Attr {
 	if ctx == nil {
 		return nil
 	}
-	attrs := make([]slog.Attr, 0, 6)
+	attrs := make([]slog.Attr, 0, 8)
 	if rid, ok := ctx.Value(RequestIDKey).(string); ok && rid != "" {
 		attrs = append(attrs, slog.String("request_id", rid))
 	}
@@ -220,14 +268,39 @@ func attrsFromContext(ctx context.Context) []slog.Attr {
 	if userID, ok := ctx.Value(UserIDKey).(string); ok && userID != "" {
 		attrs = append(attrs, slog.String("user_id", userID))
 	}
-	sc := trace.SpanFromContext(ctx).SpanContext()
+	sc := trace.SpanContextFromContext(ctx)
 	if sc.HasTraceID() {
 		attrs = append(attrs, slog.String("trace_id", sc.TraceID().String()))
 	}
 	if sc.HasSpanID() {
-		attrs = append(attrs, slog.String("span_id", sc.SpanID().String()))
+		attrs = append(attrs,
+			slog.String("span_id", sc.SpanID().String()),
+			slog.String("trace_flags", sc.TraceFlags().String()),
+		)
 	}
 	return attrs
+}
+
+func redactor(extra []string) func([]string, slog.Attr) slog.Attr {
+	keys := make(map[string]struct{}, len(DefaultRedactKeys)+len(extra))
+	for _, k := range DefaultRedactKeys {
+		keys[normalizeKey(k)] = struct{}{}
+	}
+	for _, k := range extra {
+		if k = normalizeKey(k); k != "" {
+			keys[k] = struct{}{}
+		}
+	}
+	return func(_ []string, a slog.Attr) slog.Attr {
+		if _, ok := keys[normalizeKey(a.Key)]; ok && a.Value.Kind() != slog.KindGroup {
+			return slog.String(a.Key, Redacted)
+		}
+		return a
+	}
+}
+
+func normalizeKey(k string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(k)), "-", "_")
 }
 
 func parseLevel(s string) slog.Level {
@@ -251,6 +324,3 @@ func normalizeFormat(f Format) Format {
 		return FormatJSON
 	}
 }
-
-// avoid unused imports if the gin helpers are stripped.
-var _ context.Context

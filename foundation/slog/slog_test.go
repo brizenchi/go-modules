@@ -8,9 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	tracingpkg "github.com/brizenchi/go-modules/foundation/tracing"
 	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -131,13 +130,7 @@ func TestSetup_ContextAttrsIncludeTraceAndSpan(t *testing.T) {
 	var buf bytes.Buffer
 	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf})
 
-	shutdown, err := tracingpkg.Setup(tracingpkg.Config{ServiceName: "svc", SampleRate: 1})
-	if err != nil {
-		t.Fatalf("tracing.Setup: %v", err)
-	}
-	defer tracingpkg.Shutdown(context.Background(), shutdown)
-
-	ctx, span := otel.GetTracerProvider().Tracer("svc").Start(context.Background(), "test", oteltrace.WithSpanKind(oteltrace.SpanKindInternal))
+	ctx, span := startSpan(t)
 	defer span.End()
 
 	slog.InfoContext(ctx, "hello")
@@ -147,5 +140,87 @@ func TestSetup_ContextAttrsIncludeTraceAndSpan(t *testing.T) {
 	}
 	if !strings.Contains(out, `"span_id":"`) {
 		t.Fatalf("missing span_id in %q", out)
+	}
+	if !strings.Contains(out, `"trace_flags":"01"`) {
+		t.Fatalf("missing trace_flags in %q", out)
+	}
+}
+
+func startSpan(t *testing.T) (context.Context, oteltrace.Span) {
+	t.Helper()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample()))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+	return tp.Tracer("svc").Start(context.Background(), "test")
+}
+
+func TestSetup_CallerAttrsAreNotDuplicated(t *testing.T) {
+	var buf bytes.Buffer
+	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf})
+
+	ctx, span := startSpan(t)
+	defer span.End()
+	ctx = ContextWithRequestID(ctx, "rid-ctx")
+	traceID := span.SpanContext().TraceID().String()
+
+	slog.InfoContext(ctx, "explicit", "request_id", "rid-ctx", "trace_id", traceID)
+	slog.Default().With("request_id", "rid-ctx").InfoContext(ctx, "bound")
+
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if n := strings.Count(line, `"request_id"`); n != 1 {
+			t.Fatalf("request_id appears %d times in %q", n, line)
+		}
+		if n := strings.Count(line, `"trace_id"`); n != 1 {
+			t.Fatalf("trace_id appears %d times in %q", n, line)
+		}
+	}
+}
+
+func TestWith_DoesNotDuplicateWhenLoggingWithContext(t *testing.T) {
+	var buf bytes.Buffer
+	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf})
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx, span := startSpan(t)
+	defer span.End()
+	c.Request = httptest.NewRequest("GET", "/", nil).WithContext(ContextWithRequestID(ctx, "rid-1"))
+
+	With(c).InfoContext(c.Request.Context(), "hi")
+	out := buf.String()
+	if strings.Count(out, `"request_id"`) != 1 || strings.Count(out, `"span_id"`) != 1 {
+		t.Fatalf("duplicate correlation fields: %q", out)
+	}
+}
+
+func TestRequestIDContextRoundTrip(t *testing.T) {
+	ctx := ContextWithRequestID(context.Background(), "rid-9")
+	if got := RequestIDFromContext(ctx); got != "rid-9" {
+		t.Fatalf("RequestIDFromContext() = %q", got)
+	}
+	if got := RequestIDFromContext(nil); got != "" { //nolint:staticcheck // nil ctx must be safe
+		t.Fatalf("RequestIDFromContext(nil) = %q", got)
+	}
+}
+
+func TestSetup_RedactsSecretKeys(t *testing.T) {
+	var buf bytes.Buffer
+	Setup(Config{Level: "info", Format: FormatJSON, Output: &buf, RedactKeys: []string{"stripe_key"}})
+
+	slog.Info("login",
+		"password", "hunter2",
+		"Authorization", "Bearer abc",
+		"X-Api-Key", "k",
+		"stripe_key", "sk_live",
+		slog.Group("req", "cookie", "sid=1"),
+		"email", "a@example.com",
+	)
+	out := buf.String()
+	for _, leaked := range []string{"hunter2", "Bearer abc", `"k"`, "sk_live", "sid=1"} {
+		if strings.Contains(out, leaked) {
+			t.Fatalf("secret %s leaked: %q", leaked, out)
+		}
+	}
+	if !strings.Contains(out, `"email":"a@example.com"`) {
+		t.Fatalf("non-secret field was redacted: %q", out)
 	}
 }

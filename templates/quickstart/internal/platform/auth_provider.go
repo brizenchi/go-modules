@@ -95,6 +95,7 @@ func buildIdentityProviders(cfg Config) (map[string]authport.IdentityProvider, e
 			StateSecret:  cfg.Auth.Google.StateSecret,
 			StateTTL:     time.Duration(cfg.Auth.Google.StateTTLMin) * time.Minute,
 			Scope:        cfg.Auth.Google.Scope,
+			HTTPClient:   cfg.HTTPClient,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("platform: init google oauth: %w", err)
@@ -109,6 +110,7 @@ func buildIdentityProviders(cfg Config) (map[string]authport.IdentityProvider, e
 			StateSecret:  cfg.Auth.GitHub.StateSecret,
 			StateTTL:     time.Duration(cfg.Auth.GitHub.StateTTLMin) * time.Minute,
 			Scope:        cfg.Auth.GitHub.Scope,
+			HTTPClient:   cfg.HTTPClient,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("platform: init github oauth: %w", err)

@@ -2,13 +2,19 @@ package ginx
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	flog "github.com/brizenchi/go-modules/foundation/slog"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 func newRouter() *gin.Engine {
@@ -175,4 +181,149 @@ func TestAccessLog_SkipPaths(t *testing.T) {
 	if strings.Contains(buf.String(), `"path":"/health"`) {
 		t.Errorf("/health log should be skipped, got %q", buf.String())
 	}
+}
+
+func TestRequestID_RejectsUnsafeIncoming(t *testing.T) {
+	for _, bad := range []string{
+		"rid\nforged=1",
+		"rid with spaces",
+		strings.Repeat("a", MaxRequestIDLength+1),
+	} {
+		r := newRouter()
+		r.Use(RequestID())
+		r.GET("/x", func(c *gin.Context) { c.String(200, "ok") })
+
+		req := httptest.NewRequest("GET", "/x", nil)
+		req.Header[HeaderRequestID] = []string{bad}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if got := w.Header().Get(HeaderRequestID); got == bad || len(got) < 30 {
+			t.Errorf("unsafe id %q was not replaced, got %q", bad, got)
+		}
+	}
+}
+
+func TestRequestID_ReachesBusinessLogsThroughContext(t *testing.T) {
+	var buf bytes.Buffer
+	flog.Setup(flog.Config{Format: flog.FormatJSON, Output: &buf})
+
+	r := newRouter()
+	r.Use(RequestID())
+	r.GET("/x", func(c *gin.Context) {
+		slog.InfoContext(c.Request.Context(), "business event")
+		c.String(200, "ok")
+	})
+
+	req := httptest.NewRequest("GET", "/x", nil)
+	req.Header.Set(HeaderRequestID, "rid-biz")
+	r.ServeHTTP(httptest.NewRecorder(), req)
+
+	if !strings.Contains(buf.String(), `"request_id":"rid-biz"`) {
+		t.Fatalf("business log missing request_id: %q", buf.String())
+	}
+}
+
+func TestAccessLog_RecordsRecoveredPanicAs500(t *testing.T) {
+	var buf bytes.Buffer
+	flog.Setup(flog.Config{Format: flog.FormatJSON, Output: &buf})
+
+	r := newRouter()
+	r.Use(RequestID(), AccessLog(AccessLogConfig{}), Recover())
+	r.GET("/boom", func(c *gin.Context) { panic("boom") })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/boom", nil))
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d", w.Code)
+	}
+	var access string
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if strings.Contains(line, `"msg":"http request"`) {
+			access = line
+		}
+	}
+	for _, want := range []string{`"level":"ERROR"`, `"status_code":500`, `"outcome":"failure"`, `"errors":`} {
+		if !strings.Contains(access, want) {
+			t.Fatalf("access log missing %s: %q", want, access)
+		}
+	}
+	if n := strings.Count(access, `"request_id"`); n != 1 {
+		t.Fatalf("request_id appears %d times: %q", n, access)
+	}
+}
+
+func TestAccessLog_LogsAndRepanicsWithoutRecover(t *testing.T) {
+	var buf bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	r := newRouter()
+	r.Use(AccessLog(AccessLogConfig{}))
+	r.GET("/boom", func(c *gin.Context) { panic("boom") })
+
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected panic to propagate")
+			}
+		}()
+		r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/boom", nil))
+	}()
+	if !strings.Contains(buf.String(), `"status_code":500`) {
+		t.Fatalf("panic not logged as 500: %q", buf.String())
+	}
+}
+
+func TestAccessLog_OmitsQueryString(t *testing.T) {
+	var buf bytes.Buffer
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+
+	r := newRouter()
+	r.Use(AccessLog(AccessLogConfig{}))
+	r.GET("/cb", func(c *gin.Context) { c.String(200, "ok") })
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/cb?code=secret-code", nil))
+
+	if strings.Contains(buf.String(), "secret-code") {
+		t.Fatalf("query string leaked into access log: %q", buf.String())
+	}
+}
+
+func TestRecover_MarksSpanAsError(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	defer func() { _ = tp.Shutdown(context.Background()) }()
+
+	r := newRouter()
+	r.Use(func(c *gin.Context) {
+		ctx, span := tp.Tracer("test").Start(c.Request.Context(), "server")
+		defer span.End()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}, Recover())
+	r.GET("/boom", func(c *gin.Context) { panic(errors.New("boom")) })
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/boom", nil))
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("spans = %d", len(spans))
+	}
+	if spans[0].Status().Code != codes.Error {
+		t.Fatalf("span status = %v", spans[0].Status())
+	}
+	if len(spans[0].Events()) == 0 || spans[0].Events()[0].Name != "exception" {
+		t.Fatalf("panic not recorded as exception event: %+v", spans[0].Events())
+	}
+}
+
+func TestRecover_ReraisesAbortHandler(t *testing.T) {
+	r := newRouter()
+	r.Use(Recover())
+	r.GET("/abort", func(c *gin.Context) { panic(http.ErrAbortHandler) })
+
+	defer func() {
+		if recover() != http.ErrAbortHandler { //nolint:errorlint
+			t.Fatal("expected http.ErrAbortHandler to be re-raised")
+		}
+	}()
+	r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/abort", nil))
 }

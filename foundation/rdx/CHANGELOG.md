@@ -7,6 +7,11 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `Config.Tracing` / `Config.Metrics` using the official `redisotel` hooks.
+  Command arguments are not recorded on spans.
+
 ## [v0.1.0] — 2025
 
 ### Added

@@ -27,7 +27,11 @@
    - Google/GitHub OAuth
    - Stripe Webhook、生产环境变量、发布与启动验收
 
-5. [模块接入指南](./INTEGRATION.md)
+5. [可观测性标准](./OBSERVABILITY.md)
+   - 中间件顺序、日志字段、链路与指标
+   - 出站调用、脱敏、采样和日志存储
+
+6. [模块接入指南](./INTEGRATION.md)
    - 在其他项目中直接使用单个模块
    - 实现 `UserStore` / `AccountLookup`
    - 订阅领域事件

@@ -39,8 +39,14 @@ client := httpx.NewClient(httpx.Config{
     Headers: map[string]string{
         "User-Agent": "my-service/1.0",
     },
+    Tracing: true, // otelhttp client span + metrics per attempt, traceparent injected
+    Logging: true, // one slog record per attempt (no query string)
 })
 ```
+
+Always build requests with the caller's context
+(`http.NewRequestWithContext(ctx, ...)`) so the client span joins the
+request trace.
 
 ## Middleware order
 
@@ -49,10 +55,14 @@ Outermost to innermost:
 - default headers
 - circuit breaker
 - retry
+- tracing (`otelhttp`)
+- logging
 - underlying transport
 
 Headers are re-applied on every retry attempt. The breaker wraps retry so an
-open circuit short-circuits the entire call immediately.
+open circuit short-circuits the entire call immediately. Tracing and logging
+sit below retry, so each attempt is its own span and log record, and the log
+record carries that span's `span_id`.
 
 ## Retry semantics
 

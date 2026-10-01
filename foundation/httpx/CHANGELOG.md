@@ -7,6 +7,18 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `Config.Logging`: one slog record per attempt (method, host, path,
+  status, duration; never the query string).
+
+### Changed
+
+- `Config.Tracing` uses the official `otelhttp` transport: a client span
+  and `http.client.request.duration` per attempt, plus TraceContext and
+  Baggage injection. Tracing now sits below retry, so retries are visible
+  as separate spans.
+
 ## [v0.1.0] — 2026
 
 ### Added

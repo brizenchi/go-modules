@@ -76,6 +76,12 @@ func TestDeployConfigExampleMatchesAppConfig(t *testing.T) {
 	if !modules.ReferralEnabled() {
 		t.Fatal("示例配置应该启用邀请模块")
 	}
+	if !cfg.Tracing.Metrics.Enabled || cfg.Tracing.Metrics.IntervalSeconds != 60 {
+		t.Fatalf("示例配置应该开启 OTLP 指标导出: %+v", cfg.Tracing.Metrics)
+	}
+	if cfg.DB.LogSQLParams {
+		t.Fatal("示例配置不应该在日志里打印 SQL 参数")
+	}
 	if cfg.Host.WelcomeEmail.Enabled || cfg.Host.SignupCredits != 0 {
 		t.Fatal("示例配置默认不应该发送欢迎邮件或发放注册积分")
 	}

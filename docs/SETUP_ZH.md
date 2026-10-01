@@ -493,17 +493,23 @@ NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1
 `GET https://api.example.com/api/v1/capabilities` 返回 200，再重新构建并发布前端；不要让新
 前端长期连接缺少 `capabilities`、账户或计费路由的旧后端。
 
-## 8. 链路追踪（可选）
+## 8. 链路追踪与指标（可选）
 
-`APP_TRACING_ENDPOINT` 留空就不导出。启用 OTLP：
+`APP_TRACING_ENDPOINT` 留空时不导出，但日志里仍然带 `trace_id`。启用 OTLP：
 
 ```dotenv
-APP_TRACING_ENDPOINT=collector.example.com:4318
+APP_TRACING_ENDPOINT=collector.example.com:4318   # 也接受 https://collector.example.com:4318
 APP_TRACING_PROTOCOL=http
 APP_TRACING_INSECURE=false
 APP_TRACING_SAMPLE_RATE=0.1
 APP_TRACING_AUTHORIZATION=
+APP_TRACING_METRICS_ENABLED=true
+APP_SERVER_VERSION=v1.4.2                          # 可选，写入 service.version
 ```
+
+OpenObserve 需要设置路径前缀：`APP_TRACING_URL_PATH=/api/default/v1/traces`。指标路径
+会自动推导为 `/api/default/v1/metrics`。字段约定、中间件顺序和脱敏规则见
+[可观测性标准](./OBSERVABILITY.md)。
 
 ## 9. 发布、服务器启动与测试
 

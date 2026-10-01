@@ -5,10 +5,12 @@
 // The middleware chain is implemented as composed http.RoundTripper
 // values. Outermost to innermost, when fully configured:
 //
-//	headersRT → breakerRT → retryRT → underlying transport
+//	headersRT → breakerRT → retryRT → tracing → logging → underlying transport
 //
 // Headers wrap the chain so they're applied even on retries. The
 // breaker wraps retry so a tripped breaker short-circuits all retries.
+// Tracing and logging sit below retry so every attempt gets its own
+// client span and log record, and the log record carries that span's id.
 //
 // HTTP semantics:
 //
@@ -49,9 +51,15 @@ type Config struct {
 	// on the request take precedence (these only set when absent).
 	Headers map[string]string
 
-	// Tracing injects W3C Trace Context headers into outgoing requests
-	// so downstream services can continue the distributed trace.
+	// Tracing instruments outgoing requests with OpenTelemetry: one
+	// client span and http.client.request.duration measurement per
+	// attempt, plus W3C Trace Context / Baggage header injection so
+	// downstream services continue the distributed trace.
 	Tracing bool
+
+	// Logging writes one slog record per attempt (method, host, path,
+	// status, duration). The query string is never logged.
+	Logging bool
 
 	// Transport overrides the inner RoundTripper. Defaults to a tuned
 	// http.Transport (see DefaultTransport).
@@ -64,6 +72,12 @@ func NewClient(cfg Config) *http.Client {
 	if rt == nil {
 		rt = DefaultTransport()
 	}
+	if cfg.Logging {
+		rt = logRT{next: rt}
+	}
+	if cfg.Tracing {
+		rt = newTracingRT(rt)
+	}
 	if cfg.Retry != nil {
 		rt = retryRT{next: rt, policy: *cfg.Retry}
 	}
@@ -72,9 +86,6 @@ func NewClient(cfg Config) *http.Client {
 	}
 	if len(cfg.Headers) > 0 {
 		rt = headersRT{next: rt, headers: copyHeaders(cfg.Headers)}
-	}
-	if cfg.Tracing {
-		rt = tracingRT{next: rt}
 	}
 	return &http.Client{Transport: rt, Timeout: cfg.Timeout}
 }

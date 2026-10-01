@@ -7,6 +7,8 @@
 package resend
 
 import (
+	"net/http"
+
 	"github.com/brizenchi/go-modules/modules/email/domain"
 )
 
@@ -18,6 +20,10 @@ type Config struct {
 	APIKey  string
 	BaseURL string         // optional; SDK default is used when empty
 	Sender  domain.Address // default From address
+
+	// HTTPClient overrides the SDK's client, e.g. a foundation/httpx
+	// client with tracing and logging. Optional.
+	HTTPClient *http.Client
 }
 
 // Validate enforces the minimum invariants.

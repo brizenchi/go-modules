@@ -53,12 +53,37 @@ func buildCheckoutMetadata(in domain.CheckoutInput, priceID string, quantity int
 }
 
 // NewProvider builds a Stripe provider. If cfg.Enabled is true and
-// cfg.SecretKey is set, the global stripesdk.Key is initialized.
+// cfg.SecretKey is set, the global stripesdk.Key is initialized, the
+// SDK's own diagnostics are routed through slog instead of plain text on
+// stderr, and — only when cfg.HTTPClient is set — the global API backend
+// is replaced with one that uses that client.
 func NewProvider(cfg Config) *Provider {
 	if cfg.Enabled && cfg.SecretKey != "" {
 		stripesdk.Key = cfg.SecretKey
+		stripesdk.DefaultLeveledLogger = sdkLogger{}
+		if cfg.HTTPClient != nil {
+			stripesdk.SetBackend(stripesdk.APIBackend, stripesdk.GetBackendWithConfig(stripesdk.APIBackend, &stripesdk.BackendConfig{
+				HTTPClient:    cfg.HTTPClient,
+				LeveledLogger: sdkLogger{},
+			}))
+		}
 	}
 	return &Provider{cfg: cfg}
+}
+
+// sdkLogger adapts stripe-go's leveled logger to slog. Stripe reports
+// failed API calls at error level, but the adapter already returns those
+// errors to the caller (and HTTP client logging records each call), so
+// they are demoted to WARN to avoid double-counting errors.
+type sdkLogger struct{}
+
+func (sdkLogger) Debugf(format string, v ...any) { sdkLog(slog.LevelDebug, format, v) }
+func (sdkLogger) Infof(format string, v ...any)  { sdkLog(slog.LevelDebug, format, v) }
+func (sdkLogger) Warnf(format string, v ...any)  { sdkLog(slog.LevelWarn, format, v) }
+func (sdkLogger) Errorf(format string, v ...any) { sdkLog(slog.LevelWarn, format, v) }
+
+func sdkLog(level slog.Level, format string, v []any) {
+	slog.Log(context.Background(), level, fmt.Sprintf(format, v...), "component", "stripe_sdk")
 }
 
 func (p *Provider) Name() string            { return "stripe" }
@@ -78,7 +103,7 @@ func (p *Provider) EnsureCustomer(ctx context.Context, userID, email, existingID
 		return "", domain.ErrProviderDisabled
 	}
 	if existingID != "" {
-		cust, err := customer.Get(existingID, nil)
+		cust, err := customer.Get(existingID, &stripesdk.CustomerParams{Params: stripesdk.Params{Context: ctx}})
 		if err == nil && cust != nil && !cust.Deleted {
 			return cust.ID, nil
 		}
@@ -95,6 +120,7 @@ func (p *Provider) EnsureCustomer(ctx context.Context, userID, email, existingID
 	params := &stripesdk.CustomerParams{Email: stripesdk.String(email)}
 	params.SetIdempotencyKey(stableIdempotencyKey("customer", strings.TrimSpace(userID)))
 	params.AddMetadata("user_id", userID)
+	params.Context = ctx
 	cust, err := customer.New(params)
 	if err != nil {
 		return "", fmt.Errorf("stripe: create customer: %w", err)
@@ -223,6 +249,7 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		params.AddMetadata(k, v)
 	}
 
+	params.Context = ctx
 	sess, err := session.New(params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: create checkout: %w", err)
@@ -239,7 +266,7 @@ func (p *Provider) GetCheckoutSession(ctx context.Context, providerSessionID str
 	if providerSessionID == "" {
 		return nil, fmt.Errorf("%w: checkout session id required", domain.ErrInvalidInput)
 	}
-	sess, err := session.Get(providerSessionID, nil)
+	sess, err := session.Get(providerSessionID, &stripesdk.CheckoutSessionParams{Params: stripesdk.Params{Context: ctx}})
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get checkout session: %w", err)
 	}
@@ -260,6 +287,7 @@ func (p *Provider) FindCheckoutSession(ctx context.Context, providerCustomerID, 
 	}
 	params := &stripesdk.CheckoutSessionListParams{Customer: stripesdk.String(providerCustomerID)}
 	params.Limit = stripesdk.Int64(100)
+	params.Context = ctx
 	iter := session.List(params)
 	for iter.Next() {
 		sess := iter.CheckoutSession()
@@ -316,6 +344,7 @@ func (p *Provider) CancelSubscription(ctx context.Context, subID string, mode do
 	default:
 		return domain.ErrInvalidCancelMode
 	}
+	params.Context = ctx
 	if _, err := subscription.Update(subID, params); err != nil {
 		return fmt.Errorf("stripe: cancel subscription: %w", err)
 	}
@@ -342,7 +371,7 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 		return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
 	}
 
-	current, err := subscription.Get(subID, nil)
+	current, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
 	}
@@ -367,6 +396,7 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 		params.BillingCycleAnchorUnchanged = stripesdk.Bool(true)
 	}
 
+	params.Context = ctx
 	updated, err := subscription.Update(subID, params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: change subscription: %w", err)
@@ -398,7 +428,7 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 		return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
 	}
 
-	current, err := subscription.Get(subID, nil)
+	current, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
 	}
@@ -413,6 +443,7 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 	}
 	if scheduleID == "" {
 		schedule, err := subscriptionschedule.New(&stripesdk.SubscriptionScheduleParams{
+			Params:           stripesdk.Params{Context: ctx},
 			FromSubscription: stripesdk.String(subID),
 			EndBehavior:      stripesdk.String(string(stripesdk.SubscriptionScheduleEndBehaviorRelease)),
 		})
@@ -426,7 +457,7 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 		current.Schedule = schedule
 	}
 
-	schedule, err := subscriptionschedule.Get(scheduleID, nil)
+	schedule, err := subscriptionschedule.Get(scheduleID, &stripesdk.SubscriptionScheduleParams{Params: stripesdk.Params{Context: ctx}})
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get subscription schedule: %w", err)
 	}
@@ -467,6 +498,7 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 		},
 	}
 
+	params.Context = ctx
 	updatedSchedule, err := subscriptionschedule.Update(scheduleID, params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: schedule subscription change: %w", err)
@@ -493,6 +525,7 @@ func (p *Provider) ReactivateSubscription(ctx context.Context, subID string) err
 		CancelAtPeriodEnd: stripesdk.Bool(false),
 		CancelAt:          stripesdk.Int64(0),
 	}
+	params.Context = ctx
 	if _, err := subscription.Update(subID, params); err != nil {
 		return fmt.Errorf("stripe: reactivate subscription: %w", err)
 	}
@@ -507,7 +540,7 @@ func (p *Provider) GetSubscription(ctx context.Context, subID string) (*domain.S
 	if subID == "" {
 		return nil, fmt.Errorf("%w: subscription_id required", domain.ErrInvalidInput)
 	}
-	sub, err := subscription.Get(subID, nil)
+	sub, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get subscription: %w", err)
 	}
@@ -523,6 +556,7 @@ func (p *Provider) GetDefaultPaymentMethod(ctx context.Context, customerID strin
 	}
 	params := &stripesdk.CustomerParams{}
 	params.AddExpand("invoice_settings.default_payment_method")
+	params.Context = ctx
 	cust, err := customer.Get(customerID, params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get customer: %w", err)
@@ -561,6 +595,7 @@ func (p *Provider) ListInvoices(ctx context.Context, customerID string, page, li
 	items := make([]domain.InvoiceItem, 0, limit)
 
 	params := &stripesdk.InvoiceListParams{Customer: stripesdk.String(customerID)}
+	params.Context = ctx
 	iter := invoice.List(params)
 	for iter.Next() {
 		inv := iter.Invoice()
@@ -601,6 +636,7 @@ func (p *Provider) CreateBillingPortalSession(ctx context.Context, customerID, r
 		Customer:  stripesdk.String(customerID),
 		ReturnURL: stripesdk.String(returnURL),
 	}
+	params.Context = ctx
 	sess, err := billingportalsession.New(params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: create billing portal session: %w", err)
@@ -624,7 +660,7 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 		}, nil
 	}
 
-	current, err := subscription.Get(subID, nil)
+	current, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
 	}
@@ -673,6 +709,7 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 		params.SubscriptionBillingCycleAnchorUnchanged = stripesdk.Bool(true)
 	}
 
+	params.Context = ctx
 	upcoming, err := invoice.Upcoming(params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: preview subscription change: %w", err)

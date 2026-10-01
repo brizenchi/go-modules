@@ -6,6 +6,7 @@
 package stripe
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/brizenchi/go-modules/modules/billing/domain"
@@ -39,6 +40,10 @@ type Config struct {
 	// TrialDays is the number of free-trial days for new subscriptions.
 	// 0 disables the trial.
 	TrialDays int64
+
+	// HTTPClient overrides stripe-go's default client (80s timeout), e.g.
+	// a foundation/httpx client with tracing and logging. Optional.
+	HTTPClient *http.Client
 }
 
 // ValidPriceID reports whether value has the shape of a real Stripe Price

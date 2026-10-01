@@ -7,6 +7,18 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `Config.Tracing`: the driver is wrapped with `otelsql`, giving one client
+  span per statement (placeholders only, never bind values) and pool
+  metrics.
+- `Config.LogSQLParams` and `Config.LogRecordNotFound`.
+
+### Changed
+
+- SQL in logs no longer contains bind values unless `LogSQLParams` is set.
+- `gorm.ErrRecordNotFound` is no longer logged as an error by default.
+
 ## [v0.1.0] — 2025
 
 ### Added

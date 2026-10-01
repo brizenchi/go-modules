@@ -7,6 +7,10 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `brevo.Config.HTTPClient` / `resend.Config.HTTPClient`.
+
 ## [v0.2.0] — 2026-04
 
 ### Added

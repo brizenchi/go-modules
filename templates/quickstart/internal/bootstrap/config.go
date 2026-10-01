@@ -21,12 +21,16 @@ type AppConfig struct {
 	Project string `mapstructure:"project"`
 	Env     string `mapstructure:"env"`
 	Server  struct {
-		Name string `mapstructure:"name"`
-		Port int    `mapstructure:"port"`
+		Name    string `mapstructure:"name"`
+		Version string `mapstructure:"version"`
+		Port    int    `mapstructure:"port"`
 	} `mapstructure:"server"`
 	Log struct {
-		Level  string `mapstructure:"level"`
-		Format string `mapstructure:"format"`
+		Level     string `mapstructure:"level"`
+		Format    string `mapstructure:"format"`
+		AddSource bool   `mapstructure:"add_source"`
+		// RedactKeys extends foundation/slog.DefaultRedactKeys.
+		RedactKeys []string `mapstructure:"redact_keys"`
 	} `mapstructure:"log"`
 	HTTP     HTTPConfig              `mapstructure:"http"`
 	Tracing  TracingConfig           `mapstructure:"tracing"`
@@ -59,6 +63,15 @@ type TracingConfig struct {
 	Authorization string            `mapstructure:"authorization"`
 	Headers       map[string]string `mapstructure:"headers"`
 	URLPath       string            `mapstructure:"url_path"`
+	Metrics       MetricsConfig     `mapstructure:"metrics"`
+}
+
+// MetricsConfig exports OTLP metrics to the same collector as traces.
+type MetricsConfig struct {
+	Enabled bool `mapstructure:"enabled"`
+	// URLPath defaults to url_path with /v1/traces replaced by /v1/metrics.
+	URLPath         string `mapstructure:"url_path"`
+	IntervalSeconds int    `mapstructure:"interval_seconds"`
 }
 
 type DBConfig struct {
@@ -73,6 +86,9 @@ type DBConfig struct {
 	LogLevel           string `mapstructure:"log_level"`
 	SlowQueryMS        int    `mapstructure:"slow_query_ms"`
 	SlowQueryThreshold string `mapstructure:"slow_query_threshold"`
+	// LogSQLParams prints bind values in SQL logs. Keep false outside
+	// local debugging: values may contain passwords, tokens and PII.
+	LogSQLParams bool `mapstructure:"log_sql_params"`
 }
 
 func LoadConfig() (AppConfig, error) {
@@ -579,6 +595,8 @@ func (c DBConfig) PGXConfig(project, env string) pgx.Config {
 		return pgx.Config{
 			DSN:                c.DSN,
 			LogLevel:           c.LogLevel,
+			LogSQLParams:       c.LogSQLParams,
+			Tracing:            true,
 			SlowQueryThreshold: slow,
 			Project:            project,
 			Environment:        env,
@@ -593,6 +611,8 @@ func (c DBConfig) PGXConfig(project, env string) pgx.Config {
 		SSLMode:            c.SSLMode,
 		TimeZone:           c.TimeZone,
 		LogLevel:           c.LogLevel,
+		LogSQLParams:       c.LogSQLParams,
+		Tracing:            true,
 		SlowQueryThreshold: slow,
 		Project:            project,
 		Environment:        env,
@@ -648,6 +668,9 @@ func (c TracingConfig) ExporterHeaders() map[string]string {
 func logDefaults(cfg AppConfig) map[string]any {
 	defaults := map[string]any{
 		"service": cfg.Server.Name,
+	}
+	if cfg.Server.Version != "" {
+		defaults["version"] = cfg.Server.Version
 	}
 	if cfg.Project != "" {
 		defaults["project"] = cfg.Project

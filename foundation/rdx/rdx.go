@@ -5,7 +5,12 @@
 //   - HealthCheck(ctx, client)
 //   - A small Lock primitive for "do this work at most once" workflows
 //
-// Stdlib + go-redis/v9 only.
+// With Tracing / Metrics enabled the client is instrumented with the
+// official redisotel hooks: one client span per command (command name
+// only — arguments and values are never recorded) and pool/latency
+// metrics through the global MeterProvider.
+//
+// Stdlib + go-redis/v9 + redisotel.
 package rdx
 
 import (
@@ -15,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -37,6 +43,13 @@ type Config struct {
 	// caller via Prefix(). Empty disables prefixing. Useful when one
 	// Redis serves many environments/services.
 	KeyPrefix string
+
+	// Tracing creates an OpenTelemetry client span per command. Command
+	// arguments are not recorded because they may hold user data.
+	Tracing bool
+
+	// Metrics reports connection-pool and command latency metrics.
+	Metrics bool
 }
 
 // Open builds the client and verifies connectivity once before returning.
@@ -45,6 +58,10 @@ func Open(ctx context.Context, cfg Config) (*redis.Client, error) {
 		return nil, fmt.Errorf("rdx: addr required")
 	}
 	cli := redis.NewClient(newOptions(cfg))
+	if err := instrument(cli, cfg); err != nil {
+		_ = cli.Close()
+		return nil, err
+	}
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	if err := cli.Ping(pingCtx).Err(); err != nil {
@@ -69,6 +86,20 @@ func newOptions(cfg Config) *redis.Options {
 		options.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
 	return options
+}
+
+func instrument(cli redis.UniversalClient, cfg Config) error {
+	if cfg.Tracing {
+		if err := redisotel.InstrumentTracing(cli, redisotel.WithDBStatement(false)); err != nil {
+			return fmt.Errorf("rdx: instrument tracing: %w", err)
+		}
+	}
+	if cfg.Metrics {
+		if err := redisotel.InstrumentMetrics(cli); err != nil {
+			return fmt.Errorf("rdx: instrument metrics: %w", err)
+		}
+	}
+	return nil
 }
 
 // HealthCheck pings the server with a short timeout.

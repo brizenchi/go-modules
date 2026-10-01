@@ -7,6 +7,17 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `stripe.Config.HTTPClient`: replaces the global stripe-go backend client
+  when set.
+
+### Changed
+
+- Stripe API calls carry the caller's `context.Context`, so they join the
+  request trace and honour cancellation.
+- stripe-go's own diagnostics go through slog instead of stderr.
+
 ## [v0.2.0] — 2026-04
 
 ### Added

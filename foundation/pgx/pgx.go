@@ -4,15 +4,27 @@
 // Use Open(cfg) at boot, get a *gorm.DB, share it across all repos.
 // HealthCheck(db) is for Kubernetes /healthz handlers.
 //
-// Stdlib + GORM-postgres only.
+// With Tracing enabled the database/sql driver is wrapped by otelsql:
+// every statement becomes an OpenTelemetry client span
+// (db.system.name=postgresql, db.query.text with placeholders — bind
+// values are never recorded) and connection-pool metrics are reported
+// through the global MeterProvider.
+//
+// Stdlib + GORM-postgres + otelsql.
 package pgx
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/XSAM/otelsql"
+	pgxdriver "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -45,6 +57,19 @@ type Config struct {
 
 	// LogLevel: silent | error | warn | info. Default warn.
 	LogLevel string
+
+	// LogSQLParams keeps bind values in logged SQL. Default false: SQL is
+	// logged with "?" / "$n" placeholders so passwords, tokens and
+	// personal data never reach the log pipeline.
+	LogSQLParams bool
+
+	// LogRecordNotFound logs gorm.ErrRecordNotFound at ERROR. Default
+	// false, because a miss is normal control flow for most lookups.
+	LogRecordNotFound bool
+
+	// Tracing wraps the driver with otelsql: one client span per
+	// statement (without bind values) plus sql.DBStats pool metrics.
+	Tracing bool
 
 	// Project and Environment are copied onto DB log records so external
 	// log backends can partition data without guessing from service names.
@@ -80,8 +105,21 @@ func Open(cfg Config) (*gorm.DB, error) {
 		Logger: buildLogger(cfg),
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), gormCfg)
+	dialector := postgres.Open(dsn)
+	var traced *sql.DB
+	if cfg.Tracing {
+		var err error
+		if traced, err = openTraced(dsn); err != nil {
+			return nil, err
+		}
+		dialector = postgres.New(postgres.Config{Conn: traced})
+	}
+
+	db, err := gorm.Open(dialector, gormCfg)
 	if err != nil {
+		if traced != nil {
+			_ = traced.Close()
+		}
 		return nil, fmt.Errorf("pgx: open: %w", err)
 	}
 
@@ -95,6 +133,33 @@ func Open(cfg Config) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(nonZeroDur(cfg.ConnMaxIdleTime, 5*time.Minute))
 
 	return db, nil
+}
+
+// openTraced builds the same pgx stdlib connection GORM would, wrapped by
+// otelsql. Row iteration and session resets are not traced to keep one
+// span per statement.
+func openTraced(dsn string) (*sql.DB, error) {
+	connCfg, err := pgxdriver.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("pgx: parse dsn: %w", err)
+	}
+	opts := otelOptions()
+	db := otelsql.OpenDB(stdlib.GetConnector(*connCfg), opts...)
+	if _, err := otelsql.RegisterDBStatsMetrics(db, opts...); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("pgx: register pool metrics: %w", err)
+	}
+	return db, nil
+}
+
+func otelOptions() []otelsql.Option {
+	return []otelsql.Option{
+		otelsql.WithAttributes(semconv.DBSystemNamePostgreSQL),
+		otelsql.WithSpanOptions(otelsql.SpanOptions{
+			OmitConnResetSession: true,
+			OmitRows:             true,
+		}),
+	}
 }
 
 // HealthCheck pings the underlying *sql.DB with a short timeout.
@@ -117,10 +182,12 @@ func buildLogger(cfg Config) gormlogger.Interface {
 	}
 	level := parseLevel(cfg.LogLevel)
 	return &slogLogger{
-		level:     level,
-		threshold: threshold,
-		project:   cfg.Project,
-		env:       cfg.Environment,
+		level:       level,
+		threshold:   threshold,
+		project:     cfg.Project,
+		env:         cfg.Environment,
+		logParams:   cfg.LogSQLParams,
+		logNotFound: cfg.LogRecordNotFound,
 	}
 }
 
@@ -138,10 +205,21 @@ func parseLevel(s string) gormlogger.LogLevel {
 }
 
 type slogLogger struct {
-	level     gormlogger.LogLevel
-	threshold time.Duration
-	project   string
-	env       string
+	level       gormlogger.LogLevel
+	threshold   time.Duration
+	project     string
+	env         string
+	logParams   bool
+	logNotFound bool
+}
+
+// ParamsFilter implements gorm.ParamsFilter. Returning nil params makes
+// GORM render SQL with placeholders instead of interpolated values.
+func (l *slogLogger) ParamsFilter(_ context.Context, sql string, params ...any) (string, []any) {
+	if l.logParams {
+		return sql, params
+	}
+	return sql, nil
 }
 
 func (l *slogLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
@@ -169,7 +247,8 @@ func (l *slogLogger) Error(ctx context.Context, msg string, args ...any) {
 func (l *slogLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
 	elapsed := time.Since(begin)
 	switch {
-	case err != nil && l.level >= gormlogger.Error:
+	case err != nil && l.level >= gormlogger.Error &&
+		(l.logNotFound || !errors.Is(err, gorm.ErrRecordNotFound)):
 		sql, rows := fc()
 		slog.ErrorContext(ctx, "gorm error",
 			l.appendCommonAttrs("error", "error",

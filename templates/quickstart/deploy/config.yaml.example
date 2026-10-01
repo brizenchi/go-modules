@@ -5,12 +5,15 @@ env: dev
 # 启动时环境变量会覆盖对应字段。
 
 server:
-  name: quickstart        # 会作为每条日志里的 service 字段
+  name: quickstart        # 会作为每条日志里的 service 字段，以及 OTel service.name
+  version: ""             # 可选；写入日志 version 字段和 OTel service.version，通常由 CI 注入 APP_SERVER_VERSION
   port: 8080
 
 log:
   level: info             # debug | info | warn | error
-  format: json            # json | text；本地开发可用更易读的 text
+  format: json            # json | text；本地开发可用更易读的 text。日志只写 stdout，由采集器收集
+  add_source: false       # true 时每条日志带 file:line
+  redact_keys: []         # 额外需要脱敏的字段名；password/token/authorization/cookie 等默认已脱敏
 
 http:
   # 留空时从 auth.frontend_redirect 自动提取 origin；多个前端域名时显式填写逗号分隔列表。
@@ -28,6 +31,10 @@ tracing:
   authorization: ""       # 例如 OpenObserve 的 Basic <base64>
   headers: {}             # 例如 { Authorization: "Basic <base64>" }
   url_path: ""            # 例如 OpenObserve 的 /api/default/v1/traces
+  metrics:
+    enabled: true         # 向同一采集器导出 HTTP/DB/外部调用指标；endpoint 为空时不生效
+    url_path: ""          # 留空时由 url_path 推导（/v1/traces → /v1/metrics）
+    interval_seconds: 60
 
 db:
   host: localhost

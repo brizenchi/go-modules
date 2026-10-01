@@ -7,6 +7,11 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- `google.Config.HTTPClient` / `github.Config.HTTPClient`: inject an
+  instrumented client; `HTTPTimeout` still applies.
+
 ### Security
 
 - OAuth state is now bound to the initiating browser with an HttpOnly flow

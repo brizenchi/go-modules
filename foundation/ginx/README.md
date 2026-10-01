@@ -21,20 +21,24 @@ import "github.com/brizenchi/go-modules/foundation/ginx"
 
 r := gin.New()
 
-// Order matters: Recover first, RequestID before AccessLog so the id lands
-// in the access record.
+// Order matters:
+//   CORS first so preflights are answered without logs or spans;
+//   RequestID before tracing so the id lands on the server span;
+//   AccessLog inside the span so records carry trace_id/span_id;
+//   Recover innermost so a panic still yields a 500 span and access record.
 r.Use(
-    ginx.Recover(),
+    ginx.CORS(ginx.CORSConfig{
+        AllowedOrigins: []string{"https://app.example.com"},
+        AllowedMethods: []string{"GET", "POST"},
+        ExposedHeaders: []string{ginx.HeaderRequestID},
+    }),
     ginx.RequestID(),
+    tracing.Middleware(tracing.MiddlewareConfig{ServiceName: "api", SkipPaths: []string{"/health"}}),
     ginx.AccessLog(ginx.AccessLogConfig{
         SkipPaths: []string{"/health"},
     }),
+    ginx.Recover(),
 )
-
-r.Use(ginx.CORS(ginx.CORSConfig{
-    AllowedOrigins: []string{"https://app.example.com"},
-    AllowedMethods: []string{"GET", "POST"},
-}))
 
 r.Use(ginx.NoCache(), ginx.Secure(ginx.SecureConfig{
     HSTS: "max-age=31536000; includeSubDomains; preload",
@@ -45,9 +49,9 @@ r.Use(ginx.NoCache(), ginx.Secure(ginx.SecureConfig{
 
 | Middleware    | Purpose                                                           |
 |---------------|-------------------------------------------------------------------|
-| `Recover()`   | Catches panics, logs stack via slog, responds 500 envelope        |
-| `RequestID()` | Generates / reads `X-Request-ID`, makes it available to handlers  |
-| `AccessLog()` | Structured slog record per request: method, path, status, dur    |
+| `Recover()`   | Catches panics, logs full stack, marks the span failed, responds 500 |
+| `RequestID()` | Reads (validated) or generates `X-Request-ID`; stores it in ctx for logs and spans |
+| `AccessLog()` | One slog record per request; 5xx ERROR / 4xx WARN; never logs the query string |
 | `CORS()`      | Allowlist origins / methods / headers; `["*"]` for any            |
 | `NoCache()`   | Sets `Cache-Control: no-cache, no-store...` on dynamic responses  |
 | `Secure()`    | `Strict-Transport-Security` + optional `Content-Security-Policy`  |
@@ -61,9 +65,16 @@ func handler(c *gin.Context) {
 }
 ```
 
-The `RequestID()` middleware also calls `c.Set(...)`, so any logger that
-pulls from the Gin context (e.g. `foundation/slog.Ctx`) picks it up
-automatically.
+You rarely need to pass it by hand: `RequestID()` stores the id under
+`foundation/slog.RequestIDKey`, so with `foundation/slog` every
+`slog.InfoContext(c.Request.Context(), ...)` record already carries
+`request_id`, `trace_id` and `span_id`.
+
+## Access-log schema
+
+`component=http`, `operation=request`, `outcome`, `method`, `path`, `route`,
+`status_code`, `duration_ms`, `client_ip`, `user_agent`, `request_size`,
+`response_size`, `request_id`, `trace_id`, `span_id`, `errors` (when set).
 
 ## Testing
 

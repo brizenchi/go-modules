@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"net/http"
 	"strings"
 
 	"github.com/brizenchi/go-modules/modules/auth/adapter/emailcode"
@@ -14,7 +15,7 @@ import (
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 )
 
-func buildEmail(cfg EmailConfig) (*email.Module, error) {
+func buildEmail(cfg EmailConfig, httpClient *http.Client) (*email.Module, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Provider)) {
 	case "none", "disabled", "off":
 		return nil, nil
@@ -22,8 +23,9 @@ func buildEmail(cfg EmailConfig) (*email.Module, error) {
 		return email.New(logsender.New(nil), nil), nil
 	case "brevo":
 		sender, err := brevo.New(brevo.Config{
-			APIKey: cfg.Brevo.APIKey,
-			Sender: emaildomain.Address{Email: cfg.Brevo.SenderEmail, Name: cfg.Brevo.SenderName},
+			APIKey:     cfg.Brevo.APIKey,
+			Sender:     emaildomain.Address{Email: cfg.Brevo.SenderEmail, Name: cfg.Brevo.SenderName},
+			HTTPClient: httpClient,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("platform: init brevo: %w", err)
@@ -31,8 +33,9 @@ func buildEmail(cfg EmailConfig) (*email.Module, error) {
 		return email.New(sender, nil), nil
 	case "resend":
 		sender, err := resend.New(resend.Config{
-			APIKey: cfg.Resend.APIKey,
-			Sender: emaildomain.Address{Email: cfg.Resend.SenderEmail, Name: cfg.Resend.SenderName},
+			APIKey:     cfg.Resend.APIKey,
+			Sender:     emaildomain.Address{Email: cfg.Resend.SenderEmail, Name: cfg.Resend.SenderName},
+			HTTPClient: httpClient,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("platform: init resend: %w", err)

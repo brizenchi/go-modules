@@ -3,6 +3,8 @@
 package brevo
 
 import (
+	"net/http"
+
 	"github.com/brizenchi/go-modules/modules/email/domain"
 )
 
@@ -18,6 +20,10 @@ type Config struct {
 	PartnerKey string         // optional
 	BaseURL    string         // optional, defaults to DefaultBaseURL
 	Sender     domain.Address // default From address
+
+	// HTTPClient overrides the SDK's client, e.g. a foundation/httpx
+	// client with tracing and logging. Optional.
+	HTTPClient *http.Client
 }
 
 // Validate enforces the minimum invariants.
