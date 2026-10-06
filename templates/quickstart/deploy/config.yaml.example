@@ -24,7 +24,7 @@ http:
   idle_timeout_seconds: 60
 
 tracing:
-  endpoint: ""            # 例如 localhost:4318；留空关闭导出器
+  endpoint: ""            # 例如 localhost:4318；留空时使用标准 OTEL_EXPORTER_OTLP_* 变量，两者都没有则不导出
   protocol: http          # http | grpc
   insecure: true          # 本地无 TLS 的采集器使用 true
   sample_rate: 1.0        # 0..1

@@ -495,7 +495,17 @@ NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api/v1
 
 ## 8. 链路追踪与指标（可选）
 
-`APP_TRACING_ENDPOINT` 留空时不导出，但日志里仍然带 `trace_id`。启用 OTLP：
+推荐使用标准 OTel 变量（`APP_TRACING_ENDPOINT` 留空，值不要加引号）：
+
+```dotenv
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-southeast-1.grafana.net/otlp
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64(instanceID:token)>
+```
+
+启动日志 `tracing ready` 中应为 `endpoint_source=OTEL_EXPORTER_OTLP_*`、`auth_header=true`。
+
+也可以使用 `APP_TRACING_*`。两种方式都不配置时不导出，但日志里仍然带 `trace_id`：
 
 ```dotenv
 APP_TRACING_ENDPOINT=collector.example.com:4318   # 也接受 https://collector.example.com:4318

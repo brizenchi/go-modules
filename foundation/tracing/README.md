@@ -55,6 +55,24 @@ r.Use(
 span, so the span ends with status Error and `http.response.status_code=500`,
 and the access log still records the request.
 
+## Standard OTEL_* variables
+
+Leave `Endpoint` empty and the exporters are configured by the standard
+variables, so the same block works for every OpenTelemetry service:
+
+```dotenv
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-southeast-1.grafana.net/otlp
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64(instanceID:token)>
+OTEL_SERVICE_NAME=my-service
+```
+
+Traces go to `<endpoint>/v1/traces`, metrics to `<endpoint>/v1/metrics`.
+An explicit `Endpoint` takes precedence; `OTEL_EXPORTER_OTLP_HEADERS` still
+applies when `Headers` is empty. Do not wrap values in quotes in deployment
+panels — they are passed through literally and the header is dropped
+(`tracing ready` then logs `auth_header=false` with a warning).
+
 ## What gets recorded
 
 | Signal | Content |

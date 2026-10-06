@@ -16,6 +16,12 @@ top-level [VERSIONING.md](../../VERSIONING.md).
   export through a global MeterProvider.
 - `Config.ServiceVersion` (`service.version`).
 - `Endpoint` accepts an `http://` / `https://` prefix; the scheme decides TLS.
+- When `Endpoint` is empty, the standard `OTEL_EXPORTER_OTLP_ENDPOINT`,
+  `OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` variables
+  configure the exporters, as in any OpenTelemetry SDK.
+- Startup diagnostics: `tracing ready` reports `endpoint_source` and
+  `auth_header`; quoted `OTEL_*` values and a missing Authorization header
+  are logged as warnings.
 - The SDK's internal errors are logged through slog.
 
 ### Changed

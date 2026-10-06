@@ -82,8 +82,14 @@ type Config struct {
 	//   "localhost:4318" — OTLP/HTTP (default protocol)
 	//   "localhost:4317" — OTLP/gRPC
 	// An "http://" or "https://" prefix is accepted and also decides
-	// Insecure. Empty string disables the exporters. Spans are still
-	// created so trace ids keep correlating logs.
+	// Insecure.
+	//
+	// When empty, the standard OTEL_EXPORTER_OTLP_ENDPOINT (or
+	// OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) is used, together with
+	// OTEL_EXPORTER_OTLP_HEADERS and OTEL_EXPORTER_OTLP_PROTOCOL, exactly as
+	// in any OpenTelemetry SDK; Protocol, Insecure and URLPath are then
+	// ignored. When neither is set the exporters are disabled, but spans
+	// are still created so trace ids keep correlating logs.
 	Endpoint string
 
 	// Protocol selects the OTLP transport: "http" (default) or "grpc".
@@ -148,15 +154,17 @@ func Setup(cfg Config) (shutdown func(context.Context) error, err error) {
 		return nil, err
 	}
 
+	warnMisquotedEnv()
+	target := resolveTarget(cfg)
 	opts := []tracesdk.TracerProviderOption{
 		tracesdk.WithResource(res),
 		tracesdk.WithSampler(tracesdk.ParentBased(tracesdk.TraceIDRatioBased(cfg.SampleRate))),
 		tracesdk.WithSpanProcessor(requestIDProcessor{}),
 	}
-	if cfg.Endpoint == "" {
+	if !target.enabled {
 		slog.Info("tracing exporter disabled (no endpoint)")
 	} else {
-		exp, err := newTraceExporter(cfg)
+		exp, err := newTraceExporter(cfg, target)
 		if err != nil {
 			return nil, fmt.Errorf("tracing: create exporter: %w", err)
 		}
@@ -166,9 +174,9 @@ func Setup(cfg Config) (shutdown func(context.Context) error, err error) {
 	otel.SetTracerProvider(tp)
 	shutdowns := []func(context.Context) error{tp.Shutdown}
 
-	metricsOn := cfg.Metrics && cfg.Endpoint != ""
+	metricsOn := cfg.Metrics && target.enabled
 	if metricsOn {
-		mp, err := newMeterProvider(cfg, res)
+		mp, err := newMeterProvider(cfg, target, res)
 		if err != nil {
 			_ = tp.Shutdown(context.Background())
 			return nil, fmt.Errorf("tracing: create metric exporter: %w", err)
@@ -177,13 +185,19 @@ func Setup(cfg Config) (shutdown func(context.Context) error, err error) {
 		shutdowns = append(shutdowns, mp.Shutdown)
 	}
 
+	auth := hasAuthHeader(cfg)
 	slog.Info("tracing ready",
 		"service", cfg.ServiceName,
-		"endpoint", cfg.Endpoint,
-		"protocol", protocol(cfg),
+		"endpoint", target.endpoint,
+		"endpoint_source", endpointSource(target),
+		"protocol", target.protocol,
+		"auth_header", auth,
 		"sample_rate", cfg.SampleRate,
 		"metrics", metricsOn,
 	)
+	if target.enabled && !auth {
+		slog.Warn("tracing: no Authorization header configured; hosted backends will reject exports with 401")
+	}
 
 	return func(ctx context.Context) error {
 		var errs []error
@@ -284,7 +298,34 @@ func tlsConfig() *tls.Config {
 	return &tls.Config{MinVersion: tls.VersionTLS12}
 }
 
-func newTraceExporter(cfg Config) (tracesdk.SpanExporter, error) {
+func endpointSource(t exportTarget) string {
+	switch {
+	case !t.enabled:
+		return "none"
+	case t.fromEnv:
+		return "OTEL_EXPORTER_OTLP_*"
+	default:
+		return "config"
+	}
+}
+
+// newTraceExporter builds the span exporter. In env mode only explicit
+// Config.Headers are passed; everything else comes from OTEL_* variables.
+func newTraceExporter(cfg Config, target exportTarget) (tracesdk.SpanExporter, error) {
+	if target.fromEnv {
+		if target.protocol == "grpc" {
+			var opts []otlptracegrpc.Option
+			if len(cfg.Headers) > 0 {
+				opts = append(opts, otlptracegrpc.WithHeaders(cfg.Headers))
+			}
+			return otlptracegrpc.New(context.Background(), opts...)
+		}
+		var opts []otlptracehttp.Option
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(cfg.Headers))
+		}
+		return otlptracehttp.New(context.Background(), opts...)
+	}
 	if protocol(cfg) == "grpc" {
 		opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(cfg.Endpoint)}
 		if cfg.Insecure {
@@ -310,8 +351,8 @@ func newTraceExporter(cfg Config) (tracesdk.SpanExporter, error) {
 	return otlptracehttp.New(context.Background(), opts...)
 }
 
-func newMeterProvider(cfg Config, res *resource.Resource) (*metricsdk.MeterProvider, error) {
-	exp, err := newMetricExporter(cfg)
+func newMeterProvider(cfg Config, target exportTarget, res *resource.Resource) (*metricsdk.MeterProvider, error) {
+	exp, err := newMetricExporter(cfg, target)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +366,21 @@ func newMeterProvider(cfg Config, res *resource.Resource) (*metricsdk.MeterProvi
 	), nil
 }
 
-func newMetricExporter(cfg Config) (metricsdk.Exporter, error) {
+func newMetricExporter(cfg Config, target exportTarget) (metricsdk.Exporter, error) {
+	if target.fromEnv {
+		if target.protocol == "grpc" {
+			var opts []otlpmetricgrpc.Option
+			if len(cfg.Headers) > 0 {
+				opts = append(opts, otlpmetricgrpc.WithHeaders(cfg.Headers))
+			}
+			return otlpmetricgrpc.New(context.Background(), opts...)
+		}
+		var opts []otlpmetrichttp.Option
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlpmetrichttp.WithHeaders(cfg.Headers))
+		}
+		return otlpmetrichttp.New(context.Background(), opts...)
+	}
 	if protocol(cfg) == "grpc" {
 		opts := []otlpmetricgrpc.Option{otlpmetricgrpc.WithEndpoint(cfg.Endpoint)}
 		if cfg.Insecure {

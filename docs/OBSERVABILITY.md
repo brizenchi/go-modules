@@ -91,6 +91,20 @@ Stripe 调用会传递请求的 `ctx`，所以支付调用挂在对应请求的�
 
 ## 配置
 
+推荐直接使用标准 OTel 环境变量。所有语言和项目通用，`tracing.endpoint` 留空即可：
+
+```dotenv
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-southeast-1.grafana.net/otlp
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64(instanceID:token)>
+```
+
+在部署面板里填写时**不要给值加引号**：引号会原样传给程序，导致 Authorization 头被丢弃，
+后端返回 401。启动日志 `tracing ready` 里的 `endpoint_source` 和 `auth_header` 可以确认
+配置是否生效。
+
+也可以写在 YAML 中（`tracing.endpoint` 不为空时优先使用 YAML）：
+
 ```yaml
 server:
   name: my-saas
