@@ -108,7 +108,15 @@ func TestTracedSpansOmitBindValues(t *testing.T) {
 	if err := db.AutoMigrate(&secretRow{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	db.WithContext(context.Background()).Create(&secretRow{Password: "span-secret"})
+	// Outside a trace: no orphan single-span traces.
+	db.WithContext(context.Background()).Create(&secretRow{Password: "orphan"})
+	if n := len(recorder.Ended()); n != 0 {
+		t.Fatalf("statements without a parent span produced %d spans", n)
+	}
+
+	ctx, parent := tp.Tracer("test").Start(context.Background(), "request")
+	db.WithContext(ctx).Create(&secretRow{Password: "span-secret"})
+	parent.End()
 
 	var sawInsert bool
 	for _, s := range recorder.Ended() {
@@ -119,6 +127,9 @@ func TestTracedSpansOmitBindValues(t *testing.T) {
 			}
 			if kv.Key == "db.query.text" && strings.Contains(v, "INSERT INTO") {
 				sawInsert = true
+				if s.Parent().SpanID() != parent.SpanContext().SpanID() {
+					t.Fatal("SQL span is not a child of the request span")
+				}
 			}
 		}
 	}

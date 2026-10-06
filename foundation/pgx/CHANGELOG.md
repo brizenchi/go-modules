@@ -10,8 +10,10 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 ### Added
 
 - `Config.Tracing`: the driver is wrapped with `otelsql`, giving one client
-  span per statement (placeholders only, never bind values) and pool
-  metrics.
+  span per statement inside an existing trace (placeholders only, never bind
+  values) and pool metrics. Statements without a parent span (boot-time
+  migrations, untraced jobs) are not traced, so they do not flood the
+  backend with single-span traces.
 - `Config.LogSQLParams` and `Config.LogRecordNotFound`.
 
 ### Changed

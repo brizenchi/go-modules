@@ -132,11 +132,72 @@ tracing:
 
 ## 日志存储
 
-应用只写 stdout，不自己切割文件，也不直接推送日志。日志的收集、保留和查询由
-部署平台负责，常见做法：
+应用只写 stdout，不自己切割文件，也不直接推送日志。每台服务器部署一个 Grafana Alloy，
+负责采集这台机器上所有容器的 stdout，推送到该服务器所属账号的 Loki。
 
-- Docker / Kubernetes 日志驱动，加 Vector 或 Fluent Bit；
-- OpenTelemetry Collector 的 `filelog` receiver，与 traces 和 metrics 进入同一后端。
+```text
+容器 stdout ──▶ Alloy（每台服务器一个）──▶ Loki
+应用 OTel SDK ─────── OTLP ───────────────▶ Tempo / Prometheus
+```
+
+配置文件在 `templates/quickstart/deploy/alloy/`（`config.alloy`、`docker-compose.yml`）。
+JSON 日志会被提取为标签 `service`、`project`、`env`、`level`；`trace_id` 和
+`request_id` 存为 structured metadata，可以用来过滤，但不会成为高基数标签。非 JSON
+日志原样保留，只带 `container` 标签，所以其他语言的服务也能一起采集。
+
+### 部署 Alloy（每台服务器一次）
+
+1. 获取 Loki 凭据：grafana.com → 进入对应的 Stack → Loki 卡片 → **Details**，记下 URL
+   和 User；然后在 **Access Policies** 里创建一个带 `logs:write` 权限的 token。
+2. 在 Dokploy 里新建一个 **Compose** 服务，代码源指向本仓库，Compose Path 填
+   `templates/quickstart/deploy/alloy/docker-compose.yml`，再设置环境变量（值不加引号）：
+   ```dotenv
+   LOKI_URL=https://logs-prod-<n>.grafana.net/loki/api/v1/push
+   LOKI_USERNAME=<Loki User>
+   LOKI_PASSWORD=<token>
+   SERVER_NAME=<这台服务器的名字>
+   ```
+   不用 Dokploy 时，在服务器上把这两个文件放进同一个目录，执行 `docker compose up -d`。
+3. 验证：Grafana → Explore → `...-logs` 数据源 → `{service="template"}`。按请求 ID 查：
+   `{service="template"} | request_id="<X-Request-ID>"`。
+
+Alloy 需要挂载 Docker socket 才能读取容器日志。这是官方的标准做法，但它赋予了 Alloy
+访问 Docker API 的权限，所以只使用官方镜像，并固定版本号。
+
+### 链路与日志互相跳转
+
+- **从链路跳到日志**：Connections → Data sources → `...-traces` → **Trace to logs**，
+  数据源选 `...-logs`，Tags 填 `service.name` 映射为 `service`，并勾选
+  **Filter by trace ID**。
+- **从日志跳到链路**：`...-logs` → **Derived fields**，新增一个字段：名称 `TraceID`，
+  类型 **Label**，标签名 `trace_id`，内部链接选择 `...-traces`，查询填 `${__value.raw}`。
+
+## 告警
+
+规则文件在 `templates/quickstart/deploy/alerts/rules.yaml`，测试文件是
+`rules_test.yaml`（运行 `promtool test rules rules_test.yaml`）。
+
+| 告警 | 条件 | 级别 |
+| --- | --- | --- |
+| ServiceTelemetryMissing | 10 分钟没有收到遥测数据（服务宕机或导出失败） | critical |
+| HighServerErrorRate | 5xx 比例超过 1%，持续 5 分钟；流量低于每分钟 3 次时不触发 | critical |
+| HighLatencyP99 | P99 超过 2 秒，持续 10 分钟 | warning |
+| StripeWebhookFailing | 10 分钟内出现任何一次 Webhook 非 2xx 响应 | critical |
+| OutboundDependencyErrors | 某个第三方域名的 5xx 或网络错误超过 10%，持续 10 分钟 | warning |
+
+导入步骤：
+
+1. 确认 job 标签：Explore → `...-prom` → `target_info`。OTLP 数据会被转换成
+   `job="<service.namespace>/<service.name>"`，例如 `template/template`。把规则文件里的
+   `template/template` 替换为实际的值。
+2. Alerting → Contact points：添加通知方式（邮件、Telegram、Slack 等），并把它设置为
+   默认 Notification policy 的接收方。
+3. Alerting → Alert rules → **Import**，导入 `rules.yaml`。也可以用
+   `mimirtool rules load rules.yaml`。
+4. 验证：在 Alert rules 页面，各条规则的状态应为 Normal。
+
+不是基于本模板的服务（指标名不同）至少要保留 `ServiceTelemetryMissing`，其余规则需要
+按该服务实际的指标名调整。
 
 ## 已知边界
 

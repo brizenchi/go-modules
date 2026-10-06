@@ -1,0 +1,90 @@
+// Grafana Alloy: ships the stdout/stderr of every Docker container on this
+// host to Grafana Cloud Loki. Traces and metrics do not pass through here;
+// each service exports them itself over OTLP.
+//
+// Required environment (see docker-compose.yml):
+//   LOKI_URL       https://logs-prod-<n>.grafana.net/loki/api/v1/push
+//   LOKI_USERNAME  numeric Loki user id from the stack's Loki card
+//   LOKI_PASSWORD  access-policy token with logs:write
+// Optional:
+//   SERVER_NAME    value of the "host" label (defaults to the container hostname)
+
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+// Applied by loki.source.docker to each container's metadata.
+discovery.relabel "containers" {
+	targets = []
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+
+	// Do not collect Alloy's own output.
+	rule {
+		source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+		regex         = "alloy"
+		action        = "drop"
+	}
+}
+
+loki.source.docker "containers" {
+	host          = "unix:///var/run/docker.sock"
+	targets       = discovery.docker.containers.targets
+	relabel_rules = discovery.relabel.containers.rules
+	forward_to    = [loki.process.app.receiver]
+}
+
+// Services built from the template log JSON (foundation/slog). Promote a
+// few low-cardinality fields to labels and keep trace_id / request_id as
+// structured metadata, so logs can be filtered by them and linked from
+// Tempo without creating high-cardinality labels. Non-JSON lines pass
+// through unchanged with only the container label.
+loki.process "app" {
+	stage.json {
+		expressions = {
+			level      = "level",
+			service    = "service",
+			project    = "project",
+			env        = "env",
+			trace_id   = "trace_id",
+			request_id = "request_id",
+		}
+	}
+
+	stage.labels {
+		values = {
+			level   = "",
+			service = "",
+			project = "",
+			env     = "",
+		}
+	}
+
+	stage.structured_metadata {
+		values = {
+			trace_id   = "",
+			request_id = "",
+		}
+	}
+
+	forward_to = [loki.write.grafana_cloud.receiver]
+}
+
+loki.write "grafana_cloud" {
+	endpoint {
+		url = sys.env("LOKI_URL")
+
+		basic_auth {
+			username = sys.env("LOKI_USERNAME")
+			password = sys.env("LOKI_PASSWORD")
+		}
+	}
+
+	external_labels = {
+		host = coalesce(sys.env("SERVER_NAME"), constants.hostname),
+	}
+}

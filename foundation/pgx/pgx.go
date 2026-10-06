@@ -5,7 +5,7 @@
 // HealthCheck(db) is for Kubernetes /healthz handlers.
 //
 // With Tracing enabled the database/sql driver is wrapped by otelsql:
-// every statement becomes an OpenTelemetry client span
+// every statement inside an existing trace becomes a client span
 // (db.system.name=postgresql, db.query.text with placeholders — bind
 // values are never recorded) and connection-pool metrics are reported
 // through the global MeterProvider.
@@ -16,6 +16,7 @@ package pgx
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,6 +26,7 @@ import (
 	pgxdriver "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -152,12 +154,19 @@ func openTraced(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+// otelOptions records SQL spans only inside an existing trace (an HTTP
+// request, or a job that started its own span). Statements issued at boot
+// or by untraced background work would otherwise each become a separate
+// single-span trace.
 func otelOptions() []otelsql.Option {
 	return []otelsql.Option{
 		otelsql.WithAttributes(semconv.DBSystemNamePostgreSQL),
 		otelsql.WithSpanOptions(otelsql.SpanOptions{
 			OmitConnResetSession: true,
 			OmitRows:             true,
+			SpanFilter: func(ctx context.Context, _ otelsql.Method, _ string, _ []driver.NamedValue) bool {
+				return trace.SpanContextFromContext(ctx).IsValid()
+			},
 		}),
 	}
 }

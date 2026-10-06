@@ -1,0 +1,91 @@
+# promtool test rules deploy/alerts/rules_test.yaml
+rule_files:
+  - rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # 10 req/s, 5% of them 5xx → fires after `for: 5m`.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="template/template", http_route="/api/v1/x", http_response_status_code="200"}'
+        values: '0+570x20'
+      - series: 'http_server_request_duration_seconds_count{job="template/template", http_route="/api/v1/x", http_response_status_code="500"}'
+        values: '0+30x20'
+      - series: 'target_info{job="template/template"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighServerErrorRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "template: 5xx rate 5%"
+              description: "Open Traces with { resource.service.name = \"template\" && status = error } to see failing requests."
+      - eval_time: 15m
+        alertname: ServiceTelemetryMissing
+        exp_alerts: []
+
+  # Idle service: one 5xx out of two requests stays quiet (below 3 req/min).
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="template/template", http_route="/api/v1/x", http_response_status_code="200"}'
+        values: '0x5 1x15'
+      - series: 'http_server_request_duration_seconds_count{job="template/template", http_route="/api/v1/x", http_response_status_code="500"}'
+        values: '0x5 1x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighServerErrorRate
+        exp_alerts: []
+
+  # A single failed Stripe webhook delivery alerts immediately.
+  - interval: 1m
+    input_series:
+      - series: 'http_server_request_duration_seconds_count{job="template/template", http_route="/api/v1/stripe/webhook", http_response_status_code="400"}'
+        values: '0x5 1x10'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: StripeWebhookFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "template: Stripe webhook returned non-2xx"
+              description: "Check Stripe Dashboard → Webhooks and the trace of the failing delivery."
+
+  # api.resend.com: 20% network errors (no status code) → fires;
+  # api.stripe.com healthy → no alert for it.
+  - interval: 1m
+    input_series:
+      - series: 'http_client_request_duration_seconds_count{job="template/template", server_address="api.resend.com", http_response_status_code="200"}'
+        values: '0+48x30'
+      - series: 'http_client_request_duration_seconds_count{job="template/template", server_address="api.resend.com", error_type="timeout"}'
+        values: '0+12x30'
+      - series: 'http_client_request_duration_seconds_count{job="template/template", server_address="api.stripe.com", http_response_status_code="200"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: OutboundDependencyErrors
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              server_address: api.resend.com
+            exp_annotations:
+              summary: "template: api.resend.com failing 20%"
+
+  # No telemetry at all → service considered down.
+  - interval: 1m
+    input_series:
+      - series: 'target_info{job="template/template"}'
+        values: '1x5'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ServiceTelemetryMissing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: template/template
+            exp_annotations:
+              summary: "template: no telemetry for 10 minutes"
+              description: "The service is down or its OTLP export is failing. Check the container and the 'opentelemetry error' log lines."

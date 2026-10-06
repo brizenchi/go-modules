@@ -1,0 +1,25 @@
+# One Alloy per server. Deploy it as a Dokploy "Compose" service (or plain
+# `docker compose up -d`) with this server's Grafana Cloud Loki credentials.
+services:
+  alloy:
+    image: grafana/alloy:v1.20.1
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      LOKI_URL: ${LOKI_URL:?set LOKI_URL}
+      LOKI_USERNAME: ${LOKI_USERNAME:?set LOKI_USERNAME}
+      LOKI_PASSWORD: ${LOKI_PASSWORD:?set LOKI_PASSWORD}
+      SERVER_NAME: ${SERVER_NAME:-}
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      # Needed to discover containers and read their logs.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read positions survive restarts, so logs are neither lost nor resent.
+      - alloy-data:/var/lib/alloy/data
+
+volumes:
+  alloy-data:

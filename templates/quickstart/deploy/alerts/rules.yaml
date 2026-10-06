@@ -1,0 +1,78 @@
+# Baseline alert rules for a service built from this template, in Prometheus
+# rule-file format. Import into Grafana Cloud (Alerting → Alert rules →
+# Import, or `mimirtool rules load`); see docs/OBSERVABILITY.md.
+#
+# OTLP resource attributes become the Prometheus label
+#   job = "<service.namespace>/<service.name>"   e.g. APP_PROJECT=template, OTEL_SERVICE_NAME=template
+# Replace "template/template" below with your service's job before importing.
+groups:
+  - name: template-service
+    interval: 1m
+    rules:
+      # Telemetry stopped arriving: the service is down or cannot export.
+      - alert: ServiceTelemetryMissing
+        expr: absent_over_time(target_info{job="template/template"}[10m])
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "template: no telemetry for 10 minutes"
+          description: "The service is down or its OTLP export is failing. Check the container and the 'opentelemetry error' log lines."
+
+      # More than 1% of requests fail with 5xx. Ignored below 3 req/min so a
+      # single error on an idle service does not page.
+      - alert: HighServerErrorRate
+        expr: |
+          (
+            sum(rate(http_server_request_duration_seconds_count{job="template/template", http_response_status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_server_request_duration_seconds_count{job="template/template"}[5m]))
+          ) > 0.01
+          and
+          sum(rate(http_server_request_duration_seconds_count{job="template/template"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "template: 5xx rate {{ $value | humanizePercentage }}"
+          description: "Open Traces with { resource.service.name = \"template\" && status = error } to see failing requests."
+
+      - alert: HighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le) (rate(http_server_request_duration_seconds_bucket{job="template/template"}[5m]))
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "template: p99 latency {{ $value | humanizeDuration }}"
+
+      # Stripe retries failed webhooks, but payments stay unconfirmed until
+      # one succeeds.
+      - alert: StripeWebhookFailing
+        expr: |
+          sum(increase(http_server_request_duration_seconds_count{job="template/template", http_route="/api/v1/stripe/webhook", http_response_status_code!~"2.."}[10m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "template: Stripe webhook returned non-2xx"
+          description: "Check Stripe Dashboard → Webhooks and the trace of the failing delivery."
+
+      # Third-party APIs (Stripe, Resend, Google, ...) failing: 5xx or
+      # network errors above 10%.
+      - alert: OutboundDependencyErrors
+        expr: |
+          sum by (server_address) (
+            rate(http_client_request_duration_seconds_count{job="template/template", http_response_status_code=~"5.."}[10m])
+            or
+            rate(http_client_request_duration_seconds_count{job="template/template", error_type!=""}[10m])
+          )
+          /
+          sum by (server_address) (rate(http_client_request_duration_seconds_count{job="template/template"}[10m]))
+          > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "template: {{ $labels.server_address }} failing {{ $value | humanizePercentage }}"
