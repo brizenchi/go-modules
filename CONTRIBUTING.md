@@ -21,6 +21,16 @@ This repo is one Go module rooted at
 `foundation/*`, `modules/*`, `stacks/*`, and `templates/quickstart`.
 They ship together under one repo tag such as `v0.3.0`.
 
+## Standards
+
+The full engineering standards (Git workflow, code review, code style and
+error handling, API, database, security, testing, CI, deployment, incident
+response, frontend, AI assistants) live in
+[docs/standards/README.md](docs/standards/README.md). AI assistants load the
+condensed rules from [AGENTS.md](AGENTS.md) / `CLAUDE.md`.
+
+Install the local git hooks once: `brew install lefthook gitleaks && make hooks`.
+
 ## Local setup
 
 ```bash
@@ -96,6 +106,7 @@ packages follow the DDD layering used by `modules/auth/`,
 
 ## Pull request checklist
 
+- [ ] PR title follows Conventional Commits (`type(scope): subject`)
 - [ ] `make test-race` passes
 - [ ] `make fmt` clean
 - [ ] `make purity-check` clean

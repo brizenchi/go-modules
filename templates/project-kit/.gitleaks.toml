@@ -1,0 +1,15 @@
+# gitleaks: default rules plus allowances for obvious test fixtures.
+# Test secrets must look fake, e.g. sk_test_not-a-real-key (docs/standards/TESTING.md).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Obviously fake fixture values"
+regexes = ['''not-a-real''']
+
+[[allowlists]]
+description = "Build output and dependencies"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+]

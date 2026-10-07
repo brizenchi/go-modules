@@ -126,6 +126,23 @@ test("apiRequest throws ApiError on transport or envelope failure", async () => 
   );
 });
 
+test("ApiError exposes request id and reason for error reporting", async () => {
+  const api = loadApiModule();
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ code: 400, msg: "auth: invalid code", data: { reason: "AUTH_INVALID_CODE" } }), {
+      status: 400,
+      headers: { "content-type": "application/json", "x-request-id": "rid-frontend-1" }
+    })) as typeof fetch;
+
+  await assert.rejects(api.apiRequest("/auth/verify-code", { method: "POST", json: {} }), (error: unknown) => {
+    assert.ok(error instanceof api.ApiError);
+    assert.equal(error.requestId, "rid-frontend-1");
+    assert.equal(error.reason, "AUTH_INVALID_CODE");
+    return true;
+  });
+});
+
 test("verifyCode forwards a trimmed referral code", async () => {
   const api = loadApiModule();
   let payload: unknown;

@@ -1,0 +1,15 @@
+# Owners are requested for review automatically. Replace or add team
+# handles as the team grows; the last matching pattern wins.
+# Docs: docs/standards/CODE_REVIEW.md
+
+*                              @brizenchi
+
+# Shared infrastructure and business modules affect every SaaS.
+/foundation/                   @brizenchi
+/modules/                      @brizenchi
+/modules/billing/              @brizenchi
+
+# Standards, CI and repository settings.
+/docs/standards/               @brizenchi
+/.github/                      @brizenchi
+/AGENTS.md                     @brizenchi

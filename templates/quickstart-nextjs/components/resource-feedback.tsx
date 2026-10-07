@@ -19,6 +19,7 @@ export function ResourceFailure({
       <div className="resource-feedback-copy">
         <strong>{failure.title}</strong>
         <p>{failure.message}</p>
+        {failure.requestId ? <p className="request-id">Request ID: <code>{failure.requestId}</code></p> : null}
         {!compact ? (
           <div className="resource-feedback-actions">
             {failure.kind === "auth" ? (

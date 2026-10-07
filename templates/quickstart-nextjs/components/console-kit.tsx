@@ -86,7 +86,8 @@ export function ConsoleError({ error, retry }: { error: unknown; retry?: () => v
     : api?.status === 400 || api?.status === 422 ? t({ en: "Check the entered values and try again.", zh: "请检查填写内容后重试。" })
     : api?.status === 503 ? t({ en: "This feature is not ready yet. Please contact support.", zh: "此功能暂未就绪，请联系支持人员。" })
     : t({ en: "Unable to complete the request. Please try again.", zh: "请求未能完成，请重试。" });
-  return <div className={styles.error} role="alert"><span>{message}</span>{retry ? <button className="button" type="button" onClick={retry}>{t({ en: "Try again", zh: "重试" })}</button> : null}</div>;
+  const requestId = api && (api.status >= 500 || api.status === 0) ? api.requestId : "";
+  return <div className={styles.error} role="alert"><span>{message}</span>{requestId ? <small>{t({ en: "Request ID", zh: "请求编号" })}: <code>{requestId}</code></small> : null}{retry ? <button className="button" type="button" onClick={retry}>{t({ en: "Try again", zh: "重试" })}</button> : null}</div>;
 }
 
 export function Pagination({ result, loading, onPage }: { result: Pick<PageResult<unknown>, "page" | "limit" | "total">; loading: boolean; onPage: (page: number) => void }) {

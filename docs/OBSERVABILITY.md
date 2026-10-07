@@ -68,6 +68,56 @@ Stripe 调用会传递请求的 `ctx`，所以支付调用挂在对应请求的�
 业务代码统一使用 `slog.InfoContext(ctx, ...)` 这类带 ctx 的方法，关联字段会自动
 补全，不需要手动传 `request_id` 或 `trace_id`。
 
+## 日志级别
+
+| 级别 | 什么时候用 | 例子 | 会不会告警 |
+| --- | --- | --- | --- |
+| `ERROR` | 需要人工处理的问题：未知错误、数据不一致、依赖彻底不可用 | 未知的 500、Webhook 处理失败、panic | 会（通过错误率指标） |
+| `WARN` | 不正常但系统已经自动处理，或者是客户端的问题 | 4xx、重试后成功、慢查询、降级 | 不会，定期查看 |
+| `INFO` | 重要的业务事件和状态变化 | 用户注册、订阅开通、服务启动、配置加载完成 | 不会 |
+| `DEBUG` | 排查问题时临时需要的细节 | 第三方接口的返回摘要 | 生产环境默认不输出 |
+
+规则：
+
+- 一个错误只记一次日志，在处理它的边界记录（见 [CODE_STYLE.md](./standards/CODE_STYLE.md#错误处理)）；
+- 客户端的错误（参数错误、未登录）不记 ERROR，否则会掩盖真正的问题；
+- 不在循环里、或者每个请求都会走到的代码里记 INFO，访问日志已经记录了每个请求；
+- 日志的 `msg` 用固定的英文短语，变化的值放进字段：
+  `slog.InfoContext(ctx, "subscription activated", "plan", plan)`，不写 `fmt.Sprintf("user %s activated %s", ...)`。
+  这样才能在 Loki 里按消息聚合统计。
+
+### 业务事件日志
+
+重要的业务事件使用统一的字段，方便在 Loki 里统计和审计：
+
+```go
+slog.InfoContext(ctx, "subscription activated",
+	"component", "billing",      // 所在的模块
+	"operation", "activate",     // 动作
+	"outcome", "success",        // success / failure
+	"plan", plan,
+)
+```
+
+`user_id`、`request_id`、`trace_id` 会从 ctx 中自动补上，不需要手动传入。
+
+## 自定义指标和 span
+
+HTTP、SQL、外部调用的指标和链路都是自动采集的。只有需要**业务层面**的数据时，才需要自己写：
+
+```go
+var logins, _ = otel.Meter("quickstart").Int64Counter("app.user.logins")
+logins.Add(ctx, 1, metric.WithAttributes(attribute.String("provider", "google")))
+
+ctx, span := otel.Tracer("quickstart").Start(ctx, "grant signup credits")
+defer span.End()
+```
+
+- 指标名：`app.<领域>.<名称>`，使用 OTel 的点号写法，导出到 Prometheus 后会变成 `app_user_logins_total`；
+- 属性只用取值有限的字段（`provider`、`plan`、`status`）；**禁止**把 `user_id`、`email`、`request_id` 作为指标属性，否则序列数会爆炸，产生费用；
+- 业务指标写在宿主的事件订阅里（`internal/bootstrap/subscriptions.go`），不改动共享模块；
+- span 名称使用"动作 + 对象"的固定短语，变化的值放进属性。
+
 ## 敏感数据
 
 - 键名为 `password`、`token`、`authorization`、`cookie`、`api_key`、`client_secret`
@@ -164,6 +214,14 @@ JSON 日志会被提取为标签 `service`、`project`、`env`、`level`；`trac
 Alloy 需要挂载 Docker socket 才能读取容器日志。这是官方的标准做法，但它赋予了 Alloy
 访问 Docker API 的权限，所以只使用官方镜像，并固定版本号。
 
+### 托管平台（Railway 等）
+
+托管平台不开放 Docker socket，无法部署 Alloy 采集其他服务的输出。目前的情况：
+
+- 链路和指标：和自建服务器一样，通过 `OTEL_EXPORTER_OTLP_*` 环境变量直接发送，不受影响；
+- 日志：只能在平台自带的日志页面查看，或者使用平台的日志转发功能（以平台文档为准）；
+- 计划：在 `foundation/slog` 中增加 OTLP 日志导出（stdout 照常保留），实现后托管平台和自建服务器都只需要配置环境变量。
+
 ### 链路与日志互相跳转
 
 - **从链路跳到日志**：Connections → Data sources → `...-traces` → **Trace to logs**，
@@ -198,6 +256,16 @@ Alloy 需要挂载 Docker socket 才能读取容器日志。这是官方的标�
 
 不是基于本模板的服务（指标名不同）至少要保留 `ServiceTelemetryMissing`，其余规则需要
 按该服务实际的指标名调整。
+
+### 告警级别与 SLO
+
+| 级别 | 通知方式 | 对应的故障级别 |
+| --- | --- | --- |
+| `critical` | 立即通知（手机推送、Telegram） | P1 / P2，见 [INCIDENT_RESPONSE.md](./standards/INCIDENT_RESPONSE.md) |
+| `warning` | 工作时间查看（邮件、频道消息） | P3 |
+
+- 每条告警都要能回答"收到之后该做什么"，写在 `annotations.description` 里；没人处理的告警应该删除或调整阈值；
+- 正式对客户承诺可用性之后，在 Grafana 的 SLO 功能里定义目标（比如"月可用性 99.9%"、"99% 的请求在 1 秒内完成"），按错误预算的消耗速度告警，取代固定阈值。
 
 ## 已知边界
 

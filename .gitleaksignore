@@ -1,0 +1,41 @@
+# Fingerprints of fake keys in test fixtures committed before gitleaks was
+# introduced. Do not add new entries for real secrets: rotate them instead
+# (docs/standards/SECURITY_STANDARD.md#密钥泄露处理).
+0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/config_schema_test.go:generic-api-key:430
+0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/config_schema_test.go:stripe-access-token:327
+0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/config_schema_test.go:stripe-access-token:429
+0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/subscriptions_test.go:stripe-access-token:133
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart-nextjs/tests/integration-form.test.ts:generic-api-key:21
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart-nextjs/tests/integration-form.test.ts:generic-api-key:22
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart-nextjs/tests/integration-form.test.ts:generic-api-key:75
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart-nextjs/tests/integration-form.test.ts:stripe-access-token:74
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/bootstrap/service_settings_test.go:generic-api-key:142
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/bootstrap/service_settings_test.go:generic-api-key:75
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/bootstrap/service_settings_test.go:generic-api-key:80
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/bootstrap/service_settings_test.go:stripe-access-token:142
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/bootstrap/service_settings_test.go:stripe-access-token:80
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:255
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:256
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:260
+69a4d1b859f33a4e75f7ab8b230f3971efb19fc7:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:45
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart-nextjs/tests/integration-form.test.ts:generic-api-key:21
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart-nextjs/tests/integration-form.test.ts:generic-api-key:22
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart-nextjs/tests/integration-form.test.ts:generic-api-key:75
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart-nextjs/tests/integration-form.test.ts:stripe-access-token:74
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/cmd/preview/integrations_test.go:stripe-access-token:23
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/bootstrap/service_settings_test.go:generic-api-key:142
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/bootstrap/service_settings_test.go:generic-api-key:75
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/bootstrap/service_settings_test.go:generic-api-key:80
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/bootstrap/service_settings_test.go:stripe-access-token:142
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/bootstrap/service_settings_test.go:stripe-access-token:80
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:255
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:256
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:260
+6b70e8ad6294de899cb2d1ea1c9caf3faeb8225e:templates/quickstart/internal/serviceconfig/manager_test.go:stripe-access-token:45
+7058b74b3418154619c7634a8c329b751b0b2148:templates/quickstart/internal/bootstrap/config_schema_test.go:generic-api-key:172
+89a89249b22e490ea593c3a5286505f5c5b98467:templates/quickstart-nextjs/tests/api.test.ts:generic-api-key:142
+89a89249b22e490ea593c3a5286505f5c5b98467:templates/quickstart-nextjs/tests/api.test.ts:generic-api-key:163
+e2f71a4790b53ac5ce86ed7ce665a29f54ca975b:templates/quickstart/internal/bootstrap/config_schema_test.go:generic-api-key:122
+e2f71a4790b53ac5ce86ed7ce665a29f54ca975b:templates/quickstart/internal/bootstrap/config_schema_test.go:generic-api-key:86
+e2f71a4790b53ac5ce86ed7ce665a29f54ca975b:templates/quickstart/internal/bootstrap/subscriptions_test.go:stripe-access-token:38
+e4ad693f586af5886e1a0eb160a9aedca65508c5:auth/adapter/jwt/signer_test.go:generic-api-key:13

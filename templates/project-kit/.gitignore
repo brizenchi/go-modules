@@ -1,12 +1,8 @@
+.DS_Store
 .idea/
 .vscode/
-*.test
-*.out
 *.log
-.DS_Store
-coverage.txt
-.cache/
-.codegraph
+
 # Claude Code: share team config (settings.json, hooks, skills); keep personal files local.
 .claude/*
 !.claude/settings.json

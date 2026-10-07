@@ -36,6 +36,15 @@
    - 实现 `UserStore` / `AccountLookup`
    - 订阅领域事件
 
+## 参与开发时
+
+7. [工程规范总览](./standards/README.md)
+   - Git 提交、代码审查、代码风格、错误处理
+   - API、数据库、安全、测试、CI、部署、故障响应
+   - AI 助手的规则入口（`AGENTS.md`、`CLAUDE.md`）
+
+8. [新成员上手指南](./standards/ONBOARDING.md)
+
 ## 维护架构时
 
 - [ADR-0001：宿主拥有组合和用户模型](./adr/0001-template-owned-composition-and-user-schema.md)

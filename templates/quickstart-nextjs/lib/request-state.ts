@@ -13,6 +13,8 @@ export type RequestFailure = {
   title: string;
   message: string;
   retryable: boolean;
+  /** X-Request-ID to quote when reporting server-side failures. */
+  requestId?: string;
 };
 
 export type ResourceState<T> =
@@ -75,7 +77,8 @@ export function describeRequestFailure(error: unknown, capability: string): Requ
         kind: "unavailable",
         title: `${capability} is temporarily unavailable`,
         message: error.message || "The API reported that this capability is unavailable.",
-        retryable: true
+        retryable: true,
+        requestId: error.requestId || undefined
       };
     }
 
@@ -92,7 +95,8 @@ export function describeRequestFailure(error: unknown, capability: string): Requ
       kind: "unknown",
       title: `Could not load ${capability.toLowerCase()}`,
       message: error.message || `The API returned HTTP ${error.status}.`,
-      retryable: error.status >= 500
+      retryable: error.status >= 500,
+      requestId: error.requestId || undefined
     };
   }
 

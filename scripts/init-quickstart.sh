@@ -60,6 +60,26 @@ find "$destination/backend" "$destination/frontend" -type f \
   \( -name '*.go' -o -name '*.yaml' -o -name '*.example' -o -name '*.json' -o -name '*.md' -o -name '*.ts' -o -name '*.tsx' -o -name '*.mjs' \) \
   -exec env OLD_APP="$old_app" NEW_APP="$app_name" \
   perl -pi -e 's/\Q$ENV{OLD_APP}\E/$ENV{NEW_APP}/g' {} +
+# Renaming the module and app changes import order and alignment.
+gofmt -s -w "$destination/backend"
+
+# Project-level standards: AI rules, docs, git hooks, CI and Claude Code
+# settings. Copied after the app-name rewrite so paths and names stay intact.
+(
+  cd "$repo_root/templates/project-kit"
+  tar -cf - .
+) | tar -C "$destination" -xf -
+mkdir -p "$destination/docs" "$destination/scripts" "$destination/.claude"
+cp -R "$repo_root/docs/standards" "$repo_root/docs/adr" "$destination/docs/"
+cp "$repo_root/docs/ARCHITECTURE.md" "$repo_root/docs/CONFIG_STANDARD.md" \
+  "$repo_root/docs/OBSERVABILITY.md" "$repo_root/docs/SETUP_ZH.md" "$destination/docs/"
+cp "$repo_root/SECURITY.md" "$repo_root/.editorconfig" "$destination/"
+cp "$repo_root/scripts/check-commit-msg.sh" "$destination/scripts/"
+cp -R "$repo_root/.claude/hooks" "$repo_root/.claude/skills" "$repo_root/.claude/settings.json" "$destination/.claude/"
+printf '@AGENTS.md\n' > "$destination/CLAUDE.md"
+# Repository paths become the project's layout.
+find "$destination/docs" "$destination/.claude/skills" -type f -name '*.md' \
+  -exec perl -pi -e 's{templates/quickstart-nextjs}{frontend}g; s{templates/quickstart}{backend}g; s{ && make purity-check}{}g' {} +
 
 (
   cd "$destination/backend"
@@ -73,5 +93,6 @@ echo "next:"
 echo "  cp $destination/backend/deploy/config.yaml.example $destination/backend/deploy/config.yaml"
 echo "  cp $destination/backend/.env.example $destination/backend/.env"
 echo "  cp $destination/frontend/.env.example $destination/frontend/.env.local"
+echo "  cd $destination && git init && make hooks   # AI rules: AGENTS.md / CLAUDE.md; standards: docs/standards"
 echo "  cd $destination/backend && GOWORK=off go test ./..."
 echo "  cd $destination/frontend && npm install && npm run verify"

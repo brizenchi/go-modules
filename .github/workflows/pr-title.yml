@@ -1,0 +1,22 @@
+name: pr-title
+
+# The PR title becomes the squash-merge commit message, so it must follow
+# Conventional Commits. See docs/standards/GIT_WORKFLOW.md.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-title:
+    name: pr-title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conventional Commits title
+        env:
+          # Passed through env, never interpolated into the script.
+          COMMIT_TITLE: ${{ github.event.pull_request.title }}
+        run: ./scripts/check-commit-msg.sh

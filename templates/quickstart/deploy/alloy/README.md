@@ -2,7 +2,7 @@
 
 One Alloy per server ships every container's stdout to that server's
 Grafana Cloud Loki. Setup, credentials and Grafana linking:
-[docs/OBSERVABILITY.md → 日志存储](../../../../docs/OBSERVABILITY.md#日志存储).
+`docs/OBSERVABILITY.md` → 日志存储 ([online](https://github.com/brizenchi/go-modules/blob/main/docs/OBSERVABILITY.md#日志存储)).
 
 ```bash
 LOKI_URL=... LOKI_USERNAME=... LOKI_PASSWORD=... docker compose up -d

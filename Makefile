@@ -1,4 +1,4 @@
-.PHONY: help test test-race tidy tidy-check fmt fmt-check vet build purity-check lint vuln list verify-templates verify-template-copy verify-template-release pin-template-version init-quickstart
+.PHONY: hooks secrets-check alerts-check help test test-race tidy tidy-check fmt fmt-check vet build purity-check lint vuln list verify-templates verify-template-copy verify-template-release pin-template-version init-quickstart
 
 PACKAGE_ROOTS := foundation modules
 GO_PACKAGES := ./foundation/... ./modules/...
@@ -105,6 +105,19 @@ vuln: ## govulncheck over the repo root module
 	@command -v govulncheck >/dev/null 2>&1 || { \
 		echo "govulncheck not installed; run: go install golang.org/x/vuln/cmd/govulncheck@latest"; exit 1; }
 	@GOWORK=off GOCACHE=$(CURDIR)/.cache/go-build GOMODCACHE=$(CURDIR)/.cache/gomod govulncheck $(GO_PACKAGES)
+
+hooks: ## 安装本地 Git 钩子（需要 lefthook；建议同时安装 gitleaks）
+	@command -v lefthook >/dev/null 2>&1 || { echo "lefthook not installed: brew install lefthook (or go install github.com/evilmartians/lefthook@latest)"; exit 1; }
+	@lefthook install
+	@command -v gitleaks >/dev/null 2>&1 || echo "tip: brew install gitleaks to enable the local secret scan"
+
+secrets-check: ## 用 gitleaks 扫描 git 历史中的密钥
+	@command -v gitleaks >/dev/null 2>&1 || { echo "gitleaks not installed: brew install gitleaks"; exit 1; }
+	@gitleaks git . --no-banner --redact --config .gitleaks.toml
+
+alerts-check: ## 校验并测试告警规则（需要 promtool）
+	@command -v promtool >/dev/null 2>&1 || { echo "promtool not installed: brew install prometheus"; exit 1; }
+	@cd templates/quickstart/deploy/alerts && promtool check rules rules.yaml && promtool test rules rules_test.yaml
 
 purity-check: ## 检查共享包是否错误导入宿主代码
 	@bad=$$(grep -rE '"github\.com/[^"]+/(internal|pkg/models|pkg/middleware)"' \

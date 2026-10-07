@@ -1,0 +1,21 @@
+# Local git hooks. Install once: `brew install lefthook gitleaks && make hooks`.
+# Only the two checks that must run before code leaves the machine: secrets
+# (a pushed secret is already leaked) and formatting (instant). Everything
+# else, including commit-message checks, is enforced by CI.
+# Docs: docs/standards/CI_QUALITY.md
+
+pre-commit:
+  parallel: true
+  commands:
+    gofmt:
+      glob: "*.go"
+      run: |
+        out=$(gofmt -s -l {staged_files})
+        if [ -n "$out" ]; then echo "gofmt needed (run: make fmt):"; echo "$out"; exit 1; fi
+    gitleaks:
+      run: |
+        if command -v gitleaks >/dev/null 2>&1; then
+          gitleaks git --staged --no-banner --redact --config .gitleaks.toml .
+        else
+          echo "gitleaks not installed — skipping local secret scan (CI still runs it)"
+        fi

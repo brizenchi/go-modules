@@ -130,13 +130,22 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: number;
   readonly data: unknown;
+  /** X-Request-ID of the failed response; show it so users can report the error. */
+  readonly requestId: string;
 
-  constructor(message: string, status: number, code: number, data?: unknown) {
+  constructor(message: string, status: number, code: number, data?: unknown, requestId = "") {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.data = data;
+    this.requestId = requestId;
+  }
+
+  /** Stable machine-readable error reason from `data.reason`, or "" (see docs/standards/API_STANDARD.md). */
+  get reason(): string {
+    const reason = (this.data as { reason?: unknown } | null | undefined)?.reason;
+    return typeof reason === "string" ? reason : "";
   }
 }
 
@@ -184,7 +193,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const bodyCode = typeof envelope?.code === "number" ? envelope.code : response.status;
 
   if (!response.ok || bodyCode !== 200) {
-    const error = new ApiError(message, response.status, bodyCode, envelope?.data);
+    const error = new ApiError(message, response.status, bodyCode, envelope?.data, response.headers.get("x-request-id") || "");
     if ((response.status === 401 || bodyCode === 401) && options.authToken) {
       clearSessionIfToken(options.authToken);
     }

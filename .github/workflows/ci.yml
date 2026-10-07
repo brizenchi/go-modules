@@ -123,3 +123,31 @@ jobs:
           cache-dependency-path: go.sum
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: govulncheck $GO_PACKAGES
+
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (full history, baseline in .gitleaksignore)
+        env:
+          GITLEAKS_VERSION: '8.30.1'
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz gitleaks
+          ./gitleaks git . --no-banner --redact --config .gitleaks.toml
+
+  observability-config:
+    name: observability-config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Alert rules (promtool check + unit tests)
+        working-directory: templates/quickstart/deploy/alerts
+        run: |
+          docker run --rm -v "$PWD:/rules" -w /rules --entrypoint promtool prom/prometheus:v3.15.0 check rules rules.yaml
+          docker run --rm -v "$PWD:/rules" -w /rules --entrypoint promtool prom/prometheus:v3.15.0 test rules rules_test.yaml
+      - name: Alloy config syntax
+        working-directory: templates/quickstart/deploy/alloy
+        run: docker run --rm -v "$PWD:/cfg" grafana/alloy:v1.20.1 fmt /cfg/config.alloy > /dev/null

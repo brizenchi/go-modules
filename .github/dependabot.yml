@@ -1,0 +1,41 @@
+# Weekly dependency updates, grouped to keep PR count low.
+# Docs: docs/standards/CI_QUALITY.md#依赖管理
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    commit-message: { prefix: "build(deps)" }
+    groups:
+      opentelemetry:
+        patterns: ["go.opentelemetry.io/*", "github.com/XSAM/otelsql", "github.com/redis/go-redis/extra/*"]
+      aws:
+        patterns: ["github.com/aws/*"]
+      golang-x:
+        patterns: ["golang.org/x/*"]
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /templates/quickstart
+    schedule: { interval: weekly, day: monday }
+    commit-message: { prefix: "build(deps)" }
+    ignore:
+      # Pinned to a released go-modules tag via `make pin-template-version`.
+      - dependency-name: github.com/brizenchi/go-modules
+    groups:
+      all:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /templates/quickstart-nextjs
+    schedule: { interval: weekly, day: monday }
+    commit-message: { prefix: "build(deps)" }
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    commit-message: { prefix: "ci(deps)" }

@@ -1,0 +1,6 @@
+# Owners are requested for review automatically; replace with your team
+# handles. The last matching pattern wins. Docs: docs/standards/CODE_REVIEW.md
+*                       @brizenchi
+/backend/migrations/    @brizenchi
+/docs/standards/        @brizenchi
+/.github/               @brizenchi

@@ -21,3 +21,10 @@ test("settleResource preserves successful resources when a sibling request fails
   assert.equal(failed.status, "error");
   assert.equal(failed.failure?.kind, "disabled");
 });
+
+test("server failures carry the request id for support", () => {
+  const failure = describeRequestFailure(new ApiError("internal", 500, 500, null, "rid-500"), "Billing");
+  assert.equal(failure.kind, "unknown");
+  assert.equal(failure.requestId, "rid-500");
+  assert.equal(describeRequestFailure(new ApiError("unauthorized", 401, 401, null, "rid-401"), "Profile").requestId, undefined);
+});
