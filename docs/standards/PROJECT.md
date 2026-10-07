@@ -1,6 +1,6 @@
 # go-modules：项目约定
 
-> 本文件属于本项目。通用规范由 [dev-standards](https://github.com/brizenchi/dev-standards) 维护，
+> 本文件属于本项目。通用规范由 [keel](https://github.com/brizenchi/keel) 维护，
 > 这里记录它们在 go-modules 里的具体做法。
 
 ## 架构
@@ -83,7 +83,7 @@ cd templates/quickstart-nextjs && npm ci && npm run dev
 
 ## 项目特有的检查
 
-dev-standards 的检查（`standards / …`）之外，`.github/workflows/ci.yml` 还运行：
+keel 的检查（`keel / …`）之外，`.github/workflows/ci.yml` 还运行：
 
 | 检查 | 内容 |
 | --- | --- |
@@ -93,9 +93,9 @@ dev-standards 的检查（`standards / …`）之外，`.github/workflows/ci.yml
 | `observability-config` | 告警规则测试（promtool）、Alloy 配置检查 |
 | `deploy` | 推送到 `main` 且以上检查全部通过后部署 |
 
-这些检查也写在 `.github/required-checks.txt` 末尾，由 `setup-github` 设为必需。
+这些检查也写在 `.keel/required-checks.txt` 末尾，由 `keel github` 设为必需。
 
 ## 其他
 
 - `.gitleaksignore` 记录了引入 gitleaks 之前已有的测试假密钥（指纹），新增的假密钥必须用 `*_not-a-real-key` 写法；
-- `templates/quickstart` 被复制成新项目时，用 `make init-quickstart`，它会同时安装 dev-standards。
+- `templates/quickstart` 被复制成新项目时，用 `make init-quickstart`，它会同时安装 keel。

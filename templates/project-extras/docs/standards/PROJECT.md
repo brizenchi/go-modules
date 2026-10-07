@@ -1,6 +1,6 @@
 # 项目约定
 
-> 本文件属于本项目。通用规范由 [dev-standards](https://github.com/brizenchi/dev-standards) 维护，
+> 本文件属于本项目。通用规范由 [keel](https://github.com/brizenchi/keel) 维护，
 > 这里记录它们在本项目里的具体做法。本项目由 go-modules 的 quickstart 模板创建。
 
 ## 架构

@@ -3,10 +3,12 @@
 Rules for AI coding assistants (Codex, Claude Code, Cursor, …) working in
 go-modules. Subdirectories may add their own `AGENTS.md`; the closest one wins
 on conflict. Full standards: `docs/standards/` — read the linked document before
-working in that area. Project architecture and commands: `docs/standards/PROJECT.md`.
+working in that area.
+Project architecture and commands: `docs/standards/PROJECT.md`.
 
-The sections above "Project-specific rules" are maintained by dev-standards and
-updated with `uvx copier update`; edit the project section freely.
+The sections above "Project-specific rules" are maintained by keel
+(https://github.com/brizenchi/keel) and updated with `keel update`; edit the
+project section freely.
 
 ## Must
 
@@ -58,8 +60,9 @@ commit. → `docs/standards/GIT_WORKFLOW.md`
 
 ## Before finishing
 
-Run the checks listed in `.github/pull_request_template.md` for the parts you changed and
-report failures as they are; never claim success without running them.
+Run the checks for the parts you changed (listed in
+`.github/pull_request_template.md`) and report failures as they are; never claim
+success without running them.
 
 ## Project-specific rules
 

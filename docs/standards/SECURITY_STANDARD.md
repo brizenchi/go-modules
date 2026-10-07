@@ -49,7 +49,7 @@
 | 最小权限 | 第三方 token 只申请需要的权限 |
 | 隔离 | 不同环境、不同客户使用不同的密钥 |
 | 轮换 | 人员离开、怀疑泄露，或每年一次 |
-| 扫描 | 提交前的 gitleaks 钩子和 CI 的 `secrets / gitleaks`；GitHub 推送保护（`setup-github` 会开启） |
+| 扫描 | 提交前的 gitleaks 钩子和 CI 的 `secrets / gitleaks`；GitHub 推送保护（`keel github` 会开启） |
 
 ### 密钥泄露处理
 1. **立即在服务商后台作废该密钥**，生成新密钥并更新所有环境。这一步最重要，改写 git 历史撤回不了已经泄露的密钥；
@@ -73,5 +73,5 @@
 ## 依赖安全
 
 - CI 运行依赖漏洞扫描（Go `govulncheck`、Node `audit`、Python `pip-audit`）；高危漏洞 1 周内处理；
-- Dependabot 每周提交依赖升级；Dependabot 安全提醒由 `setup-github` 开启；
+- Dependabot 每周提交依赖升级；Dependabot 安全提醒由 `keel github` 开启；
 - 引入新依赖前确认：维护是否活跃、许可证是否允许商用、是否有已知漏洞。

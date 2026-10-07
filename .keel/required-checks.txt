@@ -1,0 +1,15 @@
+# Status checks required before merging into main, applied by
+# `keel github`. One check name per line, exactly as shown on a pull request.
+# Append your own workflow's checks below; they survive `keel update`.
+# Vulnerability audits (*/ vuln, */ audit) are intentionally not required.
+keel / commits / pr-title
+keel / secrets / gitleaks
+keel / go-root / check
+keel / go-root / lint
+keel / go-templates-quickstart / check
+keel / node-templates-quickstart-nextjs / check
+# go-modules project checks (.github/workflows/ci.yml)
+template-quickstart
+go mod tidy
+pkg purity
+observability-config

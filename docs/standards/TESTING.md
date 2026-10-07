@@ -51,7 +51,7 @@ Node（在对应目录）：
 npm run lint && npm test && npm run build    # 或 pnpm / yarn
 ```
 
-CI 中对应的检查见 [CI_QUALITY.md](./CI_QUALITY.md#必需的检查)。
+CI 中对应的检查见 [CI_QUALITY.md](./CI_QUALITY.md#ci-的组成)。
 
 ## 覆盖率
 

@@ -1,8 +1,7 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: v1.0.0
-_src_path: gh:brizenchi/dev-standards
-ai_rules: true
-ci_caller_job: standards
+_commit: v2.0.0
+_src_path: gh:brizenchi/keel
+ci_caller_job: keel
 ci_mode: reusable
 codeowners: '@brizenchi'
 commit_scopes:
@@ -21,6 +20,20 @@ commit_scopes:
 - deploy
 - docs
 - ci
+components:
+- docs
+- ci
+- commit-lint
+- secrets
+- hooks
+- github
+- pr-template
+- codeowners
+- dependabot
+- security-policy
+- editorconfig
+- gitignore
+- ai
 default_branch: main
 github_repo: brizenchi/go-modules
 go_modules:

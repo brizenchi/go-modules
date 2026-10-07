@@ -1,0 +1,532 @@
+#!/usr/bin/env bash
+# keel — engineering standards for Git repositories.
+# https://github.com/brizenchi/keel  ·  MIT License
+#
+# This file is installed globally (install.sh) and copied into every project
+# as .keel/bin/keel, so teammates can run it without a global install.
+set -euo pipefail
+# Compatible with bash 3.2 (macOS /bin/bash): empty arrays are expanded as
+# ${a[@]+"${a[@]}"} because "${a[@]}" fails under `set -u` there.
+
+KEEL_CLI_VERSION="2.0.0"
+KEEL_SOURCE=${KEEL_SOURCE:-gh:brizenchi/keel}
+KEEL_COPIER_SPEC=${KEEL_COPIER_SPEC:-copier>=9.4,<10}
+ANSWERS=.keel/answers.yml
+CHECKS=.keel/required-checks.txt
+RULESET_NAME=keel
+COMPONENTS=(docs ci commit-lint secrets hooks github pr-template codeowners dependabot security-policy editorconfig gitignore ai)
+LIST_KEYS=(go_modules node_projects python_projects commit_scopes)
+
+# ------------------------------------------------------------------ output
+
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; N=$'\033[0m'
+else
+  B=""; G=""; Y=""; R=""; D=""; N=""
+fi
+die() { echo "${R}error:${N} $*" >&2; exit 1; }
+note() { echo "${D}$*${N}"; }
+ok() { echo "  ${G}✓${N} $*"; }
+no() { echo "  ${R}✗${N} $*"; }
+warn() { echo "  ${Y}!${N} $*"; }
+
+usage() {
+  cat <<EOF
+${B}keel${N} ${KEEL_CLI_VERSION} — engineering standards for Git repositories
+
+${B}Usage:${N} keel <command> [options]
+
+${B}Install and inspect${N}
+  init [--version REF] [--defaults] [-- COPIER_ARGS]   install keel into this repository
+  status                         installed version, components, hooks, GitHub settings
+  doctor                         check required and optional tools
+
+${B}Configure${N} ${D}(keeps the installed version; review with git diff afterwards)${N}
+  config                         re-answer all questions interactively
+  components                     list components and whether they are enabled
+  enable  <component>...         add components
+  disable <component>...         remove components (their files are deleted)
+  set <key>=<value>...           change answers, e.g. keel set default_branch=develop
+  add <list> <key=value|value>...  append to a list, e.g. keel add go_modules dir=services/api
+  remove <list> <dir|value>      remove an entry from a list
+
+${B}Upgrade${N}
+  update [REF]                   move to the latest (or given) keel release, keeping local edits
+
+${B}Git and GitHub${N}
+  hooks                          install the local git hooks (lefthook)
+  github [--dry-run] [--solo] [--approvals N] [--no-admin-bypass] [--repo owner/name]
+                                 apply repository settings, branch ruleset and required checks
+  lint-commit [FILE | -m MSG]    check a commit message or PR title (Conventional Commits)
+
+  version | help
+
+${B}Environment${N}
+  KEEL_SOURCE        template source (default gh:brizenchi/keel; a local path works for development)
+  KEEL_COPIER_SPEC   Copier requirement (default "copier>=9.4,<10")
+  NO_COLOR           disable colours
+
+Docs: https://github.com/brizenchi/keel#readme
+EOF
+}
+
+# ------------------------------------------------------------------ helpers
+
+in_repo() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not inside a Git repository (run git init first)"
+  cd "$(git rev-parse --show-toplevel)"
+}
+need_installed() { [ -f "$ANSWERS" ] || die "keel is not installed here (run: keel init)"; }
+need_clean() {
+  if [ -n "$(git status --porcelain)" ]; then
+    die "uncommitted changes present. Commit or stash them first, so keel's changes can be reviewed as one diff:
+  git add -A && git commit -m \"...\"   or   git stash"
+  fi
+}
+has() { command -v "$1" >/dev/null 2>&1; }
+
+copier() {
+  if has uvx; then uvx --quiet --from "$KEEL_COPIER_SPEC" copier "$@"
+  elif has pipx; then pipx run --spec "$KEEL_COPIER_SPEC" copier "$@"
+  else die "keel needs uv (recommended: https://docs.astral.sh/uv/) or pipx"; fi
+}
+
+# Run an inline Python program (stdin) that has PyYAML available.
+py() {
+  if python3 -c 'import yaml' >/dev/null 2>&1; then python3 - "$@"
+  elif has uv; then uv run --quiet --no-project --with pyyaml python - "$@"
+  else die "keel needs python3 with PyYAML, or uv"; fi
+}
+
+answers_json() {
+  py "$ANSWERS" <<'PY'
+import json, sys, yaml
+print(json.dumps(yaml.safe_load(open(sys.argv[1])) or {}))
+PY
+}
+
+answer() { # answer <key>  ->  string, or JSON for lists/maps, empty when missing
+  py "$ANSWERS" "$1" <<'PY'
+import json, sys, yaml
+v = (yaml.safe_load(open(sys.argv[1])) or {}).get(sys.argv[2])
+print("" if v is None else (v if isinstance(v, str) else json.dumps(v)))
+PY
+}
+
+source_url() {
+  case "$1" in
+    gh:*) echo "https://github.com/${1#gh:}.git" ;;
+    gl:*) echo "https://gitlab.com/${1#gl:}.git" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+latest_release() { # latest vX.Y.Z tag of a template source, or empty
+  git ls-remote --tags --refs "$(source_url "$1")" 2>/dev/null \
+    | sed -n 's#.*refs/tags/\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$#\1#p' \
+    | sort -V | tail -1
+}
+
+update_current() { # re-render with new answers, keeping the installed version
+  copier update --quiet --defaults --answers-file "$ANSWERS" --vcs-ref=:current: "$@"
+}
+
+after_change() {
+  local changes
+  changes=$(git status --short)
+  if [ -z "$changes" ]; then note "no changes"; return 0; fi
+  echo; echo "${B}Changed files${N} (review with git diff, then commit):"
+  printf '%s\n' "$changes" | sed 's/^/  /'
+}
+
+is_component() { local c; for c in "${COMPONENTS[@]}"; do [ "$c" = "$1" ] && return 0; done; return 1; }
+is_list_key() { local k; for k in "${LIST_KEYS[@]}"; do [ "$k" = "$1" ] && return 0; done; return 1; }
+component_on() { printf '%s' "$1" | grep -q "\"$2\""; }
+
+# ------------------------------------------------------------------ commands
+
+cmd_init() {
+  local ref="" args=() defaults=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --version) ref=$2; shift ;;
+      --defaults) defaults=(--defaults) ;;
+      --) shift; args+=("$@"); break ;;
+      *) die "unknown option for init: $1" ;;
+    esac
+    shift
+  done
+  in_repo
+  [ -f "$ANSWERS" ] && die "keel is already installed (use: keel status, keel config, keel update)"
+  if [ -f .copier-answers.yml ] && grep -q 'dev-standards' .copier-answers.yml; then
+    die "this repository uses dev-standards (keel 1.x); see https://github.com/brizenchi/keel/blob/main/docs/migration.md"
+  fi
+  need_clean
+
+  local data=() remote repo
+  remote=$(git remote get-url origin 2>/dev/null || true)
+  repo=$(printf '%s' "$remote" | sed -nE 's#^(git@github\.com:|https://github\.com/|ssh://git@github\.com/)([^/]+/[^/]+)$#\2#p' | sed 's/\.git$//')
+  if [ -n "$repo" ]; then
+    data+=(--data "github_repo=$repo")
+    note "GitHub repository (from origin): $repo"
+  fi
+  local found=()
+  [ -f go.mod ] && found+=("go")
+  [ -f package.json ] && found+=("node")
+  if [ -f pyproject.toml ] || [ -f requirements.txt ]; then found+=("python"); fi
+  [ ${#found[@]} -gt 0 ] && note "detected in the repository root: ${found[*]}"
+
+  local vcs=()
+  [ -n "$ref" ] && vcs=(--vcs-ref "$ref")
+  copier copy ${vcs[@]+"${vcs[@]}"} ${defaults[@]+"${defaults[@]}"} ${data[@]+"${data[@]}"} ${args[@]+"${args[@]}"} "$KEEL_SOURCE" .
+  after_change
+}
+
+cmd_status() {
+  in_repo; need_installed
+  py "$(answers_json)" <<'PY'
+import json, sys
+a = json.loads(sys.argv[1])
+print(f"\033[1mkeel\033[0m  template {a.get('_commit', '?')} from {a.get('_src_path', '?')}")
+print(f"  repository: {a.get('github_repo', '?')}   default branch: {a.get('default_branch', '?')}")
+langs = a.get("languages") or []
+dirs = []
+for key, lang in (("go_modules", "go"), ("node_projects", "node"), ("python_projects", "python")):
+    if lang in langs:
+        dirs.append(f"{lang} ({', '.join(e.get('dir', '.') for e in a.get(key) or [])})")
+print(f"  languages: {', '.join(dirs) or 'none'}")
+mode = a.get("ci_mode", "standalone")
+print(f"  CI mode: {mode}" + (f" (caller job: {a.get('ci_caller_job', 'keel')})" if mode == "reusable" else ""))
+PY
+  echo
+  echo "${B}Components${N}"
+  local enabled c
+  enabled=$(answer components)
+  for c in "${COMPONENTS[@]}"; do
+    if component_on "$enabled" "$c"; then ok "$c"; else echo "  ${D}· $c${N}"; fi
+  done
+
+  echo; echo "${B}Version${N}"
+  local current latest
+  current=$(answer _commit)
+  latest=$(latest_release "$(answer _src_path)")
+  if [ -z "$latest" ]; then warn "could not check for updates"
+  elif [ "$latest" = "$current" ]; then ok "up to date ($current)"
+  else warn "$current installed, $latest available — run: keel update"; fi
+
+  echo; echo "${B}Local${N}"
+  if component_on "$enabled" hooks; then
+    if [ -f .git/hooks/pre-commit ] && grep -q lefthook .git/hooks/pre-commit; then ok "git hooks installed"
+    else warn "git hooks not installed — run: keel hooks"; fi
+  fi
+  if has gitleaks; then ok "gitleaks available"; else warn "gitleaks not installed (the local secret scan is skipped)"; fi
+
+  echo; echo "${B}GitHub${N}"
+  local repo; repo=$(answer github_repo)
+  if ! has gh || ! gh auth status >/dev/null 2>&1; then
+    warn "gh not authenticated — run gh auth login to check repository settings"
+  elif gh api "repos/$repo/rulesets" --jq ".[] | select(.name == \"$RULESET_NAME\") | .enforcement" 2>/dev/null | grep -q active; then
+    ok "ruleset '$RULESET_NAME' active on $repo"
+  else
+    warn "ruleset '$RULESET_NAME' not found on $repo — run: keel github --dry-run"
+  fi
+}
+
+cmd_doctor() {
+  local missing=0
+  echo "${B}Required${N}"
+  if has git; then ok "git $(git --version | awk '{print $3}')"; else no "git"; missing=1; fi
+  if has uvx; then ok "uv $(uv --version 2>/dev/null | awk '{print $2}')"
+  elif has pipx; then ok "pipx (uv recommended)"
+  else no "uv or pipx — https://docs.astral.sh/uv/getting-started/installation/"; missing=1; fi
+  echo "${B}Optional${N}"
+  if has lefthook; then ok "lefthook (keel hooks)"; else warn "lefthook — local git hooks (brew install lefthook)"; fi
+  if has gitleaks; then ok "gitleaks (local secret scan)"; else warn "gitleaks — local secret scan (brew install gitleaks)"; fi
+  if ! has gh; then warn "gh — needed by keel github (https://cli.github.com)"
+  elif gh auth status >/dev/null 2>&1; then ok "gh (authenticated)"
+  else warn "gh installed but not authenticated (gh auth login)"; fi
+  return "$missing"
+}
+
+cmd_components() {
+  in_repo; need_installed
+  local enabled c; enabled=$(answer components)
+  for c in "${COMPONENTS[@]}"; do
+    if component_on "$enabled" "$c"; then echo "  ${G}on ${N} $c"; else echo "  ${D}off $c${N}"; fi
+  done
+}
+
+cmd_config() {
+  in_repo; need_installed; need_clean
+  copier update --answers-file "$ANSWERS" --vcs-ref=:current: "$@"
+  after_change
+}
+
+toggle_components() { # toggle_components enable|disable <name>...
+  local mode=$1; shift
+  [ $# -gt 0 ] || die "usage: keel $mode <component>...  (list: keel components)"
+  local c; for c in "$@"; do is_component "$c" || die "unknown component '$c' (one of: ${COMPONENTS[*]})"; done
+  in_repo; need_installed; need_clean
+  local list
+  list=$(py "$(answer components)" "$mode" "${COMPONENTS[*]}" "$@" <<'PY'
+import json, sys
+current = json.loads(sys.argv[1] or "[]")
+mode, order, names = sys.argv[2], sys.argv[3].split(), sys.argv[4:]
+s = set(current) | set(names) if mode == "enable" else set(current) - set(names)
+print(json.dumps([c for c in order if c in s]))
+PY
+)
+  update_current --data "components=$list"
+  after_change
+}
+
+cmd_set() {
+  [ $# -gt 0 ] || die "usage: keel set <key>=<value>..."
+  in_repo; need_installed; need_clean
+  local data=() kv
+  for kv in "$@"; do
+    case "$kv" in *=*) ;; *) die "expected key=value, got '$kv'" ;; esac
+    case "${kv%%=*}" in _*) die "'${kv%%=*}' is managed by keel" ;; esac
+    data+=(--data "$kv")
+  done
+  update_current "${data[@]}"
+  after_change
+}
+
+cmd_add() {
+  local key=${1:-}
+  [ $# -gt 0 ] && shift
+  is_list_key "$key" || die "usage: keel add <${LIST_KEYS[*]}> <key=value|value>..."
+  [ $# -gt 0 ] || die "nothing to add"
+  in_repo; need_installed; need_clean
+  local result
+  result=$(py "$(answers_json)" "$key" "$@" <<'PY'
+import json, sys
+a = json.loads(sys.argv[1]); key = sys.argv[2]; args = sys.argv[3:]
+items = list(a.get(key) or [])
+lang = {"go_modules": "go", "node_projects": "node", "python_projects": "python"}.get(key)
+if key == "commit_scopes":
+    items += [v for v in args if v not in items]
+else:
+    entry = {}
+    for kv in args:
+        if "=" not in kv:
+            sys.exit(f"expected key=value, got {kv!r}")
+        k, v = kv.split("=", 1)
+        entry[k] = {"true": True, "false": False}.get(v, v)
+    if "dir" not in entry:
+        sys.exit("an entry needs dir=<path>")
+    items = [e for e in items if e.get("dir") != entry["dir"]] + [entry]
+langs = list(a.get("languages") or [])
+if lang and lang not in langs:
+    langs.append(lang)
+print(json.dumps(items))
+print(json.dumps(langs))
+PY
+) || exit 1
+  update_current --data "$key=$(printf '%s\n' "$result" | sed -n 1p)" --data "languages=$(printf '%s\n' "$result" | sed -n 2p)"
+  after_change
+}
+
+cmd_remove() {
+  local key=${1:-} value=${2:-}
+  { is_list_key "$key" && [ -n "$value" ]; } || die "usage: keel remove <${LIST_KEYS[*]}> <dir|value>"
+  in_repo; need_installed; need_clean
+  local items
+  items=$(py "$(answers_json)" "$key" "$value" <<'PY'
+import json, sys
+a = json.loads(sys.argv[1]); key, value = sys.argv[2], sys.argv[3]
+items = list(a.get(key) or [])
+kept = [e for e in items if (e if isinstance(e, str) else e.get("dir")) != value]
+if len(kept) == len(items):
+    sys.exit(f"{value!r} not found in {key}")
+print(json.dumps(kept))
+PY
+) || exit 1
+  update_current --data "$key=$items"
+  after_change
+}
+
+cmd_update() {
+  local ref=${1:-}
+  in_repo; need_installed; need_clean
+  local before after vcs=()
+  before=$(answer _commit)
+  [ -n "$ref" ] && vcs=(--vcs-ref "$ref")
+  copier update --quiet --defaults --answers-file "$ANSWERS" ${vcs[@]+"${vcs[@]}"}
+  after=$(answer _commit)
+  if [ "$before" = "$after" ]; then note "already at $after"
+  else echo "${B}keel $before → $after${N}  changelog: https://github.com/brizenchi/keel/blob/main/CHANGELOG.md"; fi
+  local f conflicts=""
+  while IFS= read -r f; do
+    [ -f "$f" ] && grep -qE '^(<<<<<<<|>>>>>>>)( |$)' "$f" && conflicts+="    $f"$'\n'
+  done < <(git ls-files --modified --others --exclude-standard)
+  if [ -n "$conflicts" ]; then warn "resolve conflict markers in:"; printf '%s' "$conflicts"; fi
+  after_change
+}
+
+cmd_hooks() {
+  in_repo
+  [ -f lefthook.yml ] || die "lefthook.yml not found (enable it with: keel enable hooks)"
+  has lefthook || die "lefthook is not installed: brew install lefthook (or https://lefthook.dev)"
+  lefthook install
+  has gitleaks || warn "gitleaks is not installed: the local secret scan will be skipped (brew install gitleaks)"
+}
+
+cmd_lint_commit() {
+  local subject=""
+  if [ "${1:-}" = "-m" ]; then subject=${2:-}
+  elif [ -n "${1:-}" ]; then subject=$(grep -v '^#' "$1" | sed -n '/./{p;q;}')
+  elif [ -n "${COMMIT_TITLE:-}" ]; then subject=$COMMIT_TITLE
+  else
+    git rev-parse --git-dir >/dev/null 2>&1 || die "usage: keel lint-commit [FILE | -m MSG]"
+    subject=$(git log -1 --format=%s)
+  fi
+  case "$subject" in "Merge "*|"Revert \""*|"fixup! "*|"squash! "*|"amend! "*) ok "$subject"; return 0 ;; esac
+  local pattern='^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: [^ ].{0,71}$'
+  if printf '%s' "$subject" | LC_ALL=C.UTF-8 grep -Eq "$pattern"; then ok "$subject"; return 0; fi
+  cat >&2 <<EOF
+${R}✗ invalid commit message:${N} "$subject"
+  expected: <type>(<scope>): <subject>   (subject ≤ 72 characters)
+  types:    feat fix perf refactor docs test build ci chore revert
+  example:  fix(api): reject expired tokens
+EOF
+  return 1
+}
+
+cmd_github() {
+  local dry_run=false repo="" approvals=1 admin_bypass=true
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run) dry_run=true ;;
+      --repo) repo=$2; shift ;;
+      --approvals) approvals=$2; shift ;;
+      --solo) approvals=0 ;;
+      --no-admin-bypass) admin_bypass=false ;;
+      *) die "unknown option for github: $1" ;;
+    esac
+    shift
+  done
+  case "$approvals" in ''|*[!0-9]*) die "--approvals must be a number" ;; esac
+  in_repo
+  if [ -z "$repo" ] && [ -f "$ANSWERS" ]; then repo=$(answer github_repo); fi
+  if ! $dry_run; then
+    has gh || die "gh (GitHub CLI) is required: https://cli.github.com"
+    gh auth status >/dev/null 2>&1 || die "run 'gh auth login' first"
+    [ -n "$repo" ] || repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+  fi
+  [ -n "$repo" ] || die "repository unknown; pass --repo owner/name"
+
+  local checks_json="" line
+  if [ -f "$CHECKS" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      line=$(printf '%s' "$line" | sed 's/[[:space:]]*$//')
+      case "$line" in ''|'#'*) continue ;; esac
+      line=${line//\\/\\\\}; line=${line//\"/\\\"}
+      checks_json+="${checks_json:+,}{\"context\":\"$line\"}"
+    done < "$CHECKS"
+  fi
+  local status_rule=""
+  if [ -n "$checks_json" ]; then
+    status_rule=",
+    { \"type\": \"required_status_checks\", \"parameters\": {
+        \"strict_required_status_checks_policy\": false,
+        \"required_status_checks\": [${checks_json}] } }"
+  fi
+  local bypass='[]'
+  # Repository admins may bypass (e.g. a solo maintainer's hotfix). Role id 5 = admin.
+  if $admin_bypass; then bypass='[{"actor_id":5,"actor_type":"RepositoryRole","bypass_mode":"always"}]'; fi
+
+  local ruleset settings
+  ruleset=$(cat <<JSON
+{
+  "name": "$RULESET_NAME",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "bypass_actors": $bypass,
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": $approvals,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["squash"] } }${status_rule}
+  ]
+}
+JSON
+)
+  settings='{
+  "allow_squash_merge": true,
+  "allow_merge_commit": false,
+  "allow_rebase_merge": false,
+  "delete_branch_on_merge": true,
+  "squash_merge_commit_title": "PR_TITLE",
+  "squash_merge_commit_message": "PR_BODY",
+  "security_and_analysis": {
+    "secret_scanning": { "status": "enabled" },
+    "secret_scanning_push_protection": { "status": "enabled" }
+  }
+}'
+
+  if $dry_run; then
+    echo "# repository: $repo (dry run, nothing changed)"
+    echo; echo "PATCH /repos/$repo"; echo "$settings"
+    echo; echo "PUT /repos/$repo/vulnerability-alerts"
+    echo "PUT /repos/$repo/automated-security-fixes"
+    echo "PUT /repos/$repo/private-vulnerability-reporting"
+    echo; echo "POST or PUT /repos/$repo/rulesets  ($RULESET_NAME)"; echo "$ruleset"
+    return 0
+  fi
+
+  local err rc feature existing
+  err=$(mktemp)
+  report() { if [ "$1" -eq 0 ]; then echo "${G}ok${N}"; else echo "${Y}skipped${N} ($(head -c 160 "$err" | tr '\n' ' '))"; fi; }
+
+  printf '  merge settings, secret scanning, push protection … '
+  rc=0; gh api -X PATCH "repos/$repo" --input - <<<"$settings" >/dev/null 2>"$err" || rc=$?; report "$rc"
+  for feature in vulnerability-alerts automated-security-fixes private-vulnerability-reporting; do
+    printf '  %s … ' "$feature"
+    rc=0; gh api -X PUT "repos/$repo/$feature" >/dev/null 2>"$err" || rc=$?; report "$rc"
+  done
+  printf "  ruleset '%s' on the default branch … " "$RULESET_NAME"
+  existing=$(gh api "repos/$repo/rulesets" --jq ".[] | select(.name == \"$RULESET_NAME\") | .id" 2>/dev/null || true)
+  rc=0
+  if [ -n "$existing" ]; then gh api -X PUT "repos/$repo/rulesets/$existing" --input - <<<"$ruleset" >/dev/null 2>"$err" || rc=$?
+  else gh api -X POST "repos/$repo/rulesets" --input - <<<"$ruleset" >/dev/null 2>"$err" || rc=$?; fi
+  report "$rc"
+  rm -f "$err"
+  echo; echo "Review: https://github.com/$repo/settings/rules"
+}
+
+# ------------------------------------------------------------------ main
+
+main() {
+  local cmd=${1:-help}
+  [ $# -gt 0 ] && shift
+  case "$cmd" in
+    init) cmd_init "$@" ;;
+    status) cmd_status ;;
+    doctor) cmd_doctor ;;
+    components) cmd_components ;;
+    config) cmd_config "$@" ;;
+    enable) toggle_components enable "$@" ;;
+    disable) toggle_components disable "$@" ;;
+    set) cmd_set "$@" ;;
+    add) cmd_add "$@" ;;
+    remove) cmd_remove "$@" ;;
+    update|upgrade) cmd_update "$@" ;;
+    hooks) cmd_hooks ;;
+    github) cmd_github "$@" ;;
+    lint-commit) cmd_lint_commit "$@" ;;
+    version|--version|-V) echo "keel $KEEL_CLI_VERSION" ;;
+    help|--help|-h) usage ;;
+    *) echo "unknown command: $cmd" >&2; echo >&2; usage >&2; exit 2 ;;
+  esac
+}
+
+main "$@"

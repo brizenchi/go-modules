@@ -5,6 +5,7 @@
 ### 1. 安装通用工具
 ```bash
 brew install git gh lefthook gitleaks uv
+curl -fsSL https://raw.githubusercontent.com/brizenchi/keel/main/install.sh | sh   # keel 命令（可选；项目里也有 .keel/bin/keel）
 ```
 Go：版本以 `go.mod` 为准（`brew install go`）。
 Node：版本见 `.copier-answers.yml` 中的 `node_projects`（默认 22），包管理器以锁文件为准。
@@ -13,7 +14,8 @@ Node：版本见 `.copier-answers.yml` 中的 `node_projects`（默认 22），�
 ```bash
 git clone git@github.com:brizenchi/go-modules.git
 cd go-modules
-lefthook install          # 提交前检查：密钥扫描、格式
+keel doctor               # 检查工具是否齐全
+keel hooks                # 安装提交前检查：密钥扫描、格式
 ```
 
 ### 3. 运行项目

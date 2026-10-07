@@ -59,7 +59,7 @@ BREAKING CHANGE: clients must send code_verifier on the token exchange.
 ```
 
 CI 的 `commits / pr-title` 检查 PR 标题是否符合格式。本地可以用
-`.standards/bin/check-commit-msg.sh .git/COMMIT_EDITMSG` 提前检查。
+`keel lint-commit` 提前检查。
 
 ## Pull Request
 
@@ -89,11 +89,11 @@ PR 的大小：尽量控制在 400 行以内（不含生成代码和测试数据
 
 ## 分支保护
 
-运行 `.standards/bin/setup-github`（需要 `gh` 和仓库管理员权限）会创建名为 `dev-standards` 的 ruleset：
+运行 `keel github`（需要 `gh` 和仓库管理员权限）会创建名为 `keel` 的 ruleset：
 
 - 禁止删除和 force push 默认分支，要求线性历史；
 - 必须通过 PR 合并，只允许 squash，未解决的评论不能合并；
-- 必须通过 `.github/required-checks.txt` 中列出的检查；
+- 必须通过 `.keel/required-checks.txt` 中列出的检查；
 - 默认要求 1 个 approve；单人维护时用 `--solo`（不要求 approve，但仍然必须走 PR 和 CI）；
 - 仓库管理员可以绕过（紧急情况使用），用 `--no-admin-bypass` 关闭。
 

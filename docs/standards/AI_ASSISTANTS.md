@@ -18,7 +18,7 @@
 
 | 部分 | 维护者 | 说明 |
 | --- | --- | --- |
-| 开头到 "Project-specific rules" 之前 | dev-standards | `copier update` 时同步新版本 |
+| 开头到 "Project-specific rules" 之前 | keel | `keel update` 时同步新版本 |
 | "Project-specific rules" | **本项目** | 写本项目的架构、目录、命令；更新时会保留 |
 
 子目录可以有自己的 `AGENTS.md`（加上只有一行 `@AGENTS.md` 的 `CLAUDE.md`），只写这个目录特有的规则。
@@ -53,7 +53,7 @@
 
 ## 维护
 
-- 修改通用规范：在 dev-standards 仓库修改并发布新版本，各项目执行 `uvx copier update`；
+- 修改通用规范：在 keel 仓库修改并发布新版本，各项目执行 `keel update`；
 - 修改本项目的规则：直接编辑 `AGENTS.md` 的项目部分和 [PROJECT.md](./PROJECT.md)；
 - AI 反复犯同一个错误时：能用工具检查的加到 CI（必须在提交前拦住的才加到 lefthook），否则在 `AGENTS.md` 里补一条明确的规则；
 - 个人偏好放在 `~/.claude/CLAUDE.md` 或 `.claude/settings.local.json`，不提交到仓库。

@@ -63,24 +63,24 @@ find "$destination/backend" "$destination/frontend" -type f \
 # Renaming the module and app changes import order and alignment.
 gofmt -s -w "$destination/backend"
 
-# Engineering standards come from dev-standards (installed with Copier, so the
-# project can `uvx copier update` later). Override the source for local testing
-# with DEV_STANDARDS_SRC=/path/to/dev-standards.
-standards_src=${DEV_STANDARDS_SRC:-gh:brizenchi/dev-standards}
+# Engineering standards come from keel (https://github.com/brizenchi/keel),
+# installed with Copier so the project can run `keel update` later. Override the
+# source for local testing with KEEL_SOURCE=/path/to/keel.
+standards_src=${KEEL_SOURCE:-gh:brizenchi/keel}
 github_repo=$app_name
 case "$go_module" in github.com/*/*) github_repo=$(printf '%s' "$go_module" | cut -d/ -f2-3) ;; esac
 case "$github_repo" in */*) ;; *) github_repo="brizenchi/$app_name" ;; esac
 git -C "$destination" init -q
 if command -v uvx >/dev/null 2>&1; then copier=(uvx --quiet copier)
 elif command -v pipx >/dev/null 2>&1; then copier=(pipx run copier)
-else echo "error: needs uv (https://docs.astral.sh/uv/) or pipx to install dev-standards" >&2; exit 1; fi
+else echo "error: needs uv (https://docs.astral.sh/uv/) or pipx to install keel" >&2; exit 1; fi
 "${copier[@]}" copy --quiet --defaults \
   --data "project_name=$app_name" --data "github_repo=$github_repo" \
   --data 'languages=["go","node"]' \
   --data 'go_modules=[{"dir":"backend"}]' \
   --data 'node_projects=[{"dir":"frontend","scripts":"verify"}]' \
   --data 'commit_scopes=["api","web","deploy","docs","ci"]' \
-  --data ci_mode=reusable --data ci_caller_job=standards \
+  --data ci_mode=reusable --data ci_caller_job=keel \
   "$standards_src" "$destination" >/dev/null
 
 # Quickstart-specific additions on top of the standards: project CI with the
@@ -95,7 +95,7 @@ cp "$repo_root/docs/ARCHITECTURE.md" "$repo_root/docs/CONFIG_STANDARD.md" "$repo
   "$repo_root/docs/SETUP_ZH.md" "$repo_root/docs/DEPLOYMENT.md" "$destination/docs/"
 cp "$repo_root/scripts/deploy-dokploy.sh" "$destination/scripts/"
 cp -R "$repo_root/.claude/skills" "$destination/.claude/"
-printf 'observability-config\n' >> "$destination/.github/required-checks.txt"
+printf 'observability-config\n' >> "$destination/.keel/required-checks.txt"
 DEST_AGENTS="$destination/AGENTS.md" EXTRA="$repo_root/templates/project-extras/AGENTS.project.md" python3 - <<'PY'
 import os
 path, extra = os.environ["DEST_AGENTS"], open(os.environ["EXTRA"]).read()
@@ -120,7 +120,7 @@ echo "next:"
 echo "  cp $destination/backend/deploy/config.yaml.example $destination/backend/deploy/config.yaml"
 echo "  cp $destination/backend/.env.example $destination/backend/.env"
 echo "  cp $destination/frontend/.env.example $destination/frontend/.env.local"
-echo "  cd $destination && lefthook install   # standards: docs/standards; AI rules: AGENTS.md / CLAUDE.md"
-echo "  gh auth login && .standards/bin/setup-github --dry-run   # GitHub rulesets, squash-only, secret scanning"
+echo "  cd $destination && .keel/bin/keel hooks   # standards: docs/standards; AI rules: AGENTS.md / CLAUDE.md"
+echo "  gh auth login && .keel/bin/keel github --dry-run   # GitHub rulesets, squash-only, secret scanning"
 echo "  cd $destination/backend && GOWORK=off go test ./..."
 echo "  cd $destination/frontend && npm install && npm run verify"
