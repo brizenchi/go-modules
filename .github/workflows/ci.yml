@@ -21,7 +21,7 @@ jobs:
       run:
         working-directory: templates/quickstart
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -37,7 +37,7 @@ jobs:
     name: go mod tidy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with: { go-version: '${{ env.GO_VERSION }}' }
       - run: make tidy-check
@@ -46,14 +46,14 @@ jobs:
     name: pkg purity
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: make purity-check
 
   observability-config:
     name: observability-config
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Alert rules (promtool check + unit tests)
         working-directory: templates/quickstart/deploy/alerts
         run: |
@@ -82,6 +82,6 @@ jobs:
       DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
       DOKPLOY_APPLICATION_IDS: ${{ secrets.DOKPLOY_APPLICATION_IDS }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Trigger Dokploy deploy
         run: ./scripts/deploy-dokploy.sh
