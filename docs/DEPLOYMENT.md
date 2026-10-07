@@ -1,6 +1,6 @@
-# 部署与环境规范
+# 部署与环境（go-modules / quickstart）
 
-第三方服务的配置方法见 [SETUP_ZH.md](../SETUP_ZH.md)，配置项说明见 [CONFIG_STANDARD.md](../CONFIG_STANDARD.md)。
+第三方服务的配置方法见 [SETUP_ZH.md](./SETUP_ZH.md)，配置项说明见 [CONFIG_STANDARD.md](./CONFIG_STANDARD.md)。
 
 ## 环境
 
@@ -23,11 +23,11 @@
 
 **部署由 CI 触发，而不是由推送触发**：CI 没有通过的代码不会上线。
 
-1. 推送或合并到 `main` 后，CI 运行全部检查（[CI_QUALITY.md](./CI_QUALITY.md#必需的检查)）；
+1. 推送或合并到 `main` 后，CI 运行全部检查（[CI_QUALITY.md](./standards/CI_QUALITY.md#必需的检查)）；
 2. 全部通过后，`deploy` 任务调用 Dokploy 部署，Dokploy 使用仓库根目录的 `Dockerfile` 构建
    （通过 `go.work` 使用同一个提交里的 `foundation` 和 `modules`）；
 3. 部署完成后，执行下面的**发布后检查**；
-4. 有数据库结构变更时，按 [DATABASE.md](./DATABASE.md#不停机变更先扩展后收缩) 拆成多次发布。
+4. 有数据库结构变更时，按 [DATABASE.md](./standards/DATABASE.md#不停机变更先扩展后收缩) 拆成多次发布。
 
 ### 一次性配置
 
@@ -84,12 +84,12 @@ CI 本身出了故障、又必须马上发布时，可以在 Dokploy 面板里�
 ## 功能开关
 
 - 未完成的功能通过配置开关（`APP_HOST_*`）关闭后再合并，不要长期保留未合并的分支；
-- 模块级别的开关见 [CONFIG_STANDARD.md](../CONFIG_STANDARD.md#模块开关)；
+- 模块级别的开关见 [CONFIG_STANDARD.md](./CONFIG_STANDARD.md#模块开关)；
 - 功能稳定后删除开关和旧代码。
 
 ## 可观测性
 
-- 每个服务在部署时都要配置 OTLP 的环境变量和 `APP_PROJECT`、`APP_ENV`、服务名（见 [OBSERVABILITY.md](../OBSERVABILITY.md#配置)）；
+- 每个服务在部署时都要配置 OTLP 的环境变量和 `APP_PROJECT`、`APP_ENV`、服务名（见 [OBSERVABILITY.md](./OBSERVABILITY.md#配置)）；
 - 每台服务器部署一个 Alloy 采集日志（Railway 等托管平台除外，见 OBSERVABILITY.md）；
 - 新服务上线时导入告警规则（`deploy/alerts/rules.yaml`）。
 

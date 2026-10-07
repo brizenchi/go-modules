@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helper for Claude Code hooks: read one field from the hook JSON on stdin.
 # Usage: value=$(json_field '.tool_input.file_path' <<<"$input")
 json_field() {

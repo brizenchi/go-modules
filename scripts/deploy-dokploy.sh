@@ -13,7 +13,7 @@
 set -euo pipefail
 
 if [ -z "${DOKPLOY_URL:-}" ] || [ -z "${DOKPLOY_API_KEY:-}" ] || [ -z "${DOKPLOY_APPLICATION_IDS:-}" ]; then
-  echo "::warning::Dokploy secrets are not configured; skipping deploy (see docs/standards/DEPLOYMENT.md)."
+  echo "::warning::Dokploy secrets are not configured; skipping deploy (see docs/DEPLOYMENT.md)."
   exit 0
 fi
 

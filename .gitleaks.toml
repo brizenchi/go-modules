@@ -1,9 +1,5 @@
-# gitleaks configuration: default rules plus allowances for obvious test
-# fixtures. Existing historical fixtures are pinned by fingerprint in
-# .gitleaksignore; anything new must use an obviously fake value such as
-# sk_test_not-a-real-key (docs/standards/TESTING.md#测试数据).
-title = "go-modules"
-
+# gitleaks: default rules plus allowances for obvious test fixtures.
+# Test secrets must look fake, e.g. sk_test_not-a-real-key (docs/standards/TESTING.md).
 [extend]
 useDefault = true
 
@@ -16,5 +12,6 @@ description = "Build output and dependencies"
 paths = [
   '''(^|/)node_modules/''',
   '''(^|/)\.next/''',
+  # go-modules keeps a local Go cache in the repository (Makefile GOMODCACHE).
   '''(^|/)\.cache/''',
 ]

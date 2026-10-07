@@ -1,6 +1,6 @@
 # AGENTS.md — templates/quickstart-nextjs (frontend)
 
-Full rules: `docs/standards/FRONTEND.md`. Root `AGENTS.md` still applies.
+Full rules: `docs/standards/NODE.md` and the frontend section of `docs/standards/PROJECT.md`. Root `AGENTS.md` still applies.
 
 - All backend calls go through `lib/api.ts` (`apiRequest` or its wrappers); components never call `fetch`.
 - Keep request/response types in `lib/api.ts` in sync with the backend in the same change.

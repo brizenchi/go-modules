@@ -1,6 +1,7 @@
 #!/usr/bin/env sh
 # Validates a commit message (file path in $1) or a PR title (string in
 # $COMMIT_TITLE) against Conventional Commits. See docs/standards/GIT_WORKFLOW.md.
+# Local use: .standards/bin/check-commit-msg.sh .git/COMMIT_EDITMSG
 set -eu
 # Count characters, not bytes, so non-ASCII subjects get the same 72-char limit.
 export LC_ALL=C.UTF-8

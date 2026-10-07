@@ -3,6 +3,7 @@
 # checks. Exit code 2 blocks the command and shows the reason to the assistant.
 # See docs/standards/GIT_WORKFLOW.md and docs/standards/AI_ASSISTANTS.md.
 set -euo pipefail
+# shellcheck source-path=SCRIPTDIR source=lib.sh
 source "$(dirname "$0")/lib.sh"
 
 cmd=$(json_field '.tool_input.command' <<<"$(cat)")

@@ -1,0 +1,39 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v1.0.0
+_src_path: gh:brizenchi/dev-standards
+ai_rules: true
+ci_caller_job: standards
+ci_mode: reusable
+codeowners: '@brizenchi'
+commit_scopes:
+- tracing
+- ginx
+- slog
+- httpx
+- pgx
+- rdx
+- auth
+- billing
+- email
+- referral
+- quickstart
+- nextjs
+- deploy
+- docs
+- ci
+default_branch: main
+github_repo: brizenchi/go-modules
+go_modules:
+-   dir: .
+    lint_version: v1.64.5
+    packages: ./foundation/... ./modules/...
+-   dir: templates/quickstart
+    lint: false
+languages:
+- go
+- node
+node_projects:
+-   dir: templates/quickstart-nextjs
+    package_manager: npm
+    scripts: verify
+project_name: go-modules
