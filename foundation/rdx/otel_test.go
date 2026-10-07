@@ -32,7 +32,7 @@ func TestInstrumentTracingOmitsArguments(t *testing.T) {
 			sawSet = true
 		}
 		for _, kv := range s.Attributes() {
-			if strings.Contains(kv.Value.Emit(), "redis-secret") {
+			if strings.Contains(kv.Value.String(), "redis-secret") {
 				t.Fatalf("command argument leaked into %s", kv.Key)
 			}
 		}

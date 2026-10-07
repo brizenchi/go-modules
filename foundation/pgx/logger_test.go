@@ -121,7 +121,7 @@ func TestTracedSpansOmitBindValues(t *testing.T) {
 	var sawInsert bool
 	for _, s := range recorder.Ended() {
 		for _, kv := range s.Attributes() {
-			v := kv.Value.Emit()
+			v := kv.Value.String()
 			if strings.Contains(v, "span-secret") {
 				t.Fatalf("bind value leaked into span attribute %s", kv.Key)
 			}

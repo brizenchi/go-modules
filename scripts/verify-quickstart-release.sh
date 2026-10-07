@@ -21,8 +21,9 @@ mkdir -p "$temp_root/backend"
 
 cd "$temp_root/backend"
 if [ "$version" = "local" ]; then
+  # Unreleased modules may add dependencies, so tidy runs before the
+  # read-only build below.
   GOWORK=off go mod edit -replace="github.com/brizenchi/go-modules=$repo_root"
-  GOWORK=off CGO_ENABLED=0 GOOS=linux go build -mod=readonly -ldflags="-s -w" -o "$temp_root/quickstart-linux" ./cmd/quickstart
 else
   GOWORK=off go mod edit -dropreplace=github.com/brizenchi/go-modules 2>/dev/null || true
   GOWORK=off go mod edit -require="github.com/brizenchi/go-modules@$version"

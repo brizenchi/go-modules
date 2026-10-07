@@ -126,7 +126,6 @@ func (s *CustomerStore) ReserveCheckout(ctx context.Context, userID, provider, p
 	if userID == "" || provider == "" || providerCustomerID == "" || reservationID == "" || intentKey == "" || expiresAt.IsZero() || !expiresAt.After(now) {
 		return nil, false, fmt.Errorf("billing: invalid checkout reservation")
 	}
-	now = now.UTC()
 	expiresAt = expiresAt.UTC()
 	row := &domain.BillingCheckoutReservation{
 		UserID:             userID,

@@ -111,7 +111,7 @@ func newRecordingProvider(t *testing.T, sampleRate float64) *tracetest.SpanRecor
 func attrMap(span tracesdk.ReadOnlySpan) map[string]string {
 	out := map[string]string{}
 	for _, kv := range span.Attributes() {
-		out[string(kv.Key)] = kv.Value.Emit()
+		out[string(kv.Key)] = kv.Value.String()
 	}
 	return out
 }
