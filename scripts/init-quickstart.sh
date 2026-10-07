@@ -74,7 +74,7 @@ cp -R "$repo_root/docs/standards" "$repo_root/docs/adr" "$destination/docs/"
 cp "$repo_root/docs/ARCHITECTURE.md" "$repo_root/docs/CONFIG_STANDARD.md" \
   "$repo_root/docs/OBSERVABILITY.md" "$repo_root/docs/SETUP_ZH.md" "$destination/docs/"
 cp "$repo_root/SECURITY.md" "$repo_root/.editorconfig" "$destination/"
-cp "$repo_root/scripts/check-commit-msg.sh" "$destination/scripts/"
+cp "$repo_root/scripts/check-commit-msg.sh" "$repo_root/scripts/deploy-dokploy.sh" "$destination/scripts/"
 cp -R "$repo_root/.claude/hooks" "$repo_root/.claude/skills" "$repo_root/.claude/settings.json" "$destination/.claude/"
 printf '@AGENTS.md\n' > "$destination/CLAUDE.md"
 # Repository paths become the project's layout.

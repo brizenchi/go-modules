@@ -151,3 +151,26 @@ jobs:
       - name: Alloy config syntax
         working-directory: templates/quickstart/deploy/alloy
         run: docker run --rm -v "$PWD:/cfg" grafana/alloy:v1.20.1 fmt /cfg/config.alloy > /dev/null
+
+  # Production deploy runs only after every gate above passes on a push to
+  # main. Dokploy's own "Auto Deploy" must be OFF, otherwise it deploys on
+  # push before CI finishes. govulncheck is intentionally not a gate: a newly
+  # published CVE in a dependency must not block shipping an unrelated fix.
+  # Docs: docs/standards/DEPLOYMENT.md#发布流程
+  deploy:
+    name: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, template-nextjs, template-quickstart, fmt, tidy, purity, lint, secrets, observability-config]
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      DOKPLOY_APPLICATION_IDS: ${{ secrets.DOKPLOY_APPLICATION_IDS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trigger Dokploy deploy
+        run: ./scripts/deploy-dokploy.sh

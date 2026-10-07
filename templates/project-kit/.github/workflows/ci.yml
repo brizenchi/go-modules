@@ -82,3 +82,21 @@ jobs:
       - env:
           COMMIT_TITLE: ${{ github.event.pull_request.title }}
         run: ./scripts/check-commit-msg.sh
+
+  # Deploys only after the gates pass on a push to main. Turn Dokploy's
+  # "Auto Deploy" OFF. Docs: docs/standards/DEPLOYMENT.md#发布流程
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, frontend, secrets, observability-config]
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      DOKPLOY_APPLICATION_IDS: ${{ secrets.DOKPLOY_APPLICATION_IDS }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/deploy-dokploy.sh
