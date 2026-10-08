@@ -23,11 +23,11 @@
 
 **部署由 CI 触发，而不是由推送触发**：CI 没有通过的代码不会上线。
 
-1. 推送或合并到 `main` 后，CI 运行全部检查（[CI_QUALITY.md](./standards/CI_QUALITY.md#必需的检查)）；
+1. 推送或合并到 `main` 后，CI 运行全部检查（[CI_QUALITY.md](./standards/CI_QUALITY.md#required-checks)）；
 2. 全部通过后，`deploy` 任务调用 Dokploy 部署，Dokploy 使用仓库根目录的 `Dockerfile` 构建
    （通过 `go.work` 使用同一个提交里的 `foundation` 和 `modules`）；
 3. 部署完成后，执行下面的**发布后检查**；
-4. 有数据库结构变更时，按 [DATABASE.md](./standards/DATABASE.md#不停机变更先扩展后收缩) 拆成多次发布。
+4. 有数据库结构变更时，按 [DATABASE.md](./standards/DATABASE.md#zero-downtime-changes-expand-then-contract) 拆成多次发布。
 
 ### 一次性配置
 

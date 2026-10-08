@@ -1,53 +1,53 @@
-# Git 工作流规范
+# Git workflow
 
-## 分支
+## Branches
 
-`main` 是唯一的长期分支，始终保持可发布状态。
+`main` is the only long-lived branch and is always releasable.
 
-| 分支 | 命名 | 用途 |
+| Branch | Name | Purpose |
 | --- | --- | --- |
-| 功能 | `feat/<scope>-<简述>` | 新功能，例：`feat/billing-annual-plan` |
-| 修复 | `fix/<scope>-<简述>` | 缺陷修复，例：`fix/auth-token-expiry` |
-| 其他 | `chore/`、`docs/`、`refactor/`、`test/`、`ci/` | 与提交类型一致 |
-| 紧急修复 | `hotfix/<简述>` | 线上故障，见下文 |
+| Feature | `feat/<scope>-<summary>` | new functionality, e.g. `feat/billing-annual-plan` |
+| Fix | `fix/<scope>-<summary>` | bug fix, e.g. `fix/auth-token-expiry` |
+| Other | `chore/`, `docs/`, `refactor/`, `test/`, `ci/` | same as the commit type |
+| Hotfix | `hotfix/<summary>` | production incident, see below |
 
-- 分支名只用小写字母、数字和 `-`；
-- 一个分支只做一件事，生命周期尽量不超过 3 天；
-- 所有改动都通过 PR 合并到 `main`（见"分支保护"）。
+- Branch names use lowercase letters, digits and `-` only.
+- One branch does one thing and lives no longer than about three days.
+- Every change reaches `main` through a pull request (see "Branch protection").
 
-## 提交信息：Conventional Commits
+## Commit messages: Conventional Commits
 
 ```text
 <type>(<scope>): <subject>
 
-<body：为什么改、怎么改，可选>
+<body: why and how, optional>
 
-<footer：BREAKING CHANGE / Refs #123，可选>
+<footer: BREAKING CHANGE / Refs #123, optional>
 ```
 
-| type | 含义 | 是否出现在 CHANGELOG |
+| type | Meaning | In the changelog |
 | --- | --- | --- |
-| `feat` | 新功能 | 是 |
-| `fix` | 修复缺陷 | 是 |
-| `perf` | 性能优化 | 是 |
-| `refactor` | 重构，行为不变 | 否 |
-| `docs` | 只改文档 | 否 |
-| `test` | 只改测试 | 否 |
-| `build` | 依赖、构建 | 否 |
-| `ci` | CI 配置 | 否 |
-| `chore` | 其他杂项 | 否 |
-| `revert` | 回滚某个提交 | 是 |
+| `feat` | new functionality | yes |
+| `fix` | bug fix | yes |
+| `perf` | performance improvement | yes |
+| `refactor` | restructuring without behaviour change | no |
+| `docs` | documentation only | no |
+| `test` | tests only | no |
+| `build` | dependencies, build system | no |
+| `ci` | CI configuration | no |
+| `chore` | anything else | no |
+| `revert` | reverts an earlier commit | yes |
 
-**scope** 写改动所在的模块或目录，本项目常用的有：`tracing`、`ginx`、`slog`、`httpx`、`pgx`、`rdx`、`auth`、`billing`、`email`、`referral`、`quickstart`、`nextjs`、`deploy`、`docs`、`ci`。跨多个模块时，选影响最大的那个，或者省略 scope。
+The **scope** is the module or directory the change is in; common scopes in this project: `tracing`, `ginx`, `slog`, `httpx`, `pgx`, `rdx`, `auth`, `billing`, `email`, `referral`, `quickstart`, `nextjs`, `deploy`, `docs`, `ci`. When a change spans several modules, use the most affected one or leave the scope out.
 
-规则：
+Rules:
 
-- subject 用祈使语气，中英文均可，不以句号结尾，不超过 72 个字符；
-- 不写 `update`、`fix bug` 这类没有信息量的提交信息；
-- 破坏性变更在 type 后加 `!`，并在 footer 写 `BREAKING CHANGE: <迁移方式>`；
-- 一个提交只做一件事；格式化、重命名和功能改动分开提交。
+- The subject is in the imperative mood, has no trailing period and is at most 72 characters.
+- No uninformative messages such as `update` or `fix bug`.
+- Breaking changes add `!` after the type and a `BREAKING CHANGE: <how to migrate>` footer.
+- One commit does one thing; formatting, renames and behaviour changes are separate commits.
 
-示例：
+Examples:
 
 ```text
 feat(api): add pagination to invoice list
@@ -58,43 +58,46 @@ feat(auth)!: require PKCE for OAuth login
 BREAKING CHANGE: clients must send code_verifier on the token exchange.
 ```
 
-CI 的 `commits / pr-title` 检查 PR 标题是否符合格式。本地可以用
-`keel lint-commit` 提前检查。
+CI's `commits / pr-title` check validates pull request titles. Check a message locally
+with `keel lint-commit`.
 
-## Pull Request
+## Pull requests
 
-1. 从最新的 `main` 拉分支，完成后推送并创建 PR；
-2. **PR 标题必须符合提交信息格式**：合并时使用 squash，PR 标题就是最终的提交信息；
-3. 按 PR 模板填写：改了什么、为什么、怎么验证的、风险和回滚方式；
-4. CI 全部通过并获得要求的 approve 后才能合并（审查要求见 [CODE_REVIEW.md](./CODE_REVIEW.md)）；
-5. 统一用 **Squash and merge**，合并后自动删除分支。
+1. Branch from the latest `main`; push and open a pull request when done.
+2. **The title must be a valid commit message**: pull requests are squash-merged and the title becomes the commit.
+3. Fill in the template: what changed, why, how it was verified, risk and how to roll back.
+4. Merge only when CI passes and the required approvals are in (see [CODE_REVIEW.md](./CODE_REVIEW.md)).
+5. Always **Squash and merge**; the branch is deleted automatically.
 
-PR 的大小：尽量控制在 400 行以内（不含生成代码和测试数据）；大功能拆成多个可以独立合并的 PR，
-未完成的部分用配置开关关闭。
+Size: aim for under 400 changed lines (excluding generated code and fixtures). Split
+large features into pull requests that can merge independently, and hide unfinished
+parts behind a configuration flag.
 
-## 历史改写
+## Rewriting history
 
-- **禁止对 `main` 或任何已推送、他人在用的分支 force push**；
-- 只有在提交尚未推送时，才可以 amend、rebase 或 squash；
-- 误把密钥推送到了远程：立即**作废并轮换该密钥**，再按
-  [SECURITY_STANDARD.md](./SECURITY_STANDARD.md#密钥泄露处理) 处理。改写历史撤回不了已经泄露的密钥。
+- **Never force-push `main` or any pushed branch that others use.**
+- Amend, rebase and squash only commits that have not been pushed.
+- If a secret was pushed: **revoke and rotate it immediately**, then follow
+  [SECURITY_STANDARD.md](./SECURITY_STANDARD.md#leaked-secrets). Rewriting history does not un-leak a secret.
 
-## 紧急修复（hotfix）
+## Hotfixes
 
-1. 从 `main` 拉出 `hotfix/<简述>`，只修复问题本身；
-2. PR 标题用 `fix(<scope>): ...`，可以由一名审查者快速 approve；
-3. 合并后确认发布结果，24 小时内补上测试和故障复盘（见 [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md)）。
+1. Branch `hotfix/<summary>` from `main` and fix only the problem itself.
+2. Title the pull request `fix(<scope>): ...`; one reviewer may approve it quickly.
+3. After merging, verify the release and add the missing tests within 24 hours, together with a postmortem (see [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md)).
 
-一时修不好时优先回滚：对出问题的提交执行 `git revert` 并走 PR，或者使用部署平台的回滚功能。
+If a fix is not quick, roll back first: `git revert` the bad commit through a pull request,
+or use your deployment platform's rollback.
 
-## 分支保护
+## Branch protection
 
-运行 `keel github`（需要 `gh` 和仓库管理员权限）会创建名为 `keel` 的 ruleset：
+`keel github` (needs `gh` and repository admin rights) creates a ruleset named `keel`:
 
-- 禁止删除和 force push 默认分支，要求线性历史；
-- 必须通过 PR 合并，只允许 squash，未解决的评论不能合并；
-- 必须通过 `.keel/required-checks.txt` 中列出的检查；
-- 默认要求 1 个 approve；单人维护时用 `--solo`（不要求 approve，但仍然必须走 PR 和 CI）；
-- 仓库管理员可以绕过（紧急情况使用），用 `--no-admin-bypass` 关闭。
+- the default branch cannot be deleted or force-pushed, and history stays linear;
+- changes merge through pull requests only, squash only, with all review threads resolved;
+- the checks listed in `.keel/required-checks.txt` must pass;
+- one approval is required by default; `--solo` drops the approval for single-maintainer
+  repositories (pull requests and CI are still required);
+- repository admins may bypass in emergencies; `--no-admin-bypass` turns that off.
 
-修改规则后重新运行即可，脚本是幂等的。
+Run it again after changing the rules; it is idempotent.

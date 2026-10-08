@@ -1,5 +1,5 @@
 # Weekly dependency updates, grouped to keep PR count low.
-# Docs: docs/standards/CI_QUALITY.md#依赖管理
+# Docs: docs/standards/CI_QUALITY.md#dependencies
 version: 2
 updates:
   - package-ecosystem: gomod

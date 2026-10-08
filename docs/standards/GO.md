@@ -1,61 +1,61 @@
-# Go 规范
+# Go
 
-通用规则见 [CODE_STYLE.md](./CODE_STYLE.md)。
+General rules: [CODE_STYLE.md](./CODE_STYLE.md).
 
-## 工具
+## Tools
 
-| 工具 | 内容 | 在哪里运行 |
+| Tool | Checks | Where it runs |
 | --- | --- | --- |
-| `gofmt -s` | 格式 | 本地提交前钩子、CI `go-* / check` |
-| `go vet` | 编译器发现不了的错误 | CI `go-* / check` |
-| `go test -race` | 测试 + 竞态检测 | CI `go-* / check` |
-| `golangci-lint` | errcheck、staticcheck、gosec 等；有 `.golangci.yml` 时使用它 | CI `go-* / lint` |
-| `govulncheck` | 依赖漏洞 | CI `go-* / vuln`（不阻止合并） |
+| `gofmt -s` | formatting | pre-commit hook, CI `go-* / check` |
+| `go vet` | mistakes the compiler misses | CI `go-* / check` |
+| `go test -race` | tests and data races | CI `go-* / check` |
+| `golangci-lint` | errcheck, staticcheck, gosec and more; uses `.golangci.yml` when present | CI `go-* / lint` |
+| `govulncheck` | vulnerable dependencies | CI `go-* / vuln` (does not block merging) |
 
-## 命名
+## Naming
 
-| 对象 | 规则 | 示例 |
+| What | Rule | Example |
 | --- | --- | --- |
-| 包 | 小写单词，不用下划线，不用复数 | `httpx`、`billing` |
-| 文件 | 小写加下划线，按职责命名 | `access_log.go`、`provider_test.go` |
-| 导出标识符 | 驼峰；缩写词全大写 | `UserID`、`HTTPClient` |
-| 接口 | 描述行为 | `UserStore`、`Sender` |
-| 错误变量 | `Err` 前缀，消息带包名 | `ErrNotFound = errors.New("billing: invoice not found")` |
-| 构造函数 | `New` / `NewXxx`，接收 `Config` 结构体 | `NewClient(Config{...})` |
+| Packages | short lowercase words, no underscores, not plural | `httpx`, `billing` |
+| Files | snake_case, named after their responsibility | `access_log.go`, `provider_test.go` |
+| Exported identifiers | MixedCaps; initialisms in one case | `UserID`, `HTTPClient` |
+| Interfaces | describe behaviour | `UserStore`, `Sender` |
+| Error variables | `Err` prefix; message starts with the package name | `ErrNotFound = errors.New("billing: invoice not found")` |
+| Constructors | `New` / `NewXxx`, taking a `Config` struct | `NewClient(Config{...})` |
 
-## 错误
+## Errors
 
-- 包装时加上下文：`fmt.Errorf("load invoice %s: %w", id, err)`；
-- 用 `errors.Is` / `errors.As` 判断，不比较错误字符串；
-- 每个包在一个文件里（比如 `errors.go`）定义哨兵错误；
-- HTTP 边界在一个函数里集中把错误映射成响应；`default` 分支记一次 `slog.ErrorContext` 并返回固定文案；
-- 业务代码不使用 panic；请求中的 panic 由 recover 中间件兜底。
+- Wrap with context: `fmt.Errorf("load invoice %s: %w", id, err)`.
+- Compare with `errors.Is` / `errors.As`, never by string.
+- Each package defines its sentinel errors in one file (for example `errors.go`).
+- At the HTTP boundary, one function maps errors to responses; its `default` branch logs once with `slog.ErrorContext` and returns a fixed message.
+- No panics in business code; panics during a request are caught by recovery middleware.
 
 ## context
 
-- `ctx context.Context` 作为第一个参数；不保存到结构体里；
-- 一路传递到 `db.WithContext(ctx)`、`http.NewRequestWithContext(ctx, …)`；
-- 需要比请求活得更久的后台工作，使用 `context.WithoutCancel(ctx)`，保留 trace 信息。
+- `ctx context.Context` is the first parameter and is never stored in a struct.
+- Pass it all the way down: `db.WithContext(ctx)`, `http.NewRequestWithContext(ctx, …)`.
+- Background work that must outlive the request uses `context.WithoutCancel(ctx)`, which keeps the trace.
 
-## 日志
+## Logging
 
-- 使用标准库 `log/slog`，输出 JSON；
-- 业务代码使用 `slog.InfoContext(ctx, "fixed message", "key", value)`：消息是固定短语，变化的值放进字段；
-- 不打印密钥、token、请求体全文。
+- Use the standard library's `log/slog` with JSON output.
+- Business code logs with `slog.InfoContext(ctx, "fixed message", "key", value)`: a fixed phrase, with the varying values as fields.
+- Never log secrets, tokens or full request bodies.
 
-## 并发
+## Concurrency
 
-- 启动 goroutine 时说明它何时结束；用 `errgroup` 或 `sync.WaitGroup` 等待，通过 ctx 取消；
-- 共享状态加锁；测试使用 `-race`。
+- Every goroutine has a clear end; wait for it with `errgroup` or `sync.WaitGroup` and cancel it through ctx.
+- Protect shared state with locks; tests run with `-race`.
 
-## 测试
+## Testing
 
-- 表驱动测试 + `t.Run`；测试名描述场景：`TestRefund_RejectsDoubleRefund`；
-- 修改全局状态（`slog.SetDefault` 等）的测试用 `t.Cleanup` 恢复，不使用 `t.Parallel()`；
-- 外部 HTTP 用 `httptest.Server` 模拟；数据库用内存数据库或测试容器；
-- 优先使用标准库 `testing`。
+- Table-driven tests with `t.Run`; names describe the scenario: `TestRefund_RejectsDoubleRefund`.
+- Tests that change global state (`slog.SetDefault` and similar) restore it with `t.Cleanup` and do not use `t.Parallel()`.
+- Fake outbound HTTP with `httptest.Server`; use an in-memory database or test containers.
+- Prefer the standard library's `testing` package.
 
-## 依赖
+## Dependencies and APIs
 
-- 只做增量修改的公开 API；破坏性变更升主版本（`/v2`）；
-- `go mod tidy` 后提交 `go.mod` 和 `go.sum`。
+- Public APIs change additively; breaking changes need a new major version (`/v2`).
+- Run `go mod tidy` and commit `go.mod` and `go.sum`.

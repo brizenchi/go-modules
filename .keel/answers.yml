@@ -1,6 +1,7 @@
 # Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: v2.0.0
+_commit: v2.1.1
 _src_path: gh:brizenchi/keel
+backend: true
 ci_caller_job: keel
 ci_mode: reusable
 codeowners: '@brizenchi'

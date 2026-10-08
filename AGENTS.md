@@ -49,8 +49,8 @@ project section freely.
 
 - Commit real secrets or `.env` files; print secrets in output.
 - Push to `main`, force-push, rewrite pushed history, or bypass hooks with `--no-verify`.
-- Add a dependency without a stated reason (`docs/standards/CI_QUALITY.md#依赖管理`).
-- Use float types for money or panic/exceptions for expected business outcomes.
+- Add a dependency without a stated reason (`docs/standards/CI_QUALITY.md#dependencies`).
+- Use panics/exceptions for expected business outcomes, or float types for money.
 
 ## Commits and pull requests
 

@@ -1,101 +1,104 @@
-# go-modules：项目约定
+# go-modules: project conventions
 
-> 本文件属于本项目。通用规范由 [keel](https://github.com/brizenchi/keel) 维护，
-> 这里记录它们在 go-modules 里的具体做法。
+> This file belongs to the project. The shared standards are maintained by
+> [keel](https://github.com/brizenchi/keel); this file records how go-modules applies them.
 
-## 架构
+## Architecture
 
-- 分层与归属：[ARCHITECTURE.md](../ARCHITECTURE.md)，决策记录：[adr/](../adr)。
-- `foundation/*` 只放通用技术能力，不导入 `modules` 和模板（`make purity-check` 检查）；
-- `modules/*` 是可复用的业务模块，按 `http → app → domain / port`、`adapter → port / domain` 分层，
-  **模块之间不互相导入**，跨模块协作通过事件，由模板订阅；
-- `templates/quickstart` 是组合根和产品代码；`templates/quickstart-nextjs` 是前端；
-- `foundation/*`、`modules/*` 的公开 API 在同一个大版本内只做增量修改，并更新包内的 `CHANGELOG.md`；
-  版本规则见 [VERSIONING.md](../../VERSIONING.md)。
+- Layers and ownership: [ARCHITECTURE.md](../ARCHITECTURE.md); decision records: [adr/](../adr).
+- `foundation/*` holds generic technical capabilities and never imports `modules` or the templates (checked by `make purity-check`).
+- `modules/*` are reusable business modules, layered `http → app → domain / port` and `adapter → port / domain`.
+  **Modules never import each other**; they cooperate through events, which the template subscribes to.
+- `templates/quickstart` is the composition root and product code; `templates/quickstart-nextjs` is the frontend.
+- Public APIs of `foundation/*` and `modules/*` change additively within a major version, with the package
+  `CHANGELOG.md` updated; versioning rules: [VERSIONING.md](../../VERSIONING.md).
 
-## 目录
+## Layout
 
-| 目录 | 内容 |
+| Directory | Contents |
 | --- | --- |
-| `foundation/` | 日志、链路、HTTP 客户端、数据库、Redis、配置等通用能力 |
-| `modules/` | auth、billing、email、referral |
-| `templates/quickstart/` | 后端模板：`internal/feature/*`（产品功能）、`internal/platform`（服务商选择）、`internal/bootstrap`（启动和事件订阅） |
-| `templates/quickstart-nextjs/` | 前端模板 |
-| `docs/` | 架构、配置、可观测性、部署、规范 |
-| `.claude/skills/` | AI 的固定流程：新增接口、数据库迁移、接入第三方服务 |
+| `foundation/` | logging, tracing, HTTP client, database, Redis, configuration and other shared capabilities |
+| `modules/` | auth, billing, email, referral |
+| `templates/quickstart/` | backend template: `internal/feature/*` (product features), `internal/platform` (provider selection), `internal/bootstrap` (startup and event subscriptions) |
+| `templates/quickstart-nextjs/` | frontend template |
+| `docs/` | architecture, configuration, observability, deployment, standards |
+| `.claude/skills/` | AI procedures: adding an endpoint, a database migration, a third-party integration |
 
-## 本地开发
+## Local development
 
 ```bash
-make hooks                                     # 安装提交前检查
+make hooks                                     # install the pre-commit checks
 make fmt && make test-race && make purity-check
 cd templates/quickstart && cp .env.example .env && go run ./cmd/quickstart
 cd templates/quickstart-nextjs && npm ci && npm run dev
 ```
 
-本地登录：`.env.example` 默认 `APP_EMAIL_PROVIDER=log`、`APP_AUTH_EMAIL_DEBUG=true`，验证码直接显示在登录框里。
+Signing in locally: `.env.example` sets `APP_EMAIL_PROVIDER=log` and `APP_AUTH_EMAIL_DEBUG=true`, so the
+verification code is shown directly in the sign-in form.
 
-## 实现约定
+## Implementation conventions
 
-### API（对应 [API_STANDARD.md](./API_STANDARD.md)）
-- 响应统一使用 `foundation/httpresp`：`OK`、`BadRequest`、`Unauthorized`、`Forbidden`、`NotFound`、
-  `Conflict`、`TooManyRequests`、`InternalError`；503 和需要 `reason` 时用 `Custom`：
+### APIs ([API_STANDARD.md](./API_STANDARD.md))
+- Responses go through `foundation/httpresp`: `OK`, `BadRequest`, `Unauthorized`, `Forbidden`, `NotFound`,
+  `Conflict`, `TooManyRequests`, `InternalError`; use `Custom` for 503 and when a `reason` is needed:
 
   ```go
   httpresp.Custom(c, http.StatusBadRequest, http.StatusBadRequest, msg, gin.H{"reason": "AUTH_INVALID_CODE"})
   ```
-- 路由按权限挂在 `hostapi.Groups` 的 `Public`、`User`、`Admin` 分组；
-- 列表接口返回 `{items, total, page, limit}`，`limit` 最大 100；
-- 需要幂等的后台写操作要求 `Idempotency-Key`（参考 `internal/feature/operations/settings.go`）。
+- Routes are mounted on the `Public`, `User` and `Admin` groups of `hostapi.Groups` according to access.
+- List endpoints return `{items, total, page, limit}`, with `limit` at most 100.
+- Admin writes that must be idempotent require `Idempotency-Key` (see `internal/feature/operations/settings.go`).
 
-### 错误处理（对应 [CODE_STYLE.md](./CODE_STYLE.md#错误处理)）
-- 每个模块在 `domain/errors.go` 定义哨兵错误；
-- HTTP 层在一个 `respondAppError` 函数里映射错误，参考 `modules/auth/http/handler.go`；
-  `default` 分支用 `slog.ErrorContext` 记一次，并返回固定文案。
+### Error handling ([CODE_STYLE.md](./CODE_STYLE.md#error-handling))
+- Each module defines its sentinel errors in `domain/errors.go`.
+- The HTTP layer maps errors in a single `respondAppError` function, as in `modules/auth/http/handler.go`;
+  its `default` branch logs once with `slog.ErrorContext` and returns a fixed message.
 
-### 数据库（对应 [DATABASE.md](./DATABASE.md)）
-- 新表、新字段、新索引：修改 GORM 模型，启动时 `AutoMigrate`（`internal/platform/migrate.go`、`internal/bootstrap/host_migrate.go`）；
-- 修改已有数据、改类型、删字段：新增 `templates/quickstart/migrations/YYYYMMDD_<描述>.sql`，**备份后手动执行**；
-- 主实体（`users`）用 `varchar(36)` UUID，从属记录和流水（`notes`、积分流水）可以用自增 `bigint`；
-- 测试使用 SQLite 内存数据库；SQL 日志和链路默认不带参数值（`foundation/pgx`）。
+### Database ([DATABASE.md](./DATABASE.md))
+- New tables, columns and indexes: change the GORM model; `AutoMigrate` runs at startup
+  (`internal/platform/migrate.go`, `internal/bootstrap/host_migrate.go`).
+- Changing existing data, changing types, dropping columns: add `templates/quickstart/migrations/YYYYMMDD_<description>.sql`
+  and **run it by hand after a backup**.
+- Main entities (`users`) use `varchar(36)` UUIDs; child records and ledgers (`notes`, credit transactions) may use auto-increment `bigint`.
+- Tests use an in-memory SQLite database; SQL logs and traces omit parameter values by default (`foundation/pgx`).
 
-### 外部调用
-- 模板里所有第三方 HTTP 调用使用注入的 `platform.Config.HTTPClient`（带链路、指标和日志）；
-- 适配器接受可选的 `HTTPClient`，并把 `ctx` 传给每一次 SDK 调用（Stripe 参数里的 `Context`）。
+### Outbound calls
+- Every third-party HTTP call in the template uses the injected `platform.Config.HTTPClient` (with tracing, metrics and logging).
+- Adapters accept an optional `HTTPClient` and pass `ctx` to every SDK call (`Context` in Stripe params).
 
-### 前端（对应 [NODE.md](./NODE.md)）
-- 所有请求通过 `lib/api.ts` 的 `apiRequest`；类型也定义在这里，和后端在同一个 PR 里修改；
-- 失败时抛出 `ApiError`：`status`、`code`、`message`（不直接展示）、`reason`、`requestId`；
-- 用户提示参考 `components/console-kit.tsx` 的 `ConsoleError` 和 `lib/request-state.ts` 的 `describeRequestFailure`，
-  5xx 显示请求编号；
-- 幂等写操作用 `newIntentKey()` 生成 key，重试时复用；
-- 文案使用 `t({ en, zh })`（`lib/i18n.tsx`）；环境变量只在 `lib/env.ts` 读取；登录状态只通过 `lib/auth.ts`。
+### Frontend ([NODE.md](./NODE.md))
+- Every request goes through `apiRequest` in `lib/api.ts`; the types live there too and change in the same pull request as the backend.
+- Failures throw `ApiError` with `status`, `code`, `message` (never shown directly), `reason` and `requestId`.
+- User-facing messages follow `ConsoleError` in `components/console-kit.tsx` and `describeRequestFailure` in
+  `lib/request-state.ts`; 5xx errors show the request ID.
+- Idempotent writes generate a key with `newIntentKey()` and reuse it on retry.
+- Text uses `t({ en, zh })` (`lib/i18n.tsx`); environment variables are read only in `lib/env.ts`; session state only through `lib/auth.ts`.
 
-### 日志与可观测性
-- 日志使用 `slog.*Context(ctx, …)`，`foundation/slog` 自动补充 `request_id`、`trace_id` 并脱敏；
-- 字段、级别、链路、指标、告警：[OBSERVABILITY.md](../OBSERVABILITY.md)；
-- 测试日志：`flog.Setup(flog.Config{Format: flog.FormatJSON, Output: &buf})`；测试链路：`tracetest.NewSpanRecorder()`。
+### Logging and observability
+- Log with `slog.*Context(ctx, …)`; `foundation/slog` adds `request_id` and `trace_id` and redacts sensitive fields.
+- Fields, levels, traces, metrics and alerts: [OBSERVABILITY.md](../OBSERVABILITY.md).
+- Logs in tests: `flog.Setup(flog.Config{Format: flog.FormatJSON, Output: &buf})`; traces in tests: `tracetest.NewSpanRecorder()`.
 
-## 部署
+## Deployment
 
-- **CI 全部通过后才部署**：`.github/workflows/ci.yml` 的 `deploy` 任务调用 Dokploy API（`scripts/deploy-dokploy.sh`）；
-- 环境、一次性配置、回滚、发布后检查和上线验收清单：[DEPLOYMENT.md](../DEPLOYMENT.md)。
+- **Deploys happen only after all CI checks pass**: the `deploy` job in `.github/workflows/ci.yml` calls the Dokploy API (`scripts/deploy-dokploy.sh`).
+- Environments, one-time setup, rollback, post-release checks and the release acceptance checklist: [DEPLOYMENT.md](../DEPLOYMENT.md).
 
-## 项目特有的检查
+## Project-specific checks
 
-keel 的检查（`keel / …`）之外，`.github/workflows/ci.yml` 还运行：
+In addition to keel's checks (`keel / …`), `.github/workflows/ci.yml` runs:
 
-| 检查 | 内容 |
+| Check | What it does |
 | --- | --- |
-| `template-quickstart` | 模板的 Linux 构建，以及脱离 workspace 的独立构建（`scripts/verify-quickstart-release.sh`） |
-| `go mod tidy` | `go.mod`、`go.sum` 已整理 |
-| `pkg purity` | 共享包没有导入宿主代码 |
-| `observability-config` | 告警规则测试（promtool）、Alloy 配置检查 |
-| `deploy` | 推送到 `main` 且以上检查全部通过后部署 |
+| `template-quickstart` | Linux build of the template, plus a detached build outside the workspace (`scripts/verify-quickstart-release.sh`) |
+| `go mod tidy` | `go.mod` and `go.sum` are tidy |
+| `pkg purity` | shared packages do not import host code |
+| `observability-config` | alert rule tests (promtool) and the Alloy configuration check |
+| `deploy` | deploys after a push to `main` once all of the above pass |
 
-这些检查也写在 `.keel/required-checks.txt` 末尾，由 `keel github` 设为必需。
+These checks are also listed at the end of `.keel/required-checks.txt`, so `keel github` makes them required.
 
-## 其他
+## Other
 
-- `.gitleaksignore` 记录了引入 gitleaks 之前已有的测试假密钥（指纹），新增的假密钥必须用 `*_not-a-real-key` 写法；
-- `templates/quickstart` 被复制成新项目时，用 `make init-quickstart`，它会同时安装 keel。
+- `.gitleaksignore` lists fingerprints of fake test keys committed before gitleaks was introduced; new fake keys must use the `*_not-a-real-key` form.
+- When `templates/quickstart` is copied into a new project with `make init-quickstart`, keel is installed too.

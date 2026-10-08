@@ -1,62 +1,64 @@
-# 代码审查规范
+# Code review
 
-## 目标
+## Purpose
 
-审查要发现的是：**正确性问题、安全问题、违反架构约定的写法、以后难以维护的代码**。
-格式和代码风格交给格式化工具和 linter，审查时不再讨论。
+Review looks for **correctness problems, security problems, violations of the
+architecture, and code that will be hard to maintain**. Formatting and style are left
+to formatters and linters and are not discussed in review.
 
-## 时效
+## Turnaround
 
-| 角色 | 要求 |
+| Who | Expectation |
 | --- | --- |
-| 审查者 | 1 个工作日内给出第一轮意见；hotfix 尽快处理 |
-| 作者 | 每条意见都要回应：修改，或者说明不修改的理由 |
-| 双方 | 来回超过 3 轮仍有分歧时，改为当面或语音沟通，结论写回 PR |
+| Reviewer | first round of comments within one working day; hotfixes as soon as possible |
+| Author | answers every comment: change the code, or explain why not |
+| Both | after three rounds of disagreement, talk it through live and record the outcome in the pull request |
 
-## 意见分级
+## Comment levels
 
-在评论开头标明级别：
+Start each comment with its level:
 
-| 前缀 | 含义 |
+| Prefix | Meaning |
 | --- | --- |
-| `blocking:` | 必须修改才能合并：缺陷、安全问题、违反架构约定 |
-| `suggestion:` | 建议修改，作者自行决定 |
-| `nit:` | 小问题，不改也可以 |
-| `question:` | 不理解的地方，需要作者解释 |
+| `blocking:` | must change before merging: a defect, a security problem, an architecture violation |
+| `suggestion:` | recommended; the author decides |
+| `nit:` | minor; fine to leave |
+| `question:` | the reviewer does not understand something and needs an explanation |
 
-## 审查清单
+## Checklist
 
-### 正确性
-- [ ] 边界情况：空值、空列表、重复请求、并发、超时
-- [ ] 错误都被处理了，并且按 [错误处理规范](./CODE_STYLE.md#错误处理) 只记录一次日志
-- [ ] 请求上下文（context、trace）一路传递；外部调用设置了超时
-- [ ] 涉及金额、额度、库存的逻辑是幂等的（重放、重复提交）
+### Correctness
+- [ ] Edge cases: nulls, empty lists, repeated requests, concurrency, timeouts
+- [ ] Every error is handled and logged once, per [error handling](./CODE_STYLE.md#error-handling)
+- [ ] The request context (cancellation, trace) is passed through; outbound calls have timeouts
+- [ ] Money, quota and stock logic is idempotent (replays, double submits)
 
-### 架构
-- [ ] 符合 [PROJECT.md](./PROJECT.md) 中记录的分层和目录约定
-- [ ] 公开接口和共享库只做增量修改；破坏性变更有迁移说明
+### Architecture
+- [ ] Follows the layering and layout recorded in [PROJECT.md](./PROJECT.md)
+- [ ] Public interfaces and shared libraries change additively; breaking changes come with a migration note
 
-### 接口和数据
-- [ ] 符合 [API_STANDARD.md](./API_STANDARD.md)：路径、状态码、错误格式、分页、时间格式
-- [ ] 调用方（前端、其他服务）的类型或客户端在同一个 PR 里更新
-- [ ] 数据库改动符合 [DATABASE.md](./DATABASE.md)：已执行过的迁移没有被修改，查询有索引
+### APIs and data
+- [ ] Follows [API_STANDARD.md](./API_STANDARD.md): paths, status codes, error format, pagination, time format
+- [ ] Callers' types or clients (frontend, other services) are updated in the same pull request
+- [ ] Database changes follow [DATABASE.md](./DATABASE.md): applied migrations are untouched, queries are indexed
 
-### 安全
-- [ ] 符合 [SECURITY_STANDARD.md](./SECURITY_STANDARD.md)：鉴权和越权检查、输入校验、不打印敏感数据
-- [ ] 没有提交真实密钥；测试里的假密钥明显是假的
+### Security
+- [ ] Follows [SECURITY_STANDARD.md](./SECURITY_STANDARD.md): authentication and ownership checks, input validation, no sensitive data in logs
+- [ ] No real secrets committed; fake secrets in tests are obviously fake
 
-### 可观测性
-- [ ] 日志是结构化的，级别正确，带上请求上下文，不含敏感信息
-- [ ] 新的外部依赖可以被监控（有超时、有错误日志或指标）
+### Observability
+- [ ] Logs are structured, at the right level, carry the request context and contain nothing sensitive
+- [ ] New external dependencies can be monitored (timeouts, error logs or metrics)
 
-### 测试
-- [ ] 符合 [TESTING.md](./TESTING.md)：新逻辑有测试，修复的缺陷有回归测试
-- [ ] 测试不依赖外部网络，不依赖执行顺序
+### Tests
+- [ ] Follows [TESTING.md](./TESTING.md): new logic is tested, fixed bugs have regression tests
+- [ ] Tests do not use the network and do not depend on execution order
 
-## 作者自查
+## Before asking for review
 
-提交审查前，作者先过一遍上面的清单，并在本地运行 PR 模板中列出的检查。
+The author goes through the checklist above and runs the checks for the parts they changed.
 
-## AI 生成的代码
+## AI-generated code
 
-AI 生成的代码和人写的代码执行同一套标准。作者要能解释每一行代码，不能因为是 AI 写的就跳过测试或审查。
+AI-generated code meets the same bar as hand-written code. The author must be able to
+explain every line; AI authorship is no reason to skip tests or review.

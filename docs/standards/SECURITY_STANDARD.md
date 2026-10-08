@@ -1,77 +1,78 @@
-# 安全规范
+# Security
 
-发现漏洞如何上报：仓库根目录的 [SECURITY.md](../../SECURITY.md)。
+How to report a vulnerability: [SECURITY.md](../../SECURITY.md) in the repository root.
 
-## 输入校验
+## Input validation
 
-- 所有外部输入都不可信：请求体、查询参数、请求头、Webhook、第三方 API 的返回；
-- 在边界校验格式、长度、取值范围；字符串有最大长度，枚举值在白名单内；
-- 校验失败返回 400，不把内部解析错误原样返回。
+- All external input is untrusted: request bodies, query parameters, headers, webhooks, third-party API responses.
+- Validate format, length and range at the boundary; strings have a maximum length, enum values come from an allow-list.
+- Validation failures return 400 without echoing internal parser errors.
 
-## 鉴权与越权
+## Authorization
 
-- 鉴权在路由分组或中间件统一完成，处理函数里不自己解析 token；
-- **每次访问资源都检查归属**：按 ID 查询时带上所有者条件（`WHERE id = ? AND user_id = ?`），不依赖前端隐藏入口；
-- 访问别人的资源返回 404，不返回 403；
-- 管理员的敏感操作写审计日志（谁、什么时候、做了什么、改动前后的值）。
+- Authentication happens once, in a route group or middleware; handlers never parse tokens themselves.
+- **Check ownership on every access**: queries by ID include the owner (`WHERE id = ? AND user_id = ?`); hiding a button in the UI is not access control.
+- Another user's resource returns 404, not 403.
+- Sensitive admin actions write an audit log (who, when, what, values before and after).
 
-## 认证
+## Authentication
 
-- 不同用途的密钥分开生成（会话签名、OAuth state、Webhook），长度至少 32 字节；
-- 密码使用 bcrypt、scrypt 或 argon2 存储；登录失败不区分"用户不存在"和"密码错误"；
-- 登录、验证码等接口有频率限制和失败次数上限；
-- 退出登录时让 token 失效。
+- Separate secrets for separate purposes (session signing, OAuth state, webhooks), at least 32 bytes each.
+- Passwords are stored with bcrypt, scrypt or argon2; failed logins do not reveal whether the user exists.
+- Login and verification-code endpoints are rate-limited and cap failed attempts.
+- Signing out invalidates the token.
 
-## 注入类问题
+## Injection
 
-| 类型 | 规则 |
+| Kind | Rule |
 | --- | --- |
-| SQL 注入 | 只用参数化查询；动态排序字段使用白名单 |
-| XSS | 依赖前端框架的转义；不直接渲染用户提供的 HTML；邮件模板中的用户输入要转义 |
-| 命令注入 | 不执行由用户输入拼接的系统命令 |
-| 路径穿越 | 文件路径不直接使用用户输入；上传文件用生成的 ID 命名 |
-| **SSRF** | 服务端只请求配置好的第三方域名；**禁止**请求用户提交的任意 URL。确实需要时校验协议、拒绝内网地址、设置超时 |
-| 开放重定向 | 跳转地址必须在本站白名单内 |
+| SQL injection | parameterised queries only; dynamic sort columns come from an allow-list |
+| XSS | rely on the framework's escaping; never render user-supplied HTML; escape user input in email templates |
+| Command injection | never run shell commands built from user input |
+| Path traversal | never use user input as a file path; name uploads with generated IDs |
+| **SSRF** | the server calls only configured third-party hosts and **never** arbitrary user-supplied URLs; when unavoidable, check the scheme, reject private addresses and set a timeout |
+| Open redirect | redirect targets must be on an allow-list of your own URLs |
 
-## Webhook
+## Webhooks
 
-- **先验签，再处理**；验签失败返回 400；
-- 按事件 ID 幂等处理；
-- 不信任 Webhook 里的金额和用户 ID，以向第三方查询的结果或自己数据库中的记录为准。
+- **Verify the signature before doing anything**; a bad signature returns 400.
+- Process idempotently by event ID.
+- Do not trust amounts or user IDs in the payload; use the provider's API or your own records.
 
-## 密钥管理
+## Secret management
 
-| 规则 | 说明 |
+| Rule | Details |
 | --- | --- |
-| 存放位置 | 部署平台的环境变量、密钥管理服务，或本地未提交的 `.env` |
-| 禁止 | 提交到 git、写进代码或镜像、打印到日志、发到聊天工具 |
-| 测试数据 | 明显是假的值：`sk_test_not-a-real-key`，避免触发密钥扫描 |
-| 最小权限 | 第三方 token 只申请需要的权限 |
-| 隔离 | 不同环境、不同客户使用不同的密钥 |
-| 轮换 | 人员离开、怀疑泄露，或每年一次 |
-| 扫描 | 提交前的 gitleaks 钩子和 CI 的 `secrets / gitleaks`；GitHub 推送保护（`keel github` 会开启） |
+| Where secrets live | the deployment platform's environment variables, a secret manager, or an uncommitted local `.env` |
+| Never | in Git, in code or images, in logs, in chat |
+| Test data | obviously fake values such as `sk_test_not-a-real-key`, so secret scanners stay quiet |
+| Least privilege | third-party tokens get only the scopes they need |
+| Isolation | separate secrets per environment and per customer |
+| Rotation | when someone leaves, on suspicion of a leak, and yearly |
+| Scanning | the gitleaks pre-commit hook and CI's `secrets / gitleaks`; GitHub push protection (enabled by `keel github`) |
 
-### 密钥泄露处理
-1. **立即在服务商后台作废该密钥**，生成新密钥并更新所有环境。这一步最重要，改写 git 历史撤回不了已经泄露的密钥；
-2. 检查服务商的使用记录，确认泄露期间有没有异常调用；
-3. 尚未推送的，在本地改写历史删除；已经推送的，视为已经泄露；
-4. 按 [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md) 记录并复盘。
+### Leaked secrets
+1. **Revoke the secret at the provider immediately**, create a new one and update every environment.
+   This is the step that matters: rewriting Git history does not un-leak a secret.
+2. Check the provider's usage logs for unexpected calls during the exposure.
+3. If the commit was not pushed, rewrite it locally; if it was pushed, treat the secret as leaked.
+4. Record it and write a postmortem (see [INCIDENT_RESPONSE.md](./INCIDENT_RESPONSE.md)).
 
-## 日志与隐私
+## Logging and privacy
 
-- 不记录密码、token、验证码、完整卡号、`Authorization` 头；日志框架统一脱敏常见的敏感字段；
-- SQL 日志不带参数值；访问日志不记录 query string；
-- 个人信息只在排查问题必需时记录；不记录请求体和响应体的全文。
+- Never log passwords, tokens, verification codes, full card numbers or `Authorization` headers; the logging setup redacts common sensitive fields.
+- SQL logs omit parameter values; access logs omit query strings.
+- Log personal data only when needed to debug, and never full request or response bodies.
 
-## HTTP 安全
+## HTTP security
 
-- 设置安全响应头：`Strict-Transport-Security`（在入口层统一配置）、`X-Content-Type-Options: nosniff`、`X-Frame-Options` 或 CSP；
-- Cookie 设置 `Secure`、`HttpOnly`、`SameSite`；
-- CORS 只允许白名单域名；
-- 上传文件：限制大小和类型，校验内容，保存在对象存储里，不放在应用目录下。
+- Security headers: `Strict-Transport-Security` (set once at the edge), `X-Content-Type-Options: nosniff`, and `X-Frame-Options` or a CSP.
+- Cookies are `Secure`, `HttpOnly` and `SameSite`.
+- CORS allows only listed origins.
+- Uploads: limit size and type, validate the content, store them in object storage, never inside the application directory.
 
-## 依赖安全
+## Dependency security
 
-- CI 运行依赖漏洞扫描（Go `govulncheck`、Node `audit`、Python `pip-audit`）；高危漏洞 1 周内处理；
-- Dependabot 每周提交依赖升级；Dependabot 安全提醒由 `keel github` 开启；
-- 引入新依赖前确认：维护是否活跃、许可证是否允许商用、是否有已知漏洞。
+- CI scans dependencies for vulnerabilities (Go `govulncheck`, Node `audit`, Python `pip-audit`); high-severity findings are handled within a week.
+- Dependabot proposes updates weekly; Dependabot security alerts are enabled by `keel github`.
+- Before adding a dependency, check that it is maintained, its license allows commercial use, and it has no known vulnerabilities.

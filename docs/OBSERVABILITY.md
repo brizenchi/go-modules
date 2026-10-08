@@ -79,7 +79,7 @@ Stripe 调用会传递请求的 `ctx`，所以支付调用挂在对应请求的�
 
 规则：
 
-- 一个错误只记一次日志，在处理它的边界记录（见 [CODE_STYLE.md](./standards/CODE_STYLE.md#错误处理)）；
+- 一个错误只记一次日志，在处理它的边界记录（见 [CODE_STYLE.md](./standards/CODE_STYLE.md#error-handling)）；
 - 客户端的错误（参数错误、未登录）不记 ERROR，否则会掩盖真正的问题；
 - 不在循环里、或者每个请求都会走到的代码里记 INFO，访问日志已经记录了每个请求；
 - 日志的 `msg` 用固定的英文短语，变化的值放进字段：

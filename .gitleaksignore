@@ -1,6 +1,6 @@
 # Fingerprints of fake keys in test fixtures committed before gitleaks was
 # introduced. Do not add new entries for real secrets: rotate them instead
-# (docs/standards/SECURITY_STANDARD.md#密钥泄露处理).
+# (docs/standards/SECURITY_STANDARD.md#leaked-secrets).
 0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/config_schema_test.go:generic-api-key:430
 0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/config_schema_test.go:stripe-access-token:327
 0373b94a55e4dd59d42f0a4b9618e7c184e9b5af:templates/quickstart/internal/bootstrap/config_schema_test.go:stripe-access-token:429

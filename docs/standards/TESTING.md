@@ -1,60 +1,62 @@
-# 测试规范
+# Testing
 
-## 分层
+## Layers
 
-| 类型 | 范围 | 要点 |
+| Kind | Scope | Notes |
 | --- | --- | --- |
-| 单元测试 | 纯逻辑：业务规则、计算、校验、映射 | 数量最多、运行最快；不依赖网络和数据库 |
-| 数据访问测试 | SQL、ORM 行为 | 使用内存数据库或测试容器 |
-| 接口测试 | 路由、鉴权、参数校验、响应格式、状态码 | 在进程内启动 HTTP 处理器 |
-| 外部服务适配测试 | 调用第三方 API、解析返回 | 用本地模拟服务器代替真实服务 |
-| 端到端 / 上线验收 | 关键业务流程 | 少量，人工清单或自动化脚本 |
+| Unit | pure logic: business rules, calculations, validation, mapping | the most numerous and the fastest; no network, no database |
+| Data access | SQL, ORM behaviour | in-memory database or test containers |
+| API | routing, authentication, validation, response shape, status codes | start the HTTP handler in-process |
+| External service adapters | calls to third-party APIs, parsing responses | a local fake server instead of the real service |
+| End-to-end / release acceptance | critical user journeys | few; a manual checklist or scripts |
 
-尽量把逻辑写在不依赖 HTTP 和数据库的地方，用单元测试覆盖。
+Keep logic out of HTTP and database code where possible, so unit tests can cover it.
 
-## 必须写测试的情况
+## When tests are required
 
-- 新增的公开函数、接口、业务规则；
-- **修复缺陷时，先写能复现问题的测试**，再修复；
-- 涉及金额、额度、权限、幂等的逻辑：正常情况、边界值、重复请求、无权访问都要覆盖；
-- 新增配置项的校验。
+- New public functions, endpoints and business rules.
+- **A bug fix starts with a test that reproduces the bug.**
+- Money, quotas, permissions and idempotency: cover the normal case, boundaries, repeated
+  requests and unauthorised access.
+- Validation of new configuration options.
 
-## 写法
+## How to write them
 
-- 测试名说明场景和期望；多组输入使用表驱动或参数化测试；
-- 测试之间相互独立：不依赖执行顺序，修改的全局状态在测试结束时恢复；
-- 断言失败时输出实际值；
-- 时间、随机数需要确定时通过参数注入，不用 sleep 等待。
+- Test names describe the scenario and the expectation; use table-driven or parameterised tests for several inputs.
+- Tests are independent: no reliance on execution order, and global state is restored afterwards.
+- Failed assertions print the actual value.
+- Inject time and randomness when they must be deterministic; never sleep to wait.
 
-## 外部依赖
+## External dependencies
 
-- **测试不访问外部网络**，第三方 API 一律模拟；
-- 依赖特定数据库特性的测试，用开关控制，默认跳过，在 CI 的专门任务中运行。
+- **Tests do not access the network**; third-party APIs are always faked.
+- Tests that need a specific database feature are behind a switch, skipped by default, and run in a dedicated CI job.
 
-## 测试数据
+## Test data
 
-- 假密钥**一眼就能看出是假的**：`sk_test_not-a-real-key`、`whsec_not-a-real-secret`。格式逼真的假密钥会被 GitHub 推送保护和 gitleaks 拦截；
-- 邮箱使用 `example.com`、`example.test`；
-- 不使用真实用户数据或生产数据。
+- Fake secrets **look fake at a glance**: `sk_test_not-a-real-key`, `whsec_not-a-real-secret`.
+  Realistic-looking fakes are blocked by GitHub push protection and gitleaks.
+- Email addresses use `example.com` or `example.test`.
+- Never use real user data or production data.
 
-## 运行
+## Running them
 
-Go：
+Go:
 
 ```bash
 gofmt -s -l . && go vet ./... && go test -race ./...
 ```
 
-Node（在对应目录）：
+Node (in the project directory):
 
 ```bash
-npm run lint && npm test && npm run build    # 或 pnpm / yarn
+npm run lint && npm test && npm run build    # or pnpm / yarn
 ```
 
-CI 中对应的检查见 [CI_QUALITY.md](./CI_QUALITY.md#ci-的组成)。
+The matching CI checks are listed in [CI_QUALITY.md](./CI_QUALITY.md#what-ci-runs).
 
-## 覆盖率
+## Coverage
 
-- 共享库、核心业务模块：覆盖率不低于 **70%**，PR 不降低覆盖率；
-- 应用层：覆盖关键路径即可，不设硬性百分比；
-- 覆盖率只是参考，重点是关键分支有没有测到。
+- Shared libraries and core business modules: at least **70%**, and pull requests do not lower it.
+- Application code: cover the critical paths; no fixed percentage.
+- Coverage is a signal; what matters is whether the important branches are tested.

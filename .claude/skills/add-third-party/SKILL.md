@@ -6,7 +6,7 @@ description: Integrate a new external service or provider (OAuth, email, payment
 # Integrate a third-party service
 
 Standards: `docs/ARCHITECTURE.md#服务商替换`, `docs/standards/SECURITY_STANDARD.md`,
-`docs/OBSERVABILITY.md#出站调用`, `docs/standards/CI_QUALITY.md#依赖管理`.
+`docs/OBSERVABILITY.md#出站调用`, `docs/standards/CI_QUALITY.md#dependencies`.
 
 ## 1. Shape
 - Find the port the provider fulfils (`auth/port.IdentityProvider`, `email/port.Sender`,

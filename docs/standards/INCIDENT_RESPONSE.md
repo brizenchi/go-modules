@@ -1,79 +1,80 @@
-# 故障响应与复盘
+# Incident response and postmortems
 
-监控、告警和部署平台的具体操作记录在 [PROJECT.md](./PROJECT.md)。
+How to use this project's monitoring, alerting and deployment platform is recorded in [PROJECT.md](./PROJECT.md).
 
-## 严重级别
+## Severity
 
-| 级别 | 定义 | 示例 | 响应 |
+| Level | Definition | Examples | Response |
 | --- | --- | --- | --- |
-| **P1** | 核心功能不可用，或有数据、资金、安全损失 | 全站不可用；付款后未开通；密钥泄露 | 立即处理直到恢复，每 30 分钟同步进展 |
-| **P2** | 部分功能不可用或明显变差，有绕过办法 | 某种登录方式失败；P99 延迟超过 5 秒 | 当天处理 |
-| **P3** | 影响很小 | 后台某个页面报错；个别用户的问题 | 排进正常计划 |
+| **P1** | core functionality is down, or data, money or security is at stake | the whole site is down; paid but not provisioned; a leaked secret | work on it until resolved; update every 30 minutes |
+| **P2** | part of the product is down or clearly degraded, with a workaround | one login method fails; P99 latency above 5 s | same day |
+| **P3** | small impact | an admin page errors; a single user's problem | regular planning |
 
-## 处理流程
+## Process
 
 ```text
-发现 → 确认级别 → 止血 → 定位 → 修复 → 确认恢复 → 复盘
+detect → assess severity → mitigate → diagnose → fix → confirm recovery → postmortem
 ```
 
-### 1. 发现与确认
-- 来源：告警、用户反馈、发布后检查；
-- 确认影响范围：哪个服务、哪些接口、从什么时候开始、影响多少用户；
-- 在团队频道发出："P1/P2：<现象>，<负责人> 正在处理"。
+### 1. Detect and assess
+- Sources: alerts, user reports, post-release checks.
+- Establish the impact: which service, which endpoints, since when, how many users.
+- Announce it in the team channel: "P1/P2: <symptom>, <owner> is on it".
 
-### 2. 止血（优先于找根因）
-| 情况 | 做法 |
+### 2. Mitigate (before looking for the root cause)
+| Situation | Action |
 | --- | --- |
-| 刚发布后出现 | **立即回滚** |
-| 第三方服务故障 | 关闭依赖它的功能，或切换到备用服务商 |
-| 某个功能有缺陷 | 用配置开关关闭 |
-| 密钥泄露 | 立即作废并轮换（见 [SECURITY_STANDARD.md](./SECURITY_STANDARD.md#密钥泄露处理)） |
-| 流量异常 | 在入口层限流或封禁来源 |
+| Right after a release | **roll back immediately** |
+| A third-party outage | turn off the dependent feature or switch providers |
+| A defective feature | turn it off with a configuration flag |
+| A leaked secret | revoke and rotate it now (see [SECURITY_STANDARD.md](./SECURITY_STANDARD.md#leaked-secrets)) |
+| Abnormal traffic | rate-limit or block the source at the edge |
 
-### 3. 定位
-1. **指标**：错误率和延迟从什么时候开始变化？哪个接口？和哪次发布、哪个外部依赖有关？
-2. **链路**：找出失败或变慢的请求，看是哪一步出了问题；
-3. **日志**：查看这次请求的详细错误；
-4. 用户反馈的问题：让用户提供请求编号（`X-Request-ID`），直接定位到那一次请求。
+### 3. Diagnose
+1. **Metrics**: when did error rate and latency change? Which endpoint? Does it line up with a release or an external dependency?
+2. **Traces**: find failing or slow requests and see which step went wrong.
+3. **Logs**: read the detailed error for that request.
+4. For user reports, ask for the request ID (`X-Request-ID`) to go straight to that request.
 
-### 4. 修复与确认
-- 按 [GIT_WORKFLOW.md](./GIT_WORKFLOW.md#紧急修复hotfix) 走紧急修复；
-- 指标恢复、告警解除后，在团队频道通知"已恢复"；
-- 涉及数据错误时先修正数据，修正过程要记录。
+### 4. Fix and confirm
+- Follow the [hotfix process](./GIT_WORKFLOW.md#hotfixes).
+- Once metrics recover and alerts clear, announce the recovery in the team channel.
+- If data was corrupted, correct it first and record how.
 
-### 5. 沟通
-- P1，或影响付费用户的 P2：主动告知受影响的用户：发生了什么、有什么影响、现在的状态；
-- 涉及个人数据泄露时，按适用的法律法规通知。
+### 5. Communicate
+- For P1, and P2 affecting paying users, tell affected users what happened, the impact, and the current state.
+- If personal data was exposed, notify as required by applicable law.
 
-## 复盘
+## Postmortems
 
-P1、P2 恢复后 **3 个工作日内**完成复盘，文档放在 `docs/incidents/YYYY-MM-DD-<简述>.md`。
-原则：**对事不对人**，目标是改进流程和系统。
+Write a postmortem **within three working days** of resolving a P1 or P2, in
+`docs/incidents/YYYY-MM-DD-<summary>.md`. Blameless: the goal is better processes and systems.
 
 ```markdown
-# <日期> <一句话描述>
+# <date> <one-line summary>
 
-- 级别：P1 / P2
-- 持续时间：<开始> ～ <恢复>（共 X 分钟）
-- 负责人：
+- Severity: P1 / P2
+- Duration: <start> – <recovery> (X minutes)
+- Owner:
 
-## 影响
-多少用户、哪些功能、有无数据或资金损失。
+## Impact
+How many users, which features, any loss of data or money.
 
-## 时间线（UTC）
-| 时间 | 事件 |
+## Timeline (UTC)
+| Time | Event |
 | --- | --- |
 
-## 根本原因
-不断追问"为什么"，直到找到流程或系统层面的原因。
+## Root cause
+Keep asking "why" until you reach a process or system cause.
 
-## 做得好的 / 需要改进的
+## What went well / what to improve
 
-## 改进项
-| 改进项 | 负责人 | 截止日期 | issue |
+## Action items
+| Action | Owner | Due | Issue |
 | --- | --- | --- | --- |
 ```
 
-## 值班
+## On call
 
-多人协作后按周轮流值班，在告警系统中配置值班人；交接时说明本周的告警、未处理的问题和计划中的发布。
+Once several people share the work, rotate on call weekly and configure the rotation in
+the alerting system. Hand over this week's alerts, open problems and planned releases.

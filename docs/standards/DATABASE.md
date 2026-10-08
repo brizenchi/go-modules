@@ -1,77 +1,77 @@
-# 数据库规范
+# Databases
 
-以关系型数据库（PostgreSQL 等）为准。项目使用的 ORM、迁移工具和目录记录在 [PROJECT.md](./PROJECT.md)。
+Written for relational databases (PostgreSQL and similar). This project's ORM, migration tool and directories are recorded in [PROJECT.md](./PROJECT.md).
 
-## 归属
+## Ownership
 
-- 每张表只有一个负责的模块；其他模块通过接口或事件交互，不直接读写别人的表。
+- Each table is owned by one module; other modules go through its interface or events and never read or write its tables directly.
 
-## 命名
+## Naming
 
-| 对象 | 规则 | 示例 |
+| Object | Rule | Example |
 | --- | --- | --- |
-| 表 | 小写加下划线，复数；模块的表可以加模块前缀 | `invoices`、`billing_subscriptions` |
-| 字段 | 小写加下划线 | `user_id`、`current_period_end` |
-| 主键 | `id` | |
-| 外键 | `<被引用表的单数>_id` | `user_id` |
-| 时间 | `<动作>_at` | `created_at`、`deleted_at` |
-| 布尔 | `is_<形容词>` 或描述状态 | `is_active`、`email_verified` |
-| 索引 | `idx_<表>_<字段>`；唯一索引用 `uniq_` | `idx_invoices_user_id` |
+| Tables | snake_case, plural; a module prefix is allowed | `invoices`, `billing_subscriptions` |
+| Columns | snake_case | `user_id`, `current_period_end` |
+| Primary key | `id` | |
+| Foreign keys | `<referenced table, singular>_id` | `user_id` |
+| Timestamps | `<action>_at` | `created_at`, `deleted_at` |
+| Booleans | `is_<adjective>` or a state | `is_active`, `email_verified` |
+| Indexes | `idx_<table>_<columns>`; unique ones `uniq_` | `idx_invoices_user_id` |
 
-## 字段类型
+## Column types
 
-| 数据 | 类型 | 说明 |
+| Data | Type | Notes |
 | --- | --- | --- |
-| 主实体 ID | UUID（或字符串） | 被多处引用、可能出现在公开链接里的实体 |
-| 从属记录、流水 ID | 自增 `bigint` 可以 | 不对外暴露数量时 |
-| 时间 | 带时区的时间类型，存 **UTC** | |
-| **金额** | 整数，**最小货币单位**，另存币种 | **禁止使用浮点数** |
-| 枚举 | `varchar(n)`，取值在代码里校验 | |
-| 文本 | 有上限用 `varchar(n)`，否则 `text` | |
-| 不固定结构的附加数据 | `jsonb` | 不参与查询和约束的少量数据；结构稳定后改成字段或表 |
+| Main entity IDs | UUID (or string) | entities referenced widely or appearing in public URLs |
+| Child records, ledger IDs | auto-increment `bigint` is fine | when counts need not be hidden |
+| Times | timezone-aware type, stored in **UTC** | |
+| **Money** | integer in the **minor unit**, plus a currency column | **never floating point** |
+| Enums | `varchar(n)`, values validated in code | |
+| Text | `varchar(n)` when bounded, otherwise `text` | |
+| Loosely structured extras | `jsonb` | small data not used in queries or constraints; promote to columns or tables once stable |
 
-会被修改的表要有 `created_at`、`updated_at`；只追加的流水表只需 `created_at`。
+Tables that are updated have `created_at` and `updated_at`; append-only ledgers need only `created_at`.
 
-## 迁移
+## Migrations
 
-- 迁移文件按时间命名（例如 `YYYYMMDD_<描述>`），开头说明：做了什么、执行前提（备份、停写）、怎么回滚；
-- 尽量写成可以重复执行的语句（`IF NOT EXISTS`、`ON CONFLICT DO NOTHING`）；
-- **已经在任何环境执行过的迁移，禁止修改**，需要修正时新增一个。
+- Name migrations by date (for example `YYYYMMDD_<description>`) and start each with: what it does, prerequisites (backup, write freeze), how to roll back.
+- Make statements re-runnable where possible (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`).
+- **Never edit a migration that has run in any environment**; add a new one to correct it.
 
-### 不停机变更：先扩展，后收缩
+### Zero-downtime changes: expand, then contract
 
-修改或删除字段要拆成多次发布，保证新旧两个版本的代码都能正常运行：
+Changing or removing a column takes several releases so that old and new code both keep working:
 
 ```text
-发布 1：新增字段（可为空）+ 代码同时写新旧字段
-发布 2：回填历史数据 + 代码改读新字段
-发布 3：代码不再使用旧字段
-发布 4：删除旧字段
+release 1: add the new column (nullable); code writes both columns
+release 2: backfill existing rows; code reads the new column
+release 3: code stops using the old column
+release 4: drop the old column
 ```
 
-- 给大表加索引使用不锁表的方式（PostgreSQL：`CREATE INDEX CONCURRENTLY`，不能放在事务里）；
-- 新增 `NOT NULL` 字段：先加可空字段并回填，再加约束。
+- Index large tables without locking them (PostgreSQL: `CREATE INDEX CONCURRENTLY`, outside a transaction).
+- Adding a `NOT NULL` column: add it nullable, backfill, then add the constraint.
 
-## 查询
+## Queries
 
-- 查询带上请求上下文（可取消、能出现在链路里）；
-- 只使用参数化查询，**禁止**把用户输入拼接进 SQL；动态排序字段用白名单；
-- 列表查询必须有 `LIMIT` 和稳定的排序；
-- 避免 N+1 查询；只查询需要的字段，大字段不出现在列表查询里；
-- 慢查询要记录并处理；日志和链路中的 SQL **不带参数值**。
+- Queries carry the request context (cancellable, visible in traces).
+- Parameterised queries only — **never** concatenate user input into SQL; dynamic sort columns come from an allow-list.
+- List queries always have a `LIMIT` and a stable order.
+- Avoid N+1 queries; select only the columns you need and keep large columns out of list queries.
+- Record and fix slow queries; SQL in logs and traces **omits parameter values**.
 
-## 事务与并发
+## Transactions and concurrency
 
-- 需要原子性的多步写操作放在一个事务里；
-- 事务里**不调用外部 HTTP 接口**，避免长时间持锁；需要时先提交再调用，或使用 outbox 模式；
-- 余额、额度、库存的扣减用条件更新（`UPDATE … WHERE balance >= ?`）或乐观锁（版本号）。
+- Multi-step writes that must be atomic share one transaction.
+- **No outbound HTTP calls inside a transaction** (they hold locks for too long); commit first, or use the outbox pattern.
+- Decrement balances, credits and stock with conditional updates (`UPDATE … WHERE balance >= ?`) or optimistic locking (a version column).
 
-## 删除与保留
+## Deletion and retention
 
-- 默认物理删除；需要审计或恢复的数据才用软删除（`deleted_at`），唯一索引使用部分索引；
-- 用户注销时按隐私政策删除或匿名化个人数据。
+- Delete rows by default; use soft deletes (`deleted_at`) only for data that must be audited or restored, with partial unique indexes.
+- When a user deletes their account, delete or anonymise their personal data according to the privacy policy.
 
-## 环境
+## Environments
 
-- 测试使用独立的数据库（内存数据库或测试容器），依赖特定数据库特性的语句要在真实数据库上验证；
-- 连接信息只从环境变量读取；**禁止把生产数据复制到本地**。
+- Tests use their own database (in-memory or a test container); statements relying on database-specific features are verified against the real database.
+- Connection details come only from environment variables; **never copy production data to a local machine**.

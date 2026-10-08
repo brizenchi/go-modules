@@ -1,70 +1,77 @@
-# 代码规范（通用）
+# Code style (all languages)
 
-各语言的具体规则： [Go](./GO.md) [Node / TypeScript](./NODE.md)。
-项目特有的约定见 [PROJECT.md](./PROJECT.md)。
+Language-specific rules: [Go](./GO.md) [Node / TypeScript](./NODE.md).
+Project-specific conventions: [PROJECT.md](./PROJECT.md).
 
-## 基本原则
+## Principles
 
-- 先读周围的代码，**保持一致**：命名、注释密度、错误处理方式和同一个模块里的现有代码一样；
-- 工具能检查的（格式、lint）交给工具，审查时不再讨论；
-- 优先使用标准库和项目已有的依赖；新增依赖要在 PR 里说明理由（见 [CI_QUALITY.md](./CI_QUALITY.md#依赖管理)）；
-- 不写"以后可能用到"的抽象；接口和扩展点只在确实有第二个实现、或者需要隔离外部依赖时才引入。
+- Read the surrounding code first and **stay consistent** with it: naming, comment
+  density and error handling match the rest of the module.
+- Leave what tools can check (formatting, lint) to the tools; it is not discussed in review.
+- Prefer the standard library and existing dependencies; a new dependency needs a stated
+  reason (see [CI_QUALITY.md](./CI_QUALITY.md#dependencies)).
+- No abstractions "for later": add interfaces and extension points only when there is a
+  second implementation or an external dependency to isolate.
 
-## 跨层命名
+## Naming across layers
 
-| 对象 | 规则 | 示例 |
+| What | Rule | Example |
 | --- | --- | --- |
-| 数据库表和字段 | 小写加下划线；表名用复数 | `invoices`、`created_at` |
-| JSON 字段 | 小写加下划线（整个 API 统一一种风格） | `current_period_end` |
-| URL 路径 | 小写，多个单词用 `-` 连接 | `/api/v1/credit-transactions` |
-| 环境变量 | 全大写加下划线，带项目前缀 | `APP_DB_HOST` |
-| 日志字段 | 小写加下划线，同一个含义只用一个名字 | `request_id`、`user_id`、`duration_ms` |
-| 指标 | 带领域前缀，名称稳定 | `app.user.logins` |
+| Database tables and columns | snake_case; plural table names | `invoices`, `created_at` |
+| JSON fields | snake_case (one style across the whole API) | `current_period_end` |
+| URL paths | lowercase, words joined with `-` | `/api/v1/credit-transactions` |
+| Environment variables | UPPER_SNAKE_CASE with a project prefix | `APP_DB_HOST` |
+| Log fields | snake_case; one name per meaning | `request_id`, `user_id`, `duration_ms` |
+| Metrics | domain prefix, stable names | `app.user.logins` |
 
-## 错误处理
+## Error handling
 
-### 原则：每个错误只处理一次
+### Handle each error once
 
-一个错误要么**返回**给上层（附带上下文），要么**在这一层处理掉**（记日志、降级、转换成响应），
-不要两件事都做，否则同一个错误会在日志里出现多次。
+An error is either **returned** to the caller (with added context) or **handled here**
+(logged, degraded, turned into a response) — never both, or the same error shows up in
+the logs several times.
 
-### 各层的职责
-| 层 | 做什么 |
+### Responsibilities by layer
+| Layer | Does |
 | --- | --- |
-| 数据访问、外部服务适配 | 把底层错误加上上下文后返回；把"找不到"等情况转换成业务错误 |
-| 业务逻辑 | 按业务错误做分支处理；其他错误加上下文后返回 |
-| **边界**（HTTP 处理函数、消息消费者、定时任务） | 把业务错误映射成响应或重试策略；**只对未知错误**记 ERROR 日志 |
+| Data access, external service adapters | adds context to low-level errors and returns them; turns "not found" and similar cases into domain errors |
+| Business logic | branches on domain errors; adds context to anything else and returns it |
+| **Boundary** (HTTP handler, message consumer, scheduled job) | maps domain errors to responses or retry policies; logs at ERROR **only for unknown errors** |
 
-### 边界上的规则
-- 在一个地方集中映射错误（比如一个 `respondError` 函数），不要每个处理函数各写一套；
-- 未知错误不能把内部细节（SQL、堆栈、第三方返回的内容）返回给调用方，只返回固定文案和请求 ID；
-- 客户端的错误（参数错误、未登录）不记 ERROR。
+### At the boundary
+- Map errors in one place (for example a single `respondError` function), not in every handler.
+- Unknown errors never expose internals (SQL, stack traces, third-party responses) to the
+  caller — only a fixed message and the request ID.
+- Client errors (invalid input, not signed in) are not logged at ERROR.
 
-### 异常 / panic
-- 不使用 panic 或异常来表达业务上的预期情况；
-- 程序启动时遇到无法继续的配置错误，可以直接退出；
-- 请求处理中未捕获的异常，由框架的统一处理兜底：返回 500，记下完整堆栈，并关联请求 ID。
+### Exceptions and panics
+- Do not use panics or exceptions for expected business outcomes.
+- At startup, unrecoverable configuration errors may exit the process.
+- Uncaught exceptions while handling a request are caught by the framework's central
+  handler: return 500, log the full stack trace, and include the request ID.
 
-## 上下文传递
+## Context propagation
 
-- 请求上下文（取消信号、超时、trace、请求 ID）从入口一路传到数据库和外部调用；
-- 日志使用带上下文的写法，自动带上 `request_id`、`trace_id`；
-- 不要在请求处理过程中新建一个空的上下文，替换掉调用方传进来的那个。
+- The request context (cancellation, deadline, trace, request ID) is passed from the entry
+  point all the way to the database and outbound calls.
+- Log with the context so `request_id` and `trace_id` are added automatically.
+- Never replace the caller's context with a new empty one while handling a request.
 
-## 并发
+## Concurrency
 
-- 启动后台任务时必须明确它何时结束，以及谁来等待它、取消它；
-- 共享状态要加锁或者通过消息传递；
-- 测试开启竞态检测（Go 使用 `-race`）。
+- Every background task has a clear end, and an owner that waits for it and can cancel it.
+- Shared state is protected by locks or replaced by message passing.
+- Tests run with the race detector (`-race` in Go).
 
-## 注释
+## Comments
 
-- 公开的函数和类型要有文档注释；
-- 注释写**为什么**这样做，不复述代码；
-- `TODO` 写明负责人或 issue 编号：`TODO(name): ... #123`。
+- Public functions and types have doc comments.
+- Comments explain **why**, not what the code already says.
+- `TODO`s name an owner or an issue: `TODO(name): ... #123`.
 
-## 配置与常量
+## Configuration and constants
 
-- 配置通过结构化对象注入，业务代码里不直接读取环境变量；
-- 不写魔法数字：超时、重试次数、上限都定义为常量或者放进配置；
-- 密钥只从环境变量或密钥管理服务读取（见 [SECURITY_STANDARD.md](./SECURITY_STANDARD.md#密钥管理)）。
+- Configuration is injected as structured objects; business code does not read environment variables.
+- No magic numbers: timeouts, retry counts and limits are constants or configuration.
+- Secrets come only from environment variables or a secret manager (see [SECURITY_STANDARD.md](./SECURITY_STANDARD.md#secret-management)).
