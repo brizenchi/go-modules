@@ -18,7 +18,7 @@ import (
 
 // subscribeModuleEvents is the template-owned composition point.
 // Delete, reorder or replace any subscription in a copied SaaS.
-func subscribeModuleEvents(deps hostapi.Deps, cfg AppConfig) {
+func subscribeModuleEvents(deps hostapi.Deps) {
 	modules := deps.Modules
 	if modules.Auth != nil {
 		modules.Auth.Subscribe(authevent.KindUserSignedUp, func(ctx context.Context, envelope authevent.Envelope) error {
@@ -59,9 +59,9 @@ func subscribeModuleEvents(deps hostapi.Deps, cfg AppConfig) {
 				return fmt.Errorf("unexpected subscription activated payload %T", envelope.Payload)
 			}
 			// A Checkout Session can complete while a free trial is still unpaid.
-			// Referral rewards qualify only once the subscription is actually paid.
+			// Referral activation qualifies only once the subscription is actually paid.
 			if payload.Snapshot.Status == billingdomain.StatusActive {
-				if err := activateReferral(ctx, deps, envelope.UserID, cfg.Referral.ActivationReward); err != nil {
+				if err := activateReferral(ctx, deps, envelope.UserID, 0); err != nil {
 					return err
 				}
 			}
@@ -72,7 +72,7 @@ func subscribeModuleEvents(deps hostapi.Deps, cfg AppConfig) {
 			if !ok {
 				return fmt.Errorf("unexpected trial converted payload %T", envelope.Payload)
 			}
-			if err := activateReferral(ctx, deps, envelope.UserID, cfg.Referral.ActivationReward); err != nil {
+			if err := activateReferral(ctx, deps, envelope.UserID, 0); err != nil {
 				return err
 			}
 			return onTrialConverted(ctx, deps, envelope, payload)
@@ -84,11 +84,11 @@ func subscribeModuleEvents(deps hostapi.Deps, cfg AppConfig) {
 			}
 			// A paid invoice may still have amount_paid=0 (for example, a 100%
 			// coupon). Only a positive charge proves the referral's paid
-			// qualification. Later renewals are absorbed by the referral and
-			// credit-ledger idempotency guards.
+			// qualification. Later renewals preserve the original activation;
+			// replayed host reward hooks must also be idempotent.
 			var referralErr error
 			if payload.AmountPaid > 0 {
-				referralErr = activateReferral(ctx, deps, envelope.UserID, cfg.Referral.ActivationReward)
+				referralErr = activateReferral(ctx, deps, envelope.UserID, 0)
 			}
 			return errors.Join(referralErr, onSubscriptionRenewed(ctx, deps, envelope, payload))
 		})
@@ -159,6 +159,8 @@ func activateReferral(ctx context.Context, deps hostapi.Deps, refereeID string, 
 	if deps.Modules.Referral == nil {
 		return nil
 	}
+	// RewardCredits is optional accounting metadata. The template grants nothing;
+	// a copied SaaS owns reward policy in host_hooks.go.
 	_, err := deps.Modules.Referral.Attribute.ActivateReferral(ctx, refereeID, reward)
 	if err == nil || errors.Is(err, referraldomain.ErrNotFound) || errors.Is(err, referraldomain.ErrAlreadyActivated) || errors.Is(err, referraldomain.ErrExpired) {
 		return nil

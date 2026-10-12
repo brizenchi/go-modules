@@ -31,6 +31,7 @@ func (m *Module) Register(g hostapi.Groups) {
 		g.Public.GET("/site/settings", m.getSettings)
 	}
 	if g.User != nil {
+		g.User.GET("/billing/purchases", m.purchases)
 		g.User.POST("/uploads/images", m.uploadImage)
 		g.User.GET("/uploads/images", m.listImages)
 		g.User.GET("/uploads/images/:id", m.getImage)

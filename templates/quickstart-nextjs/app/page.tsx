@@ -23,7 +23,7 @@ export default function HomePage() {
       features: [
         { label: "01 / 用户认证", title: "注册登录，接好就能用", description: "整合邮箱验证码、Google 和 GitHub 登录，支持账号创建、会话管理与退出登录。按需启用登录方式，让用户顺畅进入你的产品。" },
         { label: "02 / 订阅与计费", title: "为你的产品接上付费能力", description: "整合 Stripe Checkout，支持月付、年付、终身套餐与积分包，配套订阅管理和账单查询。根据业务选择合适的收费方式。" },
-        { label: "03 / 邀请推荐", title: "从用户分享，到邀请转化", description: "专属邀请链接、注册归因、订阅激活与积分奖励已经串联。用户可以查看邀请记录和统计，为产品的推荐增长提供基础。" },
+        { label: "03 / 邀请推荐", title: "从用户分享，到邀请转化", description: "专属邀请链接、注册归因与订阅激活已经串联，奖励规则可自行编写。用户可以查看邀请记录和统计，为产品的推荐增长提供基础。" },
         { label: "04 / Resend 邮件", title: "把验证和欢迎邮件送到用户手中", description: "已接入 Resend 邮件发送能力。配置发信域名和密钥后即可发送验证码，还可以按需启用欢迎邮件，完善用户的首次体验。" },
         { label: "05 / 产品官网", title: "展示、定价、文档一起准备好", description: "配套首页、价格、可搜索的文档与博客、更新日志和联系页面。中英文内容使用统一的响应式界面，替换品牌与文案即可构建自己的产品门面。" },
         { label: "06 / 管理员后台", title: "让站点运营有自己的入口", description: "独立 /admin 后台查看全站用户、订阅、支付与邀请记录，管理积分和公开网站配置。管理员邮箱与密码由后端配置，普通账号只管理自己的账户。" }
@@ -50,7 +50,7 @@ export default function HomePage() {
       features: [
         { label: "01 / Authentication", title: "Give customers a smooth way in", description: "Email verification, Google, and GitHub sign-in connect account creation, session management, and sign-out. Enable the sign-in options your product needs." },
         { label: "02 / Subscriptions and billing", title: "Start with payments already connected", description: "Stripe Checkout supports monthly and yearly subscriptions, lifetime access, and credit packages, with subscription management and invoices. Choose how your product earns revenue." },
-        { label: "03 / Referrals", title: "Connect sharing to customer growth", description: "Personal invite links connect sign-up attribution, subscription activation, and credit rewards. Customers can review referral history and statistics." },
+        { label: "03 / Referrals", title: "Connect sharing to customer growth", description: "Personal invite links connect sign-up attribution and subscription activation, with hooks for your own reward rules. Customers can review referral history and statistics." },
         { label: "04 / Resend email", title: "Reach customers from their first sign-in", description: "Resend email delivery is integrated. Configure your sending domain and API key to deliver verification codes, then enable welcome emails when you need them." },
         { label: "05 / Your public website", title: "Present, explain, and price your product", description: "A homepage, pricing, searchable docs and blog, release notes, and contact pages share a responsive English / Chinese interface. Update the brand and content for your product." },
         { label: "06 / Administration", title: "Run your site from a dedicated console", description: "The separate /admin console provides site-wide user, subscription, payment, and referral records, credit adjustments, and public site settings. Configure administrator credentials on the backend; customers manage their own accounts." }

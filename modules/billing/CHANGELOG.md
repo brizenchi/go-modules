@@ -9,10 +9,25 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Added
 
+- Optional `ContextWebhookParser`, `EventRetriever`, and `ScheduledChangeCanceler`
+  provider capabilities; authenticated event replay and bounded Stripe event feed.
+- Scheduled plan and pending-payment snapshots, plus an authenticated scheduled
+  change cancellation endpoint. Existing provider interfaces remain compatible.
+- One-time Checkout invoice creation and subscription user metadata.
+
 - `stripe.Config.HTTPClient`: replaces the global stripe-go backend client
   when set.
 
 ### Changed
+
+- Fix Stripe schedule creation's incompatible `from_subscription` / `end_behavior`
+  parameters and mutually exclusive reactivation parameters. Release completed
+  schedules before subsequent plan changes or cancellation.
+
+- Support both legacy and modern Stripe invoice/subscription webhook shapes;
+  retain failed-payment status when cancellation is also scheduled.
+- Downgrades across billing intervals wait until period end. Pending changes
+  block conflicting mutations with a stable HTTP 409 reason.
 
 - Stripe API calls carry the caller's `context.Context`, so they join the
   request trace and honour cancellation.

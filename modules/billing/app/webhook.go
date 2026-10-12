@@ -59,10 +59,38 @@ type ProcessResult struct {
 
 // Process verifies a webhook payload and dispatches the resulting events.
 func (s *WebhookService) Process(ctx context.Context, payload []byte, signature string) (*ProcessResult, error) {
-	parsed, err := s.provider.VerifyAndParseWebhook(payload, signature)
+	var parsed *port.WebhookParseResult
+	var err error
+	if provider, ok := s.provider.(port.ContextWebhookParser); ok {
+		parsed, err = provider.VerifyAndParseWebhookContext(ctx, payload, signature)
+	} else {
+		parsed, err = s.provider.VerifyAndParseWebhook(payload, signature)
+	}
 	if err != nil {
 		return nil, err
 	}
+
+	return s.processParsed(ctx, parsed)
+}
+
+// Replay retrieves the original event from the provider; never accepts unsigned payloads.
+func (s *WebhookService) Replay(ctx context.Context, id string) (*ProcessResult, error) {
+	provider, ok := s.provider.(port.EventRetriever)
+	if !ok {
+		return nil, domain.ErrInvalidInput
+	}
+	parsed, err := provider.RetrieveEvent(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.processParsed(ctx, parsed)
+}
+
+func (s *WebhookService) processParsed(ctx context.Context, parsed *port.WebhookParseResult) (*ProcessResult, error) {
+	if parsed == nil || parsed.ProviderEventID == "" {
+		return nil, domain.ErrInvalidInput
+	}
+	var err error
 
 	resolvedUserID := parsed.UserHint.UserID
 	if resolvedUserID == "" && s.resolver != nil {

@@ -74,7 +74,7 @@ export const articles: Article[] = [
         title: { en: "Test with two separate accounts", zh: "用两个独立账号测试" },
         paragraphs: [
           { en: "Keep the inviter signed in in one browser session. Open the invitation in a separate browser profile and register a new account. Complete the qualifying action in the test payment environment, then refresh the inviter's referral center to check the result.", zh: "在一个浏览器会话中保留邀请人登录状态。在另一个浏览器个人资料中打开邀请链接并注册新账号，使用支付测试环境完成符合条件的操作，再刷新邀请人的推荐中心检查结果。" },
-          { en: "Invitation credits are product credits. They are separate from any third-party affiliate commission the template author may receive from a marked service recommendation.", zh: "邀请奖励是产品内积分，与模板作者通过明确标注的第三方服务推荐链接获得的佣金是两回事。" }
+          { en: "The starter grants no invitation rewards by default. Any product rewards are separate from third-party affiliate commissions the template author may receive from marked service recommendations.", zh: "模板默认不发放邀请奖励。站点自定义的奖励与模板作者通过已标注的第三方服务推荐链接获得的佣金是两回事。" }
         ]
       }
     ]

@@ -1,6 +1,11 @@
 package bootstrap
 
-import "github.com/brizenchi/quickstart-template/internal/hostapi"
+import (
+	"context"
+	"github.com/brizenchi/quickstart-template/internal/feature/billingrecovery"
+	"github.com/brizenchi/quickstart-template/internal/hostapi"
+	"time"
+)
 
 // YOURS — edit freely.
 //
@@ -21,6 +26,8 @@ import "github.com/brizenchi/quickstart-template/internal/hostapi"
 // lock inside the job (foundation/rdx) or run jobs in a single dedicated
 // replica.
 func buildHostJobs(deps hostapi.Deps) []Runner {
-	_ = deps
-	return nil
+	if deps.Modules == nil || deps.Modules.Billing == nil {
+		return nil
+	}
+	return []Runner{Every("billing-recovery", time.Minute, func(ctx context.Context) error { return billingrecovery.Run(ctx, deps.DB, deps.Modules.Billing) })}
 }

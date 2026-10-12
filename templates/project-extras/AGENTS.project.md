@@ -13,6 +13,9 @@ Details: `docs/standards/PROJECT.md`, `docs/ARCHITECTURE.md`, `docs/OBSERVABILIT
   `respondAppError` function. A stable error `reason` goes in `data` via `httpresp.Custom`.
 - Product features go in `backend/internal/feature/<name>/` (copy `internal/feature/note`);
   provider selection in `backend/internal/platform`; event wiring in `backend/internal/bootstrap`.
+- Invitation rewards default to no-op. Read [backend/REFERRAL_HOOKS.md](backend/REFERRAL_HOOKS.md)
+  before implementing them in `backend/internal/bootstrap/host_hooks.go`:
+  `onReferralRegistered` after signup attribution, `onReferralActivated` after qualification.
 - Frontend types live in `frontend/lib/api.ts`; update them with the endpoint.
 - Outbound HTTP goes through the injected `platform.Config.HTTPClient`.
 - Never edit an existing file in `backend/migrations/`; new tables/columns via GORM models,

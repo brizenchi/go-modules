@@ -95,6 +95,8 @@ type SubscriptionSnapshot struct {
 	PeriodStart            *time.Time
 	PeriodEnd              *time.Time
 	CancelEffectiveAt      *time.Time
+	ScheduledChange        *ScheduledChange
+	PendingPayment         *PendingPayment
 }
 
 // PaymentMethodCard summarizes a default card on file.
@@ -118,4 +120,19 @@ type InvoiceItem struct {
 	Period    string // YYYY-MM
 	PDFURL    string
 	CreatedAt time.Time
+}
+
+// ScheduledChange describes the next scheduled billing phase.
+type ScheduledChange struct {
+	Plan        PlanType        `json:"plan"`
+	Interval    BillingInterval `json:"billing_cycle"`
+	EffectiveAt *time.Time      `json:"effective_at,omitempty"`
+}
+
+// PendingPayment means the requested change has not granted new entitlements.
+type PendingPayment struct {
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	InvoiceURL string     `json:"invoice_url,omitempty"`
+	AmountDue  int64      `json:"amount_due"`
+	Currency   string     `json:"currency"`
 }

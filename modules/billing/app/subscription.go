@@ -59,6 +59,13 @@ func (s *SubscriptionService) Cancel(ctx context.Context, userID string, mode do
 		return nil, domain.ErrNoActiveSubscription
 	}
 
+	current, err := s.provider.GetSubscription(ctx, subID)
+	if err != nil {
+		return nil, err
+	}
+	if current != nil && (current.ScheduledChange != nil || current.PendingPayment != nil) {
+		return nil, domain.ErrPendingSubscriptionChange
+	}
 	if err := s.provider.CancelSubscription(ctx, subID, mode); err != nil {
 		return nil, err
 	}
@@ -125,6 +132,9 @@ func (s *SubscriptionService) Change(ctx context.Context, userID string, in doma
 	current, err := s.provider.GetSubscription(ctx, subID)
 	if err != nil {
 		return nil, err
+	}
+	if current != nil && (current.PendingPayment != nil || current.ScheduledChange != nil || current.CancelAtPeriodEnd || current.CancelEffectiveAt != nil) {
+		return nil, domain.ErrPendingSubscriptionChange
 	}
 	mode := resolveChangeMode(current, in)
 	in.Mode = mode
@@ -286,6 +296,9 @@ func resolveChangeMode(current *domain.SubscriptionSnapshot, in domain.Subscript
 		return domain.ChangeModeImmediateProrated
 	}
 
+	if rankPlan(in.Plan) < rankPlan(current.Plan) {
+		return domain.ChangeModePeriodEnd
+	}
 	// Monthly -> yearly should apply the annual commitment immediately.
 	if current.Interval == domain.IntervalMonthly && in.Interval == domain.IntervalYearly {
 		return domain.ChangeModeImmediateResetCycle
@@ -315,4 +328,20 @@ func rankPlan(plan domain.PlanType) int {
 	default:
 		return 0
 	}
+}
+
+// CancelScheduledChange removes a future change, retaining the current plan.
+func (s *SubscriptionService) CancelScheduledChange(ctx context.Context, userID string) error {
+	customer, err := s.customers.LoadCustomer(ctx, strings.TrimSpace(userID))
+	if err != nil {
+		return err
+	}
+	if customer.ProviderSubscriptionID == "" {
+		return domain.ErrInvalidInput
+	}
+	provider, ok := s.provider.(port.ScheduledChangeCanceler)
+	if !ok {
+		return domain.ErrInvalidInput
+	}
+	return provider.CancelScheduledChange(ctx, customer.ProviderSubscriptionID)
 }

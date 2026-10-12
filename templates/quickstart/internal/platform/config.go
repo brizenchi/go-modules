@@ -138,7 +138,6 @@ type ReferralConfig struct {
 	Enabled              *bool  `mapstructure:"enabled"`
 	Prefix               string `mapstructure:"prefix"`
 	BaseLink             string `mapstructure:"base_link"`
-	ActivationReward     int    `mapstructure:"activation_reward"`
 	ActivationWindowDays int    `mapstructure:"activation_window_days"`
 }
 

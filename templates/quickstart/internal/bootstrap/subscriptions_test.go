@@ -38,11 +38,11 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 			Enabled:  boolPtr(true),
 			Provider: "stripe",
 			Stripe: platform.StripeConfig{
-				SecretKey:     "sk_test_placeholder",
-				WebhookSecret: "whsec_placeholder",
+				SecretKey:     "sk_test_not-a-real-key",
+				WebhookSecret: "whsec_not-a-real-secret",
 			},
 		},
-		Referral: platform.ReferralConfig{Enabled: boolPtr(true), ActivationReward: 50},
+		Referral: platform.ReferralConfig{Enabled: boolPtr(true)},
 	}
 	if err := platform.Migrate(db, moduleConfig); err != nil {
 		t.Fatalf("Migrate: %v", err)
@@ -59,7 +59,7 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 	}
 	appConfig.Host.SignupCredits = 20
 	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: appConfig.Host}
-	subscribeModuleEvents(deps, appConfig)
+	subscribeModuleEvents(deps)
 
 	identity, err := user.NewAuthStore(modules.Users).FindOrCreateByEmail(context.Background(), "event@example.com")
 	if err != nil {
@@ -87,6 +87,18 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 		OccurredAt:      now,
 		Payload:         billingevent.CreditsPurchased{TotalCredits: 100},
 	})
+	registered := referralevent.Envelope{
+		Kind:       referralevent.KindReferralRegistered,
+		OccurredAt: now,
+		Payload: referralevent.ReferralRegistered{Referral: referraldomain.Referral{
+			ID: 1, ReferrerID: identity.UserID, RefereeID: "referee",
+		}},
+	}
+	for range 2 {
+		if err := modules.Referral.Deps.Bus.Publish(context.Background(), registered); err != nil {
+			t.Fatalf("publish referral registration: %v", err)
+		}
+	}
 	referralActivated := referralevent.Envelope{
 		Kind:       referralevent.KindReferralActivated,
 		OccurredAt: now,
@@ -99,7 +111,7 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 	if err := modules.Referral.Deps.Bus.Publish(context.Background(), referralActivated); err != nil {
 		t.Fatalf("publish referral activation: %v", err)
 	}
-	// Retrying delivery after a transient listener failure must not double-grant.
+	// Even a replay with stored reward metadata must not grant default rewards.
 	if err := modules.Referral.Deps.Bus.Publish(context.Background(), referralActivated); err != nil {
 		t.Fatalf("retry referral activation: %v", err)
 	}
@@ -108,134 +120,157 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
 	}
-	if got.Credits != 170 {
-		t.Fatalf("credits=%d, want signup 20 + purchase 100 + referral 50", got.Credits)
+	if got.Credits != 120 {
+		t.Fatalf("credits=%d, want signup 20 + purchase 100; referral hook grants nothing", got.Credits)
 	}
 }
 
-func TestReferralRewardWaitsForPaidRenewalAfterTrial(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	moduleConfig := platform.Config{
-		ServiceName: "trial-referral-test",
-		Email:       platform.EmailConfig{Provider: "none"},
-		Auth: platform.AuthConfig{
-			UserJWTSecret:    "test-jwt-secret",
-			FrontendRedirect: "http://localhost:3000",
-			Email:            platform.AuthEmailConfig{Enabled: boolPtr(false)},
-		},
-		Billing: platform.BillingConfig{
-			Enabled:  boolPtr(true),
-			Provider: "stripe",
-			Stripe: platform.StripeConfig{
-				SecretKey:     "sk_test_placeholder",
-				WebhookSecret: "whsec_placeholder",
-			},
-		},
-		Referral: platform.ReferralConfig{Enabled: boolPtr(true), ActivationReward: 50},
-	}
-	if err := platform.Migrate(db, moduleConfig); err != nil {
-		t.Fatalf("Migrate: %v", err)
-	}
-	modules, err := platform.New(db, moduleConfig)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	appConfig := AppConfig{Auth: moduleConfig.Auth, Email: moduleConfig.Email, Billing: moduleConfig.Billing, Referral: moduleConfig.Referral}
-	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: appConfig.Host}
-	subscribeModuleEvents(deps, appConfig)
+func TestReferralActivationWithoutDefaultReward(t *testing.T) {
+	for _, kind := range []billingevent.Kind{
+		billingevent.KindSubscriptionActivated,
+		billingevent.KindTrialConverted,
+		billingevent.KindSubscriptionRenewed,
+	} {
+		t.Run(string(kind), func(t *testing.T) {
+			db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+			if err != nil {
+				t.Fatalf("open sqlite: %v", err)
+			}
+			moduleConfig := platform.Config{
+				ServiceName: "trial-referral-test",
+				Email:       platform.EmailConfig{Provider: "none"},
+				Auth: platform.AuthConfig{
+					UserJWTSecret:    "test-jwt-secret",
+					FrontendRedirect: "http://localhost:3000",
+					Email:            platform.AuthEmailConfig{Enabled: boolPtr(false)},
+				},
+				Billing: platform.BillingConfig{
+					Enabled:  boolPtr(true),
+					Provider: "stripe",
+					Stripe: platform.StripeConfig{
+						SecretKey:     "sk_test_not-a-real-key",
+						WebhookSecret: "whsec_not-a-real-secret",
+					},
+				},
+				Referral: platform.ReferralConfig{Enabled: boolPtr(true)},
+			}
+			if err := platform.Migrate(db, moduleConfig); err != nil {
+				t.Fatalf("Migrate: %v", err)
+			}
+			modules, err := platform.New(db, moduleConfig)
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			appConfig := AppConfig{Auth: moduleConfig.Auth, Email: moduleConfig.Email, Billing: moduleConfig.Billing, Referral: moduleConfig.Referral}
+			deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: appConfig.Host}
+			subscribeModuleEvents(deps)
 
-	authStore := user.NewAuthStore(modules.Users)
-	referrer, err := authStore.FindOrCreateByEmail(context.Background(), "referrer@example.com")
-	if err != nil {
-		t.Fatalf("create referrer: %v", err)
-	}
-	referee, err := authStore.FindOrCreateByEmail(context.Background(), "referee@example.com")
-	if err != nil {
-		t.Fatalf("create referee: %v", err)
-	}
-	code, err := modules.Referral.Code.GetOrCreate(context.Background(), referrer.UserID)
-	if err != nil {
-		t.Fatalf("create referral code: %v", err)
-	}
-	if _, err := modules.Referral.Attribute.AttributeReferral(context.Background(), referee.UserID, code.Value); err != nil {
-		t.Fatalf("attribute referral: %v", err)
-	}
+			authStore := user.NewAuthStore(modules.Users)
+			referrer, err := authStore.FindOrCreateByEmail(context.Background(), "referrer@example.com")
+			if err != nil {
+				t.Fatalf("create referrer: %v", err)
+			}
+			referee, err := authStore.FindOrCreateByEmail(context.Background(), "referee@example.com")
+			if err != nil {
+				t.Fatalf("create referee: %v", err)
+			}
+			code, err := modules.Referral.Code.GetOrCreate(context.Background(), referrer.UserID)
+			if err != nil {
+				t.Fatalf("create referral code: %v", err)
+			}
+			if _, err := modules.Referral.Attribute.AttributeReferral(context.Background(), referee.UserID, code.Value); err != nil {
+				t.Fatalf("attribute referral: %v", err)
+			}
 
-	now := time.Now().UTC()
-	if err := modules.Billing.Bus.Publish(context.Background(), billingevent.Envelope{
-		Kind:            billingevent.KindSubscriptionActivated,
-		UserID:          referee.UserID,
-		ProviderEventID: "evt_trial_started",
-		OccurredAt:      now,
-		Payload: billingevent.SubscriptionActivated{Snapshot: billingdomain.SubscriptionSnapshot{
-			Status: billingdomain.StatusTrialing,
-		}},
-	}); err != nil {
-		t.Fatalf("publish trial activation: %v", err)
-	}
-	pending, err := modules.Referral.Deps.Referrals.FindByReferee(context.Background(), referee.UserID)
-	if err != nil {
-		t.Fatalf("find pending referral: %v", err)
-	}
-	if pending.Status != referraldomain.StatusPending || pending.RewardCredits != 0 {
-		t.Fatalf("trial referral=%+v, want pending without reward", pending)
-	}
-	if err := modules.Billing.Bus.Publish(context.Background(), billingevent.Envelope{
-		Kind:            billingevent.KindSubscriptionRenewed,
-		UserID:          referee.UserID,
-		ProviderEventID: "evt_comped_renewal",
-		OccurredAt:      now.Add(30 * time.Minute),
-		Payload: billingevent.SubscriptionRenewed{
-			AmountPaid: 0,
-			Currency:   "usd",
-			Snapshot:   billingdomain.SubscriptionSnapshot{Status: billingdomain.StatusActive},
-		},
-	}); err != nil {
-		t.Fatalf("publish zero-amount renewal: %v", err)
-	}
-	pending, err = modules.Referral.Deps.Referrals.FindByReferee(context.Background(), referee.UserID)
-	if err != nil {
-		t.Fatalf("find referral after zero-amount renewal: %v", err)
-	}
-	if pending.Status != referraldomain.StatusPending || pending.RewardCredits != 0 {
-		t.Fatalf("zero-amount renewal referral=%+v, want pending without reward", pending)
-	}
+			now := time.Now().UTC()
+			if err := modules.Billing.Bus.Publish(context.Background(), billingevent.Envelope{
+				Kind:            billingevent.KindSubscriptionActivated,
+				UserID:          referee.UserID,
+				ProviderEventID: "evt_trial_started",
+				OccurredAt:      now,
+				Payload: billingevent.SubscriptionActivated{Snapshot: billingdomain.SubscriptionSnapshot{
+					Status: billingdomain.StatusTrialing,
+				}},
+			}); err != nil {
+				t.Fatalf("publish trial activation: %v", err)
+			}
+			pending, err := modules.Referral.Deps.Referrals.FindByReferee(context.Background(), referee.UserID)
+			if err != nil {
+				t.Fatalf("find pending referral: %v", err)
+			}
+			if pending.Status != referraldomain.StatusPending || pending.RewardCredits != 0 {
+				t.Fatalf("trial referral=%+v, want pending without reward", pending)
+			}
+			if err := modules.Billing.Bus.Publish(context.Background(), billingevent.Envelope{
+				Kind:            billingevent.KindSubscriptionRenewed,
+				UserID:          referee.UserID,
+				ProviderEventID: "evt_comped_renewal",
+				OccurredAt:      now.Add(30 * time.Minute),
+				Payload: billingevent.SubscriptionRenewed{
+					AmountPaid: 0,
+					Currency:   "usd",
+					Snapshot:   billingdomain.SubscriptionSnapshot{Status: billingdomain.StatusActive},
+				},
+			}); err != nil {
+				t.Fatalf("publish zero-amount renewal: %v", err)
+			}
+			pending, err = modules.Referral.Deps.Referrals.FindByReferee(context.Background(), referee.UserID)
+			if err != nil {
+				t.Fatalf("find referral after zero-amount renewal: %v", err)
+			}
+			if pending.Status != referraldomain.StatusPending || pending.RewardCredits != 0 {
+				t.Fatalf("zero-amount renewal referral=%+v, want pending without reward", pending)
+			}
 
-	paidRenewal := billingevent.Envelope{
-		Kind:            billingevent.KindSubscriptionRenewed,
-		UserID:          referee.UserID,
-		ProviderEventID: "evt_trial_paid",
-		OccurredAt:      now.Add(time.Hour),
-		Payload: billingevent.SubscriptionRenewed{
-			AmountPaid: 1200,
-			Currency:   "usd",
-			Snapshot:   billingdomain.SubscriptionSnapshot{Status: billingdomain.StatusActive},
-		},
-	}
-	if err := modules.Billing.Bus.Publish(context.Background(), paidRenewal); err != nil {
-		t.Fatalf("publish first paid renewal: %v", err)
-	}
-	// Delivery is at-least-once; the reward credit ledger must absorb retries.
-	if err := modules.Billing.Bus.Publish(context.Background(), paidRenewal); err != nil {
-		t.Fatalf("retry first paid renewal: %v", err)
-	}
+			paidRenewal := billingevent.Envelope{
+				Kind:            billingevent.KindSubscriptionRenewed,
+				UserID:          referee.UserID,
+				ProviderEventID: "evt_trial_paid",
+				OccurredAt:      now.Add(time.Hour),
+				Payload: billingevent.SubscriptionRenewed{
+					AmountPaid: 1200,
+					Currency:   "usd",
+					Snapshot:   billingdomain.SubscriptionSnapshot{Status: billingdomain.StatusActive},
+				},
+			}
+			paidRenewal.Kind = kind
+			switch kind {
+			case billingevent.KindSubscriptionActivated:
+				paidRenewal.Payload = billingevent.SubscriptionActivated{Snapshot: billingdomain.SubscriptionSnapshot{Status: billingdomain.StatusActive}}
+			case billingevent.KindTrialConverted:
+				paidRenewal.Payload = billingevent.TrialConverted{Snapshot: billingdomain.SubscriptionSnapshot{Status: billingdomain.StatusActive}}
+			}
+			if err := modules.Billing.Bus.Publish(context.Background(), paidRenewal); err != nil {
+				t.Fatalf("publish first paid renewal: %v", err)
+			}
+			// Delivery is at-least-once; default hooks must remain side-effect free.
+			if err := modules.Billing.Bus.Publish(context.Background(), paidRenewal); err != nil {
+				t.Fatalf("retry first paid renewal: %v", err)
+			}
 
-	activated, err := modules.Referral.Deps.Referrals.FindByReferee(context.Background(), referee.UserID)
-	if err != nil {
-		t.Fatalf("find activated referral: %v", err)
-	}
-	if activated.Status != referraldomain.StatusActivated || activated.RewardCredits != 50 {
-		t.Fatalf("converted referral=%+v, want activated reward 50", activated)
-	}
-	updatedReferrer, err := modules.Users.FindByID(context.Background(), referrer.UserID)
-	if err != nil {
-		t.Fatalf("find referrer: %v", err)
-	}
-	if updatedReferrer.Credits != 50 {
-		t.Fatalf("referrer credits=%d, want exactly 50 after retry", updatedReferrer.Credits)
+			activated, err := modules.Referral.Deps.Referrals.FindByReferee(context.Background(), referee.UserID)
+			if err != nil {
+				t.Fatalf("find activated referral: %v", err)
+			}
+			if activated.Status != referraldomain.StatusActivated || activated.RewardCredits != 0 {
+				t.Fatalf("converted referral=%+v, want activated without reward", activated)
+			}
+			updatedReferrer, err := modules.Users.FindByID(context.Background(), referrer.UserID)
+			if err != nil {
+				t.Fatalf("find referrer: %v", err)
+			}
+			if updatedReferrer.Credits != 0 {
+				t.Fatalf("referrer credits=%d, want no default reward after retry", updatedReferrer.Credits)
+			}
+			updatedReferee, err := modules.Users.FindByID(context.Background(), referee.UserID)
+			if err != nil || updatedReferee.Credits != 0 {
+				t.Fatalf("referee=%+v err=%v, want no default reward", updatedReferee, err)
+			}
+			var grants int64
+			if err := db.Model(&user.CreditGrant{}).Count(&grants).Error; err != nil || grants != 0 {
+				t.Fatalf("grants=%d err=%v, want no reward ledger entries", grants, err)
+			}
+		})
 	}
 }
 
@@ -263,7 +298,7 @@ func TestLoginRetriesReferralAttributionAfterRegisteredListenerFailure(t *testin
 	}
 	appConfig := AppConfig{Auth: moduleConfig.Auth, Email: moduleConfig.Email, Billing: moduleConfig.Billing, Referral: moduleConfig.Referral}
 	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: appConfig.Host}
-	subscribeModuleEvents(deps, appConfig)
+	subscribeModuleEvents(deps)
 
 	authStore := user.NewAuthStore(modules.Users)
 	referrer, err := authStore.FindOrCreateByEmail(context.Background(), "retry-referrer@example.com")

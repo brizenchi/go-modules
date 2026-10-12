@@ -27,6 +27,8 @@ type SubscriptionView struct {
 	CurrentPeriodEnd  string                    `json:"current_period_end,omitempty"`
 	CancelAtPeriodEnd bool                      `json:"cancel_at_period_end"`
 	CancelEffectiveAt string                    `json:"effective_cancel_at,omitempty"`
+	ScheduledChange   *domain.ScheduledChange   `json:"scheduled_change,omitempty"`
+	PendingPayment    *domain.PendingPayment    `json:"pending_payment,omitempty"`
 	PaymentMethod     *domain.PaymentMethodCard `json:"payment_method,omitempty"`
 }
 
@@ -53,6 +55,8 @@ func (s *QueryService) GetSubscription(ctx context.Context, userID string) (*Sub
 			if snap == nil {
 				return nil, fmt.Errorf("billing: provider returned no snapshot for subscription %q", cust.ProviderSubscriptionID)
 			}
+			view.ScheduledChange = snap.ScheduledChange
+			view.PendingPayment = snap.PendingPayment
 			view.Plan = snap.Plan
 			view.Status = snap.Status
 			view.Interval = snap.Interval

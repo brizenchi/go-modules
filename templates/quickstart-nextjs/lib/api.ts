@@ -65,6 +65,9 @@ export type SubscriptionView = {
   billing_cycle?: string;
   current_period_end?: string;
   cancel_at_period_end?: boolean;
+  effective_cancel_at?: string;
+  scheduled_change?: { plan: string; billing_cycle: string; effective_at?: string } | null;
+  pending_payment?: { expires_at?: string; invoice_url?: string; amount_due: number; currency: string } | null;
   payment_method?: {
     brand: string;
     last4: string;
@@ -332,6 +335,8 @@ export async function changeSubscription(
   billing_cycle: string;
   change_mode: SubscriptionChangeMode;
   provider_subscription_id: string;
+  scheduled_change?: SubscriptionView["scheduled_change"];
+  pending_payment?: SubscriptionView["pending_payment"];
   message: string;
 }> {
   return apiRequest("/stripe/subscription/change", {
@@ -370,6 +375,9 @@ export async function getSubscription(token: string): Promise<SubscriptionView> 
     billing_cycle?: string;
     current_period_end?: string;
     cancel_at_period_end?: boolean;
+  effective_cancel_at?: string;
+  scheduled_change?: { plan: string; billing_cycle: string; effective_at?: string } | null;
+  pending_payment?: { expires_at?: string; invoice_url?: string; amount_due: number; currency: string } | null;
     payment_method?: {
       Brand?: string;
       Last4?: string;
@@ -386,6 +394,9 @@ export async function getSubscription(token: string): Promise<SubscriptionView> 
     billing_cycle: data.billing_cycle,
     current_period_end: data.current_period_end,
     cancel_at_period_end: data.cancel_at_period_end,
+    effective_cancel_at: data.effective_cancel_at,
+    scheduled_change: data.scheduled_change,
+    pending_payment: data.pending_payment,
     payment_method: data.payment_method
       ? {
           brand: data.payment_method.Brand || "",
@@ -515,4 +526,16 @@ export function userLabel(user?: SessionUser | null): string {
     return "anonymous";
   }
   return user.username?.trim() || user.email || user.id;
+}
+
+export function cancelScheduledChange(token: string): Promise<{status:string}> {
+ return apiRequest("/stripe/subscription/scheduled-change/cancel", {method:"POST",authToken:token});
+}
+export type PurchaseItem = { product_type?:string; id:string; status:string; amount:number|null; currency:string; processed:boolean; created_at:string };
+export function listPurchases(token:string,page=1,limit=10):Promise<{items:PurchaseItem[];total:number;page:number;limit:number}> {
+ return apiRequest(`/billing/purchases?page=${page}&limit=${limit}`,{authToken:token});
+}
+export type MembershipView = {plan:string;active:boolean;valid_until?:string;reason:string};
+export function getMembership(token:string):Promise<MembershipView> {
+ return apiRequest("/account/membership",{authToken:token});
 }

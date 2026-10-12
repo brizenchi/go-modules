@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 
 	"github.com/brizenchi/quickstart-template/internal/feature/account"
 	"github.com/brizenchi/quickstart-template/internal/feature/credits"
@@ -24,6 +25,7 @@ import (
 // this runs; do not re-declare them here.
 func registerHostRoutes(deps hostapi.Deps, g hostapi.Groups) {
 	account.New(deps.Users).Register(g)
+	membership.Register(deps, g)
 	note.New(deps.DB).Register(g)
 	operations.New(deps).Register(g)
 	credits.New(deps.Users, credits.WithExportCost(func(ctx context.Context) (int64, error) {

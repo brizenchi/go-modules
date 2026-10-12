@@ -257,6 +257,9 @@ test("getSubscription maps provider payment fields into frontend shape", async (
         billing_cycle: "monthly",
         current_period_end: "2030-02-01T00:00:00Z",
         cancel_at_period_end: false,
+        effective_cancel_at: "2030-02-01T00:00:00Z",
+        scheduled_change: {plan:"starter",billing_cycle:"monthly",effective_at:"2030-02-01T00:00:00Z"},
+        pending_payment: {amount_due:1000,currency:"usd"},
         payment_method: {
           Brand: "visa",
           Last4: "4242",
@@ -274,6 +277,9 @@ test("getSubscription maps provider payment fields into frontend shape", async (
     billing_cycle: "monthly",
     current_period_end: "2030-02-01T00:00:00Z",
     cancel_at_period_end: false,
+    effective_cancel_at: "2030-02-01T00:00:00Z",
+    scheduled_change: {plan:"starter",billing_cycle:"monthly",effective_at:"2030-02-01T00:00:00Z"},
+    pending_payment: {amount_due:1000,currency:"usd"},
     payment_method: {
       brand: "visa",
       last4: "4242",
@@ -509,4 +515,12 @@ test("invoice, referral, and user helpers map backend payloads correctly", async
   assert.equal(api.userLabel({ id: "user_2", email: "user@example.com" }), "user@example.com");
   assert.equal(api.userLabel({ id: "user_3", email: "" }), "user_3");
   assert.equal(api.userLabel(null), "anonymous");
+});
+
+test("membership, purchase history and scheduled cancellation use authenticated contracts",async()=>{
+ const api=loadApiModule();const calls:Array<{url:string;method:string;authorization:string}>=[];
+ globalThis.fetch=(async(input,init)=>{calls.push({url:String(input),method:init?.method||"GET",authorization:new Headers(init?.headers).get("Authorization")||""});return jsonResponse(200,{code:200,data:{items:[],total:0,status:"ok"}})}) as typeof fetch;
+ await api.getMembership("test-token");await api.listPurchases("test-token",2,10);await api.cancelScheduledChange("test-token");
+ assert.deepEqual(calls.map(v=>v.url),["https://api.example.com/api/v1/account/membership","https://api.example.com/api/v1/billing/purchases?page=2&limit=10","https://api.example.com/api/v1/stripe/subscription/scheduled-change/cancel"]);
+ assert.equal(calls[2].method,"POST");assert.ok(calls.every(v=>v.authorization==="Bearer test-token"));
 });

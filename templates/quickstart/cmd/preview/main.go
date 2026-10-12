@@ -30,7 +30,6 @@ import (
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 	emailport "github.com/brizenchi/go-modules/modules/email/port"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
-	refevent "github.com/brizenchi/go-modules/modules/referral/event"
 	"github.com/brizenchi/quickstart-template/internal/feature/credits"
 	"github.com/brizenchi/quickstart-template/internal/feature/note"
 	"github.com/brizenchi/quickstart-template/internal/feature/operations"
@@ -132,7 +131,7 @@ func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 			Google: platform.GoogleConfig{Enabled: &off}, GitHub: platform.GitHubConfig{Enabled: &off}},
 		Email:    platform.EmailConfig{Provider: "log"},
 		Billing:  platform.BillingConfig{Enabled: &off},
-		Referral: platform.ReferralConfig{Enabled: &on, Prefix: "PREVIEW", BaseLink: frontend + "/invite", ActivationReward: 25, ActivationWindowDays: 30},
+		Referral: platform.ReferralConfig{Enabled: &on, Prefix: "PREVIEW", BaseLink: frontend + "/invite", ActivationWindowDays: 30},
 	}
 	if adminPassword != "" {
 		cfg.Auth.AdminEmail = previewAdmin
@@ -207,13 +206,8 @@ func installPreviewListeners(modules *platform.Modules) {
 		}
 		return nil
 	})
-	modules.Referral.Subscribe(refevent.KindReferralActivated, func(ctx context.Context, event refevent.Envelope) error {
-		payload, ok := event.Payload.(refevent.ReferralActivated)
-		if !ok {
-			return errors.New("unexpected preview referral payload")
-		}
-		return modules.Users.GrantCredits(ctx, payload.Referral.ReferrerID, "referral", strconv.FormatUint(payload.Referral.ID, 10), int64(payload.Referral.RewardCredits))
-	})
+	// Like the default host hooks, preview grants no referral rewards.
+
 }
 
 func runPreview(ctx context.Context, port int, frontend string) error {

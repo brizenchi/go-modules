@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BillingHistory } from "@/components/billing-history";
 import { SiteShell } from "@/components/site-shell";
 import { EmptyState, Notice, Panel, DetailRows } from "@/components/ui";
 import { ResourceFailure, SignInRequired } from "@/components/resource-feedback";
 import {
+  ApiError,
   cancelSubscription,
+  cancelScheduledChange,
   changeSubscription,
   createBillingPortalSession,
   createCheckoutSession,
@@ -28,6 +31,7 @@ import {
 } from "@/lib/auth";
 import {
   CHECKOUT_REFRESH_DELAYS_MS,
+  stripeInvoiceURL,
   checkoutReturnStatus,
   hasOngoingRecurringSubscription,
   parseCreditsQuantity
@@ -108,7 +112,7 @@ export default function BillingPage() {
   const hasLifetime = currentPlan === "lifetime";
   const ongoingRecurringSubscription = hasOngoingRecurringSubscription(subscription);
   const cancellationPending = ongoingRecurringSubscription
-    && (Boolean(subscription?.cancel_at_period_end) || subscription?.status.trim().toLowerCase() === "canceling");
+    && (Boolean(subscription?.cancel_at_period_end || subscription?.effective_cancel_at) || subscription?.status.trim().toLowerCase() === "canceling");
   const selectedLifetime = plan === "lifetime";
   const parsedCreditsQuantity = parseCreditsQuantity(creditsQuantity);
   const billingReady = capabilitiesState.status === "ready" && capabilitiesState.data.billing.enabled;
@@ -410,6 +414,10 @@ export default function BillingPage() {
   }
 
   function handleActionError(error: unknown, capability: string) {
+    if (error instanceof ApiError && error.reason === "subscription_change_pending") {
+      setActionFailure({ kind: "unknown", title: t({ en: "Resolve the pending change first", zh: "请先处理已有变更" }), message: t({ en: "Complete the pending payment, remove the scheduled change, or reactivate your subscription before trying again.", zh: "请先完成待付款、撤销预约变更，或恢复续费后再操作。" }), retryable: false });
+      return;
+    }
     setActionFailure(describeRequestFailure(error, capability));
   }
 
@@ -490,7 +498,11 @@ export default function BillingPage() {
         interval
       });
       if (!canCommitAction(requestToken, actionGeneration)) return;
-      setStatus(res.message);
+      setStatus(res.pending_payment
+        ? t({en:"Payment is required before the plan change takes effect.",zh:"套餐尚未变更，请先完成付款。"})
+        : res.scheduled_change
+          ? t({en:"Plan change scheduled for the next period.",zh:"已预约下周期变更套餐。"})
+          : t({en:"Plan updated.",zh:"套餐已更新。"}));
       await loadBillingState(requestToken);
     } catch (err) {
       if (canCommitAction(requestToken, actionGeneration)) handleActionError(err, "Plan change");
@@ -933,6 +945,21 @@ export default function BillingPage() {
                   : t({ en: "Sign in to load billing data.", zh: "登录后即可加载账单信息。" })}
             </EmptyState>
           )}
+          {subscription?.effective_cancel_at && <p>{t({en:"Access ends on",zh:"权益终止时间"})}: {formatDate(subscription.effective_cancel_at,dateLocale)}</p>}
+          {subscription?.pending_payment && <p role="status">{t({en:"Plan change awaits payment. Your current plan remains in effect. Complete payment in the billing portal.",zh:"套餐变更正在等待付款，当前套餐仍然有效。请在账单管理中完成付款。"})}</p>}
+          {stripeInvoiceURL(subscription?.pending_payment?.invoice_url) && <a className="button" href={stripeInvoiceURL(subscription?.pending_payment?.invoice_url)!} target="_blank" rel="noopener noreferrer">{t({en:"Complete payment",zh:"完成付款"})}</a>}
+          {subscription?.scheduled_change && <div>
+            <p>{t({en:"Scheduled plan",zh:"待生效套餐"})}: {planName(subscription.scheduled_change.plan)} · {intervalName(subscription.scheduled_change.billing_cycle)} · {formatDate(subscription.scheduled_change.effective_at,dateLocale)}</p>
+            <button className="button" disabled={baseActionDisabled} onClick={async () => {
+              if (!session) return;
+              const token=session.token;
+              const generation=beginRequestGeneration(actionGenerationRef);
+              setBusy("change");setActionFailure(null);
+              try {await cancelScheduledChange(token);if(canCommitAction(token,generation)) await loadBillingState(token);}
+              catch(err){if(canCommitAction(token,generation)) handleActionError(err,"Cancel scheduled change");}
+              finally{if(canCommitAction(token,generation))setBusy("");}
+            }}>{t({en:"Remove scheduled change",zh:"撤销待生效变更"})}</button>
+          </div>}
           {ongoingRecurringSubscription ? (
             <div className="button-row">
               {cancellationPending ? (
@@ -944,9 +971,7 @@ export default function BillingPage() {
                   <button className="button danger" disabled={baseActionDisabled} onClick={() => void handleCancel("end_of_period")}>
                     {t({ en: "Cancel at period end", zh: "周期结束时取消" })}
                   </button>
-                  <button className="button danger" disabled={baseActionDisabled} onClick={() => void handleCancel("3days")}>
-                    {t({ en: "Cancel in 3 days", zh: "3 天后取消" })}
-                  </button>
+
                 </>
               )}
             </div>
@@ -955,6 +980,7 @@ export default function BillingPage() {
           ) : null}
         </Panel>
 
+        {session && billingReady && <BillingHistory key={session.token} token={session.token} />}
         <Panel className="span-6" title={t({ en: "Invoices", zh: "账单记录" })} subtitle={t({ en: "Your payment history and downloadable receipts.", zh: "查看历史付款记录并下载收据。" })}>
           <div id="invoices" />
           {invoices.length > 0 ? (

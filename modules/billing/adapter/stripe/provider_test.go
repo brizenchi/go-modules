@@ -383,6 +383,9 @@ func TestCreateCheckout_Credits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateCheckout: %v", err)
 	}
+	if captured.Get("invoice_creation[enabled]") != "true" || captured.Get("invoice_creation[invoice_data][metadata][product_type]") != "credits" {
+		t.Fatalf("missing one-time invoice: %v", captured)
+	}
 	if got := captured.Get("mode"); got != "payment" {
 		t.Errorf("mode = %q", got)
 	}
@@ -730,21 +733,34 @@ func TestListInvoices(t *testing.T) {
 }
 
 func TestReactivateSubscription(t *testing.T) {
-	var captured url.Values
-	p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
-		captured = readForm(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"sub_1","object":"subscription"}`))
-	})
-
-	if err := p.ReactivateSubscription(context.Background(), "sub_1"); err != nil {
-		t.Fatalf("Reactivate: %v", err)
-	}
-	if got := captured.Get("cancel_at_period_end"); got != "false" {
-		t.Errorf("cancel_at_period_end = %q", got)
-	}
-	if got := captured.Get("cancel_at"); got != "0" {
-		t.Errorf("cancel_at = %q, want 0", got)
+	for _, periodEnd := range []bool{true, false} {
+		t.Run(fmt.Sprint(periodEnd), func(t *testing.T) {
+			var captured url.Values
+			p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == "GET" {
+					_, _ = fmt.Fprintf(w, `{"id":"sub_1","cancel_at_period_end":%t,"cancel_at":1700100000}`, periodEnd)
+					return
+				}
+				captured = readForm(t, r)
+				if captured.Has("cancel_at") && captured.Has("cancel_at_period_end") {
+					w.WriteHeader(400)
+					_, _ = w.Write([]byte(`{"error":{"message":"cancel_at and cancel_at_period_end are mutually exclusive","type":"invalid_request_error"}}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{"id":"sub_1","object":"subscription"}`))
+			})
+			if err := p.ReactivateSubscription(t.Context(), "sub_1"); err != nil {
+				t.Fatal(err)
+			}
+			if periodEnd {
+				if captured.Get("cancel_at_period_end") != "false" || captured.Has("cancel_at") {
+					t.Fatalf("period cancellation clear: %v", captured)
+				}
+			} else if !captured.Has("cancel_at") || captured.Get("cancel_at") != "" || captured.Has("cancel_at_period_end") {
+				t.Fatalf("custom cancellation clear: %v", captured)
+			}
+		})
 	}
 }
 

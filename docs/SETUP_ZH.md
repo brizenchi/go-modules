@@ -162,7 +162,6 @@ APP_HOST_WELCOME_EMAIL_ENABLED=false
 APP_REFERRAL_ENABLED=true
 APP_REFERRAL_PREFIX=INV
 APP_REFERRAL_BASE_LINK=https://app.example.com/invite?ref=
-APP_REFERRAL_ACTIVATION_REWARD=50
 APP_REFERRAL_ACTIVATION_WINDOW_DAYS=0
 ```
 
@@ -447,13 +446,12 @@ OAuth 回调和 Stripe Webhook 都指向后端。前端域名只用于登录落�
 CORS。Google/GitHub 的测试、预发、生产建议使用独立 OAuth 应用，避免多个环境互相覆盖
 回调地址。
 
-## 6. 配置邀请奖励
+## 6. 接入邀请与自定义奖励
 
 ```dotenv
 APP_REFERRAL_ENABLED=true
 APP_REFERRAL_PREFIX=INV
 APP_REFERRAL_BASE_LINK=https://example.com/invite?ref=
-APP_REFERRAL_ACTIVATION_REWARD=50
 APP_REFERRAL_ACTIVATION_WINDOW_DAYS=0
 ```
 
@@ -462,10 +460,13 @@ APP_REFERRAL_ACTIVATION_WINDOW_DAYS=0
 1. 注册请求把 `referral_code` 传给 `/auth/verify-code` 或 `/auth/exchange-token`；
 2. `UserSignedUp` 监听器创建邀请归因；
 3. 被邀请人第一次订阅激活后，邀请关系变成 activated；
-4. `ReferralActivated` 监听器给邀请人增加宿主 `User.Credits`。
+4. 调用 `host_hooks.go:onReferralActivated`，默认直接返回 `nil`，不发任何奖励。
 
-不使用积分时直接替换 `host_hooks.go:onReferralActivated`；例如改成发优惠券、写现金
-返利记录或只做统计。`subscriptions.go` 只负责把邀请事件交给这个回调。
+奖励无需配置，直接在 `host_hooks.go:onReferralActivated` 内编写积分、会员或优惠券规则。
+若要注册绑定邀请后立即发奖，则编辑同文件的 `onReferralRegistered`。
+`event.Referral.ReferrerID` / `RefereeID` 分别是邀请人和被邀请人；用邀请 ID + 奖励类型
+作为幂等键，防止重试重复发放。完整示例见 [模板说明](../templates/quickstart/README.md#编写业务组合)。
+旧的奖励金额配置已移除，邀请开关、链接和激活期限仍可配置。
 
 ## 7. 配置域名和前端
 

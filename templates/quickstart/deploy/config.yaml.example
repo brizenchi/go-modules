@@ -124,7 +124,6 @@ referral:
   enabled: true
   prefix: "INV"                    # invitation code prefix
   base_link: "http://localhost:3000/invite?ref="
-  activation_reward: 50            # credits granted to referrer on referee subscription
   activation_window_days: 0        # 0 表示不限制激活时间
 
 # ---------- host ----------

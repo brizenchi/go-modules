@@ -339,7 +339,9 @@ func (h *Handler) ChangeSubscription(c *gin.Context) {
 		"billing_cycle":            res.Snapshot.Interval,
 		"change_mode":              res.Mode,
 		"provider_subscription_id": res.ProviderSubscriptionID,
-		"message":                  "subscription changed",
+		"message":                  "subscription change processed",
+		"scheduled_change":         res.Snapshot.ScheduledChange,
+		"pending_payment":          res.Snapshot.PendingPayment,
 	})
 }
 
@@ -515,6 +517,8 @@ func formatTimePtr(value *time.Time) string {
 
 func respondAppError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, domain.ErrPendingSubscriptionChange):
+		httpresp.Custom(c, 409, 409, "resolve pending subscription change", gin.H{"reason": "subscription_change_pending"})
 	case errors.Is(err, domain.ErrInvalidInput),
 		errors.Is(err, domain.ErrInvalidReturnURL),
 		errors.Is(err, domain.ErrInvalidPriceID),
@@ -532,4 +536,17 @@ func respondAppError(c *gin.Context, err error) {
 		slog.ErrorContext(c.Request.Context(), "billing: internal error", "error", err)
 		respondError(c, http.StatusInternalServerError, "internal billing error")
 	}
+}
+
+// CancelScheduledChange removes a future phase without ending membership.
+func (h *Handler) CancelScheduledChange(c *gin.Context) {
+	uid, ok := h.userID(c)
+	if !ok {
+		return
+	}
+	if err := h.subscription.CancelScheduledChange(c.Request.Context(), uid); err != nil {
+		respondAppError(c, err)
+		return
+	}
+	httpresp.OK(c, gin.H{"status": "scheduled_change_removed"})
 }

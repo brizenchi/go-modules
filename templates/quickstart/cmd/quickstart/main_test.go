@@ -120,7 +120,7 @@ func TestAppConfigModuleConfig(t *testing.T) {
 	cfg.Billing.Stripe.Prices.PremiumMonthly = "price_premium_month"
 	cfg.Billing.Stripe.Prices.PremiumYearly = "price_premium_year"
 	cfg.Referral.BaseLink = "http://localhost:3000/invite?ref="
-	cfg.Referral.ActivationReward = 50
+	cfg.Referral.ActivationWindowDays = 30
 
 	sc := cfg.ModuleConfig()
 	if sc.Auth.UserJWTSecret != "jwt-secret" {
@@ -144,8 +144,8 @@ func TestAppConfigModuleConfig(t *testing.T) {
 	if sc.Billing.Stripe.Prices.PremiumYearly != "price_premium_year" {
 		t.Fatalf("premium yearly price mismatch: %q", sc.Billing.Stripe.Prices.PremiumYearly)
 	}
-	if sc.Referral.ActivationReward != 50 {
-		t.Fatalf("activation reward mismatch: %d", sc.Referral.ActivationReward)
+	if sc.Referral.ActivationWindowDays != 30 {
+		t.Fatalf("activation window mismatch: %d", sc.Referral.ActivationWindowDays)
 	}
 }
 

@@ -294,3 +294,67 @@ func TestWebhook_ListenerFailureLeavesEventForStripeRetry(t *testing.T) {
 		t.Fatal("successful retry should mark webhook processed")
 	}
 }
+
+type recoveryTestProvider struct {
+	*mockProvider
+	retrieveErr error
+	seenContext context.Context
+}
+
+func (p *recoveryTestProvider) RetrieveEvent(ctx context.Context, _ string) (*port.WebhookParseResult, error) {
+	p.seenContext = ctx
+	return p.parseResult, p.retrieveErr
+}
+func (p *recoveryTestProvider) VerifyAndParseWebhookContext(ctx context.Context, _ []byte, _ string) (*port.WebhookParseResult, error) {
+	p.seenContext = ctx
+	return p.parseResult, ctx.Err()
+}
+
+func TestReplayRetriesFailedListenerAndSkipsProcessedEvent(t *testing.T) {
+	provider := &recoveryTestProvider{mockProvider: newMockProvider()}
+	provider.parseResult = &port.WebhookParseResult{ProviderEventID: "evt_replay", UserHint: port.UserHint{UserID: "u1"}, Envelopes: []event.Envelope{{Kind: event.KindCreditsPurchased, Payload: event.CreditsPurchased{TotalCredits: 10}}}}
+	repo := newMockRepo()
+	bus := newMockBus()
+	bus.publishErr = errors.New("temporary listener failure")
+	service := NewWebhookService(provider, repo, nil, nil, bus)
+	if _, err := service.Replay(t.Context(), "evt_replay"); err == nil || repo.rows["evt_replay"].Processed {
+		t.Fatal("failed delivery marked processed")
+	}
+	bus.publishErr = nil
+	if _, err := service.Replay(t.Context(), "evt_replay"); err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.Replay(t.Context(), "evt_replay")
+	if err != nil || !result.Duplicate || len(bus.Published()) != 2 {
+		t.Fatalf("duplicate replay: %+v / %v", result, err)
+	}
+	if provider.seenContext != t.Context() {
+		t.Fatal("replay lost context")
+	}
+	provider.retrieveErr = errors.New("provider unavailable")
+	if _, err := service.Replay(t.Context(), "evt_replay"); !errors.Is(err, provider.retrieveErr) {
+		t.Fatalf("retrieve error: %v", err)
+	}
+	provider.retrieveErr = nil
+	provider.parseResult = nil
+	if _, err := service.Replay(t.Context(), "invalid"); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("empty provider event: %v", err)
+	}
+}
+
+func TestWebhookUsesContextParserAndReplayRequiresProviderCapability(t *testing.T) {
+	provider := &recoveryTestProvider{mockProvider: newMockProvider()}
+	service := NewWebhookService(provider, newMockRepo(), nil, nil, newMockBus())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := service.Process(ctx, nil, ""); !errors.Is(err, context.Canceled) {
+		t.Fatalf("context: %v", err)
+	}
+	if provider.seenContext != ctx {
+		t.Fatal("parser lost context")
+	}
+	service = NewWebhookService(newMockProvider(), newMockRepo(), nil, nil, newMockBus())
+	if _, err := service.Replay(t.Context(), "evt_test"); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("unsupported replay: %v", err)
+	}
+}

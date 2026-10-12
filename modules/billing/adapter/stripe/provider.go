@@ -219,10 +219,15 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		}
 	}
 
+	if mode == stripesdk.CheckoutSessionModePayment {
+		params.InvoiceCreation = &stripesdk.CheckoutSessionInvoiceCreationParams{Enabled: stripesdk.Bool(true), InvoiceData: &stripesdk.CheckoutSessionInvoiceCreationInvoiceDataParams{Metadata: map[string]string{"user_id": in.UserID, "product_type": string(in.ProductType)}}}
+	}
 	if in.ProductType == domain.ProductSubscription {
+		params.SubscriptionData = &stripesdk.CheckoutSessionSubscriptionDataParams{Metadata: map[string]string{"user_id": in.UserID}}
 		if in.TrialDays > 0 {
 			params.SubscriptionData = &stripesdk.CheckoutSessionSubscriptionDataParams{
 				TrialPeriodDays: stripesdk.Int64(in.TrialDays),
+				Metadata:        map[string]string{"user_id": in.UserID},
 			}
 			params.PaymentMethodCollection = stripesdk.String("always")
 		}
@@ -344,6 +349,15 @@ func (p *Provider) CancelSubscription(ctx context.Context, subID string, mode do
 	default:
 		return domain.ErrInvalidCancelMode
 	}
+	readParams := &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}}
+	readParams.AddExpand("schedule")
+	current, err := subscription.Get(subID, readParams)
+	if err != nil {
+		return fmt.Errorf("stripe: read subscription before cancellation: %w", err)
+	}
+	if err := p.releaseCompletedSchedule(ctx, current); err != nil {
+		return err
+	}
 	params.Context = ctx
 	if _, err := subscription.Update(subID, params); err != nil {
 		return fmt.Errorf("stripe: cancel subscription: %w", err)
@@ -371,9 +385,14 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 		return nil, fmt.Errorf("%w: plan=%s interval=%s", domain.ErrPriceNotFound, in.Plan, in.Interval)
 	}
 
-	current, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
+	readParams := &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}}
+	readParams.AddExpand("schedule")
+	current, err := subscription.Get(subID, readParams)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get current subscription: %w", err)
+	}
+	if err := p.releaseCompletedSchedule(ctx, current); err != nil {
+		return nil, err
 	}
 	item, err := primarySubscriptionItem(current)
 	if err != nil {
@@ -396,6 +415,7 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 		params.BillingCycleAnchorUnchanged = stripesdk.Bool(true)
 	}
 
+	params.AddExpand("latest_invoice")
 	params.Context = ctx
 	updated, err := subscription.Update(subID, params)
 	if err != nil {
@@ -445,7 +465,6 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 		schedule, err := subscriptionschedule.New(&stripesdk.SubscriptionScheduleParams{
 			Params:           stripesdk.Params{Context: ctx},
 			FromSubscription: stripesdk.String(subID),
-			EndBehavior:      stripesdk.String(string(stripesdk.SubscriptionScheduleEndBehaviorRelease)),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("stripe: create subscription schedule: %w", err)
@@ -510,6 +529,7 @@ func (p *Provider) ScheduleSubscriptionChange(ctx context.Context, subID string,
 	snap := p.snapshotFromSubscription(current)
 	if snap != nil {
 		snap.CancelAtPeriodEnd = false
+		snap.ScheduledChange = &domain.ScheduledChange{Plan: in.Plan, Interval: in.Interval, EffectiveAt: unixToTimePtr(end)}
 	}
 	return snap, nil
 }
@@ -521,10 +541,18 @@ func (p *Provider) ReactivateSubscription(ctx context.Context, subID string) err
 	if subID == "" {
 		return fmt.Errorf("%w: subscription_id required", domain.ErrInvalidInput)
 	}
-	params := &stripesdk.SubscriptionParams{
-		CancelAtPeriodEnd: stripesdk.Bool(false),
-		CancelAt:          stripesdk.Int64(0),
+	current, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
+	if err != nil {
+		return fmt.Errorf("stripe: read cancellation state: %w", err)
 	}
+	params := &stripesdk.SubscriptionParams{}
+	// Stripe rejects sending these two fields together, even with empty values.
+	if current.CancelAtPeriodEnd {
+		params.CancelAtPeriodEnd = stripesdk.Bool(false)
+	} else {
+		params.AddExtra("cancel_at", "")
+	}
+
 	params.Context = ctx
 	if _, err := subscription.Update(subID, params); err != nil {
 		return fmt.Errorf("stripe: reactivate subscription: %w", err)
@@ -540,7 +568,10 @@ func (p *Provider) GetSubscription(ctx context.Context, subID string) (*domain.S
 	if subID == "" {
 		return nil, fmt.Errorf("%w: subscription_id required", domain.ErrInvalidInput)
 	}
-	sub, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
+	params := &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}}
+	params.AddExpand("schedule")
+	params.AddExpand("latest_invoice")
+	sub, err := subscription.Get(subID, params)
 	if err != nil {
 		return nil, fmt.Errorf("stripe: get subscription: %w", err)
 	}
@@ -808,7 +839,43 @@ func (p *Provider) snapshotFromSubscription(sub *stripesdk.Subscription) *domain
 		plan, _ := p.cfg.PlanForPrice(price.ID)
 		snap.Plan = plan
 	}
+	if sub.PendingUpdate != nil {
+		snap.PendingPayment = &domain.PendingPayment{ExpiresAt: unixToTimePtr(sub.PendingUpdate.ExpiresAt)}
+		if sub.LatestInvoice != nil {
+			snap.PendingPayment.InvoiceURL = sub.LatestInvoice.HostedInvoiceURL
+			snap.PendingPayment.AmountDue = sub.LatestInvoice.AmountDue
+			snap.PendingPayment.Currency = string(sub.LatestInvoice.Currency)
+		}
+	}
+	if sub.Schedule != nil && sub.Schedule.CurrentPhase != nil {
+		for _, phase := range sub.Schedule.Phases {
+			if phase.StartDate >= sub.Schedule.CurrentPhase.EndDate && len(phase.Items) > 0 && phase.Items[0].Price != nil {
+				plan, interval := p.cfg.PlanForPrice(phase.Items[0].Price.ID)
+				snap.ScheduledChange = &domain.ScheduledChange{Plan: plan, Interval: interval, EffectiveAt: unixToTimePtr(phase.StartDate)}
+				break
+			}
+		}
+	}
 	return snap
+}
+
+// CancelScheduledChange releases the schedule without cancelling the subscription.
+func (p *Provider) CancelScheduledChange(ctx context.Context, subID string) error {
+	if !p.Enabled() {
+		return domain.ErrProviderDisabled
+	}
+	sub, err := subscription.Get(subID, &stripesdk.SubscriptionParams{Params: stripesdk.Params{Context: ctx}})
+	if err != nil {
+		return fmt.Errorf("stripe: get scheduled subscription: %w", err)
+	}
+	if sub.Schedule == nil || sub.Schedule.ID == "" {
+		return nil
+	}
+	_, err = subscriptionschedule.Release(sub.Schedule.ID, &stripesdk.SubscriptionScheduleReleaseParams{Params: stripesdk.Params{Context: ctx}})
+	if err != nil {
+		return fmt.Errorf("stripe: release schedule: %w", err)
+	}
+	return nil
 }
 
 // Compile-time check that Provider satisfies port.Provider.
@@ -820,4 +887,28 @@ func unixToTimePtr(ts int64) *time.Time {
 	}
 	t := time.Unix(ts, 0).UTC()
 	return &t
+}
+
+// releaseCompletedSchedule detaches a schedule only after all future phases
+// have become current. Otherwise conflicting mutations require explicit removal.
+func (p *Provider) releaseCompletedSchedule(ctx context.Context, sub *stripesdk.Subscription) error {
+	if sub.PendingUpdate != nil {
+		return domain.ErrPendingSubscriptionChange
+	}
+	schedule := sub.Schedule
+	if schedule == nil || schedule.ID == "" {
+		return nil
+	}
+	if schedule.CurrentPhase == nil || len(schedule.Phases) == 0 {
+		return domain.ErrPendingSubscriptionChange
+	}
+	for _, phase := range schedule.Phases {
+		if phase.StartDate > schedule.CurrentPhase.StartDate {
+			return domain.ErrPendingSubscriptionChange
+		}
+	}
+	if _, err := subscriptionschedule.Release(schedule.ID, &stripesdk.SubscriptionScheduleReleaseParams{Params: stripesdk.Params{Context: ctx}}); err != nil {
+		return fmt.Errorf("stripe: release completed schedule: %w", err)
+	}
+	return nil
 }

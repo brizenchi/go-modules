@@ -117,6 +117,7 @@ find "$destination/docs" "$destination/.claude/skills" -type f -name '*.md' \
 
 echo "created $app_name in $destination"
 echo "next:"
+echo "  自定义邀请奖励：阅读 $destination/backend/REFERRAL_HOOKS.md；编辑 backend/internal/bootstrap/host_hooks.go（默认不发奖）"
 echo "  cp $destination/backend/deploy/config.yaml.example $destination/backend/deploy/config.yaml"
 echo "  cp $destination/backend/.env.example $destination/backend/.env"
 echo "  cp $destination/frontend/.env.example $destination/frontend/.env.local"

@@ -111,7 +111,7 @@ func New() (app *App, err error) {
 	}
 
 	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: cfg.Host, ServiceSettings: serviceSettings}
-	subscribeModuleEvents(deps, cfg)
+	subscribeModuleEvents(deps)
 
 	router := apphttp.NewRouter(modules, deps)
 	engine := httpmiddleware.BuildRouter(httpmiddleware.RouterConfig{

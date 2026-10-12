@@ -14,6 +14,7 @@ import (
 // OrderSummary is projected from verified, persisted provider events. Amount is
 // in the provider currency's smallest unit. Missing amounts remain null.
 type OrderSummary struct {
+	ProductType     string    `json:"product_type,omitempty"`
 	ID              string    `json:"id"`
 	UserID          string    `json:"user_id"`
 	Email           string    `json:"email"`
@@ -51,14 +52,16 @@ type paymentEnvelope struct {
 	} `json:"data"`
 }
 type paymentObject struct {
-	ID            string          `json:"id"`
-	Invoice       json.RawMessage `json:"invoice"`
-	AmountPaid    *int64          `json:"amount_paid"`
-	AmountTotal   *int64          `json:"amount_total"`
-	Currency      string          `json:"currency"`
-	PaymentStatus string          `json:"payment_status"`
-	Status        string          `json:"status"`
-	Created       int64           `json:"created"`
+	Metadata      map[string]string `json:"metadata"`
+	Mode          string            `json:"mode"`
+	ID            string            `json:"id"`
+	Invoice       json.RawMessage   `json:"invoice"`
+	AmountPaid    *int64            `json:"amount_paid"`
+	AmountTotal   *int64            `json:"amount_total"`
+	Currency      string            `json:"currency"`
+	PaymentStatus string            `json:"payment_status"`
+	Status        string            `json:"status"`
+	Created       int64             `json:"created"`
 }
 
 func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
@@ -71,6 +74,10 @@ func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
 		object = paymentObject{}
 	}
 	result := OrderSummary{UserID: e.UserID, Provider: e.Provider, ProviderEventID: e.ProviderEventID, EventType: e.EventType, Processed: e.Processed, Status: "unknown", Currency: strings.ToLower(object.Currency), Livemode: envelope.Livemode, CreatedAt: e.CreatedAt, sortID: e.ID}
+	result.ProductType = object.Metadata["product_type"]
+	if result.ProductType == "" && object.Mode == "subscription" {
+		result.ProductType = "subscription"
+	}
 	result.eventAt = envelope.Created
 	if object.Created > 0 {
 		result.CreatedAt = time.Unix(object.Created, 0).UTC()
@@ -140,7 +147,17 @@ func replaceOrder(previous, incoming OrderSummary) bool {
 	return true
 }
 
-func (m *Module) orders(c *gin.Context) {
+func (m *Module) purchases(c *gin.Context) {
+	owner := userID(c)
+	if owner == "" {
+		return
+	}
+	m.paymentHistory(c, owner)
+}
+
+func (m *Module) orders(c *gin.Context) { m.paymentHistory(c, "") }
+
+func (m *Module) paymentHistory(c *gin.Context, owner string) {
 	p, ok := pagination(c)
 	if !ok {
 		return
@@ -156,6 +173,9 @@ func (m *Module) orders(c *gin.Context) {
 	// Stream event batches to avoid holding webhook payloads in memory. The
 	// minimal template derives summaries on demand; larger installations should
 	// materialize this projection from their billing listener.
+	if owner != "" {
+		db = db.Where("user_id = ?", owner)
+	}
 	byID := map[string]OrderSummary{}
 	lastID := uint(0)
 	for {
@@ -176,8 +196,17 @@ func (m *Module) orders(c *gin.Context) {
 			previous, exists := byID[item.ID]
 			// An invoice is the authoritative monetary record if checkout also
 			// references it. Repeated provider event kinds stay one purchase.
-			if exists && !replaceOrder(previous, item) {
-				continue
+			if exists {
+				if item.ProductType == "" {
+					item.ProductType = previous.ProductType
+				}
+				if !replaceOrder(previous, item) {
+					if previous.ProductType == "" {
+						previous.ProductType = item.ProductType
+						byID[item.ID] = previous
+					}
+					continue
+				}
 			}
 			byID[item.ID] = item
 		}
@@ -186,7 +215,11 @@ func (m *Module) orders(c *gin.Context) {
 		ID    string
 		Email string
 	}{}
-	if queryFailed(c, db.Table("users").Select("id,email").Find(&identities).Error) {
+	identityQuery := m.db(c).Table("users").Select("id,email")
+	if owner != "" {
+		identityQuery = identityQuery.Where("id = ?", owner)
+	}
+	if queryFailed(c, identityQuery.Order("id ASC").Limit(10000).Find(&identities).Error) {
 		return
 	}
 	emails := map[string]string{}

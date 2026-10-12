@@ -15,7 +15,7 @@ import (
 func TestPaymentHooksAreBoundWithoutBusinessPolicy(t *testing.T) {
 	bus := eventbus.NewInProc()
 	deps := hostapi.Deps{Modules: &platform.Modules{Billing: &billing.Module{Bus: bus}}}
-	subscribeModuleEvents(deps, AppConfig{})
+	subscribeModuleEvents(deps)
 	for _, envelope := range []event.Envelope{
 		{Kind: event.KindRefundUpdated, Payload: event.RefundUpdated{}},
 		{Kind: event.KindChargeRefunded, Payload: event.ChargeRefunded{}},

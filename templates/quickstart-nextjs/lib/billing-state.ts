@@ -38,3 +38,8 @@ export function parseCreditsQuantity(value: string): number | null {
     ? quantity
     : null;
 }
+
+export function stripeInvoiceURL(value?:string):string|null {
+ if(!value)return null;
+ try {const url=new URL(value);return url.protocol==="https:" && url.hostname==="invoice.stripe.com" && !url.username && !url.password?url.toString():null;}catch{return null;}
+}

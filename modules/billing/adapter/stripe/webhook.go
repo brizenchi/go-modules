@@ -1,8 +1,10 @@
 package stripe
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	providerevent "github.com/stripe/stripe-go/v76/event"
 	"math"
 	"strconv"
 	"strings"
@@ -22,6 +24,10 @@ import (
 // (application layer) is still responsible for persisting the raw event for
 // idempotency and audit.
 func (p *Provider) VerifyAndParseWebhook(payload []byte, signature string) (*port.WebhookParseResult, error) {
+	return p.VerifyAndParseWebhookContext(context.Background(), payload, signature)
+}
+
+func (p *Provider) VerifyAndParseWebhookContext(ctx context.Context, payload []byte, signature string) (*port.WebhookParseResult, error) {
 	if !p.cfg.Enabled {
 		return nil, domain.ErrProviderDisabled
 	}
@@ -32,6 +38,26 @@ func (p *Provider) VerifyAndParseWebhook(payload []byte, signature string) (*por
 		return nil, fmt.Errorf("%w: %v", domain.ErrSignatureInvalid, err)
 	}
 
+	return p.parseProviderEvent(ctx, ev, payload)
+}
+
+// RetrieveEvent replays only events retrieved from the authenticated provider API.
+func (p *Provider) RetrieveEvent(ctx context.Context, id string) (*port.WebhookParseResult, error) {
+	if !p.Enabled() {
+		return nil, domain.ErrProviderDisabled
+	}
+	ev, err := providerevent.Get(id, &stripesdk.EventParams{Params: stripesdk.Params{Context: ctx}})
+	if err != nil {
+		return nil, fmt.Errorf("stripe: retrieve event: %w", err)
+	}
+	payload, err := json.Marshal(ev)
+	if err != nil {
+		return nil, err
+	}
+	return p.parseProviderEvent(ctx, *ev, payload)
+}
+
+func (p *Provider) parseProviderEvent(ctx context.Context, ev stripesdk.Event, payload []byte) (*port.WebhookParseResult, error) {
 	var data map[string]any
 	if err := json.Unmarshal(ev.Data.Raw, &data); err != nil {
 		return nil, fmt.Errorf("stripe: parse event data: %w", err)
@@ -49,11 +75,11 @@ func (p *Provider) VerifyAndParseWebhook(payload []byte, signature string) (*por
 	if strings.HasPrefix(string(ev.Type), "checkout.session.") {
 		out.CheckoutSessionID = getString(data, "id")
 		out.CheckoutReservationID = getString(getMap(data, "metadata"), "checkout_reservation_id")
-		out.CheckoutSubscriptionID = getString(data, "subscription")
+		out.CheckoutSubscriptionID = invoiceSubscriptionID(data)
 		out.ReleaseCheckoutReservation = string(ev.Type) == "checkout.session.async_payment_failed" || string(ev.Type) == "checkout.session.expired"
 	}
 
-	envs, err := p.translateEvent(string(ev.Type), data, ev.Data.PreviousAttributes, ev.ID, occurredAt, hint)
+	envs, err := p.translateEventContext(ctx, string(ev.Type), data, ev.Data.PreviousAttributes, ev.ID, occurredAt, hint)
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +89,10 @@ func (p *Provider) VerifyAndParseWebhook(payload []byte, signature string) (*por
 
 // translateEvent converts a Stripe event into zero or more domain envelopes.
 func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) ([]event.Envelope, error) {
+	return p.translateEventContext(context.Background(), evtType, data, prevAttrs, evtID, occurredAt, hint)
+}
+
+func (p *Provider) translateEventContext(ctx context.Context, evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) ([]event.Envelope, error) {
 	mk := func(kind event.Kind, payload any) event.Envelope {
 		return event.Envelope{
 			Kind:            kind,
@@ -110,9 +140,9 @@ func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs
 			Currency:                getString(data, "currency"),
 		})}, nil
 	case "checkout.session.completed":
-		return p.onCheckoutCompleted(data, false, mk)
+		return p.onCheckoutCompletedContext(ctx, data, false, mk)
 	case "checkout.session.async_payment_succeeded":
-		return p.onCheckoutCompleted(data, true, mk)
+		return p.onCheckoutCompletedContext(ctx, data, true, mk)
 	case "checkout.session.async_payment_failed":
 		// No durable entitlement has been granted while the Session was unpaid,
 		// so an asynchronous failure has nothing to revoke.
@@ -123,7 +153,7 @@ func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs
 		return p.onInvoicePaid(data, mk), nil
 	case "invoice.payment_failed":
 		return []event.Envelope{mk(event.KindPaymentFailed, event.PaymentFailed{
-			ProviderSubscriptionID: getString(data, "subscription"),
+			ProviderSubscriptionID: invoiceSubscriptionID(data),
 			ProviderCustomerID:     getString(data, "customer"),
 		})}, nil
 	case "customer.subscription.created":
@@ -144,6 +174,10 @@ func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs
 }
 
 func (p *Provider) onCheckoutCompleted(data map[string]any, asyncPaymentSucceeded bool, mk func(event.Kind, any) event.Envelope) ([]event.Envelope, error) {
+	return p.onCheckoutCompletedContext(context.Background(), data, asyncPaymentSucceeded, mk)
+}
+
+func (p *Provider) onCheckoutCompletedContext(ctx context.Context, data map[string]any, asyncPaymentSucceeded bool, mk func(event.Kind, any) event.Envelope) ([]event.Envelope, error) {
 	mode := getString(data, "mode")
 	metadata := getMap(data, "metadata")
 	productType := getString(metadata, "product_type")
@@ -182,7 +216,7 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, asyncPaymentSucceede
 		if !p.cfg.IsCreditsPriceID(priceID) {
 			return nil, fmt.Errorf("%w: unconfigured credits price", domain.ErrInvalidPriceID)
 		}
-		quantity, err := p.extractCheckoutQuantity(data, priceID)
+		quantity, err := p.extractCheckoutQuantityContext(ctx, data, priceID)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +248,7 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, asyncPaymentSucceede
 	// uses the server-owned price mapping since the session payload carries little
 	// subscription info; subsequent subscription.updated events refine it.
 	snap := domain.SubscriptionSnapshot{
-		ProviderSubscriptionID: getString(data, "subscription"),
+		ProviderSubscriptionID: invoiceSubscriptionID(data),
 		ProviderCustomerID:     getString(data, "customer"),
 		ProviderPriceID:        priceID,
 		ProductType:            domain.ProductSubscription,
@@ -231,7 +265,7 @@ func (p *Provider) onCheckoutCompleted(data map[string]any, asyncPaymentSucceede
 }
 
 func (p *Provider) onInvoicePaid(data map[string]any, mk func(event.Kind, any) event.Envelope) []event.Envelope {
-	subscriptionID := getString(data, "subscription")
+	subscriptionID := invoiceSubscriptionID(data)
 	if subscriptionID == "" {
 		return nil
 	}
@@ -258,7 +292,12 @@ func (p *Provider) onInvoicePaid(data map[string]any, mk func(event.Kind, any) e
 	}
 	price := getMap(line, "price")
 	snap.ProviderPriceID = getString(price, "id")
-	snap.ProviderProductID = getString(price, "product")
+	snap.ProviderProductID = stripeObjectID(price, "product")
+	if snap.ProviderPriceID == "" {
+		details := getMap(getMap(line, "pricing"), "price_details")
+		snap.ProviderPriceID = stripeObjectID(details, "price")
+		snap.ProviderProductID = stripeObjectID(details, "product")
+	}
 	snap.Plan, snap.Interval = p.cfg.PlanForPrice(snap.ProviderPriceID)
 	if snap.ProviderPriceID == "" || snap.Plan == domain.PlanFree || !snap.Interval.Valid() {
 		// Invoice lines are not an authoritative subscription object. An unknown
@@ -324,6 +363,12 @@ func (p *Provider) snapshotFromMap(data map[string]any) *domain.SubscriptionSnap
 	items := getSlice(data, "items", "data")
 	if len(items) > 0 {
 		if item, ok := items[0].(map[string]any); ok {
+			if snap.PeriodStart == nil {
+				snap.PeriodStart = unixToTimePtr(getInt64(item, "current_period_start"))
+			}
+			if snap.PeriodEnd == nil {
+				snap.PeriodEnd = unixToTimePtr(getInt64(item, "current_period_end"))
+			}
 			price := getMap(item, "price")
 			snap.ProviderPriceID = getString(price, "id")
 			snap.ProviderProductID = getString(price, "product")
@@ -332,7 +377,17 @@ func (p *Provider) snapshotFromMap(data map[string]any) *domain.SubscriptionSnap
 			}
 		}
 	}
+	if snap.CancelEffectiveAt == nil && snap.CancelAtPeriodEnd {
+		snap.CancelEffectiveAt = snap.PeriodEnd
+	}
 	return snap
+}
+
+func invoiceSubscriptionID(data map[string]any) string {
+	if id := stripeObjectID(data, "subscription"); id != "" {
+		return id
+	}
+	return stripeObjectID(getMap(getMap(data, "parent"), "subscription_details"), "subscription")
 }
 
 // extractCheckoutQuantity returns the authoritative quantity and price from
@@ -340,6 +395,10 @@ func (p *Provider) snapshotFromMap(data map[string]any) *domain.SubscriptionSnap
 // the Session was created, but adjustable quantity can change it before
 // payment, so metadata must never be used for fulfillment.
 func (p *Provider) extractCheckoutQuantity(data map[string]any, expectedPriceID string) (int64, error) {
+	return p.extractCheckoutQuantityContext(context.Background(), data, expectedPriceID)
+}
+
+func (p *Provider) extractCheckoutQuantityContext(ctx context.Context, data map[string]any, expectedPriceID string) (int64, error) {
 	if rawLineItems, expanded := data["line_items"]; expanded && rawLineItems != nil {
 		lineItems, ok := rawLineItems.(map[string]any)
 		if !ok {
@@ -360,7 +419,7 @@ func (p *Provider) extractCheckoutQuantity(data map[string]any, expectedPriceID 
 	if sessionID == "" {
 		return 0, fmt.Errorf("stripe: checkout session id required to resolve credits quantity")
 	}
-	params := &stripesdk.CheckoutSessionParams{}
+	params := &stripesdk.CheckoutSessionParams{Params: stripesdk.Params{Context: ctx}}
 	params.AddExpand("line_items")
 	sess, err := session.Get(sessionID, params)
 	if err != nil {
@@ -420,7 +479,7 @@ func extractUserHint(data map[string]any, evtType string) port.UserHint {
 		hint.Email = strings.TrimSpace(getString(data, "receipt_email"))
 	}
 	hint.ProviderCustomerID = stripeObjectID(data, "customer")
-	hint.ProviderSubscriptionID = stripeObjectID(data, "subscription")
+	hint.ProviderSubscriptionID = invoiceSubscriptionID(data)
 	if hint.ProviderSubscriptionID == "" && strings.HasPrefix(evtType, "customer.subscription.") {
 		hint.ProviderSubscriptionID = strings.TrimSpace(getString(data, "id"))
 	}
@@ -437,7 +496,7 @@ func normalizeStripeStatus(stripeStatus string, cancellationPending bool) domain
 	case "incomplete_expired":
 		return domain.StatusIncompleteExpired
 	}
-	if cancellationPending {
+	if cancellationPending && (normalized == "active" || normalized == "trialing") {
 		return domain.StatusCanceling
 	}
 	switch normalized {

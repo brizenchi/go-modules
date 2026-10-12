@@ -346,3 +346,63 @@ func TestPreviewChange_UsesProviderPreview(t *testing.T) {
 		t.Errorf("target plan = %s", res.TargetPlan)
 	}
 }
+
+func TestPendingChangeBlocksFurtherMutations(t *testing.T) {
+	for _, snapshot := range []*domain.SubscriptionSnapshot{
+		{ScheduledChange: &domain.ScheduledChange{Plan: domain.PlanStarter}},
+		{PendingPayment: &domain.PendingPayment{AmountDue: 100}},
+	} {
+		prov := newMockProvider()
+		prov.subSnapshot = snapshot
+		svc := NewSubscriptionService(prov, newMockCustomerStore(port.Customer{UserID: "u1", ProviderSubscriptionID: "sub_x"}), newMockBus())
+		if _, err := svc.Change(t.Context(), "u1", domain.SubscriptionChangeInput{Plan: domain.PlanPro, Interval: domain.IntervalMonthly}); !errors.Is(err, domain.ErrPendingSubscriptionChange) {
+			t.Fatalf("change: %v", err)
+		}
+		if _, err := svc.Cancel(t.Context(), "u1", domain.CancelAtPeriodEnd); !errors.Is(err, domain.ErrPendingSubscriptionChange) {
+			t.Fatalf("cancel: %v", err)
+		}
+		if prov.cancelCalls != 0 {
+			t.Fatal("unexpected provider cancellation")
+		}
+	}
+}
+
+func TestCrossIntervalDowngradePreservesPaidTier(t *testing.T) {
+	current := &domain.SubscriptionSnapshot{Plan: domain.PlanPremium, Interval: domain.IntervalMonthly}
+	if mode := resolveChangeMode(current, domain.SubscriptionChangeInput{Plan: domain.PlanStarter, Interval: domain.IntervalYearly}); mode != domain.ChangeModePeriodEnd {
+		t.Fatalf("downgrade mode: %s", mode)
+	}
+}
+
+type cancelScheduleTestProvider struct {
+	*mockProvider
+	id string
+}
+
+func (p *cancelScheduleTestProvider) CancelScheduledChange(_ context.Context, id string) error {
+	p.id = id
+	return nil
+}
+
+func TestCancelScheduledChangeUsesCustomerSubscriptionAndRejectsMissingCapability(t *testing.T) {
+	provider := &cancelScheduleTestProvider{mockProvider: newMockProvider()}
+	store := newMockCustomerStore(port.Customer{UserID: "u1", ProviderSubscriptionID: "sub_owned"})
+	service := NewSubscriptionService(provider, store, newMockBus())
+	if err := service.CancelScheduledChange(t.Context(), "u1"); err != nil || provider.id != "sub_owned" {
+		t.Fatalf("cancel schedule: %s / %v", provider.id, err)
+	}
+	store.loadErr = errors.New("db unavailable")
+	if err := service.CancelScheduledChange(t.Context(), "u1"); !errors.Is(err, store.loadErr) {
+		t.Fatalf("lookup error: %v", err)
+	}
+	store.loadErr = nil
+	store.customer.ProviderSubscriptionID = ""
+	if err := service.CancelScheduledChange(t.Context(), "u1"); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("missing subscription: %v", err)
+	}
+	store.customer.ProviderSubscriptionID = "sub_owned"
+	service = NewSubscriptionService(newMockProvider(), store, newMockBus())
+	if err := service.CancelScheduledChange(t.Context(), "u1"); !errors.Is(err, domain.ErrInvalidInput) {
+		t.Fatalf("unsupported provider: %v", err)
+	}
+}

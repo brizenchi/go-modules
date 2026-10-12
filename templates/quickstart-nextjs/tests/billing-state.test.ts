@@ -1,3 +1,4 @@
+import { stripeInvoiceURL } from "../lib/billing-state";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -41,3 +42,10 @@ test("checkout refresh uses a bounded backoff window", () => {
   assert.deepEqual(CHECKOUT_REFRESH_DELAYS_MS, [0, 1000, 2000, 4000, 8000]);
   assert.ok(CHECKOUT_REFRESH_DELAYS_MS.length <= 5);
 });
+
+ test("payment links accept only Stripe hosted invoices",()=>{
+ assert.equal(stripeInvoiceURL("https://invoice.stripe.com/i/test"),"https://invoice.stripe.com/i/test");
+ assert.equal(stripeInvoiceURL("javascript:alert(1)"),null);
+ assert.equal(stripeInvoiceURL("https://invoice.stripe.com.evil.test/test"),null);
+ assert.equal(stripeInvoiceURL("https://user:pass@invoice.stripe.com/test"),null);
+ });

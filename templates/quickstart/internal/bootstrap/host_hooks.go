@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	authevent "github.com/brizenchi/go-modules/modules/auth/event"
@@ -106,21 +105,20 @@ func onCreditsPurchased(ctx context.Context, deps hostapi.Deps, envelope billing
 	return nil
 }
 
-func onReferralRegistered(_ context.Context, _ hostapi.Deps, _ referralevent.Envelope, _ referralevent.ReferralRegistered) error {
+// onReferralRegistered 在邀请关系绑定成功后调用。默认不发放任何奖励。
+// 接入步骤与可复制示例见后端根目录 REFERRAL_HOOKS.md。
+// 注册即送会员或积分时，在这里编写当前 SaaS 的规则。
+// event.Referral.ReferrerID 是邀请人，RefereeID 是被邀请人。
+// 回调可能重试；用邀请 ID + 奖励类型作为幂等键，并向下传递 ctx。
+func onReferralRegistered(ctx context.Context, deps hostapi.Deps, envelope referralevent.Envelope, event referralevent.ReferralRegistered) error {
 	return nil
 }
 
-func onReferralActivated(ctx context.Context, deps hostapi.Deps, _ referralevent.Envelope, event referralevent.ReferralActivated) error {
-	reward := int64(event.Referral.RewardCredits)
-	if reward == 0 {
-		return nil
-	}
-	sourceID := strconv.FormatUint(event.Referral.ID, 10)
-	if event.Referral.ID == 0 {
-		sourceID = event.Referral.ReferrerID + ":" + event.Referral.RefereeID
-	}
-	if err := deps.Users.GrantCredits(ctx, event.Referral.ReferrerID, "referral", sourceID, reward); err != nil {
-		return fmt.Errorf("apply referral reward: %w", err)
-	}
+// onReferralActivated 是邀请激活后的奖励扩展点，默认不发放积分、会员或其他奖励。
+// 接入步骤与可复制示例见后端根目录 REFERRAL_HOOKS.md。
+// 直接在函数内编写规则并调用自己的 service，无需奖励配置。
+// event.Referral 包含邀请 ID、双方用户 ID 和激活时间；deps 提供宿主依赖。
+// 回调可能因支付重试或管理员重放再次执行，发奖必须幂等；失败返回 error。
+func onReferralActivated(ctx context.Context, deps hostapi.Deps, envelope referralevent.Envelope, event referralevent.ReferralActivated) error {
 	return nil
 }

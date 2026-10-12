@@ -68,7 +68,7 @@ func (m *Module) retryReward(c *gin.Context) {
 	}
 	if audit.Status != "succeeded" {
 		err = m.deps.Modules.Referral.Deps.Bus.Publish(c.Request.Context(), refevent.Envelope{Kind: refevent.KindReferralActivated, OccurredAt: referral.ActivatedAt.UTC(), Payload: refevent.ReferralActivated{Referral: referral}})
-		status, details := "succeeded", "Stored activation event delivered; credit grant remains idempotent."
+		status, details := "succeeded", "Stored activation event delivered to host hooks."
 		if err != nil {
 			status, details = "failed", "Reward listener failed; retry with the same idempotency key."
 		}

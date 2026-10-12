@@ -126,13 +126,13 @@ func TestPreviewRealRegistrationAttributesReferralAndRunsCreditFeature(t *testin
 	if exported["balance"] != float64(49) || !strings.Contains(exported["content"].(string), "Local content") {
 		t.Fatalf("export=%+v", exported)
 	}
-	// Actual referral activation uses the same credit listener without a fake
-	// public payment route; billing itself remains disabled in this local command.
+	// Activation tracks conversion without granting a default referral reward.
+	// Billing itself remains disabled in this local command.
 	account, err := app.modules.Users.FindByEmail(context.Background(), "preview-invited@example.test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := app.modules.Referral.Attribute.ActivateReferral(context.Background(), account.ID, 25); err != nil {
+	if _, err := app.modules.Referral.Attribute.ActivateReferral(context.Background(), account.ID, 0); err != nil {
 		t.Fatal(err)
 	}
 	admin, err := app.modules.Users.FindByEmail(context.Background(), previewAdmin)
@@ -140,12 +140,12 @@ func TestPreviewRealRegistrationAttributesReferralAndRunsCreditFeature(t *testin
 		t.Fatal(err)
 	}
 	summary, err := app.modules.Users.GetCreditSummary(context.Background(), admin.ID)
-	if err != nil || summary.Balance != 75 {
+	if err != nil || summary.Balance != 50 {
 		t.Fatalf("referral reward=%+v err=%v", summary, err)
 	}
-	var grant user.CreditTransaction
-	if err := app.modules.DB.Where("user_id = ? AND source = ?", admin.ID, "referral").Take(&grant).Error; err != nil || grant.Amount != 25 {
-		t.Fatalf("missing real reward ledger: %+v err=%v", grant, err)
+	var grants int64
+	if err := app.modules.DB.Model(&user.CreditTransaction{}).Where("source = ?", "referral").Count(&grants).Error; err != nil || grants != 0 {
+		t.Fatalf("referral grants=%d err=%v, want no default reward", grants, err)
 	}
 }
 func jsonNumber(t *testing.T, value float64) string {

@@ -9,6 +9,8 @@ The composition root and product code of a SaaS. Root `AGENTS.md` still applies.
 | New product feature | `internal/feature/<name>/` — copy `internal/feature/note` (`note.go` wiring, `repository.go` DB only, `service.go` rules only, `handler.go` HTTP only) |
 | Register its routes / tables | `internal/http/host_routes.go`, `internal/bootstrap/host_migrate.go` |
 | React to module events (signup, payment, referral) | `internal/bootstrap/subscriptions.go`, `internal/bootstrap/host_hooks.go` |
+| Implement invitation rewards | Read [REFERRAL_HOOKS.md](REFERRAL_HOOKS.md); edit `onReferralRegistered` / `onReferralActivated` in `host_hooks.go`. Both default to no-op; reward policy belongs to the copied SaaS. |
+| Protect paid routes and test payment lifecycle | Read [BILLING_TESTING.md](BILLING_TESTING.md); edit `Evaluate` in `internal/feature/membership/membership.go` and mount `membership.Require`. |
 | Choose or replace a provider (OAuth, email, payment) | `internal/platform/*_provider.go` |
 | Product configuration | `internal/hostcfg` (not `platform.Config`) |
 | User fields | `internal/user` + a new SQL file in `migrations/` when existing data changes |

@@ -28,6 +28,7 @@ func Mount(h *Handler, publicGroup, userGroup *gin.RouterGroup) {
 	userGroup.POST("/stripe/checkout/session", h.CreateCheckoutSession)
 	userGroup.POST("/stripe/subscription/preview", h.PreviewSubscriptionChange)
 	userGroup.POST("/stripe/subscription/change", h.ChangeSubscription)
+	userGroup.POST("/stripe/subscription/scheduled-change/cancel", h.CancelScheduledChange)
 	userGroup.POST("/stripe/subscription/cancel", h.CancelSubscription)
 	userGroup.POST("/stripe/subscription/reactivate", h.ReactivateSubscription)
 	userGroup.POST("/stripe/portal/session", h.CreateBillingPortalSession)

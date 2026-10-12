@@ -196,7 +196,7 @@ func TestListsSearchPaginateAndDoNotLeakRawBillingPayloads(t *testing.T) {
 func TestOrdersDeduplicateInvoiceAndCheckoutAndKeepMissingAmountsNull(t *testing.T) {
 	f := newFixture(t)
 	events := []billingdomain.BillingEvent{
-		{ProviderEventID: "evt_checkout", EventType: "checkout.session.completed", Payload: json.RawMessage(`{"livemode":false,"data":{"object":{"id":"cs_1","invoice":"in_1","amount_total":900,"currency":"usd","payment_status":"paid"}}}`)},
+		{ProviderEventID: "evt_checkout", EventType: "checkout.session.completed", Payload: json.RawMessage(`{"livemode":false,"data":{"object":{"id":"cs_1","invoice":"in_1","metadata":{"product_type":"credits"},"amount_total":900,"currency":"usd","payment_status":"paid"}}}`)},
 		{ProviderEventID: "evt_invoice", EventType: "invoice.paid", Payload: json.RawMessage(`{"livemode":false,"data":{"object":{"id":"in_1","amount_paid":800,"currency":"usd","private":"secret"}}}`)},
 		{ProviderEventID: "evt_duplicate", EventType: "invoice.payment_succeeded", Payload: json.RawMessage(`{"livemode":false,"data":{"object":{"id":"in_1","amount_paid":800,"currency":"usd"}}}`)},
 		{ProviderEventID: "evt_unknown", EventType: "checkout.session.completed", Payload: json.RawMessage(`{"data":{"object":{"id":"cs_unknown"}}}`)},
@@ -216,7 +216,7 @@ func TestOrdersDeduplicateInvoiceAndCheckoutAndKeepMissingAmountsNull(t *testing
 	}
 	for _, raw := range data(t, w)["items"].([]any) {
 		item := raw.(map[string]any)
-		if item["id"] == "stripe:in_1" && item["amount"] != float64(800) {
+		if item["id"] == "stripe:in_1" && (item["amount"] != float64(800) || item["product_type"] != "credits") {
 			t.Fatalf("invoice amount: %+v", item)
 		}
 		if item["id"] == "stripe:cs_unknown" && item["amount"] != nil {
@@ -404,5 +404,23 @@ func TestImageUploadSniffsContentAndEnforcesPrivateOwnership(t *testing.T) {
 		if listResponse.Code != 200 || data(t, listResponse)["total"] != want {
 			t.Fatalf("private image list for %s: %s", owner, listResponse.Body)
 		}
+	}
+}
+
+func TestPurchasesOnlyExposeAuthenticatedOwner(t *testing.T) {
+	f := newFixture(t)
+	for _, owner := range []string{"owner", "other"} {
+		row := billingdomain.BillingEvent{UserID: owner, Provider: "stripe", ProviderEventID: "evt_" + owner, EventType: "checkout.session.completed", Payload: json.RawMessage(`{"data":{"object":{"id":"cs_` + owner + `","amount_total":500,"currency":"usd","payment_status":"paid"}}}`)}
+		if err := f.db.Create(&row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	w := request(f, "GET", "/billing/purchases?user_id=other", "", "user", "")
+	if w.Code != 200 || data(t, w)["total"] != float64(1) || strings.Contains(w.Body.String(), "cs_other") {
+		t.Fatalf("ownership: %s", w.Body)
+	}
+	w = request(f, "GET", "/billing/purchases", "", "", "")
+	if w.Code != 401 {
+		t.Fatalf("anonymous: %d", w.Code)
 	}
 }

@@ -3,6 +3,7 @@ package domain
 import "errors"
 
 var (
+	ErrPendingSubscriptionChange    = errors.New("billing: a pending subscription change must be resolved first")
 	ErrProviderDisabled             = errors.New("billing: payment provider is not enabled")
 	ErrInvalidInput                 = errors.New("billing: invalid input")
 	ErrPlanNotFound                 = errors.New("billing: plan not found")

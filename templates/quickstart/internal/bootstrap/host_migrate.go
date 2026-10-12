@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"github.com/brizenchi/quickstart-template/internal/feature/billingrecovery"
 	"github.com/brizenchi/quickstart-template/internal/feature/credits"
 	"github.com/brizenchi/quickstart-template/internal/feature/note"
 	"github.com/brizenchi/quickstart-template/internal/feature/operations"
@@ -23,6 +24,7 @@ import (
 func hostModels() []any {
 	models := []any{
 		&note.Note{},
+		&billingrecovery.State{},
 	}
 	models = append(models, credits.Models()...)
 	return append(models, operations.Models()...)

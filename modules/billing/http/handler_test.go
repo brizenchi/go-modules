@@ -385,3 +385,41 @@ func TestPreviewSubscriptionChangeHandler(t *testing.T) {
 		t.Fatalf("status = %d body=%s", w.Code, w.Body.String())
 	}
 }
+
+func TestPendingChangeErrorHasStableReason(t *testing.T) {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	respondAppError(c, domain.ErrPendingSubscriptionChange)
+	if w.Code != 409 || !strings.Contains(w.Body.String(), `"reason":"subscription_change_pending"`) {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+}
+
+type scheduleCancelProvider struct {
+	handlerTestProvider
+	subscriptionID string
+}
+
+func (p *scheduleCancelProvider) CancelScheduledChange(_ context.Context, id string) error {
+	p.subscriptionID = id
+	return nil
+}
+
+func TestCancelScheduledChangeRequiresIdentityAndUsesOwnedSubscription(t *testing.T) {
+	for _, authenticated := range []bool{false, true} {
+		provider := &scheduleCancelProvider{}
+		service := app.NewSubscriptionService(provider, handlerTestCustomerStore{customer: port.Customer{UserID: "u1", ProviderSubscriptionID: "sub_owned"}}, handlerTestBus{})
+		handler := NewHandler(Deps{Subscription: service, GetUserID: func(*gin.Context) (string, bool) { return "u1", authenticated }})
+		router := gin.New()
+		Mount(handler, router.Group("/public"), router.Group("/api/v1"))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest("POST", "/api/v1/stripe/subscription/scheduled-change/cancel", strings.NewReader(`{"subscription_id":"sub_other"}`)))
+		if authenticated {
+			if w.Code != 200 || provider.subscriptionID != "sub_owned" {
+				t.Fatalf("ownership: %d %s / %s", w.Code, w.Body, provider.subscriptionID)
+			}
+		} else if w.Code != 401 || provider.subscriptionID != "" {
+			t.Fatalf("anonymous: %d %s", w.Code, w.Body)
+		}
+	}
+}

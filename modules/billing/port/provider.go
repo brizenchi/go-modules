@@ -114,3 +114,18 @@ type UserHint struct {
 	ProviderCustomerID     string
 	ProviderSubscriptionID string
 }
+
+// ScheduledChangeCanceler is an optional provider capability.
+type ScheduledChangeCanceler interface {
+	CancelScheduledChange(ctx context.Context, subscriptionID string) error
+}
+
+// EventRetriever permits authenticated recovery without bypassing webhook verification.
+type EventRetriever interface {
+	RetrieveEvent(ctx context.Context, id string) (*WebhookParseResult, error)
+}
+
+// ContextWebhookParser preserves cancellation during provider enrichment.
+type ContextWebhookParser interface {
+	VerifyAndParseWebhookContext(context.Context, []byte, string) (*WebhookParseResult, error)
+}

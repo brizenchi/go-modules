@@ -110,3 +110,10 @@ referral:
 - 启用 referral 时要求有效的 `base_link`，生产环境必须是 HTTPS；未填写时会从
   `auth.frontend_redirect` 的 origin 派生 `/invite?ref=`；
 - 不认识的 provider 直接启动失败，不静默回退。
+
+### 邀请奖励扩展点
+
+邀请奖励不使用配置：在 `templates/quickstart/internal/bootstrap/host_hooks.go` 的
+`onReferralRegistered`（绑定邀请后）或 `onReferralActivated`（激活后）直接编写规则。
+两个函数默认无副作用，不发积分或会员；旧 `referral.activation_reward` /
+`APP_REFERRAL_ACTIVATION_REWARD` 已移除。邀请开关、链接、激活期限配置仍然有效。

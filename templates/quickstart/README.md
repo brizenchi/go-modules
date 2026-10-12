@@ -3,6 +3,24 @@
 这是一个可以复制后直接开发的 SaaS 后端。它不是共享栈的薄壳：复制后，用户模型、
 模块组合、配置和事件回调都属于当前 SaaS。
 
+## 接手项目：从这里写自己的规则
+
+**默认不发邀请奖励，业务回调是空函数；不需要奖励金额配置。**
+打开 [host_hooks.go](internal/bootstrap/host_hooks.go)，直接修改对应函数体：
+
+| 想实现什么 | 修改哪里 |
+| --- | --- |
+| 被邀请人注册就送会员或积分 | `onReferralRegistered` |
+| 邀请人等对方付费后拿奖励 | `onReferralActivated` |
+| 改成完成业务操作后才算邀请激活 | `subscriptions.go` 中的 `activateReferral` 调用位置 |
+
+[自定义邀请奖励指南](REFERRAL_HOOKS.md) 包含触发流程、参数说明、可复制的积分实现、
+“被邀请人拿会员／邀请人拿积分”的实现步骤，以及防重复发奖的测试方法。
+指南就在后端目录，复制项目后仍可直接使用。
+
+支付接手与上线验收见 [支付生命周期与测试指南](BILLING_TESTING.md)：购买结果入口、
+升级降级、取消续费、到期权限，以及 Stripe Sandbox / Test Clock 的完整测试矩阵。
+
 ## 启动链路
 
 配套前端已包含运营后台、积分流水与有效期、付费笔记导出、私有图片上传，以及博客、
@@ -203,13 +221,32 @@ func onUserSignedUp(
 - `UserSignedUp`：可选注册积分和欢迎邮件；
 - `CreditsPurchased`：将购买积分记入宿主积分账本，并更新余额；
 - `SubscriptionActivated`：激活邀请关系；
-- `ReferralActivated`：将邀请奖励记入积分账本，同一事件不会重复发放。
+- `ReferralRegistered` / `ReferralActivated`：预留业务回调，默认不发任何奖励。
 
 回调同时收到通用 `Envelope` 和强类型 payload。支付回调可从 envelope 取得
 `UserID`、供应商和 Webhook event ID，再从 payload 读取订阅或金额等业务内容。
 
-不使用积分的 SaaS 可以删除 `User.Credits` 和对应两个监听器。奖励是优惠券或现金时，
-直接在 `onReferralActivated` 调用自己的 service。
+邀请奖励无需配置：复制模板后直接编辑 `onReferralActivated`，在函数里决定给谁发什么。
+`event.Referral.ReferrerID` 是邀请人，`RefereeID` 是被邀请人，`ID` 是邀请记录 ID。
+注册即送会员写在 `onReferralRegistered`；付费激活后送积分写在 `onReferralActivated`。
+函数默认只有 `return nil`，不发积分、会员或其他奖励。以下是可自行替换的积分示例
+（需添加 `strconv` 导入）：
+
+```go
+func onReferralActivated(ctx context.Context, deps hostapi.Deps, _ referralevent.Envelope, event referralevent.ReferralActivated) error {
+    const credits int64 = 100
+    return deps.Users.GrantCredits(ctx, event.Referral.ReferrerID,
+        "referral", strconv.FormatUint(event.Referral.ID, 10), credits)
+}
+```
+
+回调可能因重试或管理员重放再次执行：以邀请 ID + 奖励类型去重，错误返回给调用方，
+并把 `ctx` 传给下游。会员等自定义奖励也需要自己的幂等记录。
+默认激活时 `RewardCredits` 为 0；它只是邀请统计字段，回调发积分不会自动更新它。
+如果需要邀请页同步展示积分数，在 `subscriptions.go` 的 `activateReferral` 调用处
+传入自定义积分数，并在奖励回调使用 `event.Referral.RewardCredits`，保持统计与发放一致。
+迁移已有项目时，旧的 `APP_REFERRAL_ACTIVATION_REWARD` / `activation_reward` 不再生效；
+需要把原来的奖励规则写入回调。邀请开关、链接和激活期限配置继续保留。
 
 ## 替换服务商
 
