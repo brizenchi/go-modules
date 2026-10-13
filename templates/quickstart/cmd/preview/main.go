@@ -206,7 +206,7 @@ func installPreviewListeners(modules *platform.Modules) {
 		}
 		return nil
 	})
-	// Like the default host hooks, preview grants no referral rewards.
+	// This isolated preview omits production reward hooks; billing is disabled.
 
 }
 

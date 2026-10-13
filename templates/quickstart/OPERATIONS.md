@@ -35,7 +35,7 @@
 
 1. 在后端设置 `APP_AUTH_ADMIN_EMAIL=owner@example.com` 和 `APP_AUTH_ADMIN_PASSWORD`，重启后在 `/admin` 输入邮箱与密码。密码长度为 12–72 字节，建议使用独立生成的随机 ASCII 密码；不需要先注册。两项都留空时关闭密码登录，只填一项或密码不符合要求会阻止启动。身份和权限由后端检查。
 2. 使用 `/admin/settings` 保存公开配置并填写修改原因。导出默认消耗 1 积分，允许 1–1,000,000 的整数。Resend 与 Stripe 在 `/admin/integrations` 配置；数据库、JWT、管理员密码、OAuth 与存储凭据仍使用服务端环境变量。
-3. 开启注册赠送可设置 `APP_HOST_SIGNUP_CREDITS`。邀请奖励在 `internal/bootstrap/host_hooks.go` 的回调中自行编写，默认不发任何奖励；管理员核对按钮仅重放激活回调，不会把待激活邀请变成已激活，也不保证产生奖励。
+3. 开启注册赠送可设置 `APP_HOST_SIGNUP_CREDITS`。邀请奖励在 `internal/bootstrap/host_hooks.go` 的回调中自行编写，默认付费激活后给邀请人 20、被邀请人 10 积分；管理员核对按钮仅重放激活回调，不会把待激活邀请变成已激活，也不保证产生奖励。
 4. 本地图片上传配置 `APP_HOST_UPLOADS_ENABLED=true`、`APP_HOST_UPLOADS_PROVIDER=local` 和 `APP_HOST_UPLOADS_DIRECTORY=./var/uploads`。支持 JPEG、PNG、GIF、WebP，每张最多 5 MiB；SVG 不支持。
 5. 生产多实例部署使用 `provider=s3`，填写 bucket、region 和需要的 endpoint；R2 使用账户 S3 endpoint 与 `region=auto`。桶必须保持私有。服务端携带凭据读写，前端通过带登录凭据的 API 获取图片。切换存储不会自动搬迁已有文件。
 6. 前端 `NEXT_PUBLIC_APP_URL` 用于 canonical 与 sitemap，`NEXT_PUBLIC_APP_NAME` 用于构建时品牌和 SEO。后台品牌设置会更新页面导航，自定义产品介绍用于首页和页脚；SEO 和文章正文修改后需要重新构建。支持信息未配置时联系页会明确显示暂未开放。

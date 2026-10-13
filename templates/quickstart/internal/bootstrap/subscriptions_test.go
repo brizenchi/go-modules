@@ -87,11 +87,15 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 		OccurredAt:      now,
 		Payload:         billingevent.CreditsPurchased{TotalCredits: 100},
 	})
+	referee, err := user.NewAuthStore(modules.Users).FindOrCreateByEmail(context.Background(), "reward-referee@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
 	registered := referralevent.Envelope{
 		Kind:       referralevent.KindReferralRegistered,
 		OccurredAt: now,
 		Payload: referralevent.ReferralRegistered{Referral: referraldomain.Referral{
-			ID: 1, ReferrerID: identity.UserID, RefereeID: "referee",
+			ID: 1, ReferrerID: identity.UserID, RefereeID: referee.UserID,
 		}},
 	}
 	for range 2 {
@@ -103,15 +107,16 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 		Kind:       referralevent.KindReferralActivated,
 		OccurredAt: now,
 		Payload: referralevent.ReferralActivated{Referral: referraldomain.Referral{
+			ID:            1,
 			ReferrerID:    identity.UserID,
-			RefereeID:     "referee",
-			RewardCredits: 50,
+			RefereeID:     referee.UserID,
+			RewardCredits: 20,
 		}},
 	}
 	if err := modules.Referral.Deps.Bus.Publish(context.Background(), referralActivated); err != nil {
 		t.Fatalf("publish referral activation: %v", err)
 	}
-	// Even a replay with stored reward metadata must not grant default rewards.
+	// Replaying the same invitation must not grant either reward twice.
 	if err := modules.Referral.Deps.Bus.Publish(context.Background(), referralActivated); err != nil {
 		t.Fatalf("retry referral activation: %v", err)
 	}
@@ -120,12 +125,12 @@ func TestTemplateSubscriptionsApplyHostRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindByID: %v", err)
 	}
-	if got.Credits != 120 {
-		t.Fatalf("credits=%d, want signup 20 + purchase 100; referral hook grants nothing", got.Credits)
+	if got.Credits != 160 {
+		t.Fatalf("credits=%d, want signup 20 + purchase 100 + signup referral 20 + paid referral 20", got.Credits)
 	}
 }
 
-func TestReferralActivationWithoutDefaultReward(t *testing.T) {
+func TestReferralActivationGrantsBothUsersOnce(t *testing.T) {
 	for _, kind := range []billingevent.Kind{
 		billingevent.KindSubscriptionActivated,
 		billingevent.KindTrialConverted,
@@ -180,6 +185,19 @@ func TestReferralActivationWithoutDefaultReward(t *testing.T) {
 			}
 			if _, err := modules.Referral.Attribute.AttributeReferral(context.Background(), referee.UserID, code.Value); err != nil {
 				t.Fatalf("attribute referral: %v", err)
+			}
+
+			for range 2 {
+				_, err := modules.Referral.Attribute.AttributeReferral(t.Context(), referee.UserID, code.Value)
+				if !errors.Is(err, referraldomain.ErrAlreadyAttributed) {
+					t.Fatalf("repeat attribution: %v", err)
+				}
+			}
+			for id, want := range map[string]int64{referrer.UserID: 20, referee.UserID: 10} {
+				got, err := modules.Users.FindByID(t.Context(), id)
+				if err != nil || got.Credits != want {
+					t.Fatalf("registration without purchase: user=%+v err=%v want=%d", got, err, want)
+				}
 			}
 
 			now := time.Now().UTC()
@@ -243,7 +261,7 @@ func TestReferralActivationWithoutDefaultReward(t *testing.T) {
 			if err := modules.Billing.Bus.Publish(context.Background(), paidRenewal); err != nil {
 				t.Fatalf("publish first paid renewal: %v", err)
 			}
-			// Delivery is at-least-once; default hooks must remain side-effect free.
+			// Repeated payment delivery must grant each side only once.
 			if err := modules.Billing.Bus.Publish(context.Background(), paidRenewal); err != nil {
 				t.Fatalf("retry first paid renewal: %v", err)
 			}
@@ -252,23 +270,23 @@ func TestReferralActivationWithoutDefaultReward(t *testing.T) {
 			if err != nil {
 				t.Fatalf("find activated referral: %v", err)
 			}
-			if activated.Status != referraldomain.StatusActivated || activated.RewardCredits != 0 {
-				t.Fatalf("converted referral=%+v, want activated without reward", activated)
+			if activated.Status != referraldomain.StatusActivated || activated.RewardCredits != 20 {
+				t.Fatalf("converted referral=%+v, want activated with inviter reward 20", activated)
 			}
 			updatedReferrer, err := modules.Users.FindByID(context.Background(), referrer.UserID)
 			if err != nil {
 				t.Fatalf("find referrer: %v", err)
 			}
-			if updatedReferrer.Credits != 0 {
-				t.Fatalf("referrer credits=%d, want no default reward after retry", updatedReferrer.Credits)
+			if updatedReferrer.Credits != 40 {
+				t.Fatalf("referrer credits=%d, want 40 after registration and payment retries", updatedReferrer.Credits)
 			}
 			updatedReferee, err := modules.Users.FindByID(context.Background(), referee.UserID)
-			if err != nil || updatedReferee.Credits != 0 {
-				t.Fatalf("referee=%+v err=%v, want no default reward", updatedReferee, err)
+			if err != nil || updatedReferee.Credits != 20 {
+				t.Fatalf("referee=%+v err=%v, want 20", updatedReferee, err)
 			}
 			var grants int64
-			if err := db.Model(&user.CreditGrant{}).Count(&grants).Error; err != nil || grants != 0 {
-				t.Fatalf("grants=%d err=%v, want no reward ledger entries", grants, err)
+			if err := db.Model(&user.CreditGrant{}).Count(&grants).Error; err != nil || grants != 4 {
+				t.Fatalf("grants=%d err=%v, want exactly four reward ledger entries", grants, err)
 			}
 		})
 	}
@@ -369,5 +387,57 @@ func TestLoginRetriesReferralAttributionAfterRegisteredListenerFailure(t *testin
 	}
 	if deliveryAttempts != 4 {
 		t.Fatalf("registered delivery attempts=%d after returning login, want unchanged", deliveryAttempts)
+	}
+}
+
+func TestReferralRewardRetriesOnlyMissingSide(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := platform.Config{Email: platform.EmailConfig{Provider: "none"}, Auth: platform.AuthConfig{UserJWTSecret: "test-jwt-secret", Email: platform.AuthEmailConfig{Enabled: boolPtr(false)}}, Billing: platform.BillingConfig{Enabled: boolPtr(false)}, Referral: platform.ReferralConfig{Enabled: boolPtr(false)}}
+	if err := platform.Migrate(db, cfg); err != nil {
+		t.Fatal(err)
+	}
+	modules, err := platform.New(db, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inviter, err := user.NewAuthStore(modules.Users).FindOrCreateByEmail(t.Context(), "partial@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps := hostapi.Deps{DB: db, Users: modules.Users, Modules: modules}
+	ref := referraldomain.Referral{ID: 42, ReferrerID: inviter.UserID, RefereeID: "missing-invitee", RewardCredits: 20}
+	event := referralevent.ReferralActivated{Referral: ref}
+	if err := onReferralActivated(t.Context(), deps, referralevent.Envelope{}, event); err == nil {
+		t.Fatal("want missing invitee error")
+	}
+	got, err := modules.Users.FindByID(t.Context(), inviter.UserID)
+	if err != nil || got.Credits != 20 {
+		t.Fatalf("inviter=%+v err=%v", got, err)
+	}
+	// Recover the missing user, then replay the same event twice.
+	if err := db.Create(&user.User{ID: ref.RefereeID, Email: "recovered@example.com", CreditsVersion: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if err := onReferralActivated(t.Context(), deps, referralevent.Envelope{}, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for id, want := range map[string]int64{ref.ReferrerID: 20, ref.RefereeID: 10} {
+		got, err := modules.Users.FindByID(t.Context(), id)
+		if err != nil || got.Credits != want {
+			t.Fatalf("user=%+v err=%v want=%d", got, err, want)
+		}
+	}
+	var count int64
+	if err := db.Model(&user.CreditTransaction{}).Where("source IN ?", []string{"referral_inviter", "referral_invitee"}).Count(&count).Error; err != nil || count != 2 {
+		t.Fatalf("transactions=%d err=%v", count, err)
+	}
+	event.Referral.ID = 0
+	if err := onReferralActivated(t.Context(), deps, referralevent.Envelope{}, event); err == nil {
+		t.Fatal("want invalid referral error")
 	}
 }

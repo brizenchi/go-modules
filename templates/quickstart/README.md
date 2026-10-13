@@ -5,7 +5,7 @@
 
 ## 接手项目：从这里写自己的规则
 
-**默认不发邀请奖励，业务回调是空函数；不需要奖励金额配置。**
+**邀请注册成功即给邀请人 20、被邀请人 10；首次符合条件的付费再给双方 20 / 10；无需奖励金额配置。**
 打开 [host_hooks.go](internal/bootstrap/host_hooks.go)，直接修改对应函数体：
 
 | 想实现什么 | 修改哪里 |
@@ -221,7 +221,7 @@ func onUserSignedUp(
 - `UserSignedUp`：可选注册积分和欢迎邮件；
 - `CreditsPurchased`：将购买积分记入宿主积分账本，并更新余额；
 - `SubscriptionActivated`：激活邀请关系；
-- `ReferralRegistered` / `ReferralActivated`：预留业务回调，默认不发任何奖励。
+- `ReferralRegistered`：注册即发双方 20 / 10；`ReferralActivated`：首次付费再发双方 20 / 10。
 
 回调同时收到通用 `Envelope` 和强类型 payload。支付回调可从 envelope 取得
 `UserID`、供应商和 Webhook event ID，再从 payload 读取订阅或金额等业务内容。
@@ -229,22 +229,12 @@ func onUserSignedUp(
 邀请奖励无需配置：复制模板后直接编辑 `onReferralActivated`，在函数里决定给谁发什么。
 `event.Referral.ReferrerID` 是邀请人，`RefereeID` 是被邀请人，`ID` 是邀请记录 ID。
 注册即送会员写在 `onReferralRegistered`；付费激活后送积分写在 `onReferralActivated`。
-函数默认只有 `return nil`，不发积分、会员或其他奖励。以下是可自行替换的积分示例
-（需添加 `strconv` 导入）：
+`onReferralActivated` 已实现固定奖励，金额常量也在 `host_hooks.go` 中。
+双方流水使用不同的来源和相同的邀请 ID 去重；重试只补齐缺失奖励。
+`subscriptions.go` 激活时记录邀请人奖励 20，邀请页统计与实际奖励保持一致。
+双方在 `/credits` 查看注册奖励和付费奖励的独立流水。修改金额时同步前端文案，
+并为已发放记录保留旧规则，避免重放时发生金额冲突。
 
-```go
-func onReferralActivated(ctx context.Context, deps hostapi.Deps, _ referralevent.Envelope, event referralevent.ReferralActivated) error {
-    const credits int64 = 100
-    return deps.Users.GrantCredits(ctx, event.Referral.ReferrerID,
-        "referral", strconv.FormatUint(event.Referral.ID, 10), credits)
-}
-```
-
-回调可能因重试或管理员重放再次执行：以邀请 ID + 奖励类型去重，错误返回给调用方，
-并把 `ctx` 传给下游。会员等自定义奖励也需要自己的幂等记录。
-默认激活时 `RewardCredits` 为 0；它只是邀请统计字段，回调发积分不会自动更新它。
-如果需要邀请页同步展示积分数，在 `subscriptions.go` 的 `activateReferral` 调用处
-传入自定义积分数，并在奖励回调使用 `event.Referral.RewardCredits`，保持统计与发放一致。
 迁移已有项目时，旧的 `APP_REFERRAL_ACTIVATION_REWARD` / `activation_reward` 不再生效；
 需要把原来的奖励规则写入回调。邀请开关、链接和激活期限配置继续保留。
 

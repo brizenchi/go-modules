@@ -51,7 +51,7 @@ function InvitePageInner() {
       sideBody={<DetailRows rows={[
         { label: t({ en: "1 · Join", zh: "1 · 注册" }), value: t({ en: "Create a new account through this invitation.", zh: "通过邀请首次创建账号。" }) },
         { label: t({ en: "2 · Explore", zh: "2 · 体验" }), value: t({ en: "Try the product and choose a plan when you need it.", zh: "体验产品，按需要选择订阅套餐。" }) },
-        { label: t({ en: "3 · Reward", zh: "3 · 奖励" }), value: t({ en: "No invitation rewards are offered by default. Any rewards follow the published site rules.", zh: "默认不提供邀请奖励。如有奖励活动，以本站公布的规则为准。" }) }
+        { label: t({ en: "3 · Reward", zh: "3 · 奖励" }), value: t({ en: "On invited signup, the inviter gets 20 credits and the friend gets 10. A qualifying first paid subscription grants another 20 / 10. Each stage is rewarded once.", zh: "好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。" }) }
       ]} />}
       toc={[{ id: "accept-invite", label: t({ en: "Accept invitation", zh: "接受邀请" }) }]}
     >

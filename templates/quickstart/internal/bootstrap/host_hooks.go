@@ -3,13 +3,16 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	authevent "github.com/brizenchi/go-modules/modules/auth/event"
 	billingevent "github.com/brizenchi/go-modules/modules/billing/event"
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
+	referraldomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	referralevent "github.com/brizenchi/go-modules/modules/referral/event"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
+	"github.com/brizenchi/quickstart-template/internal/user"
 )
 
 // 这些函数就是当前 SaaS 的业务回调。共享模块只发布事件；
@@ -105,20 +108,40 @@ func onCreditsPurchased(ctx context.Context, deps hostapi.Deps, envelope billing
 	return nil
 }
 
-// onReferralRegistered 在邀请关系绑定成功后调用。默认不发放任何奖励。
-// 接入步骤与可复制示例见后端根目录 REFERRAL_HOOKS.md。
-// 注册即送会员或积分时，在这里编写当前 SaaS 的规则。
-// event.Referral.ReferrerID 是邀请人，RefereeID 是被邀请人。
-// 回调可能重试；用邀请 ID + 奖励类型作为幂等键，并向下传递 ctx。
-func onReferralRegistered(ctx context.Context, deps hostapi.Deps, envelope referralevent.Envelope, event referralevent.ReferralRegistered) error {
-	return nil
+// onReferralRegistered 注册绑定成功立即奖励，与购买无关。
+func onReferralRegistered(ctx context.Context, deps hostapi.Deps, _ referralevent.Envelope, event referralevent.ReferralRegistered) error {
+	return grantReferralCredits(ctx, deps, event.Referral, "referral_signup", "邀请注册奖励", "受邀注册奖励")
 }
 
-// onReferralActivated 是邀请激活后的奖励扩展点，默认不发放积分、会员或其他奖励。
-// 接入步骤与可复制示例见后端根目录 REFERRAL_HOOKS.md。
-// 直接在函数内编写规则并调用自己的 service，无需奖励配置。
-// event.Referral 包含邀请 ID、双方用户 ID 和激活时间；deps 提供宿主依赖。
-// 回调可能因支付重试或管理员重放再次执行，发奖必须幂等；失败返回 error。
-func onReferralActivated(ctx context.Context, deps hostapi.Deps, envelope referralevent.Envelope, event referralevent.ReferralActivated) error {
+// Fixed referral rewards belong to the host, not provider configuration.
+const referralInviterCredits = 20
+const referralInviteeCredits = 10
+
+// onReferralActivated 在符合条件的首次付费后给双方发积分。
+// 同一邀请的每种奖励只发一次；第二笔失败时，重试只补齐缺失奖励。
+// 修改奖励规则后，需同步邀请页面文案；接入说明见 REFERRAL_HOOKS.md。
+func onReferralActivated(ctx context.Context, deps hostapi.Deps, _ referralevent.Envelope, event referralevent.ReferralActivated) error {
+	// 可选的首次付费额外奖励：不需要时注释以下 return，改为 return nil。
+	// 同时把 subscriptions.go 三处激活调用的奖励统计值改为 0，并更新页面文案。
+	return grantReferralCredits(ctx, deps, event.Referral, "referral", "邀请付费奖励", "受邀付费奖励")
+}
+
+func grantReferralCredits(ctx context.Context, deps hostapi.Deps, ref referraldomain.Referral, source, inviterReason, inviteeReason string) error {
+	if ref.ID == 0 || ref.ReferrerID == "" || ref.RefereeID == "" || ref.ReferrerID == ref.RefereeID {
+		return fmt.Errorf("grant referral credits: invalid referral")
+	}
+	sourceID := strconv.FormatUint(ref.ID, 10)
+	if _, err := deps.Users.GrantCreditsWithExpiry(ctx, user.CreditGrantInput{
+		UserID: ref.ReferrerID, Source: source + "_inviter", SourceID: sourceID,
+		Amount: referralInviterCredits, Reason: inviterReason,
+	}); err != nil {
+		return fmt.Errorf("grant inviter credits: %w", err)
+	}
+	if _, err := deps.Users.GrantCreditsWithExpiry(ctx, user.CreditGrantInput{
+		UserID: ref.RefereeID, Source: source + "_invitee", SourceID: sourceID,
+		Amount: referralInviteeCredits, Reason: inviteeReason,
+	}); err != nil {
+		return fmt.Errorf("grant invitee credits: %w", err)
+	}
 	return nil
 }

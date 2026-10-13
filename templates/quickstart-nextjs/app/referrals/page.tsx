@@ -44,11 +44,11 @@ export default function ReferralsPage() {
       description: "Invite new users and track each invitation from signup to activation. Rewards, when offered, follow the published site rules.",
       rules: "How invitations work", signup: "New accounts only", signupDetail: "An invitation is linked once, at signup. You cannot invite yourself or reassign an existing account.",
       qualify: "First paid subscription", qualifyDetail: "Signup creates a pending invitation. A free trial alone does not qualify; the subscription must become paid within the activation window.",
-      reward: "Reward policy", rewardDetail: "No invitation rewards are offered by default. Any rewards follow the published rules for this site.",
+      reward: "Reward policy", rewardDetail: "On invited signup, the inviter gets 20 credits and the friend gets 10. A qualifying first paid subscription grants another 20 / 10. Each stage is rewarded once.",
       link: "My invite link", linkHelp: "Copy your personal link and share it with a friend who has not registered yet.", code: "Invite code", shareLink: "Invitation link",
       copy: "Copy link", copied: "Invite link copied. Ready to share.", copyFailed: "Couldn't copy the link. Select the full link above and copy it manually.",
       stats: "Invitation overview", statsHelp: "See registrations, qualifying subscriptions, and recorded reward credits.",
-      total: "Registered", activated: "Activated", pending: "Awaiting subscription", credits: "Reward credits", expired: "Expired",
+      total: "Registered", activated: "Activated", pending: "Awaiting subscription", credits: "Paid activation rewards", expired: "Expired",
       history: "Invitation history", historyHelp: "Signup records the invitation. Activation records a qualifying subscription.",
       person: "Invited account", state: "Status", joined: "Registered", deadline: "Activation deadline", activatedAt: "Activated", noDeadline: "No time limit",
       loadingLink: "Loading your invite link…", loadingStats: "Loading your invitation overview…", loadingList: "Loading invitations…",
@@ -57,20 +57,20 @@ export default function ReferralsPage() {
       refresh: "Refresh", previous: "Previous", next: "Next", page: "Page", of: "of", records: "invitations",
       unavailable: "Invitations are currently unavailable", unavailableDetail: "You can still use your account. Check back when invitations are available.",
       missingLink: "Your invitation link is not ready", missingLinkDetail: "Please contact support to have sharing enabled for this site.",
-      trialNote: "A free trial alone does not activate an invitation. Activation does not guarantee a reward; check the published site rules.",
+      trialNote: "A free trial alone does not activate an invitation. After qualifying paid activation, both users can view their rewards in Credits.",
       demoNote: "Demo: registrations and invitation records are real. Payments use Stripe test mode. Open your link in another browser or private window, register a new account, complete a qualifying test subscription, then refresh this page.",
       testHelp: "View test payment instructions", pendingHelp: "Registered; awaiting a qualifying paid subscription.", activatedHelp: "Qualifying subscription recorded.", expiredHelp: "The activation deadline passed without a qualifying subscription."
     },
     zh: {
       eyebrow: "邀请好友", title: "分享给好友，查看邀请进展。",
-      description: "邀请新用户注册，从注册到激活，每一笔邀请都有记录可查。如有邀请奖励，以本站公布的规则为准。",
+      description: "邀请新用户注册，从注册到激活，每一笔邀请都有记录可查。好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。",
       rules: "邀请如何生效", signup: "首次注册时绑定", signupDetail: "每个新账号只能绑定一次邀请。不能邀请自己，已有账号不能重新绑定。",
       qualify: "首次符合条件的付费订阅", qualifyDetail: "好友注册后先进入待激活状态。仅开通免费试用不会激活邀请，需要在激活期限内完成付费订阅。",
-      reward: "奖励规则", rewardDetail: "默认不提供邀请奖励。如有奖励活动，以本站公布的规则为准。",
+      reward: "奖励规则", rewardDetail: "好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。",
       link: "我的邀请链接", linkHelp: "复制你的专属链接，分享给尚未注册的好友。", code: "邀请码", shareLink: "邀请链接",
       copy: "复制邀请链接", copied: "邀请链接已复制，可以分享给好友了。", copyFailed: "复制失败，请选中上方完整链接并手动复制。",
       stats: "邀请概况", statsHelp: "查看注册人数、订阅激活情况和记录的奖励积分。",
-      total: "已注册", activated: "已激活", pending: "待订阅激活", credits: "奖励积分", expired: "已过期",
+      total: "已注册", activated: "已激活", pending: "待订阅激活", credits: "付费激活奖励", expired: "已过期",
       history: "邀请记录", historyHelp: "好友注册后显示邀请记录；完成符合条件的订阅后更新激活状态。",
       person: "受邀账号", state: "状态", joined: "注册时间", deadline: "激活截止时间", activatedAt: "激活时间", noDeadline: "不限时",
       loadingLink: "正在生成邀请链接…", loadingStats: "正在加载邀请概况…", loadingList: "正在加载邀请记录…",
@@ -79,7 +79,7 @@ export default function ReferralsPage() {
       refresh: "刷新", previous: "上一页", next: "下一页", page: "第", of: "/", records: "条邀请",
       unavailable: "邀请功能暂未开放", unavailableDetail: "你可以继续使用账号，稍后再来查看邀请功能。",
       missingLink: "邀请链接暂未就绪", missingLinkDetail: "请联系网站支持人员开通分享链接。",
-      trialNote: "免费试用本身不会激活邀请。邀请激活不代表获得奖励，请以本站公布的规则为准。",
+      trialNote: "注册奖励无需付费；免费试用不会触发额外付费奖励。双方在“我的积分”查看两类奖励。",
       demoNote: "演示说明：注册和邀请记录都是真实的，支付使用 Stripe 测试环境。请在另一浏览器或无痕窗口打开链接，用新账号注册并完成符合条件的测试订阅，再回到这里刷新查看。",
       testHelp: "查看测试支付说明", pendingHelp: "好友已注册，等待符合条件的付费订阅。", activatedHelp: "已记录符合条件的订阅激活。", expiredHelp: "激活期限内未完成符合条件的订阅。"
     }
@@ -269,7 +269,7 @@ export default function ReferralsPage() {
       sideBody={<DetailRows rows={[
         { label: copy.signup, value: t({ en: "One invitation per new account.", zh: "每个新账号仅绑定一次邀请。" }) },
         { label: t({ en: "Paid subscription", zh: "好友订阅" }), value: t({ en: "Your friend subscribes within the activation window.", zh: "好友在奖励期限内首次完成付费订阅。" }) },
-        { label: copy.reward, value: t({ en: "Any invitation rewards follow the published site rules.", zh: "如有邀请奖励，以本站公布的规则为准。" }) }
+        { label: copy.reward, value: t({ en: "On invited signup, the inviter gets 20 credits and the friend gets 10. A qualifying first paid subscription grants another 20 / 10. Each stage is rewarded once.", zh: "好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。" }) }
       ]} />}
       toc={[
         { id: "my-link", label: copy.link },

@@ -126,7 +126,7 @@ func TestPreviewRealRegistrationAttributesReferralAndRunsCreditFeature(t *testin
 	if exported["balance"] != float64(49) || !strings.Contains(exported["content"].(string), "Local content") {
 		t.Fatalf("export=%+v", exported)
 	}
-	// Activation tracks conversion without granting a default referral reward.
+	// Preview omits host reward hooks; production rewards are tested in bootstrap.
 	// Billing itself remains disabled in this local command.
 	account, err := app.modules.Users.FindByEmail(context.Background(), "preview-invited@example.test")
 	if err != nil {
@@ -144,8 +144,8 @@ func TestPreviewRealRegistrationAttributesReferralAndRunsCreditFeature(t *testin
 		t.Fatalf("referral reward=%+v err=%v", summary, err)
 	}
 	var grants int64
-	if err := app.modules.DB.Model(&user.CreditTransaction{}).Where("source = ?", "referral").Count(&grants).Error; err != nil || grants != 0 {
-		t.Fatalf("referral grants=%d err=%v, want no default reward", grants, err)
+	if err := app.modules.DB.Model(&user.CreditTransaction{}).Where("source IN ?", []string{"referral_inviter", "referral_invitee"}).Count(&grants).Error; err != nil || grants != 0 {
+		t.Fatalf("referral grants=%d err=%v, want no preview reward hooks", grants, err)
 	}
 }
 func jsonNumber(t *testing.T, value float64) string {

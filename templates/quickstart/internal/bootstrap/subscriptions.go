@@ -61,7 +61,7 @@ func subscribeModuleEvents(deps hostapi.Deps) {
 			// A Checkout Session can complete while a free trial is still unpaid.
 			// Referral activation qualifies only once the subscription is actually paid.
 			if payload.Snapshot.Status == billingdomain.StatusActive {
-				if err := activateReferral(ctx, deps, envelope.UserID, 0); err != nil {
+				if err := activateReferral(ctx, deps, envelope.UserID, referralInviterCredits); err != nil {
 					return err
 				}
 			}
@@ -72,7 +72,7 @@ func subscribeModuleEvents(deps hostapi.Deps) {
 			if !ok {
 				return fmt.Errorf("unexpected trial converted payload %T", envelope.Payload)
 			}
-			if err := activateReferral(ctx, deps, envelope.UserID, 0); err != nil {
+			if err := activateReferral(ctx, deps, envelope.UserID, referralInviterCredits); err != nil {
 				return err
 			}
 			return onTrialConverted(ctx, deps, envelope, payload)
@@ -88,7 +88,7 @@ func subscribeModuleEvents(deps hostapi.Deps) {
 			// replayed host reward hooks must also be idempotent.
 			var referralErr error
 			if payload.AmountPaid > 0 {
-				referralErr = activateReferral(ctx, deps, envelope.UserID, 0)
+				referralErr = activateReferral(ctx, deps, envelope.UserID, referralInviterCredits)
 			}
 			return errors.Join(referralErr, onSubscriptionRenewed(ctx, deps, envelope, payload))
 		})
@@ -159,8 +159,8 @@ func activateReferral(ctx context.Context, deps hostapi.Deps, refereeID string, 
 	if deps.Modules.Referral == nil {
 		return nil
 	}
-	// RewardCredits is optional accounting metadata. The template grants nothing;
-	// a copied SaaS owns reward policy in host_hooks.go.
+	// RewardCredits records the inviter reward for referral statistics.
+	// host_hooks.go grants both sides using stable ledger keys.
 	_, err := deps.Modules.Referral.Attribute.ActivateReferral(ctx, refereeID, reward)
 	if err == nil || errors.Is(err, referraldomain.ErrNotFound) || errors.Is(err, referraldomain.ErrAlreadyActivated) || errors.Is(err, referraldomain.ErrExpired) {
 		return nil

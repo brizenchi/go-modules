@@ -460,7 +460,7 @@ APP_REFERRAL_ACTIVATION_WINDOW_DAYS=0
 1. 注册请求把 `referral_code` 传给 `/auth/verify-code` 或 `/auth/exchange-token`；
 2. `UserSignedUp` 监听器创建邀请归因；
 3. 被邀请人第一次订阅激活后，邀请关系变成 activated；
-4. 调用 `host_hooks.go:onReferralActivated`，默认直接返回 `nil`，不发任何奖励。
+4. 调用 `host_hooks.go:onReferralActivated`，固定给邀请人 20 积分、被邀请人 10 积分，同一邀请不重复发放。
 
 奖励无需配置，直接在 `host_hooks.go:onReferralActivated` 内编写积分、会员或优惠券规则。
 若要注册绑定邀请后立即发奖，则编辑同文件的 `onReferralRegistered`。
