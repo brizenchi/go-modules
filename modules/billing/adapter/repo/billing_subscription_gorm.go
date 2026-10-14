@@ -88,20 +88,20 @@ func (r *SubscriptionRepo) UpsertSnapshot(ctx context.Context, userID, provider 
 			}),
 			Where: clause.Where{Exprs: []clause.Expression{clause.Expr{
 				SQL: `
-					(plan <> ? OR excluded.plan = ?)
+					(billing_subscriptions.plan <> ? OR excluded.plan = ?)
 					AND (
-						(excluded.plan = ? AND plan <> ?)
-						OR excluded.snapshot_occurred_at > COALESCE(snapshot_occurred_at, updated_at)
+						(excluded.plan = ? AND billing_subscriptions.plan <> ?)
+						OR excluded.snapshot_occurred_at > COALESCE(billing_subscriptions.snapshot_occurred_at, billing_subscriptions.updated_at)
 						OR (
-							excluded.snapshot_occurred_at = COALESCE(snapshot_occurred_at, updated_at)
+							excluded.snapshot_occurred_at = COALESCE(billing_subscriptions.snapshot_occurred_at, billing_subscriptions.updated_at)
 							AND (
 								(
-									COALESCE(provider_subscription_id, '') = COALESCE(excluded.provider_subscription_id, '')
-									AND (status NOT IN (?, ?) OR excluded.status IN (?, ?))
+									COALESCE(billing_subscriptions.provider_subscription_id, '') = COALESCE(excluded.provider_subscription_id, '')
+									AND (billing_subscriptions.status NOT IN (?, ?) OR excluded.status IN (?, ?))
 								)
 								OR (
-									COALESCE(provider_subscription_id, '') <> COALESCE(excluded.provider_subscription_id, '')
-									AND (status IN (?, ?) OR excluded.status NOT IN (?, ?))
+									COALESCE(billing_subscriptions.provider_subscription_id, '') <> COALESCE(excluded.provider_subscription_id, '')
+									AND (billing_subscriptions.status IN (?, ?) OR excluded.status NOT IN (?, ?))
 								)
 							)
 						)
