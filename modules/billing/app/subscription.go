@@ -284,11 +284,7 @@ func (s *SubscriptionService) PreviewChange(ctx context.Context, userID string, 
 }
 
 func resolvePreviewMode(current *domain.SubscriptionSnapshot, in domain.SubscriptionPreviewInput) domain.SubscriptionChangeMode {
-	return resolveChangeMode(current, domain.SubscriptionChangeInput{
-		Plan:     in.Plan,
-		Interval: in.Interval,
-		Mode:     in.Mode,
-	})
+	return resolveChangeMode(current, domain.SubscriptionChangeInput(in))
 }
 
 func resolveChangeMode(current *domain.SubscriptionSnapshot, in domain.SubscriptionChangeInput) domain.SubscriptionChangeMode {

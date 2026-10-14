@@ -87,11 +87,6 @@ func (p *Provider) parseProviderEvent(ctx context.Context, ev stripesdk.Event, p
 	return out, nil
 }
 
-// translateEvent converts a Stripe event into zero or more domain envelopes.
-func (p *Provider) translateEvent(evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) ([]event.Envelope, error) {
-	return p.translateEventContext(context.Background(), evtType, data, prevAttrs, evtID, occurredAt, hint)
-}
-
 func (p *Provider) translateEventContext(ctx context.Context, evtType string, data map[string]any, prevAttrs map[string]any, evtID string, occurredAt time.Time, hint port.UserHint) ([]event.Envelope, error) {
 	mk := func(kind event.Kind, payload any) event.Envelope {
 		return event.Envelope{
@@ -394,10 +389,6 @@ func invoiceSubscriptionID(data map[string]any) string {
 // Stripe's line items. Checkout metadata contains the quantity requested when
 // the Session was created, but adjustable quantity can change it before
 // payment, so metadata must never be used for fulfillment.
-func (p *Provider) extractCheckoutQuantity(data map[string]any, expectedPriceID string) (int64, error) {
-	return p.extractCheckoutQuantityContext(context.Background(), data, expectedPriceID)
-}
-
 func (p *Provider) extractCheckoutQuantityContext(ctx context.Context, data map[string]any, expectedPriceID string) (int64, error) {
 	if rawLineItems, expanded := data["line_items"]; expanded && rawLineItems != nil {
 		lineItems, ok := rawLineItems.(map[string]any)

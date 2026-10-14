@@ -213,7 +213,8 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 		return in, errors.New("product_type must be subscription, credits, or lifetime")
 	}
 
-	if in.ProductType == domain.ProductSubscription {
+	switch in.ProductType {
+	case domain.ProductSubscription:
 		in.Quantity = 1
 		plan := domain.PlanType(strings.ToLower(strings.TrimSpace(req.Plan)))
 		if !plan.Valid() || plan == domain.PlanFree || plan == domain.PlanLifetime {
@@ -228,12 +229,12 @@ func buildCheckoutInput(userID string, req createCheckoutRequest) (app.CheckoutI
 		default:
 			return in, errors.New("interval must be monthly or yearly")
 		}
-	} else if in.ProductType == domain.ProductCredits {
+	case domain.ProductCredits:
 		in.PriceID = ""
 		if in.Quantity < 1 || in.Quantity > 100 {
 			return in, errors.New("quantity must be between 1 and 100")
 		}
-	} else {
+	default:
 		in.Plan = domain.PlanLifetime
 		in.Quantity = 1
 	}

@@ -74,7 +74,7 @@ func TestProviderIssuesUniqueExpiringStateWithRandomID(t *testing.T) {
 	if claims.ID == "" || claims.IssuedAt == nil || claims.ExpiresAt == nil {
 		t.Fatalf("incomplete claims: %#v", claims)
 	}
-	if got := claims.ExpiresAt.Time.Sub(claims.IssuedAt.Time); got != 35*time.Minute {
+	if got := claims.ExpiresAt.Sub(claims.IssuedAt.Time); got != 35*time.Minute {
 		t.Fatalf("state TTL=%v, want 35m", got)
 	}
 	if p.OAuthStateTTL() != 35*time.Minute {

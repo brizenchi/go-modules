@@ -152,7 +152,7 @@ func TestProvider_CustomStateTTLIsApplied(t *testing.T) {
 	if claims.IssuedAt == nil || claims.ExpiresAt == nil {
 		t.Fatalf("expected iat and exp claims, got %+v", claims)
 	}
-	if got := claims.ExpiresAt.Time.Sub(claims.IssuedAt.Time); got != 45*time.Minute {
+	if got := claims.ExpiresAt.Sub(claims.IssuedAt.Time); got != 45*time.Minute {
 		t.Fatalf("state ttl = %v, want 45m", got)
 	}
 }

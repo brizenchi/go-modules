@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  GO_VERSION: '1.25.13'
+  GO_VERSION: '1.26.9'
 
 jobs:
   # Shared engineering standards (commit titles, secrets, Go and Node checks),

@@ -28,7 +28,7 @@ jobs:
     with:
       working-directory: "."
       packages: "./foundation/... ./modules/..."
-      lint-version: "v1.64.5"
+      lint-version: "v2.14.0"
 
   go-templates-quickstart:
     name: go-templates-quickstart

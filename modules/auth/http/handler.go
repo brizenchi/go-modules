@@ -265,7 +265,7 @@ func (h *Handler) setOAuthFlowCookie(c *gin.Context, provider string, result *ap
 	if maxAge < 1 {
 		maxAge = 1
 	}
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is host-configured to support local HTTP development.
 		Name:     oauthFlowCookieName(provider, result.FlowID),
 		Value:    result.BrowserBinding,
 		Path:     path,
@@ -278,7 +278,7 @@ func (h *Handler) setOAuthFlowCookie(c *gin.Context, provider string, result *ap
 }
 
 func (h *Handler) clearOAuthFlowCookie(c *gin.Context, name string) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure is host-configured to support local HTTP development.
 		Name:     name,
 		Value:    "",
 		Path:     c.Request.URL.Path,

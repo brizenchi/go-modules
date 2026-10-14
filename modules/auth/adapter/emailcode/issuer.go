@@ -159,7 +159,7 @@ func generateNumericCode(length int) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		digits[i] = byte('0') + byte(n.Int64())
+		digits[i] = "0123456789"[n.Int64()]
 	}
 	return string(digits), nil
 }

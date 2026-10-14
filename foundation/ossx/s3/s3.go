@@ -236,10 +236,7 @@ func isNotFound(err error) bool {
 		return true
 	}
 	var nf *s3types.NotFound
-	if errors.As(err, &nf) {
-		return true
-	}
-	return false
+	return errors.As(err, &nf)
 }
 
 // Compile-time check that Bucket satisfies the port.

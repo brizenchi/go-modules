@@ -581,7 +581,7 @@ make init-quickstart \
 
 ### push 到服务器后启动
 
-后端使用 Go 1.25.13，前端使用 Node 22 LTS。先准备 `.env`/`.env.local`，不要提交它们：
+后端使用 Go 1.26.9，前端使用 Node 22 LTS。先准备 `.env`/`.env.local`，不要提交它们：
 
 ```bash
 # backend

@@ -39,7 +39,7 @@ default_branch: main
 github_repo: brizenchi/go-modules
 go_modules:
 -   dir: .
-    lint_version: v1.64.5
+    lint_version: v2.14.0
     packages: ./foundation/... ./modules/...
 -   dir: templates/quickstart
     lint: false

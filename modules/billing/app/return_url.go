@@ -49,7 +49,7 @@ func normalizedHTTPOrigin(rawURL string) (string, error) {
 		return "", fmt.Errorf("absolute URL required")
 	}
 	parsed, err := url.ParseRequestURI(rawURL)
-	if err != nil || parsed == nil || parsed.IsAbs() == false || parsed.Host == "" {
+	if err != nil || parsed == nil || !parsed.IsAbs() || parsed.Host == "" {
 		return "", fmt.Errorf("absolute URL required")
 	}
 	if parsed.User != nil || parsed.Opaque != "" {
