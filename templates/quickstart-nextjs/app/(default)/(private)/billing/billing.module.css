@@ -1,0 +1,279 @@
+.layout {
+  align-items: start;
+}
+
+.disclosure {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  scroll-margin-top: 148px;
+}
+
+.disclosure > summary {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 22px 56px 22px 24px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary::after {
+  content: "+";
+  position: absolute;
+  top: 50%;
+  right: 24px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.disclosure[open] > summary::after {
+  content: "−";
+}
+
+.disclosure > summary:hover {
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent) 4%);
+}
+
+.disclosure > summary:focus-visible {
+  outline-offset: -4px;
+}
+
+.disclosureTitle {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.disclosureDescription {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.disclosureBody {
+  padding: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.disclosure .disclosureBody > :global(.panel) {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.disclosure .disclosureBody > :global(.panel) + :global(.panel) {
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.anchor {
+  scroll-margin-top: 120px;
+}
+
+.overview {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 40px;
+  padding: 6px 0 24px;
+}
+
+.planIdentity {
+  align-self: center;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.planHeading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.planHeading > strong {
+  color: var(--text);
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+
+.status {
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.planIdentity p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summaryDetails {
+  min-width: 0;
+}
+
+.stateCard,
+.confirmation,
+.orderSummary {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
+
+.stateCard {
+  margin-bottom: 16px;
+}
+
+.stateCard strong,
+.confirmation h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stateCard p,
+.confirmation p,
+.orderSummary p {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.stateNote {
+  margin: 12px 0 20px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.manageActions {
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.manageActions .cancelTrigger {
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.manageActions .cancelTrigger:hover {
+  color: var(--text);
+  border-color: var(--line);
+}
+
+.confirmation {
+  margin-top: 20px;
+}
+
+.confirmation h3 {
+  margin: 0;
+}
+
+.purchasePanel {
+  min-width: 0;
+}
+
+.orderSummary {
+  margin: 20px 0;
+}
+
+.orderSummary > strong {
+  font-size: 15px;
+}
+
+.orderSummary p:last-child {
+  margin-bottom: 0;
+}
+
+.orderHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.orderHeading > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.orderHeading > strong {
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+
+.feedback:empty {
+  display: none;
+}
+
+.feedback {
+  margin-top: 16px;
+}
+
+.textLink {
+  display: inline-block;
+  margin-top: 20px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+@media (max-width: 720px) {
+  .disclosure > summary {
+    padding: 18px 48px 18px 16px;
+  }
+
+  .disclosureBody {
+    padding: 20px 16px;
+  }
+
+  .summary {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .manageActions .cancelTrigger {
+    margin-left: 0;
+  }
+
+  .stateCard,
+  .confirmation,
+  .orderSummary {
+    padding: 16px;
+  }
+}

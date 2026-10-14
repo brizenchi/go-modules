@@ -170,7 +170,7 @@ export const documentation: DocumentationSection[] = [
     title: { en: "Replace the public content", zh: "换成你的产品介绍与支持信息" },
     paragraphs: [
       { en: "Explain the problem your product solves on the overview page and describe exactly what each plan includes. Replace the template’s example business workflow with your own. In the administrator’s site settings, add a support email or HTTPS help page that you maintain.", zh: "在总览页写清楚自己的产品解决什么问题，在套餐页说明每档价格包含什么，并把模板的示例业务替换成自己的功能。在管理员的网站设置中填写有人维护的支持邮箱或 HTTPS 帮助页面。" },
-      { en: "Edit content/articles.ts for bilingual blog posts, content/updates.ts for releases, and content/policies.ts for your actual privacy and terms. CONTENT.md covers publishing and metadata. Chinese and English share the same page URL; public pages include sharing metadata and a sitemap, while account and admin routes are excluded.", zh: "在 content/articles.ts 编辑中英文博客，在 content/updates.ts 发布更新，在 content/policies.ts 按实际业务完善隐私与条款。CONTENT.md 说明发布与元信息配置。中英文使用同一页面 URL；公开页面带有分享信息和站点地图，账户及管理路由不会出现在站点地图中。" }
+      { en: "Edit content/articles.ts for bilingual blog posts, content/updates.ts for releases, and content/policies.ts for your actual privacy and terms. CONTENT.md covers publishing and metadata. English keeps the original URLs and Chinese uses /zh URLs with reciprocal language links; public pages include sharing metadata and a sitemap, while account and admin routes are excluded.", zh: "在 content/articles.ts 编辑中英文博客，在 content/updates.ts 发布更新，在 content/policies.ts 按实际业务完善隐私与条款。CONTENT.md 说明发布与元信息配置。英文保留原网址，中文使用 /zh 独立网址，并提供相互对应的语言链接；公开页面带有分享信息和站点地图，账户及管理路由不会出现在站点地图中。" }
     ],
     links: [
       { href: "/blog", label: { en: "Read the example guides", zh: "阅读示例指南" } },

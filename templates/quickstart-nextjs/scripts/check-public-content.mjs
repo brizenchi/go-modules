@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = ".next/server/app";
-const articlePages = ["docs", "blog"].flatMap((directory) =>
-  readdirSync(join(root, directory)).filter((file) => file.endsWith(".html")).map((file) => `${directory}/${file}`)
-);
-const pages = ["index.html", "pricing.html", "docs.html", "blog.html", "updates.html", "contact.html", "privacy.html", "terms.html", ...articlePages];
-const canonicals = new Set();
 const sitemap = readFileSync(join(root, "sitemap.xml.body"), "utf8");
+const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]));
+const paths = new Set(urls.map(url => url.pathname));
+const pages = urls.map(url => url.pathname === "/" ? "index.html" : `${url.pathname.slice(1)}.html`);
+const articlePages = pages.filter(page => /^(zh\/)?(docs|blog)\//.test(page));
+const canonicals = new Set();
+for (const path of ["/features", "/use-cases", "/compare", "/examples", "/about", "/resources"]) {
+  assert.ok(paths.has(path) && paths.has(`/zh${path}`), `${path}: bilingual route coverage`);
+}
 const withoutScripts = (html) => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
 
 for (const page of pages) {
@@ -20,11 +23,26 @@ for (const page of pages) {
   const canonicalHref = html.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
   assert.ok(canonicalHref, `${page}: canonical exists`);
   const canonical = new URL(canonicalHref).href;
+  const path = new URL(canonical).pathname;
+  const chinese = path === "/zh" || path.startsWith("/zh/");
+  assert.ok(rendered.includes(`lang="${chinese ? "zh-CN" : "en"}"`), `${page}: server-rendered language`);
+  assert.ok(!html.includes('content="noindex'), `${page}: public content is indexable`);
+  for (const language of ["en", "zh-CN", "x-default"]) {
+    const alternate = [...html.matchAll(/<link[^>]+>/g)].find(match => match[0].includes(`hrefLang="${language}"`) || match[0].includes(`hreflang="${language}"`))?.[0];
+    assert.ok(alternate, `${page}: ${language} alternative exists`);
+    assert.ok(paths.has(new URL(alternate.match(/href="([^"]+)"/)[1]).pathname), `${page}: alternative is a published page`);
+  }
+  for (const match of rendered.matchAll(/href="(\/[^"#?]*)[^"]*"/g)) {
+    const target = match[1];
+    if (/^\/(?:zh(?:\/|$)|features(?:\/|$)|use-cases(?:\/|$)|compare(?:\/|$)|examples(?:\/|$)|docs(?:\/|$)|blog(?:\/|$)|resources$|about$)/.test(target)) {
+      assert.ok(paths.has(target), `${page}: published internal link ${target}`);
+    }
+  }
   assert.ok(!canonicals.has(canonical), `${page}: unique canonical`);
   canonicals.add(canonical);
   assert.ok(sitemap.includes(`<loc>${canonical}</loc>`), `${page}: sitemap coverage`);
   const schemas = [...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
-  if (page !== "index.html") {
+  if (page !== "index.html" && page !== "zh.html") {
     const breadcrumb = schemas.find((schema) => schema["@type"] === "BreadcrumbList");
     assert.equal(breadcrumb?.itemListElement.at(-1).item, canonical, `${page}: breadcrumb canonical`);
   }
@@ -40,12 +58,18 @@ for (const page of pages) {
   }
 }
 
-for (const directory of ["docs", "blog"]) {
+for (const directory of ["docs", "blog", "zh/docs", "zh/blog"]) {
   const html = withoutScripts(readFileSync(join(root, `${directory}.html`), "utf8"));
   assert.ok(!html.includes("<pre"), `${directory}: directory contains summaries, not configuration blocks`);
   for (const article of articlePages.filter((page) => page.startsWith(`${directory}/`))) {
     assert.ok(html.includes(`href="/${article.replace(/\.html$/, "")}"`), `${article}: crawlable directory link`);
   }
+}
+
+for (const path of ["account", "billing", "referrals", "credits", "files", "notes", "login", "invite", "admin"]) {
+  const html = readFileSync(join(root, `${path}.html`), "utf8");
+  assert.match(html, /<meta name="robots" content="[^"]*noindex/, `${path}: private page noindex`);
+  assert.ok(!html.includes('rel="canonical"'), `${path}: no public canonical inherited`);
 }
 
 console.log(`Public content checks passed: ${pages.length} pages, ${articlePages.length} articles, headings, anchors, canonical URLs, JSON-LD and sitemap.`);

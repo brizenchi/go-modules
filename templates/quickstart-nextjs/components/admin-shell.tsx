@@ -9,6 +9,7 @@ import { getOperatorOverview } from "@/lib/operations-api";
 import { getPublicSiteSettings, publicSiteSettingsFallback, SITE_SETTINGS_EVENT } from "@/lib/site-settings";
 import { useI18n } from "@/lib/i18n";
 import { ConsoleError, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
+import { LanguagePicker } from "./language-picker";
 import { AdminSignInPanel } from "./admin-sign-in-panel";
 import styles from "./admin-shell.module.css";
 
@@ -54,9 +55,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       await logout(token);
     }, () => {});
   }
-  const languageSwitch = <div className={styles.languages} aria-label={t({ en: "Language", zh: "语言" })}>
-    {(["en", "zh"] as const).map((value) => <button type="button" key={value} aria-pressed={locale === value} onClick={() => setLocale(value)}>{value === "en" ? "EN" : "中文"}</button>)}
-  </div>;
+  const languageSwitch = <LanguagePicker locale={locale} label={t({ en: "Choose language", zh: "选择语言" })} onSelect={setLocale} />;
 
   if (!ready || (isAdmin && !access.data && !access.error)) return <div className={styles.entry}><div className={styles.entryBar}><span className={styles.tag}>ADMIN</span>{languageSwitch}</div><p role="status">{t({ en: "Checking administrator access…", zh: "正在验证管理员权限…" })}</p><div className={styles.loadingActions}><Link className="button" href="/">{t({ en: "Back to website", zh: "返回网站首页" })}</Link>{token ? <button type="button" className="button" onClick={signOut}>{t({ en: "Sign out", zh: "退出登录" })}</button> : null}</div></div>;
 

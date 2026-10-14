@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import styles from "./reading-layout.module.css";
 
 export function ReadingLayout({ children, toc, title, supportLabel }: {

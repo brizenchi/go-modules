@@ -180,3 +180,40 @@ test("canceled, expired, missing and tampered destinations fall back safely", as
   values.set(key, JSON.stringify(legacyRecords));
   assert.equal(flow.readOAuthReturnTo(legacy), "/account");
 });
+
+test("customer OAuth preserves the billing selection only in its own browser flow", async () => {
+  installBrowserStorage();
+  const flow = loadOAuthFlow();
+  const destination = "/billing?product=subscription&plan=starter&interval=yearly#plans";
+  const billingID = await flow.prepareOAuthBrowserFlow("google", destination);
+  const adminID = await flow.prepareOAuthBrowserFlow("github", "/admin/orders");
+  assert.equal(flow.readOAuthReturnTo(billingID), destination);
+  assert.equal(flow.resolveOAuthReturnTo(destination, "user"), destination);
+  assert.equal(flow.resolveOAuthReturnTo(destination, "admin"), destination);
+  assert.equal(flow.readOAuthReturnTo(adminID), "/admin/orders");
+  assert.equal(flow.resolveOAuthReturnTo("/admin/orders", "user"), "/account");
+});
+
+test("customer destinations preserve query and fragment while rejecting path normalization and external redirects", async () => {
+  installBrowserStorage();
+  const flow = loadOAuthFlow();
+  for (const path of ["/account#security", "/billing?product=credits#credits", "/referrals", "/credits?page=2", "/notes", "/files"]) {
+    const id = await flow.prepareOAuthBrowserFlow("google", path);
+    assert.equal(flow.readOAuthReturnTo(id), path);
+    assert.equal(flow.resolveOAuthReturnTo(path, "user"), path);
+  }
+  for (const path of ["https://evil.example/billing", "//evil.example/billing", "/billing/../admin", "/billing/%2e%2e/admin", "/billing/", "/billing/unknown", "/billing\\evil", "/%62illing", "/billing\n?product=credits", "/billing?x=\u0000", "/billing-evil", "/billing?" + "x".repeat(2048)]) {
+    await assert.rejects(flow.prepareOAuthBrowserFlow("google", path), /Unsupported OAuth return destination/, path);
+    assert.equal(flow.resolveOAuthReturnTo(path, "admin"), "/account", path);
+  }
+});
+
+test("sign-in defaults to the current customer page and only uses admin destinations when explicitly requested", () => {
+  const flow = loadOAuthFlow();
+  const destination = "/billing?product=subscription&plan=pro&interval=yearly#plans";
+  assert.equal(flow.resolveSignInDestination(destination), destination);
+  assert.equal(flow.resolveSignInDestination("/pricing"), "/account");
+  assert.equal(flow.resolveSignInDestination("/admin/users"), "/account");
+  assert.equal(flow.resolveSignInDestination(destination, "/admin/orders"), "/admin/orders");
+  assert.equal(flow.resolveSignInDestination(destination, "https://evil.example"), "/account");
+});

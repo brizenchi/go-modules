@@ -4,8 +4,21 @@ import {
   activeWorkspaceHref,
   auxiliaryWorkspaceItems,
   isWorkspacePath,
+  customerSignInDestination,
   workspaceNavItems
 } from "../lib/workspace";
+
+test("signing in retains a customer's purchase selection and destination", () => {
+  for (const path of [
+    "/billing?product=subscription&plan=starter&interval=yearly#plans",
+    "/billing?product=credits#credits",
+    "/notes?page=2",
+    "/account"
+  ]) assert.equal(customerSignInDestination(path), path);
+  for (const path of ["/", "/pricing", "/admin", "https://example.com/billing", "//example.com/billing"]) {
+    assert.equal(customerSignInDestination(path), "/account");
+  }
+});
 
 test("personal account routes do not capture public pages or administrator routes", () => {
   for (const path of ["/account", "/billing", "/referrals", "/billing/history", "/credits", "/notes", "/files"]) {

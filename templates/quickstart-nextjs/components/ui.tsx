@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 
 type PanelProps = {
   title: string;
@@ -30,7 +30,7 @@ type NoticeProps = {
 
 export function Notice({ tone = "default", children }: NoticeProps) {
   const className = tone === "default" ? "notice" : `notice ${tone}`;
-  return <div className={className}>{children}</div>;
+  return <div className={className} role={tone === "error" ? "alert" : "status"}>{children}</div>;
 }
 
 export function LabelPill({ children }: { children: React.ReactNode }) {
@@ -52,6 +52,15 @@ export function DetailRows({ rows }: { rows: Array<{ label: string; value: React
 
 export function EmptyState({ children }: { children: React.ReactNode }) {
   return <div className="empty-state">{children}</div>;
+}
+
+export function LoadingState({ label }: { label: string }) {
+  return <div className="loading-state" role="status" aria-label={label}>
+    <span className="loading-state-line" aria-hidden="true" />
+    <span className="loading-state-line" aria-hidden="true" />
+    <span className="loading-state-line" aria-hidden="true" />
+    <span className="loading-state-label">{label}</span>
+  </div>;
 }
 
 export function CTAButton({

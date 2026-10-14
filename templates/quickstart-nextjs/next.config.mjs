@@ -11,7 +11,11 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" }
         ]
-      }
+      },
+      ...["account", "dashboard", "billing", "referrals", "credits", "files", "notes", "admin", "login", "invite", "oauth", "api"].map(segment => ({
+        source: `/${segment}/:path*`,
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }]
+      }))
     ];
   }
 };

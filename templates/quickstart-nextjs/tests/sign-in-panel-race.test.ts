@@ -43,9 +43,10 @@ test("the sign-in panel does not expose implementation notes to end users", () =
   );
 });
 
-test("OAuth starts with a top-level backend redirect", () => {
-	assert.match(panelSource, /await getOAuthRedirectURL\(provider, returnTo\)/);
-	assert.doesNotMatch(panelSource, /getOAuthAuthorizeURL/);
+test("OAuth preserves the validated customer destination before a top-level backend redirect", () => {
+  assert.match(panelSource, /const destination = resolveSignInDestination\(`\$\{window\.location\.pathname\}\$\{window\.location\.search\}\$\{window\.location\.hash\}`, returnTo\);/);
+  assert.match(panelSource, /const (\w+) = await getOAuthRedirectURL\(provider, destination\);\s*window\.location\.href = \1;/);
+  assert.doesNotMatch(panelSource, /getOAuthAuthorizeURL/);
 });
 
 test("sign-in actions wait for backend capabilities and capability failures are retryable", () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import { SiteShell } from "@/components/site-shell";
 import { policies } from "@/content/policies";
 import { useI18n } from "@/lib/i18n";

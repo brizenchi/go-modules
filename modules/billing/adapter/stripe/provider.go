@@ -281,6 +281,37 @@ func (p *Provider) GetCheckoutSession(ctx context.Context, providerSessionID str
 	return checkoutSessionSnapshot(sess)
 }
 
+// ExpireCheckoutSession invalidates the old hosted checkout before replacement.
+func (p *Provider) ExpireCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error) {
+	if !p.cfg.Enabled {
+		return nil, domain.ErrProviderDisabled
+	}
+	providerSessionID = strings.TrimSpace(providerSessionID)
+	if providerSessionID == "" {
+		return nil, fmt.Errorf("%w: checkout session id required", domain.ErrInvalidInput)
+	}
+	params := &stripesdk.CheckoutSessionExpireParams{}
+	params.Context = ctx
+	params.SetIdempotencyKey(stableIdempotencyKey("expire-checkout", providerSessionID))
+	sess, err := session.Expire(providerSessionID, params)
+	if err != nil {
+		// A concurrent checkout completion or expiration makes Expire fail. Read the
+		// authoritative state; callers still reject open and completed sessions.
+		snapshot, stateErr := p.GetCheckoutSession(ctx, providerSessionID)
+		if stateErr == nil && snapshot != nil && (snapshot.State == domain.CheckoutSessionExpired || snapshot.State == domain.CheckoutSessionComplete) {
+			return snapshot, nil
+		}
+		return nil, fmt.Errorf("stripe: expire checkout session: %w", err)
+	}
+	if sess == nil {
+		return nil, fmt.Errorf("stripe: expiration returned empty checkout session")
+	}
+	if sess.ID != providerSessionID {
+		return nil, fmt.Errorf("stripe: expiration returned mismatched checkout session")
+	}
+	return checkoutSessionSnapshot(sess)
+}
+
 func (p *Provider) FindCheckoutSession(ctx context.Context, providerCustomerID, reservationID string) (*domain.CheckoutSessionSnapshot, error) {
 	if !p.cfg.Enabled {
 		return nil, domain.ErrProviderDisabled
@@ -912,3 +943,5 @@ func (p *Provider) releaseCompletedSchedule(ctx context.Context, sub *stripesdk.
 	}
 	return nil
 }
+
+var _ port.CheckoutSessionExpirer = (*Provider)(nil)

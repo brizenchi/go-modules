@@ -102,3 +102,16 @@ test("stale admin OAuth result cannot overwrite a newer workspace session", asyn
   assert.equal(auth.readSession()?.token, "new-workspace-session");
   assert.equal(flow.readOAuthReturnTo(challenge), "/account");
 });
+
+test("ordinary OAuth completes back at the selected billing plan and preserves that result on replay", async () => {
+  const { flow, exchange } = installOAuthBrowser();
+  const destination = "/billing?product=subscription&plan=pro&interval=yearly#plans";
+  const challenge = await flow.prepareOAuthBrowserFlow("google", destination);
+  globalThis.fetch = (async () => response(session("billing-customer", "user"))) as typeof fetch;
+  const first = await exchange.exchangeOAuthCodeOnce("billing-code", challenge);
+  assert.equal(first.committed, true);
+  assert.equal(flow.resolveOAuthReturnTo(first.returnTo, first.session.user.role), destination);
+  assert.equal(flow.readOAuthReturnTo(challenge), "/account");
+  const replay = await exchange.exchangeOAuthCodeOnce("billing-code", challenge);
+  assert.deepEqual(replay, first);
+});

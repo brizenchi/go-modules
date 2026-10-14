@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ResourceFailure, SignInRequired } from "@/components/resource-feedback";
 import { SiteShell } from "@/components/site-shell";
-import { DetailRows, EmptyState, LabelPill, Notice, Panel } from "@/components/ui";
+import { DetailRows, EmptyState, LabelPill, LoadingState, Notice, Panel } from "@/components/ui";
 import {
   getAccountProfile,
   getCapabilities,
@@ -65,11 +65,13 @@ export default function AccountPage() {
   const [ticket, setTicket] = useState<{ value: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState<"" | "profile" | "refresh" | "logout" | "ticket">("");
   const [status, setStatus] = useState("");
+  const [feedbackSection, setFeedbackSection] = useState<"profile" | "security" | "developer">("profile");
   const [actionFailure, setActionFailure] = useState<RequestFailure | null>(null);
   const capabilitiesGenerationRef = useRef(0);
   const capabilitiesMountedRef = useRef(false);
   const profileGenerationRef = useRef(0);
   const actionGenerationRef = useRef(0);
+  const refreshNoticeRef = useRef<{ token: string; message: string } | null>(null);
   const profile = profileState.data;
   const accountEnabled = capabilitiesState.status === "ready" && capabilitiesState.data.account.enabled;
   const profileDirty = Boolean(profile)
@@ -117,7 +119,8 @@ export default function AccountPage() {
     invalidateRequestGeneration(actionGenerationRef);
     setTicket(null);
     setBusy("");
-    setStatus("");
+    setStatus(refreshNoticeRef.current?.token === session?.token ? refreshNoticeRef.current?.message || "" : "");
+    refreshNoticeRef.current = null;
     setActionFailure(null);
     if (!session?.token || !accountEnabled) {
       invalidateRequestGeneration(profileGenerationRef);
@@ -148,6 +151,8 @@ export default function AccountPage() {
 
   async function handleSaveProfile() {
     if (!session || !profile) return;
+    setFeedbackSection("profile");
+    setStatus("");
     const requestToken = session.token;
     const nextUsername = username.trim();
     const nextAvatarURL = avatarURL.trim();
@@ -205,6 +210,7 @@ export default function AccountPage() {
 
   async function handleRefresh() {
     if (!session) return;
+    setFeedbackSection("security");
     const requestToken = session.token;
     const actionGeneration = beginRequestGeneration(actionGenerationRef);
     setBusy("refresh");
@@ -218,8 +224,10 @@ export default function AccountPage() {
         || currentSession.token !== requestToken
         || !isCurrentRequestGeneration(actionGenerationRef, actionGeneration)
       ) return;
+      const message = t({ en: "Session refreshed.", zh: "当前登录会话已刷新。" });
+      refreshNoticeRef.current = { token: refreshed.token, message };
       writeSession(refreshed);
-      setStatus(t({ en: "Session refreshed.", zh: "当前登录会话已刷新。" }));
+      setStatus(message);
     } catch (error) {
       if (
         readSession()?.token === requestToken
@@ -238,6 +246,8 @@ export default function AccountPage() {
   }
 
   async function handleLogout() {
+    setFeedbackSection("security");
+    setStatus("");
     const requestToken = session?.token || "";
     const actionGeneration = beginRequestGeneration(actionGenerationRef);
     setBusy("logout");
@@ -263,6 +273,7 @@ export default function AccountPage() {
 
   async function handleIssueTicket() {
     if (!session) return;
+    setFeedbackSection("developer");
     const requestToken = session.token;
     const actionGeneration = beginRequestGeneration(actionGenerationRef);
     setBusy("ticket");
@@ -308,20 +319,9 @@ export default function AccountPage() {
   return (
     <SiteShell
       eyebrow={t({ en: "Account", zh: "账户设置" })}
-      title={t({ en: "Your profile, security, and access.", zh: "管理你的资料、安全与访问。" })}
-      description={t({ en: "Keep your identity current and manage the session on this device.", zh: "更新对外展示信息，并管理当前设备上的登录状态。" })}
+      title={t({ en: "Account settings", zh: "账户设置" })}
+      description={t({ en: "Your profile and sign-in preferences, in one place.", zh: "管理个人资料与当前设备的登录状态。" })}
       accountMenuData={{ capabilities: capabilitiesState }}
-      sideTitle={t({ en: "Account status", zh: "账户状态" })}
-      sideBody={<DetailRows rows={[
-        { label: t({ en: "Email", zh: "邮箱" }), value: <span>{t({ en: "Protected by your sign-in provider", zh: "由登录服务安全保护" })}</span> },
-        { label: t({ en: "Session", zh: "登录状态" }), value: <span>{t({ en: "Active on this device", zh: "当前设备已登录" })}</span> },
-        { label: t({ en: "Profile", zh: "个人资料" }), value: <span>{t({ en: "Private until you choose to share it", zh: "默认仅自己可见" })}</span> }
-      ]} />}
-      toc={[
-        { id: "profile", label: t({ en: "Profile", zh: "个人资料" }) },
-        { id: "security", label: t({ en: "Security", zh: "会话安全" }) },
-        { id: "developer-access", label: t({ en: "Advanced access", zh: "高级访问" }) }
-      ]}
     >
       <div className="page-grid">
         {sessionReady && !session ? <div className="span-12"><SignInRequired message={t({ en: "Sign in to view and update your account.", zh: "登录后即可查看并更新账户设置。" })} /></div> : null}
@@ -350,11 +350,15 @@ export default function AccountPage() {
             </div>
           ) : profileState.status === "error" ? (
             <ResourceFailure failure={profileState.failure} onRetry={session ? () => void loadProfile(session.token) : undefined} />
+          ) : profileState.status === "loading" || !sessionReady || (session && (capabilitiesState.status === "idle" || capabilitiesState.status === "loading")) ? (
+            <LoadingState label={t({ en: "Loading profile…", zh: "正在加载账户资料…" })} />
           ) : (
-            <EmptyState>{profileState.status === "loading" ? t({ en: "Loading profile...", zh: "正在加载账户资料..." }) : t({ en: "Sign in to load your profile.", zh: "登录后即可加载账户资料。" })}</EmptyState>
+            <EmptyState>{session
+              ? t({ en: "Profile information is temporarily unavailable.", zh: "账户资料暂不可用。" })
+              : t({ en: "Sign in to load your profile.", zh: "登录后即可加载账户资料。" })}</EmptyState>
           )}
-          {status ? <Notice tone="success">{status}</Notice> : null}
-          {actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
+          {feedbackSection === "profile" && status ? <Notice tone="success">{status}</Notice> : null}
+          {feedbackSection === "profile" && actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
         </Panel>
 
         <Panel className="span-5" title={t({ en: "Account details", zh: "账户详情" })} subtitle={t({ en: "Your identity, role, balance, and account history.", zh: "查看身份、角色、积分余额和账户记录。" })}>
@@ -368,21 +372,24 @@ export default function AccountPage() {
           ]} /> : <EmptyState>{t({ en: "Account details appear after the profile loads.", zh: "账户资料加载后将在这里显示详情。" })}</EmptyState>}
         </Panel>
 
-        <Panel className="span-7" title={t({ en: "Session & security", zh: "会话与安全" })} subtitle={t({ en: "Review, refresh, or end this device session.", zh: "查看、刷新或结束当前设备的登录会话。" })}>
+        <Panel className="span-12" title={t({ en: "Sign-in & security", zh: "登录与安全" })} subtitle={t({ en: "Manage your session on this device.", zh: "管理当前设备上的登录状态。" })}>
           <div id="security" />
           {session ? <DetailRows rows={[
             { label: t({ en: "Signed in as", zh: "当前账户" }), value: <span>{session.user.email}</span> },
-            { label: t({ en: "Session credential", zh: "会话凭证" }), value: <span>{t({ en: "Stored securely on this device", zh: "已安全保存在当前设备" })}</span> },
             { label: t({ en: "Expires", zh: "有效期至" }), value: <span>{formatDate(session.expires_at, dateLocale)}</span> }
           ]} /> : <EmptyState>{t({ en: "No active session.", zh: "当前没有有效登录会话。" })}</EmptyState>}
           <div className="button-row">
             <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleRefresh()}>{busy === "refresh" ? t({ en: "Refreshing...", zh: "刷新中..." }) : t({ en: "Refresh session", zh: "刷新会话" })}</button>
             <button className="button danger" type="button" disabled={busy !== ""} onClick={() => void handleLogout()}>{busy === "logout" ? t({ en: "Signing out...", zh: "正在退出..." }) : t({ en: "Sign out", zh: "退出登录" })}</button>
           </div>
+          {feedbackSection === "security" && status ? <Notice tone="success">{status}</Notice> : null}
+          {feedbackSection === "security" && actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
         </Panel>
 
-        <Panel className="span-5" title={t({ en: "Advanced access", zh: "高级访问" })} subtitle={t({ en: "Create a short-lived credential for an approved live connection.", zh: "为已授权的实时连接生成短时有效凭证。" })}>
-          <div id="developer-access" />
+        <details className="panel account-advanced span-12" id="developer-access">
+          <summary>{t({ en: "Developer options", zh: "开发者选项" })}<span>{t({ en: "Temporary connection credentials", zh: "临时连接凭证" })}</span></summary>
+          <div className="account-advanced-body">
+          <p className="muted">{t({ en: "Create a short-lived credential when connecting an application that supports live updates.", zh: "连接支持实时更新的应用时，可在这里生成短时有效的连接凭证。" })}</p>
           {ticket ? <DetailRows rows={[
             { label: t({ en: "Ticket", zh: "临时凭证" }), value: <span className="inline-code">{ticket.value}</span> },
             { label: t({ en: "Expires", zh: "有效期至" }), value: <span>{formatDate(ticket.expiresAt, dateLocale)}</span> }
@@ -390,7 +397,10 @@ export default function AccountPage() {
           <div className="button-row">
             <button className="button" type="button" disabled={!session || busy !== ""} onClick={() => void handleIssueTicket()}>{busy === "ticket" ? t({ en: "Issuing...", zh: "生成中..." }) : t({ en: "Create credential", zh: "生成临时凭证" })}</button>
           </div>
-        </Panel>
+          {feedbackSection === "developer" && status ? <Notice tone="success">{status}</Notice> : null}
+          {feedbackSection === "developer" && actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
+          </div>
+        </details>
       </div>
     </SiteShell>
   );

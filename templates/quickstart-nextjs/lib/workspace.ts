@@ -46,3 +46,7 @@ export function activeWorkspaceHref(pathname: string): string {
 export function isWorkspacePath(pathname: string): boolean {
   return activeWorkspaceHref(pathname) !== "";
 }
+
+export function customerSignInDestination(currentPath: string): string {
+  return isWorkspacePath(currentPath) ? currentPath : "/account";
+}

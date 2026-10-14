@@ -6,14 +6,16 @@ import { SignInPanel } from "@/components/sign-in-panel";
 import type { AuthSession } from "@/lib/auth";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
+import { resolveSignInDestination } from "@/lib/oauth-flow";
 
 type SignInDialogProps = {
   open: boolean;
   onClose: () => void;
   onSuccess?: (session: AuthSession) => void;
+  returnTo?: string;
 };
 
-export function SignInDialog({ open, onClose, onSuccess }: SignInDialogProps) {
+export function SignInDialog({ open, onClose, onSuccess, returnTo }: SignInDialogProps) {
   const { t } = useI18n();
   const [mounted, setMounted] = useState(false);
 
@@ -83,6 +85,7 @@ export function SignInDialog({ open, onClose, onSuccess }: SignInDialogProps) {
             </p>
             <SignInPanel
               compact
+              returnTo={resolveSignInDestination(`${window.location.pathname}${window.location.search}${window.location.hash}`, returnTo)}
               onSuccess={(session) => {
                 onClose();
                 onSuccess?.(session);

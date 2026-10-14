@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalURL, privatePaths, publicMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
+import { canonicalURL, privateMetadata, privatePaths, publicMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
 import { articles } from "../content/articles";
 import { documentation } from "../content/docs";
 
@@ -33,4 +33,31 @@ test("guide metadata describes an article without inventing a publication date",
     assert.ok(metadata.openGraph && "type" in metadata.openGraph && metadata.openGraph.type === "article");
     assert.ok(!("publishedTime" in metadata.openGraph));
   }
+});
+
+test("localized metadata identifies its own canonical and reciprocal language alternatives", () => {
+  const metadata = publicMetadata("价格方案", "比较可用套餐", "/zh/pricing?source=guide#plans");
+  assert.equal(metadata.alternates?.canonical, `${siteOrigin}/zh/pricing`);
+  assert.deepEqual(metadata.alternates?.languages, { en: `${siteOrigin}/pricing`, "zh-CN": `${siteOrigin}/zh/pricing`, "x-default": `${siteOrigin}/pricing` });
+  assert.ok(metadata.openGraph && "locale" in metadata.openGraph && metadata.openGraph.locale === "zh_CN");
+});
+
+test("every public sitemap entry has an equivalent Chinese and English URL", () => {
+  const entries = sitemapEntries();
+  const urls = new Set(entries.map(entry => entry.url));
+  assert.ok(urls.has(`${siteOrigin}/zh`));
+  for (const entry of entries) {
+    assert.ok(entry.alternates?.languages.en);
+    assert.ok(entry.alternates?.languages["zh-CN"]);
+    assert.ok(urls.has(entry.alternates!.languages.en));
+    assert.ok(urls.has(entry.alternates!.languages["zh-CN"]));
+  }
+});
+
+test("private metadata explicitly suppresses indexing and does not inherit the homepage canonical", () => {
+  const metadata = privateMetadata("Account");
+  assert.deepEqual(metadata.robots, { index: false, follow: false });
+  assert.equal(metadata.alternates?.canonical, null);
+  assert.deepEqual(metadata.alternates?.languages, {});
+  assert.equal(metadata.openGraph, null);
 });

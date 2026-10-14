@@ -9,6 +9,10 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Added
 
+- Optional `CheckoutSessionExpirer` capability; Stripe can expire abandoned open
+  checkouts before switching to a different offer, while preserving paid and
+  concurrently completed checkout protection.
+
 - Optional `ContextWebhookParser`, `EventRetriever`, and `ScheduledChangeCanceler`
   provider capabilities; authenticated event replay and bounded Stripe event feed.
 - Scheduled plan and pending-payment snapshots, plus an authenticated scheduled

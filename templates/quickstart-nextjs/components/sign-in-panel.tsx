@@ -10,7 +10,7 @@ import {
   verifyCode,
   type OAuthProvider
 } from "@/lib/api";
-import { getOAuthRedirectURL } from "@/lib/oauth-flow";
+import { getOAuthRedirectURL, resolveSignInDestination } from "@/lib/oauth-flow";
 import { resolveAuthMethods } from "@/lib/auth-methods";
 import {
   clearReferralCode,
@@ -208,7 +208,8 @@ export function SignInPanel({
     }));
 
     try {
-      const redirectURL = await getOAuthRedirectURL(provider, returnTo);
+      const destination = resolveSignInDestination(`${window.location.pathname}${window.location.search}${window.location.hash}`, returnTo);
+      const redirectURL = await getOAuthRedirectURL(provider, destination);
       window.location.href = redirectURL;
     } catch (err) {
       setError(messageFromError(err));

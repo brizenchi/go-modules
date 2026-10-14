@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { RequestFailure } from "../lib/request-state";
 
 export function ResourceFailure({
@@ -23,7 +24,7 @@ export function ResourceFailure({
         {!compact ? (
           <div className="resource-feedback-actions">
             {failure.kind === "auth" ? (
-              <a className="button primary" href="/login">Sign in</a>
+              <Link className="button primary" href="/login">Sign in</Link>
             ) : failure.retryable && onRetry ? (
               <button className="button" type="button" onClick={onRetry}>{retryLabel}</button>
             ) : null}
@@ -42,7 +43,7 @@ export function SignInRequired({ message, title = "Sign in to continue", actionL
         <strong>{title}</strong>
         <p>{message}</p>
         <div className="resource-feedback-actions">
-          {onSignIn ? <button className="button primary" type="button" onClick={onSignIn}>{actionLabel}</button> : <a className="button primary" href="/login">{actionLabel}</a>}
+          {onSignIn ? <button className="button primary" type="button" onClick={onSignIn}>{actionLabel}</button> : <Link className="button primary" href="/login">{actionLabel}</Link>}
         </div>
       </div>
     </div>

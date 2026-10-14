@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import {
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -14,7 +16,7 @@ import { loadAccountSummary, type AccountSummary } from "@/lib/account-summary";
 import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { humanizeSegment } from "@/lib/locale";
+import { humanizeSegment, stripLocalePrefix, localizeHref, isPublicPath } from "@/lib/locale";
 import {
   describeRequestFailure,
   failedResource,
@@ -23,10 +25,12 @@ import {
 } from "@/lib/request-state";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { LanguagePicker } from "@/components/language-picker";
 import { SiteFooter } from "@/components/site-footer";
 import { publicPaths } from "@/lib/seo";
 import {
   activeWorkspaceHref,
+  customerSignInDestination,
   auxiliaryWorkspaceItems,
   isWorkspacePath,
   workspaceNavItems,
@@ -42,11 +46,10 @@ type NavItem = {
 };
 
 const topNav: NavItem[] = [
-  { href: "/", label: { en: "Overview", zh: "总览" } },
+  { href: "/features", label: { en: "Product", zh: "产品功能" } },
+  { href: "/use-cases", label: { en: "Use cases", zh: "使用场景" } },
   { href: "/pricing", label: { en: "Pricing", zh: "价格" } },
-  { href: "/docs", label: { en: "Guide", zh: "使用指南" } },
-  { href: "/blog", label: { en: "Blog", zh: "文章" } },
-  { href: "/updates", label: { en: "Updates", zh: "更新" } }
+  { href: "/resources", label: { en: "Resources", zh: "资源" } }
 ];
 
 type TOCItem = {
@@ -55,7 +58,7 @@ type TOCItem = {
 };
 
 type SiteShellProps = {
-  variant?: "article";
+  variant?: "article" | "compact";
   eyebrow: string;
   title: string;
   description: string;
@@ -72,22 +75,14 @@ type SiteShellProps = {
 type AccountMenuData = Partial<AccountSummary>;
 
 function LocaleSwitch() {
-  const { locale, setLocale } = useI18n();
-
-  return (
-    <div className="locale-switch" aria-label="Language selector">
-      {(["en", "zh"] as const).map((value) => (
-        <button
-          key={value}
-          className={`locale-chip${locale === value ? " active" : ""}`}
-          type="button"
-          onClick={() => setLocale(value)}
-        >
-          {value === "en" ? "EN" : "中文"}
-        </button>
-      ))}
-    </div>
-  );
+  const { locale, setLocale, t } = useI18n();
+  const path = usePathname() || "/";
+  return <LanguagePicker
+    locale={locale}
+    label={t({ en: "Choose language", zh: "选择语言" })}
+    destinations={isPublicPath(path) ? { en: localizeHref(path, "en"), zh: localizeHref(path, "zh") } : undefined}
+    onSelect={setLocale}
+  />;
 }
 
 function TableOfContents({
@@ -172,11 +167,33 @@ function AccountMenu({
   details?: AccountMenuData;
   onSignInSuccess?: (session: AuthSession) => void;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const dismissWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissWithEscape);
+    };
+  }, [open]);
 
   useEffect(() => {
     setOpen(false);
@@ -278,10 +295,16 @@ function AccountMenu({
     : "";
 
   return (
-    <div className="account-menu">
+    <div className="account-menu" ref={menuRef} onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    }}>
       <button
+        ref={triggerRef}
         className="avatar-button"
         type="button"
+        aria-expanded={open}
+        aria-controls={popoverId}
+        aria-label={t({ en: "Open account options", zh: "打开账户选项" })}
         onClick={() => setOpen((value) => !value)}
       >
         <span className="avatar-badge">{initials}</span>
@@ -292,7 +315,7 @@ function AccountMenu({
       </button>
 
       {open ? (
-        <div className="account-popover">
+        <div className="account-popover" id={popoverId}>
           <div className="account-popover-head">
             <span className="panel-kicker">{t({ en: "Account center", zh: "账户中心" })}</span>
             <strong>{appEnv.appName}</strong>
@@ -320,7 +343,7 @@ function AccountMenu({
           <div className="account-popover-meta">
             <div>
               <span className="panel-kicker">{t({ en: "Session expires", zh: "会话到期" })}</span>
-              <strong>{formatDate(session.expires_at)}</strong>
+              <strong>{formatDate(session.expires_at, locale)}</strong>
             </div>
           </div>
 
@@ -340,7 +363,8 @@ function AccountMenu({
 }
 
 export function SiteShell(props: SiteShellProps) {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const pathname = stripLocalePrefix(rawPathname);
   const router = useRouter();
   const isHome = pathname === "/";
   const isWorkspace = isWorkspacePath(pathname);
@@ -348,7 +372,7 @@ export function SiteShell(props: SiteShellProps) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [siteSettings, setSiteSettings] = useState(publicSiteSettingsFallback);
   const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   useEffect(() => {
     let current: AbortController | undefined;
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -412,8 +436,8 @@ export function SiteShell(props: SiteShellProps) {
   }, [session?.token]);
 
   const breadcrumbs = useMemo(
-    () => props.breadcrumbs && props.breadcrumbs.length > 0 ? props.breadcrumbs : buildBreadcrumbs(pathname),
-    [pathname, props.breadcrumbs]
+    () => (props.breadcrumbs && props.breadcrumbs.length > 0 ? props.breadcrumbs : buildBreadcrumbs(pathname)).map(item => ({ ...item, href: item.href ? localizeHref(item.href, locale) : undefined })),
+    [pathname, props.breadcrumbs, locale]
   );
 
   const navItems = useMemo(() => topNav, []);
@@ -429,15 +453,20 @@ export function SiteShell(props: SiteShellProps) {
     <AccountMenu
       session={session}
       details={mergedAccountDetails}
-      onSignInSuccess={() => router.push("/account")}
+      onSignInSuccess={() => {
+        const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        const destination = customerSignInDestination(currentPath);
+        if (destination !== currentPath) router.push(destination);
+      }}
     />
   );
 
   if (isWorkspace) {
     return (
       <div className="workspace-shell">
+        <a className="skip-content" href="#main-content">{t({ en: "Skip to content", zh: "跳到正文" })}</a>
         <aside className="workspace-sidebar">
-          <Link className="workspace-brand" href="/account">
+          <Link className="workspace-brand" href="/" aria-label={`${siteSettings.brand_name} · ${t({ en: "Back to home", zh: "返回首页" })}`}>
             <span className="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 28 28" role="img">
                 <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
@@ -446,13 +475,12 @@ export function SiteShell(props: SiteShellProps) {
             </span>
             <span className="workspace-brand-copy">
               <strong>{siteSettings.brand_name}</strong>
-              <small>{t({ en: "Account center", zh: "账户中心" })}</small>
+              <small>{t({ en: "Back to home", zh: "返回首页" })}</small>
             </span>
           </Link>
 
           <div className="workspace-status">
-            <span className="workspace-status-dot" aria-hidden="true" />
-            <span>{t({ en: "Your workspace", zh: "你的工作空间" })}</span>
+            <span>{t({ en: "PERSONAL ACCOUNT", zh: "个人账户" })}</span>
           </div>
 
           <nav className="workspace-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
@@ -468,7 +496,6 @@ export function SiteShell(props: SiteShellProps) {
                   <strong>{t(item.label)}</strong>
                   <small>{t(item.description)}</small>
                 </span>
-                <span className="workspace-nav-arrow" aria-hidden="true">↗</span>
               </Link>
             ))}
           </nav>
@@ -497,10 +524,13 @@ export function SiteShell(props: SiteShellProps) {
         <div className="workspace-main">
           <header className="workspace-topbar">
             <div className="workspace-topbar-copy">
-              <span className="workspace-mobile-mark" aria-hidden="true" />
-              <div>
+              <Link className="workspace-home-link" href="/">
+                <span aria-hidden="true">←</span>
+                <span>{t({ en: "Home", zh: "返回首页" })}</span>
+              </Link>
+              <div className="workspace-current-page">
                 <strong>{currentWorkspaceItem ? t(currentWorkspaceItem.label) : t({ en: "Account", zh: "账户中心" })}</strong>
-                <small>{currentWorkspaceItem ? t(currentWorkspaceItem.description) : siteSettings.brand_name}</small>
+                <small>{siteSettings.brand_name}</small>
               </div>
             </div>
             <div className="workspace-topbar-tools">
@@ -523,10 +553,9 @@ export function SiteShell(props: SiteShellProps) {
             ))}
           </nav>
 
-          <main className="workspace-page">
+          <main id="main-content" tabIndex={-1} className="workspace-page">
             <section className="workspace-page-header">
               <div className="workspace-page-intro">
-                <span className="eyebrow">{props.eyebrow}</span>
                 <h1>{props.title}</h1>
                 <p>{props.description}</p>
                 {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
@@ -549,7 +578,7 @@ export function SiteShell(props: SiteShellProps) {
   const hasPublicSchema = publicPaths.includes(pathname) || pathname.startsWith("/docs/") || pathname.startsWith("/blog/");
 
   return (
-    <div className={`app-shell${props.variant === "article" ? " article-shell" : ""}`}>
+    <div className={`app-shell${props.variant === "article" ? " article-shell" : props.variant === "compact" ? " compact-shell" : ""}`}>
       <a className="skip-content" href="#main-content">{t({ en: "Skip to content", zh: "跳到正文" })}</a>
       <header className="topbar">
         <div className="topbar-inner">
@@ -587,7 +616,7 @@ export function SiteShell(props: SiteShellProps) {
       </header>
 
       <main id="main-content" tabIndex={-1} className={`page-shell${isHome ? " home-page-shell" : ""}`}>
-        {!isHome ? <Breadcrumbs items={breadcrumbs} path={pathname} label={t({ en: "Breadcrumb", zh: "面包屑导航" })} structured={hasPublicSchema} /> : null}
+        {!isHome ? <Breadcrumbs items={breadcrumbs} path={rawPathname} label={t({ en: "Breadcrumb", zh: "面包屑导航" })} structured={hasPublicSchema} /> : null}
         <Content aria-label={props.variant === "article" ? props.title : undefined}>
           <section className={`hero-grid${isHome ? " home-hero" : ""}`}>
             <div className="hero-main-card">
@@ -598,7 +627,7 @@ export function SiteShell(props: SiteShellProps) {
               {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
             </div>
 
-            {props.variant !== "article" ? <div className="hero-side-stack">
+            {!props.variant ? <div className="hero-side-stack">
               <div className="hero-side-card">
                 <div className="panel-title-row compact">
                   <div>
@@ -611,7 +640,7 @@ export function SiteShell(props: SiteShellProps) {
               </div>
 
               <TableOfContents
-                items={props.toc}
+                items={isHome ? undefined : props.toc}
                 title={t({ en: "On this page", zh: "本页目录" })}
               />
             </div> : null}

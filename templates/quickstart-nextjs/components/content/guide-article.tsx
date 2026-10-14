@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import { SiteShell } from "@/components/site-shell";
 import { StructuredData } from "@/components/structured-data";
 import { documentation, documentationGroups, type DocumentationSection } from "@/content/docs";
 import { articleStructuredData } from "@/lib/structured-data";
+import { localizeHref } from "@/lib/locale";
 import { useI18n } from "@/lib/i18n";
 import { ReadingLayout } from "./reading-layout";
 import styles from "./reading-layout.module.css";
@@ -35,7 +36,7 @@ export function GuideArticle({ guide }: { guide: DocumentationSection }) {
       sideBody={<div><span>{t({ en: "Setup guide", zh: "配置指南" })}</span><Link href="/docs">{t({ en: "← All guides", zh: "← 全部指南" })}</Link></div>}
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { href: "/docs", label: t({ en: "Guide", zh: "使用指南" }) }, { label: t(guide.title) }]}
     >
-      <StructuredData data={articleStructuredData({ title: t(guide.title), description: t(guide.summary), path: `/docs/${guide.id}`, language: locale === "zh" ? "zh-CN" : "en" })} />
+      <StructuredData data={articleStructuredData({ title: t(guide.title), description: t(guide.summary), path: localizeHref(`/docs/${guide.id}`, locale), language: locale === "zh" ? "zh-CN" : "en" })} />
       <ReadingLayout toc={toc} title={t({ en: "On this page", zh: "本页目录" })} supportLabel={t({ en: "Need help with this guide?", zh: "阅读中遇到问题？" })}>
         <section id="overview"><h2>{labels.overview}</h2>{guide.paragraphs.map((paragraph, index) => <p key={index}>{t(paragraph)}</p>)}</section>
         {guide.items?.length ? <section id="details"><h2>{guide.ordered ? labels.steps : labels.details}</h2>

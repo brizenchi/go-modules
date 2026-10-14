@@ -129,3 +129,11 @@ type EventRetriever interface {
 type ContextWebhookParser interface {
 	VerifyAndParseWebhookContext(context.Context, []byte, string) (*WebhookParseResult, error)
 }
+
+// CheckoutSessionExpirer is an optional provider capability for replacing an
+// abandoned checkout. It returns authoritative state after attempting expiration;
+// only an expired, unpaid session is proof that the old URL cannot accept payment.
+// A session completed concurrently must never be treated as expired.
+type CheckoutSessionExpirer interface {
+	ExpireCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error)
+}

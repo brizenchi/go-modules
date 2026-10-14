@@ -168,6 +168,12 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (*Checko
 						return reusableCheckoutResult(reservation, recovered)
 					}
 				}
+				if reservation.IntentKey != intentKey {
+					recovered, err = s.expireAbandonedCheckout(ctx, recovered, reservation.SessionID)
+					if err != nil {
+						return nil, err
+					}
+				}
 				canReplace := recovered == nil || recovered.State == domain.CheckoutSessionExpired || recovered.State == domain.CheckoutSessionFailed
 				if recovered != nil && recovered.State == domain.CheckoutSessionComplete && terminalEntitlementMatchesReservation(cust, reservation) {
 					canReplace = true
@@ -201,6 +207,12 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (*Checko
 			}
 			if providerSession != nil && providerSession.State == domain.CheckoutSessionOpen && reservation.IntentKey == intentKey {
 				return reusableCheckoutResult(reservation, providerSession)
+			}
+			if reservation.IntentKey != intentKey {
+				providerSession, err = s.expireAbandonedCheckout(ctx, providerSession, reservation.SessionID)
+				if err != nil {
+					return nil, err
+				}
 			}
 			canReplace := providerSession != nil && (providerSession.State == domain.CheckoutSessionExpired || providerSession.State == domain.CheckoutSessionFailed)
 			if providerSession != nil && providerSession.State == domain.CheckoutSessionComplete && terminalEntitlementMatchesReservation(cust, reservation) {
@@ -306,4 +318,28 @@ func hasConflictingPaidEntitlement(customer port.Customer) bool {
 		// provider subscription ID may still produce recurring charges.
 		return true
 	}
+}
+
+// Never replace a payable URL using only local expiration or a stale status read.
+// The provider atomically expires the old session before the repository CAS can
+// give a new request ownership of the reservation.
+func (s *CheckoutService) expireAbandonedCheckout(ctx context.Context, snapshot *domain.CheckoutSessionSnapshot, sessionID string) (*domain.CheckoutSessionSnapshot, error) {
+	if snapshot == nil || snapshot.State != domain.CheckoutSessionOpen {
+		return snapshot, nil
+	}
+	expirer, ok := s.provider.(port.CheckoutSessionExpirer)
+	if !ok {
+		return snapshot, nil
+	}
+	if snapshot.SessionID != sessionID || sessionID == "" || snapshot.PaymentStatus != "unpaid" {
+		return nil, domain.ErrSubscriptionCheckoutConflict
+	}
+	expired, err := expirer.ExpireCheckoutSession(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("billing: expire abandoned checkout: %w", err)
+	}
+	if expired == nil || expired.SessionID != sessionID || expired.State != domain.CheckoutSessionExpired || expired.PaymentStatus != "unpaid" {
+		return nil, domain.ErrSubscriptionCheckoutConflict
+	}
+	return expired, nil
 }
