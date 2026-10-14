@@ -13,6 +13,7 @@ The composition root and product code of a SaaS. Root `AGENTS.md` still applies.
 | Protect paid routes and test payment lifecycle | Read [BILLING_TESTING.md](BILLING_TESTING.md); edit `Evaluate` in `internal/feature/membership/membership.go` and mount `membership.Require`. |
 | Choose or replace a provider (OAuth, email, payment) | `internal/platform/*_provider.go` |
 | Product configuration | `internal/hostcfg` (not `platform.Config`) |
+| Query, grant, consume or refund credits | `deps.Credits` (`internal/credit/service.go`); read [CREDITS_SERVICE.md](CREDITS_SERVICE.md). Never change balances directly in features. |
 | User fields | `internal/user` + a new SQL file in `migrations/` when existing data changes |
 | Business metrics / spans | event subscriptions in `internal/bootstrap`, using `otel.Meter("quickstart")` |
 

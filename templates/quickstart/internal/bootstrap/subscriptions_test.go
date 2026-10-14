@@ -407,7 +407,7 @@ func TestReferralRewardRetriesOnlyMissingSide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deps := hostapi.Deps{DB: db, Users: modules.Users, Modules: modules}
+	deps := hostapi.Deps{DB: db, Users: modules.Users, Modules: modules}.WithServices()
 	ref := referraldomain.Referral{ID: 42, ReferrerID: inviter.UserID, RefereeID: "missing-invitee", RewardCredits: 20}
 	event := referralevent.ReferralActivated{Referral: ref}
 	if err := onReferralActivated(t.Context(), deps, referralevent.Envelope{}, event); err == nil {

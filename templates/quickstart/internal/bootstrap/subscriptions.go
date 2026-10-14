@@ -19,6 +19,7 @@ import (
 // subscribeModuleEvents is the template-owned composition point.
 // Delete, reorder or replace any subscription in a copied SaaS.
 func subscribeModuleEvents(deps hostapi.Deps) {
+	deps = deps.WithServices()
 	modules := deps.Modules
 	if modules.Auth != nil {
 		modules.Auth.Subscribe(authevent.KindUserSignedUp, func(ctx context.Context, envelope authevent.Envelope) error {

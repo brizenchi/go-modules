@@ -110,7 +110,7 @@ func New() (app *App, err error) {
 		slog.Info("host models migrated", "count", len(models))
 	}
 
-	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: cfg.Host, ServiceSettings: serviceSettings}
+	deps := hostapi.Deps{DB: db, Modules: modules, Users: modules.Users, Config: cfg.Host, ServiceSettings: serviceSettings}.WithServices()
 	subscribeModuleEvents(deps)
 
 	router := apphttp.NewRouter(modules, deps)

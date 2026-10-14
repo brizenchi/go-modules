@@ -11,8 +11,8 @@ import (
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 	referraldomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	referralevent "github.com/brizenchi/go-modules/modules/referral/event"
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
-	"github.com/brizenchi/quickstart-template/internal/user"
 )
 
 // 这些函数就是当前 SaaS 的业务回调。共享模块只发布事件；
@@ -20,7 +20,7 @@ import (
 
 func onUserSignedUp(ctx context.Context, deps hostapi.Deps, _ authevent.Envelope, event authevent.UserSignedUp) error {
 	if deps.Config.SignupCredits > 0 {
-		if err := deps.Users.GrantCredits(ctx, event.Identity.UserID, "signup", event.Identity.UserID, deps.Config.SignupCredits); err != nil {
+		if err := deps.Credits.GrantCredits(ctx, event.Identity.UserID, "signup", event.Identity.UserID, deps.Config.SignupCredits); err != nil {
 			return fmt.Errorf("grant signup credits: %w", err)
 		}
 	}
@@ -102,7 +102,7 @@ func onCreditsPurchased(ctx context.Context, deps hostapi.Deps, envelope billing
 	if event.TotalCredits == 0 {
 		return nil
 	}
-	if err := deps.Users.GrantCredits(ctx, envelope.UserID, "stripe", envelope.ProviderEventID, event.TotalCredits); err != nil {
+	if err := deps.Credits.GrantCredits(ctx, envelope.UserID, "stripe", envelope.ProviderEventID, event.TotalCredits); err != nil {
 		return fmt.Errorf("apply purchased credits: %w", err)
 	}
 	return nil
@@ -131,13 +131,13 @@ func grantReferralCredits(ctx context.Context, deps hostapi.Deps, ref referraldo
 		return fmt.Errorf("grant referral credits: invalid referral")
 	}
 	sourceID := strconv.FormatUint(ref.ID, 10)
-	if _, err := deps.Users.GrantCreditsWithExpiry(ctx, user.CreditGrantInput{
+	if _, err := deps.Credits.GrantCreditsWithExpiry(ctx, credit.Grant{
 		UserID: ref.ReferrerID, Source: source + "_inviter", SourceID: sourceID,
 		Amount: referralInviterCredits, Reason: inviterReason,
 	}); err != nil {
 		return fmt.Errorf("grant inviter credits: %w", err)
 	}
-	if _, err := deps.Users.GrantCreditsWithExpiry(ctx, user.CreditGrantInput{
+	if _, err := deps.Credits.GrantCreditsWithExpiry(ctx, credit.Grant{
 		UserID: ref.RefereeID, Source: source + "_invitee", SourceID: sourceID,
 		Amount: referralInviteeCredits, Reason: inviteeReason,
 	}); err != nil {

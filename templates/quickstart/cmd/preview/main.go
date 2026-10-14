@@ -12,6 +12,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"log"
 	"net"
 	"net/http"
@@ -194,7 +195,7 @@ func installPreviewListeners(modules *platform.Modules) {
 		return err
 	}
 	modules.Auth.Subscribe(authevent.KindUserSignedUp, func(ctx context.Context, event authevent.Envelope) error {
-		return errors.Join(attribute(ctx, event.UserID), modules.Users.GrantCredits(ctx, event.UserID, "signup", event.UserID, previewInitialCredits))
+		return errors.Join(attribute(ctx, event.UserID), credit.New(modules.Users).GrantCredits(ctx, event.UserID, "signup", event.UserID, previewInitialCredits))
 	})
 	modules.Auth.Subscribe(authevent.KindUserLoggedIn, func(ctx context.Context, event authevent.Envelope) error {
 		payload, ok := event.Payload.(authevent.UserLoggedIn)

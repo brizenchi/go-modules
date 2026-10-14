@@ -2,6 +2,7 @@ package operations
 
 import (
 	"fmt"
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"strconv"
 	"strings"
 	"time"
@@ -120,15 +121,15 @@ func (m *Module) users(c *gin.Context) {
 	if queryFailed(c, q.Order("created_at DESC, id DESC").Offset((p.page-1)*p.limit).Limit(p.limit).Find(&items).Error) {
 		return
 	}
-	users := m.deps.Users
-	if users == nil {
-		users = user.NewRepository(db)
+	credits := m.deps.Credits
+	if credits == nil {
+		credits = credit.New(user.NewRepository(db))
 	}
 	for i := range items {
 		if items[i].CreditsVersion != 1 {
 			continue
 		}
-		summary, err := users.GetCreditSummary(c.Request.Context(), items[i].ID)
+		summary, err := credits.GetCreditSummary(c.Request.Context(), items[i].ID)
 		if queryFailed(c, err) {
 			return
 		}

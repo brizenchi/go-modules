@@ -24,11 +24,12 @@ import (
 // Shared auth / billing / referral routes are already mounted by the time
 // this runs; do not re-declare them here.
 func registerHostRoutes(deps hostapi.Deps, g hostapi.Groups) {
+	deps = deps.WithServices()
 	account.New(deps.Users).Register(g)
 	membership.Register(deps, g)
 	note.New(deps.DB).Register(g)
 	operations.New(deps).Register(g)
-	credits.New(deps.Users, credits.WithExportCost(func(ctx context.Context) (int64, error) {
+	credits.NewWithService(deps.DB, deps.Credits, credits.WithExportCost(func(ctx context.Context) (int64, error) {
 		settings, err := operations.ReadSettings(ctx, deps.DB)
 		return settings.ExportCreditCost, err
 	})).Register(g)

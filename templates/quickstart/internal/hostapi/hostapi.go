@@ -10,6 +10,7 @@
 package hostapi
 
 import (
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 	"github.com/brizenchi/quickstart-template/internal/platform"
 	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
@@ -40,10 +41,22 @@ type Deps struct {
 	// Users is this SaaS's own repository, not a shared user module.
 	Users *user.Repository
 
+	// Credits is the shared entry point for credit business operations.
+	Credits *credit.Service
+
 	// Config is your own business config from internal/hostcfg.
 	Config hostcfg.Config
 
 	// ServiceSettings manages administrator-owned provider configuration. Saved
 	// changes apply on the next backend start; nil disables configuration editing.
 	ServiceSettings *serviceconfig.Manager
+}
+
+// WithServices supports composition roots and existing hosts that supply Users.
+// Call once during construction; explicitly injected services are preserved.
+func (d Deps) WithServices() Deps {
+	if d.Credits == nil && d.Users != nil {
+		d.Credits = credit.New(d.Users)
+	}
+	return d
 }

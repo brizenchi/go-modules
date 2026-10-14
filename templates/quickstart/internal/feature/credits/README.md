@@ -5,7 +5,7 @@ earliest-expiry-first spending, and one full refund per consumption. Credit lots
 ledger entries, allocations, and `users.credits` change in one transaction under
 the user's database row lock. Updating a profile cannot overwrite the balance.
 
-Register `credits.New(deps.Users).Register(groups)` and add `credits.Models()` to
+Register `credits.NewWithService(deps.DB, deps.Credits).Register(groups)` and add `credits.Models()` to
 host model registration. `user.Models()` includes the ledger tables. Inject a
 validated setting using `credits.WithExportCost(func(context.Context) (int64,
 error))`; the default note export costs **1 credit**, with an accepted configured
@@ -87,3 +87,5 @@ database work: callback failure rolls back the charge, and a retry may succeed.
 An external job should store its outbox/job row in that callback, then process it
 outside the transaction. `AddCredits` is retained for old hosts but cannot make a
 caller's retries idempotent; prefer operations with a stable source key.
+
+Public credit business API and examples: [CREDITS_SERVICE.md](../../../CREDITS_SERVICE.md).

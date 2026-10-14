@@ -7,8 +7,7 @@ import (
 	"strconv"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
-	"github.com/brizenchi/quickstart-template/internal/feature/note"
-	"github.com/brizenchi/quickstart-template/internal/user"
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -55,18 +54,12 @@ func (m *Module) exportNote(c *gin.Context) {
 // a successful request returns that snapshot even after the note or price changes.
 func (m *Module) ExportNote(ctx context.Context, userID string, noteID uint64, key string, expectedCost int64) (*ExportResult, error) {
 	if !validRequestKey(key) || noteID == 0 || expectedCost < 1 || expectedCost > 1_000_000 {
-		return nil, user.ErrInvalidCreditOperation
+		return nil, credit.ErrInvalidOperation
 	}
-	lookup := func() (*NoteExport, error) {
-		var saved NoteExport
-		err := m.users.DB().WithContext(ctx).Where("user_id = ? AND idempotency_key = ?", userID, key).Take(&saved).Error
-		if err == nil && saved.NoteID != noteID {
-			return nil, user.ErrCreditConflict
-		}
-		return &saved, err
-	}
+	repository := exportRepository{db: m.db}
+	lookup := func() (*NoteExport, error) { return repository.find(ctx, userID, key, noteID) }
 	result := func(saved *NoteExport) (*ExportResult, error) {
-		summary, err := m.users.GetCreditSummary(ctx, userID)
+		summary, err := m.service.GetCreditSummary(ctx, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -80,8 +73,7 @@ func (m *Module) ExportNote(ctx context.Context, userID string, noteID uint64, k
 		return nil, err
 	}
 	// Ownership is checked before revealing an insufficient balance or charging.
-	var owned note.Note
-	if err := m.users.DB().WithContext(ctx).Where("id = ? AND user_id = ?", noteID, userID).Take(&owned).Error; err != nil {
+	if err := repository.checkOwner(ctx, userID, noteID); err != nil {
 		return nil, err
 	}
 	cost, err := m.exportCost(ctx)
@@ -89,21 +81,15 @@ func (m *Module) ExportNote(ctx context.Context, userID string, noteID uint64, k
 		return nil, err
 	}
 	if cost < 1 || cost > 1_000_000 {
-		return nil, user.ErrInvalidCreditOperation
+		return nil, credit.ErrInvalidOperation
 	}
 	if cost != expectedCost {
 		return nil, ErrExportPriceChanged
 	}
-	_, err = m.users.ConsumeCreditsAndDo(ctx, user.CreditConsumption{UserID: userID, Source: "note_export", SourceID: userID + ":" + key, Amount: cost, Reason: fmt.Sprintf("Export note %d", noteID)}, func(tx *gorm.DB, entry *user.CreditTransaction) error {
-		// Recheck ownership and read the content under the billing transaction.
-		var current note.Note
-		if err := tx.Where("id = ? AND user_id = ?", noteID, userID).Take(&current).Error; err != nil {
-			return err
-		}
-		saved := NoteExport{UserID: userID, IdempotencyKey: key, NoteID: noteID, TransactionID: entry.ID, Filename: fmt.Sprintf("note-%d.md", noteID), Content: "# " + current.Title + "\n\n" + current.Body + "\n"}
-		return tx.Create(&saved).Error
+	_, err = m.service.ConsumeCreditsAndDo(ctx, credit.Consumption{UserID: userID, Source: "note_export", SourceID: userID + ":" + key, Amount: cost, Reason: fmt.Sprintf("Export note %d", noteID)}, func(tx *gorm.DB, entry *credit.Transaction) error {
+		return repository.saveInTransaction(ctx, tx, userID, key, noteID, entry)
 	})
-	if err != nil && !errors.Is(err, user.ErrCreditConflict) {
+	if err != nil && !errors.Is(err, credit.ErrConflict) {
 		return nil, err
 	}
 	// Another request with the same key may have committed at a different price;

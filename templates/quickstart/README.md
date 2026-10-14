@@ -305,3 +305,7 @@ go build ./...
 - `internal/user/auth_store_test.go`：用户字段与 auth 边界；
 - `internal/platform/modules_test.go`：模块启停和 GitHub-only；
 - `internal/bootstrap/subscriptions_test.go`：注册、购买和邀请奖励组合。
+
+## 公共积分服务
+
+业务统一通过 `deps.Credits` 查询、发放、消费和退回积分。调用示例与分层说明见 [CREDITS_SERVICE.md](CREDITS_SERVICE.md)。

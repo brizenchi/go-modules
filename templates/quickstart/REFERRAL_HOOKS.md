@@ -40,3 +40,5 @@
 8. 购买积分包只按实际包数发购买积分，不触发上述付费邀请奖励。
 
 后端验证：`go vet ./...` 和 `go test -race ./...`。
+
+积分回调统一调用 `deps.Credits`，使用说明见 [CREDITS_SERVICE.md](CREDITS_SERVICE.md)。

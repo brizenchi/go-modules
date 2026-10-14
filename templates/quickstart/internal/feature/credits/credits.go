@@ -4,6 +4,8 @@ package credits
 
 import (
 	"context"
+	"github.com/brizenchi/quickstart-template/internal/credit"
+	"gorm.io/gorm"
 	"time"
 
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
@@ -27,7 +29,8 @@ func (NoteExport) TableName() string { return "note_exports" }
 func Models() []any                  { return []any{&NoteExport{}} }
 
 type Module struct {
-	users      *user.Repository
+	db         *gorm.DB
+	service    *credit.Service
 	exportCost func(context.Context) (int64, error)
 }
 type Option func(*Module)
@@ -39,15 +42,24 @@ func WithExportCost(resolve func(context.Context) (int64, error)) Option {
 		}
 	}
 }
+
+// New is retained for copied hosts. New code injects the shared service with NewWithService.
 func New(users *user.Repository, options ...Option) *Module {
-	m := &Module{users: users, exportCost: func(context.Context) (int64, error) { return DefaultExportCost, nil }}
+	if users == nil {
+		return &Module{}
+	}
+	return NewWithService(users.DB(), credit.New(users), options...)
+}
+
+func NewWithService(db *gorm.DB, service *credit.Service, options ...Option) *Module {
+	m := &Module{db: db, service: service, exportCost: func(context.Context) (int64, error) { return DefaultExportCost, nil }}
 	for _, option := range options {
 		option(m)
 	}
 	return m
 }
 func (m *Module) Register(groups hostapi.Groups) {
-	if m == nil || m.users == nil {
+	if m == nil || m.service == nil || m.db == nil {
 		return
 	}
 	if groups.User != nil {

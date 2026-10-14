@@ -24,7 +24,7 @@ type Module struct {
 	storageErr  error
 }
 
-func New(deps hostapi.Deps) *Module { return &Module{deps: deps} }
+func New(deps hostapi.Deps) *Module { return &Module{deps: deps.WithServices()} }
 
 func (m *Module) Register(g hostapi.Groups) {
 	if g.Public != nil {

@@ -12,7 +12,7 @@ import (
 	"github.com/brizenchi/go-modules/foundation/httpresp"
 	authdomain "github.com/brizenchi/go-modules/modules/auth/domain"
 	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
-	"github.com/brizenchi/quickstart-template/internal/user"
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -61,11 +61,11 @@ func failure(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		httpresp.NotFound(c, "not found")
-	case errors.Is(err, user.ErrInvalidCreditOperation):
+	case errors.Is(err, credit.ErrInvalidOperation):
 		httpresp.BadRequest(c, err.Error())
-	case errors.Is(err, user.ErrInsufficientCredits), errors.Is(err, user.ErrCreditConflict), errors.Is(err, user.ErrCreditAlreadyRefunded), errors.Is(err, ErrExportPriceChanged):
+	case errors.Is(err, credit.ErrInsufficientCredits), errors.Is(err, credit.ErrConflict), errors.Is(err, credit.ErrAlreadyRefunded), errors.Is(err, ErrExportPriceChanged):
 		httpresp.Conflict(c, err.Error())
-	case errors.Is(err, user.ErrCreditMigrationRequired):
+	case errors.Is(err, credit.ErrMigrationRequired):
 		httpresp.Custom(c, http.StatusServiceUnavailable, http.StatusServiceUnavailable, err.Error(), nil)
 	default:
 		httpresp.InternalError(c, "credit operation failed")
@@ -77,7 +77,7 @@ func (m *Module) summary(c *gin.Context) {
 	if id == nil {
 		return
 	}
-	result, err := m.users.GetCreditSummary(c.Request.Context(), id.UserID)
+	result, err := m.service.GetCreditSummary(c.Request.Context(), id.UserID)
 	if err != nil {
 		failure(c, err)
 		return
@@ -89,20 +89,24 @@ func (m *Module) transactions(c *gin.Context) {
 	if id == nil {
 		return
 	}
-	m.list(c, id.UserID)
+	m.list(c, id.UserID, false)
 }
 func (m *Module) adminTransactions(c *gin.Context) {
 	if identity(c, true) == nil {
 		return
 	}
-	m.list(c, strings.TrimSpace(c.Query("user_id")))
+	m.list(c, strings.TrimSpace(c.Query("user_id")), true)
 }
-func (m *Module) list(c *gin.Context, userID string) {
+func (m *Module) list(c *gin.Context, userID string, admin bool) {
 	page, limit, ok := pagination(c)
 	if !ok {
 		return
 	}
-	result, err := m.users.ListCreditTransactions(c.Request.Context(), userID, page, limit)
+	list := m.service.ListCreditTransactions
+	if admin {
+		list = m.service.ListAdminTransactions
+	}
+	result, err := list(c.Request.Context(), userID, page, limit)
 	if err != nil {
 		failure(c, err)
 		return
@@ -148,7 +152,7 @@ func (m *Module) grant(c *gin.Context) {
 		httpresp.BadRequest(c, "reason and idempotency_key (8–128 characters) are required")
 		return
 	}
-	entry, err := m.users.GrantCreditsWithExpiry(c.Request.Context(), user.CreditGrantInput{UserID: req.UserID, Amount: req.Amount, ExpiresAt: req.ExpiresAt, Reason: req.Reason, ActorID: id.UserID, Source: "admin_grant", SourceID: id.UserID + ":" + req.IdempotencyKey})
+	entry, err := m.service.GrantCreditsWithExpiry(c.Request.Context(), credit.Grant{UserID: req.UserID, Amount: req.Amount, ExpiresAt: req.ExpiresAt, Reason: req.Reason, ActorID: id.UserID, Source: "admin_grant", SourceID: id.UserID + ":" + req.IdempotencyKey})
 	if err != nil {
 		failure(c, err)
 		return
@@ -168,20 +172,15 @@ func (m *Module) refund(c *gin.Context) {
 		httpresp.BadRequest(c, "reason and idempotency_key (8–128 characters) are required")
 		return
 	}
-	original, err := m.users.FindCreditTransaction(c.Request.Context(), req.TransactionID)
-	if err != nil {
-		failure(c, err)
-		return
-	}
-	entry, err := m.users.RefundCredits(c.Request.Context(), user.CreditRefundInput{UserID: original.UserID, TransactionID: req.TransactionID, Reason: req.Reason, ActorID: id.UserID, SourceID: id.UserID + ":" + req.IdempotencyKey})
+	entry, err := m.service.RefundByAdmin(c.Request.Context(), req.TransactionID, id.UserID, req.IdempotencyKey, req.Reason)
 	if err != nil {
 		failure(c, err)
 		return
 	}
 	m.mutationResult(c, entry)
 }
-func (m *Module) mutationResult(c *gin.Context, entry *user.CreditTransaction) {
-	summary, err := m.users.GetCreditSummary(c.Request.Context(), entry.UserID)
+func (m *Module) mutationResult(c *gin.Context, entry *credit.Transaction) {
+	summary, err := m.service.GetCreditSummary(c.Request.Context(), entry.UserID)
 	if err != nil {
 		failure(c, err)
 		return
