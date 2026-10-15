@@ -25,7 +25,7 @@ export default function FilesPage() {
   }
   function view(item: UploadedImage) { void action.run(() => getPrivateImage(token, item.id), (blob) => setPreview({ owner: token, url: URL.createObjectURL(blob), file: item })); }
   const invalid = file && (file.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type));
-  return <SiteShell eyebrow={t({ en: "Private files", zh: "我的文件" })} title={t({ en: "Your images, in one place.", zh: "上传图片，私有保存。" })} description={t({ en: "Upload images for your work. Files require your account to access and are never exposed as public links.", zh: "上传工作所需的图片，文件仅限当前账号访问。" })}>
+  return <SiteShell eyebrow={t({ en: "Developer example", zh: "开发示例" })} title={t({ en: "Private image upload example", zh: "私有图片上传示例" })} description={t({ en: "A replaceable example of storage integration and resource ownership. Your product defines how uploaded files are used.", zh: "演示存储接入、上传与资源归属校验。它是可替换示例，实际文件用途由产品定义。" })}>
     <ConsoleGate session={session} ready={ready}><div className={styles.stack}>
       <ConsoleError error={action.error} /><ConsoleError error={files.error} retry={() => void files.refresh()} />
       {action.message ? <p role="status" className={styles.success}>{action.message}</p> : null}

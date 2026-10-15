@@ -5,13 +5,21 @@ import { Suspense, useCallback, useEffect, useRef, useState, type FormEvent } fr
 import { useSearchParams } from "next/navigation";
 import adminStyles from "./admin-shell.module.css";
 import { Panel } from "./ui";
-import { ConsoleError, ConsoleGate, Pagination, consoleStyles as styles, newIntentKey, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
+import { ConsoleError, ConsoleGate, consoleStyles as styles, newIntentKey, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
 import { useI18n } from "@/lib/i18n";
 import { formatDate } from "@/lib/format";
 import { getBusinessSettings, getOperatorOverview, grantCredits, listCreditTransactions, listOperator, refundCredits, retryReferralReward, saveBusinessSettings, type BusinessSettings, type PageResult } from "@/lib/operations-api";
 import { SITE_SETTINGS_EVENT } from "@/lib/site-settings";
-import { adminSections, adminSectionNames } from "@/lib/admin-navigation";
+import { adminSections, adminSectionNames, adminSectionDescriptions, adminSectionHref } from "@/lib/admin-navigation";
 import { IntegrationsConsole } from "./integrations-console";
+import { AdminPageHeader } from "./admin-page-header";
+import { DataTable, type DataColumn } from "./data-table";
+import { StatusBadge } from "./status-badge";
+import { ResponsiveDialog } from "./responsive-dialog";
+import { PendingLabel } from "./pending-label";
+import { CustomerPageLoading } from "./customer-page-loading";
+import { InterfaceIcon } from "./interface-icon";
+import { adminTag } from "@/lib/admin-presentation";
 
 export const operatorSections = adminSections;
 export type OperatorSection = typeof operatorSections[number];
@@ -19,7 +27,7 @@ type Row = Record<string, unknown>;
 const names = adminSectionNames;
 const columns: Partial<Record<OperatorSection, Array<[string, { en: string; zh: string }]>>> = {
   users: [["email", { en: "Email", zh: "邮箱" }], ["id", { en: "Account ID", zh: "账号 ID" }], ["role", { en: "Role", zh: "角色" }], ["credits", { en: "Credits", zh: "积分" }], ["created_at", { en: "Joined", zh: "注册时间" }]],
-  orders: [["livemode", { en: "Environment", zh: "环境" }], ["id", { en: "Payment reference", zh: "支付编号" }], ["user_id", { en: "Account", zh: "账号" }], ["amount", { en: "Amount", zh: "金额" }], ["status", { en: "Status", zh: "状态" }], ["created_at", { en: "Recorded", zh: "记录时间" }]],
+  orders: [["livemode", { en: "Environment", zh: "环境" }], ["id", { en: "Payment reference", zh: "支付编号" }], ["user_id", { en: "Account", zh: "账号" }], ["amount", { en: "Amount (minor units)", zh: "金额（最小单位）" }], ["status", { en: "Status", zh: "状态" }], ["created_at", { en: "Recorded", zh: "记录时间" }]],
   subscriptions: [["user_id", { en: "Account", zh: "账号" }], ["plan", { en: "Plan", zh: "套餐" }], ["status", { en: "Status", zh: "状态" }], ["provider_subscription_id", { en: "Subscription", zh: "订阅编号" }], ["period_end", { en: "Period end", zh: "本期截止" }]],
   referrals: [["referrer_id", { en: "Inviter", zh: "邀请人" }], ["referee_id", { en: "Invitee", zh: "受邀人" }], ["status", { en: "Status", zh: "状态" }], ["reward_credits", { en: "Reward", zh: "奖励积分" }], ["expires_at", { en: "Deadline", zh: "奖励截止" }]],
   credits: [["id", { en: "Transaction", zh: "流水编号" }], ["user_id", { en: "Account", zh: "账号" }], ["kind", { en: "Type", zh: "类型" }], ["amount", { en: "Credits", zh: "积分变动" }], ["reason", { en: "Reason", zh: "原因" }], ["created_at", { en: "Recorded", zh: "时间" }]],
@@ -42,6 +50,7 @@ function OperatorConsoleInner({ section }: { section: Exclude<OperatorSection, "
   const [amount, setAmount] = useState("50");
   const [expiry, setExpiry] = useState("");
   const [refundID, setRefundID] = useState("");
+  const [creditAction, setCreditAction] = useState<"grant" | "refund" | null>(null);
   const [selectedReferral, setSelectedReferral] = useState<number | null>(null);
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const action = useConsoleAction(token);
@@ -51,7 +60,7 @@ function OperatorConsoleInner({ section }: { section: Exclude<OperatorSection, "
     if (intent.current.payload !== serialized || !intent.current.key) intent.current = { payload: serialized, key: newIntentKey() };
     return intent.current.key;
   }
-  useEffect(() => { setPage(1); setSearch(""); setQuery(""); setStatus(""); setReason(""); setSelectedReferral(null); setSettings(null); setTarget(""); setRefundID(""); setExpiry(""); intent.current = { payload: "", key: "" }; }, [section, token]);
+  useEffect(() => { setPage(1); setSearch(""); setQuery(""); setStatus(""); setReason(""); setSelectedReferral(null); setCreditAction(null); setSettings(null); setTarget(""); setRefundID(""); setExpiry(""); intent.current = { payload: "", key: "" }; }, [section, token]);
   useEffect(() => { if (section === "credits") { const userID = params.get("user_id") || ""; setTarget(userID); setQuery(userID); setSearch(userID); } }, [params, section, token]);
   const loader = useCallback(async (currentToken: string): Promise<unknown> => {
     if (section === "overview") return getOperatorOverview(currentToken);
@@ -63,7 +72,7 @@ function OperatorConsoleInner({ section }: { section: Exclude<OperatorSection, "
   useEffect(() => { if (section === "settings" && resource.data) setSettings(resource.data as BusinessSettings); }, [resource.data, section]);
   const result = resource.data && section !== "overview" && section !== "settings" ? resource.data as PageResult<Row> : null;
   const overview = section === "overview" ? resource.data as Record<string, number> | null : null;
-  function success(message: string) { action.setMessage(message); setReason(""); intent.current = { payload: "", key: "" }; setSelectedReferral(null); void resource.refresh(); }
+  function success(message: string) { action.setMessage(message); setReason(""); intent.current = { payload: "", key: "" }; setSelectedReferral(null); setCreditAction(null); void resource.refresh(); }
   function submitSearch(event: FormEvent) { event.preventDefault(); setPage(1); setQuery(search.trim()); }
   function grant(event: FormEvent) {
     event.preventDefault();
@@ -85,63 +94,69 @@ function OperatorConsoleInner({ section }: { section: Exclude<OperatorSection, "
     const payload = { ...settings, reason: reason.trim() };
     void action.run(() => saveBusinessSettings(token, payload, intentFor(payload)), () => { window.dispatchEvent(new Event(SITE_SETTINGS_EVENT)); success(t({ en: "Site settings saved.", zh: "网站配置已保存。" })); });
   }
-  function display(row: Row, key: string): string {
+  function cell(row: Row, key: string) {
     const value = row[key];
-    if (key === "livemode" && typeof value === "boolean") return value ? t({ en: "Live", zh: "正式支付" }) : t({ en: "Test", zh: "测试支付" });
-    if (key === "amount" && section === "orders") {
-      if (typeof value !== "number") return t({ en: "Unknown", zh: "未知" });
-      return `${value} ${String(row.currency || "").toUpperCase()}`;
-    }
+    const tag = adminTag(section, key, value);
+    if (tag) return <StatusBadge tone={tag.tone}>{t(tag.label)}</StatusBadge>;
+    if (key === "amount" && section === "orders") return typeof value === "number" ? `${value} ${String(row.currency || "").toUpperCase()}` : t({ en: "Unknown", zh: "未知" });
     if (value === null || value === undefined || value === "") return "—";
     if (key.endsWith("_at") || key === "period_end") return formatDate(String(value), locale === "zh" ? "zh-CN" : "en-US");
-    const labels: Record<string, { en: string; zh: string }> = { opening: { en: "Opening balance", zh: "期初余额" }, expire: { en: "Expired credits", zh: "积分过期" }, succeeded: { en: "Succeeded", zh: "已完成" }, failed: { en: "Failed", zh: "未完成" }, admin: { en: "Administrator", zh: "管理员" }, user: { en: "Customer", zh: "用户" }, pending: { en: "Pending", zh: "待激活" }, activated: { en: "Activated", zh: "已激活" }, expired: { en: "Expired", zh: "已过期" }, grant: { en: "Grant", zh: "发放" }, consume: { en: "Consumption", zh: "消费" }, refund: { en: "Refund", zh: "退回" }, active: { en: "Active", zh: "有效" }, paid: { en: "Paid", zh: "已支付" }, trialing: { en: "Trial", zh: "试用中" }, canceled: { en: "Canceled", zh: "已取消" } };
-    return labels[String(value)] ? t(labels[String(value)]) : String(value);
+    if (["user_id", "referrer_id", "referee_id"].includes(key)) {
+      const email = row[key === "user_id" ? "email" : key === "referrer_id" ? "referrer_email" : "referee_email"];
+      return <span className={adminStyles.cellIdentity}>{typeof email === "string" && email ? <span>{email}</span> : null}<small title={String(value)}>{String(value)}</small></span>;
+    }
+    if (key === "id" || key === "actor_id" || key === "target_id" || key === "provider_subscription_id") return <span className={adminStyles.mono} title={String(value)}>{String(value)}</span>;
+    return String(value);
   }
+  const tableColumns: DataColumn<Row>[] = (columns[section] || []).map(([key, label]) => ({ key, heading: t(label), cell: row => cell(row, key), align: ["amount", "credits", "reward_credits"].includes(key) ? "end" : "start" }));
+  if (section === "users") tableColumns.push({ key: "actions", heading: t({ en: "Action", zh: "操作" }), cell: row => <Link className={`button ${adminStyles.tableAction}`} href={`/admin/credits?user_id=${encodeURIComponent(String(row.id))}`}>{t({ en: "Manage credits", zh: "管理积分" })}</Link> });
+  if (section === "referrals") tableColumns.push({ key: "actions", heading: t({ en: "Action", zh: "操作" }), cell: row => <button className={`button ${adminStyles.tableAction}`} type="button" disabled={row.status !== "activated" || action.busy} onClick={() => { setSelectedReferral(Number(row.id)); setReason(""); }}>{t({ en: "Reconcile reward", zh: "核对奖励" })}</button> });
+  const searchLabel = section === "credits" ? { en: "Account ID", zh: "账号 ID" }
+    : section === "audit" ? { en: "Operator, action, target or reason", zh: "操作人、操作、对象或原因" }
+    : section === "referrals" ? { en: "Email, account ID or referral code", zh: "邮箱、账号 ID 或邀请码" }
+    : section === "users" ? { en: "Email, username or account ID", zh: "邮箱、用户名或账号 ID" }
+    : { en: "Email or reference ID", zh: "邮箱或关联编号" };
+  const dialogOpen = creditAction !== null || selectedReferral !== null;
+  const pendingSubmit = (label: { en: string; zh: string }) => action.busy ? <PendingLabel>{t({ en: "Processing…", zh: "处理中…" })}</PendingLabel> : t(label);
+  const settingField = (key: "brand_name" | "description" | "support_email" | "support_url", label: { en: string; zh: string }) => settings ? <div className="field" key={key}><label htmlFor={`setting-${key}`}>{t(label)}</label><input id={`setting-${key}`} type={key === "support_email" ? "email" : key === "support_url" ? "url" : "text"} required={key === "brand_name"} pattern={key === "support_url" ? "https://.+" : undefined} maxLength={key === "brand_name" ? 100 : key === "description" ? 500 : key === "support_url" ? 1024 : 255} value={settings[key]} onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} /></div> : null;
   return <>
-    <header className={adminStyles.pageHeader}><div><span className={adminStyles.eyebrow}>{t({ en: "WEBSITE ADMINISTRATION", zh: "网站管理员后台" })}</span><h1>{t(names[section])}</h1><p>{t({ en: "Manage this website's users, subscriptions, payment records and business settings.", zh: "管理全站用户、订阅、支付记录和业务配置。" })}</p></div><button className="button" type="button" disabled={!token || resource.loading} onClick={() => void resource.refresh()}>{t({ en: "Refresh", zh: "刷新" })}</button></header>
+    <AdminPageHeader section={section} onRefresh={() => void resource.refresh()} busy={resource.loading} disabled={!token || action.busy} actions={section === "credits" ? <><button type="button" className="button" disabled={action.busy} onClick={() => { setCreditAction("refund"); setReason(""); }}>{t({ en: "Return credits", zh: "退回积分" })}</button><button type="button" className="button primary" disabled={action.busy} onClick={() => { setCreditAction("grant"); setReason(""); }}>{t({ en: "Grant credits", zh: "发放积分" })}</button></> : undefined} />
     <ConsoleGate session={session} ready={ready} admin>
       <div className={styles.stack}>
         <ConsoleError error={resource.error} retry={() => void resource.refresh()} />
-        <ConsoleError error={action.error} />
+        {!dialogOpen ? <ConsoleError error={action.error} /> : null}
         {action.message ? <p className={styles.success} role="status">{action.message}</p> : null}
-        {resource.loading ? <p role="status">{t({ en: "Loading current records…", zh: "正在读取最新记录…" })}</p> : null}
-        {overview ? <div className={styles.metrics}>{([
-          ["users", { en: "Registered accounts", zh: "注册用户" }], ["active_subscriptions", { en: "Active subscriptions", zh: "有效订阅" }], ["referrals", { en: "Invitations", zh: "邀请总数" }], ["pending_referrals", { en: "Awaiting activation", zh: "待激活邀请" }], ["activated_referrals", { en: "Activated invitations", zh: "已激活邀请" }]
-        ] as const).map(([key, label]) => <div className={styles.metric} key={key}><span>{t(label)}</span><strong>{overview[key] ?? "—"}</strong></div>)}</div> : null}
-        {section !== "overview" && section !== "settings" ? <Panel title={t(names[section])} subtitle={section === "orders" ? t({ en: "Recorded checkout and invoice payments. Amounts are displayed in the currency's smallest unit; unavailable values stay unknown.", zh: "已记录的收银台与账单支付，金额以货币最小单位显示；缺失金额保留为未知。" }) : undefined}>
-          <form className={styles.toolbar} onSubmit={submitSearch}>
-            <div className={styles.search}><div className="field"><label htmlFor="operator-search">{section === "credits" ? t({ en: "Account ID", zh: "账号 ID" }) : t({ en: "Search email or ID", zh: "搜索邮箱或编号" })}</label><input id="operator-search" value={search} onChange={(event) => setSearch(event.target.value)} /></div><button className="button" type="submit">{t({ en: "Search", zh: "搜索" })}</button></div>
-            {section === "referrals" ? <div className="field"><label htmlFor="referral-status">{t({ en: "Status", zh: "状态" })}</label><select id="referral-status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">{t({ en: "All", zh: "全部" })}</option><option value="pending">{t({ en: "Pending", zh: "待激活" })}</option><option value="activated">{t({ en: "Activated", zh: "已激活" })}</option><option value="expired">{t({ en: "Expired", zh: "已过期" })}</option></select></div> : null}
+        {resource.loading && (section === "overview" || section === "settings") ? <p role="status"><PendingLabel>{t({ en: "Loading current records…", zh: "正在读取最新记录…" })}</PendingLabel></p> : null}
+        {overview ? <div className={adminStyles.metrics}>{([
+          ["users", { en: "Registered users", zh: "注册用户" }], ["active_subscriptions", { en: "Active subscriptions", zh: "有效订阅" }], ["referrals", { en: "Total invitations", zh: "邀请总数" }], ["pending_referrals", { en: "Awaiting activation", zh: "待激活邀请" }], ["activated_referrals", { en: "Activated invitations", zh: "已激活邀请" }]
+        ] as const).map(([key, label]) => <div className={adminStyles.metric} key={key}><span>{t(label)}</span><strong>{overview[key] ?? "—"}</strong></div>)}</div> : null}
+        {section === "overview" ? <Panel title={t({ en: "Quick access", zh: "常用管理" })}><div className={adminStyles.quickLinks}>{(["users", "subscriptions", "integrations"] as const).map(destination => <Link key={destination} href={adminSectionHref(destination)}><div><strong>{t(names[destination])}</strong><p>{t(adminSectionDescriptions[destination])}</p></div><InterfaceIcon name="arrow" /></Link>)}</div></Panel> : null}
+        {section !== "overview" && section !== "settings" ? <Panel title={t({ en: "Records", zh: "数据记录" })} actions={result ? <span className={adminStyles.recordCount}>{t({ en: `${result.total} records`, zh: `共 ${result.total} 条` })}</span> : undefined}>
+          <form className={adminStyles.toolbar} onSubmit={submitSearch}>
+            <div className={adminStyles.search}><div className="field"><label htmlFor="operator-search">{t(searchLabel)}</label><input id="operator-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} /></div><button className="button" type="submit" disabled={resource.loading}>{t({ en: "Search", zh: "搜索" })}</button></div>
+            {section === "referrals" ? <div className="field"><label htmlFor="referral-status">{t({ en: "Activation status", zh: "激活状态" })}</label><select id="referral-status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="">{t({ en: "All statuses", zh: "全部状态" })}</option><option value="pending">{t({ en: "Pending", zh: "待激活" })}</option><option value="activated">{t({ en: "Activated", zh: "已激活" })}</option><option value="expired">{t({ en: "Expired", zh: "已过期" })}</option></select></div> : null}
           </form>
-          {result?.items.length ? <div className={styles.tableWrap}><table className="table"><thead><tr>{columns[section]?.map(([key, label]) => <th key={key}>{t(label)}</th>)}{section === "users" || section === "referrals" ? <th>{t({ en: "Action", zh: "操作" })}</th> : null}</tr></thead><tbody>{result.items.map((row, index) => <tr key={String(row.id ?? index)}>{columns[section]?.map(([key]) => <td key={key}>{display(row, key)}</td>)}{section === "users" ? <td><Link className="button" href={`/admin/credits?user_id=${encodeURIComponent(String(row.id))}`}>{t({ en: "Manage credits", zh: "管理积分" })}</Link></td> : section === "referrals" ? <td><button className="button" type="button" disabled={row.status !== "activated" || action.busy} onClick={() => { setSelectedReferral(Number(row.id)); setReason(""); }}>{t({ en: "Reconcile reward", zh: "核对奖励" })}</button></td> : null}</tr>)}</tbody></table></div> : !resource.loading && !resource.error ? <p className="empty-state">{t({ en: "No matching records.", zh: "暂无匹配记录。" })}</p> : null}
-          {result ? <Pagination result={result} loading={resource.loading} onPage={setPage} /> : null}
+          <DataTable caption={t(names[section])} columns={tableColumns} rows={result?.items || []} rowKey={row => String(row.id ?? row.user_id)} loading={resource.loading} loadingLabel={t({ en: "Loading records…", zh: "正在读取记录…" })} empty={t({ en: "No matching records. Try another search.", zh: "暂无匹配记录，可尝试其他搜索条件。" })} error={resource.error ? t({ en: "Records could not be loaded. Use the retry button above.", zh: "暂时无法读取记录，请点击上方重试。" }) : undefined} pagination={result ? { page: result.page, limit: result.limit, total: result.total, onPage: setPage, previousLabel: t({ en: "Previous", zh: "上一页" }), nextLabel: t({ en: "Next", zh: "下一页" }), label: (current, pages) => t({ en: `Page ${current} of ${pages}`, zh: `第 ${current} / ${pages} 页` }) } : undefined} />
         </Panel> : null}
-        {selectedReferral !== null ? <Panel title={t({ en: `Reconcile invitation #${selectedReferral}`, zh: `核对邀请 #${selectedReferral} 的奖励` })} subtitle={t({ en: "Replays the callback for an already activated invitation. No rewards are granted by default.", zh: "重新执行已激活邀请的回调；默认不发放任何奖励。" })}><form onSubmit={retryReward}><div className="field"><label htmlFor="reward-reason">{t({ en: "Reason", zh: "操作原因" })}</label><input id="reward-reason" required minLength={3} maxLength={500} placeholder={t({ en: "At least 3 characters", zh: "至少填写 3 个字" })} value={reason} onChange={(event) => setReason(event.target.value)} /></div><div className="button-row"><button className="button primary" disabled={action.busy || !validReason} type="submit">{t({ en: "Confirm reconciliation", zh: "确认核对奖励" })}</button><button className="button" type="button" onClick={() => setSelectedReferral(null)}>{t({ en: "Cancel", zh: "取消" })}</button></div></form></Panel> : null}
-        {section === "credits" ? <>
-          <Panel title={t({ en: "Grant credits", zh: "发放积分" })} subtitle={t({ en: "A positive grant with a recorded operator and reason. Leave expiry empty for credits that do not expire.", zh: "每次发放都会记录操作人和原因。到期时间留空表示永久有效。" })}><form className={styles.formGrid} onSubmit={grant}>
-            <div className="field"><label htmlFor="grant-user">{t({ en: "Account ID", zh: "账号 ID" })}</label><input id="grant-user" required value={target} onChange={(event) => setTarget(event.target.value)} /></div>
-            <div className="field"><label htmlFor="grant-amount">{t({ en: "Credit amount", zh: "发放积分数" })}</label><input id="grant-amount" type="number" min={1} step={1} max={1000000} required value={amount} onChange={(event) => setAmount(event.target.value)} /></div>
-            <div className="field"><label htmlFor="grant-expiry">{t({ en: "Expires at (optional)", zh: "到期时间（选填）" })}</label><input id="grant-expiry" type="datetime-local" value={expiry} onChange={(event) => setExpiry(event.target.value)} /></div>
-            <div className="field"><label htmlFor="grant-reason">{t({ en: "Reason", zh: "发放原因" })}</label><input id="grant-reason" required maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
-            <div className={styles.full}><button className="button primary" type="submit" disabled={action.busy || !validReason}>{t({ en: "Confirm grant", zh: "确认发放" })}</button></div>
-          </form></Panel>
-          <Panel title={t({ en: "Return consumed credits", zh: "退回已消费积分" })} subtitle={t({ en: "Enter the original consumption transaction. Each consumption can only be refunded once.", zh: "填写原消费流水编号。同一笔消费只能退回一次。" })}><form className={styles.formGrid} onSubmit={refund}>
-            <div className="field"><label htmlFor="refund-id">{t({ en: "Consumption transaction ID", zh: "原消费流水编号" })}</label><input id="refund-id" required type="number" min={1} step={1} value={refundID} onChange={(event) => setRefundID(event.target.value)} /></div>
-            <div className="field"><label htmlFor="refund-reason">{t({ en: "Reason", zh: "退回原因" })}</label><input id="refund-reason" required maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
-            <div className={styles.full}><button className="button" type="submit" disabled={action.busy || !validReason}>{t({ en: "Confirm credit refund", zh: "确认退回积分" })}</button></div>
-          </form></Panel>
-        </> : null}
-        {section === "settings" && settings ? <Panel title={t({ en: "Brand and support", zh: "品牌与支持" })} subtitle={t({ en: "These public business settings take effect after saving. Manage Resend and Stripe in Services.", zh: "这些公开业务配置保存后生效。Resend 和 Stripe 请在「服务配置」中管理。" })}><form className={styles.formGrid} onSubmit={saveSettings}>
-          {([ ["brand_name", { en: "Product name", zh: "产品名称" }], ["description", { en: "Product description", zh: "产品介绍" }], ["support_email", { en: "Support email", zh: "支持邮箱" }], ["support_url", { en: "Support URL (HTTPS)", zh: "支持页面（HTTPS）" }] ] as const).map(([key, label]) => <div className="field" key={key}><label htmlFor={`setting-${key}`}>{t(label)}</label><input id={`setting-${key}`} type={key === "support_email" ? "email" : key === "support_url" ? "url" : "text"} required={key === "brand_name"} pattern={key === "support_url" ? "https://.+" : undefined} maxLength={key === "brand_name" ? 100 : key === "description" ? 500 : key === "support_url" ? 1024 : 255} value={settings[key]} onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} /></div>)}
-          <div className="field"><label htmlFor="export-cost">{t({ en: "Credits per note export", zh: "每次笔记导出消耗积分" })}</label><input id="export-cost" type="number" required min={1} max={1000000} step={1} value={settings.export_credit_cost} onChange={(event) => setSettings({ ...settings, export_credit_cost: Number(event.target.value) })} /></div>
-          <div className="field"><label htmlFor="settings-reason">{t({ en: "Change reason", zh: "修改原因" })}</label><input id="settings-reason" required minLength={3} maxLength={500} placeholder={t({ en: "At least 3 characters", zh: "至少填写 3 个字" })} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
-          <div className={styles.full}><button className="button primary" type="submit" disabled={action.busy || !validReason || !settings.brand_name.trim()}>{t({ en: "Save site settings", zh: "保存网站配置" })}</button></div>
+        {section === "settings" && settings ? <Panel title={t({ en: "General settings", zh: "常规设置" })}><form className={adminStyles.settingsForm} onSubmit={saveSettings}>
+          <fieldset className={adminStyles.formSection} disabled={action.busy}><legend>{t({ en: "Service details", zh: "服务资料" })}</legend><p>{t({ en: "These values describe the API service. Website branding, homepage copy and sharing cards are configured in content/site.ts and NEXT_PUBLIC_APP_NAME, then applied with a frontend rebuild.", zh: "以下资料用于 API 服务。网站品牌、首页文案和分享卡片在 content/site.ts 与 NEXT_PUBLIC_APP_NAME 中配置，重新构建前端后生效。" })}</p><div className={styles.formGrid}>{settingField("brand_name", { en: "Service name (API)", zh: "服务名称（API）" })}{settingField("description", { en: "Service description (API)", zh: "服务介绍（API）" })}</div></fieldset>
+          <fieldset className={adminStyles.formSection} disabled={action.busy}><legend>{t({ en: "Help & support", zh: "帮助与支持" })}</legend><p>{t({ en: "Support channels take effect after saving.", zh: "支持渠道保存后生效。" })}</p><div className={styles.formGrid}>{settingField("support_email", { en: "Support email", zh: "支持邮箱" })}{settingField("support_url", { en: "Support URL (HTTPS)", zh: "支持页面（HTTPS）" })}</div></fieldset>
+          <fieldset className={adminStyles.formSection} disabled={action.busy}><legend>{t({ en: "Developer example", zh: "开发示例参数" })}</legend><p>{t({ en: "This cost applies only to the note-export example. Configure your own product’s credit rules in its business logic.", zh: "此参数仅用于笔记导出的开发示例。实际产品的积分规则由对应业务定义。" })}</p><div className="field"><label htmlFor="export-cost">{t({ en: "Credits per example export", zh: "示例每次导出消耗积分" })}</label><input id="export-cost" type="number" required min={1} max={1000000} step={1} value={settings.export_credit_cost} onChange={(event) => setSettings({ ...settings, export_credit_cost: Number(event.target.value) })} /></div></fieldset>
+          <div className={adminStyles.formFooter}><div className="field"><label htmlFor="settings-reason">{t({ en: "Change reason", zh: "修改原因" })}</label><input id="settings-reason" required minLength={3} maxLength={500} placeholder={t({ en: "At least 3 characters; recorded in the audit log", zh: "至少填写 3 个字，将记录到审计日志" })} value={reason} disabled={action.busy} onChange={(event) => setReason(event.target.value)} /></div><button className="button primary" type="submit" aria-busy={action.busy} disabled={action.busy || !validReason || !settings.brand_name.trim()}>{pendingSubmit({ en: "Save changes", zh: "保存更改" })}</button></div>
         </form></Panel> : null}
       </div>
+      <ResponsiveDialog open={dialogOpen} onClose={() => { setCreditAction(null); setSelectedReferral(null); }} title={selectedReferral !== null ? t({ en: `Reconcile invitation #${selectedReferral}`, zh: `核对邀请 #${selectedReferral} 的奖励` }) : t(creditAction === "grant" ? { en: "Grant credits", zh: "发放积分" } : { en: "Return consumed credits", zh: "退回已消费积分" })} description={selectedReferral !== null ? t({ en: "Replays the callback for an activated invitation. Rewards depend on your site’s rules; none are granted by default.", zh: "重新执行已激活邀请的回调，是否发奖取决于本站规则；默认不发放奖励。" }) : t(creditAction === "grant" ? { en: "The account, operator and reason are recorded. Leave expiry blank for credits that do not expire.", zh: "每次发放都会记录账号、操作人和原因，到期时间留空表示永久有效。" } : { en: "Enter the original consumption transaction. Each consumption can only be returned once.", zh: "填写原消费流水编号，同一笔消费只能退回一次。" })} closeLabel={t({ en: "Close", zh: "关闭" })}>
+        {(dismiss) => <form className={adminStyles.dialogForm} onSubmit={selectedReferral !== null ? retryReward : creditAction === "grant" ? grant : refund}>
+          <ConsoleError error={action.error} />
+          {creditAction === "grant" ? <><div className="field"><label htmlFor="grant-user">{t({ en: "Account ID", zh: "账号 ID" })}</label><input id="grant-user" required disabled={action.busy} value={target} onChange={(event) => setTarget(event.target.value)} /></div><div className="field"><label htmlFor="grant-amount">{t({ en: "Credit amount", zh: "发放积分数" })}</label><input id="grant-amount" type="number" min={1} step={1} max={1000000} required disabled={action.busy} value={amount} onChange={(event) => setAmount(event.target.value)} /></div><div className="field"><label htmlFor="grant-expiry">{t({ en: "Expires at (optional)", zh: "到期时间（选填）" })}</label><input id="grant-expiry" type="datetime-local" disabled={action.busy} value={expiry} onChange={(event) => setExpiry(event.target.value)} /></div></> : creditAction === "refund" ? <div className="field"><label htmlFor="refund-id">{t({ en: "Consumption transaction ID", zh: "原消费流水编号" })}</label><input id="refund-id" required type="number" min={1} step={1} disabled={action.busy} value={refundID} onChange={(event) => setRefundID(event.target.value)} /></div> : null}
+          <div className="field"><label htmlFor="operation-reason">{t({ en: "Reason", zh: "操作原因" })}</label><input id="operation-reason" required minLength={selectedReferral !== null ? 3 : 1} maxLength={500} disabled={action.busy} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
+          <div className="button-row"><button className="button primary" disabled={action.busy || !validReason} aria-busy={action.busy} type="submit">{pendingSubmit(selectedReferral !== null ? { en: "Confirm reconciliation", zh: "确认核对奖励" } : creditAction === "grant" ? { en: "Confirm grant", zh: "确认发放" } : { en: "Confirm credit return", zh: "确认退回积分" })}</button><button className="button" type="button" onClick={dismiss}>{t({ en: "Cancel", zh: "取消" })}</button></div>
+        </form>}
+      </ResponsiveDialog>
     </ConsoleGate>
   </>;
 }
 export function OperatorConsole({ section }: { section: OperatorSection }) {
   if (section === "integrations") return <IntegrationsConsole />;
-  return <Suspense fallback={null}><OperatorConsoleInner key={section} section={section} /></Suspense>;
+  return <Suspense fallback={<CustomerPageLoading />}><OperatorConsoleInner key={section} section={section} /></Suspense>;
 }

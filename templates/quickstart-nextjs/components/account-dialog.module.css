@@ -1,0 +1,10 @@
+.identity { margin: 0 0 24px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); }
+.identity dt { color: var(--muted); font-size: 12px; margin-bottom: 7px; }
+.identity dd { margin: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.footer :global(.button) { min-width: 84px; min-height: 40px; font-size: 13px; }
+.signOut { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: var(--radius-sm); padding: 8px 10px; margin-left: -10px; background: transparent; color: var(--danger); font: inherit; font-size: 13px; cursor: pointer; }
+.signOut svg { width: 16px; height: 16px; }
+.signOut:hover { background: var(--danger-soft); }
+.signOut:disabled { opacity: .5; cursor: wait; }
+.error { font-size: 13px; line-height: 1.6; color: var(--danger); overflow-wrap: anywhere; }

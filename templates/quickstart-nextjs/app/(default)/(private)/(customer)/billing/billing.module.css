@@ -5,7 +5,7 @@
 .disclosure {
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   scroll-margin-top: 148px;
 }
@@ -14,8 +14,8 @@
   position: relative;
   display: grid;
   gap: 6px;
-  min-height: 88px;
-  padding: 22px 56px 22px 24px;
+  min-height: 76px;
+  padding: 18px 56px 18px 24px;
   list-style: none;
   cursor: pointer;
 }
@@ -25,18 +25,19 @@
 }
 
 .disclosure > summary::after {
-  content: "+";
+  content: "";
+  width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
   position: absolute;
   top: 50%;
   right: 24px;
-  transform: translateY(-50%);
+  transform: translateY(-70%) rotate(45deg);
   color: var(--muted);
   font-size: 24px;
   font-weight: 400;
 }
 
 .disclosure[open] > summary::after {
-  content: "−";
+  transform: translateY(-30%) rotate(225deg);
 }
 
 .disclosure > summary:hover {
@@ -81,7 +82,7 @@
 }
 
 .overview {
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-color: var(--line);
 }
 
 .summary {
@@ -243,7 +244,7 @@
 .textLink {
   display: inline-block;
   margin-top: 20px;
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 13px;
   font-weight: 600;
   text-underline-offset: 3px;

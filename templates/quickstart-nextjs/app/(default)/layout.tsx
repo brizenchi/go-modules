@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "@fontsource-variable/manrope";
 import "@fontsource-variable/newsreader";
 import { appEnv } from "@/lib/env";
+import { SiteExtensions } from "@/components/site-extensions";
 import { LocaleProvider } from "@/lib/i18n";
 import { siteOrigin } from "@/lib/seo";
 import "../globals.css";
@@ -15,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <LocaleProvider>{children}</LocaleProvider>
+        <LocaleProvider>{children}<SiteExtensions /></LocaleProvider>
       </body>
     </html>
   );

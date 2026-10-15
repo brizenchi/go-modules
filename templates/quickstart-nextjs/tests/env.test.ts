@@ -33,7 +33,7 @@ function loadEnvModule(overrides: Partial<Record<(typeof ENV_KEYS)[number], stri
 test("env defaults are stable and normalized", () => {
   const env = loadEnvModule({});
 
-  assert.equal(env.appEnv.appName, "Clawmesh Quickstart Frontend");
+  assert.equal(env.appEnv.appName, "SaaS Starter");
   assert.equal(env.appEnv.demoMode, true);
   assert.equal(env.appEnv.appUrl, "http://localhost:3000");
   assert.equal(env.appEnv.apiBaseUrl, "http://localhost:8080/api/v1");
@@ -88,4 +88,9 @@ test("invalid credits quantity falls back to default", () => {
   });
 
   assert.equal(env.appEnv.defaultCreditsQuantity, 1);
+});
+
+test("a blank brand override preserves the configured public brand", () => {
+  const env = loadEnvModule({ NEXT_PUBLIC_APP_NAME: "   " });
+  assert.equal(env.appEnv.appName, "SaaS Starter");
 });

@@ -70,6 +70,13 @@ for (const path of ["account", "billing", "referrals", "credits", "files", "note
   const html = readFileSync(join(root, `${path}.html`), "utf8");
   assert.match(html, /<meta name="robots" content="[^"]*noindex/, `${path}: private page noindex`);
   assert.ok(!html.includes('rel="canonical"'), `${path}: no public canonical inherited`);
+  if (["account", "billing", "referrals", "credits", "files", "notes"].includes(path)) {
+    const rendered = withoutScripts(html);
+    for (const tag of ["header", "main", "h1"]) {
+      assert.equal((rendered.match(new RegExp(`<${tag}\\b`, "g")) ?? []).length, 1, `${path}: one ${tag} inside the shared account layout`);
+    }
+    assert.equal((rendered.match(/aria-label="Account navigation"/g) ?? []).length, 1, `${path}: one shared account navigation`);
+  }
 }
 
 console.log(`Public content checks passed: ${pages.length} pages, ${articlePages.length} articles, headings, anchors, canonical URLs, JSON-LD and sitemap.`);

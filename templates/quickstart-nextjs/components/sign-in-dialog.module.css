@@ -1,0 +1,12 @@
+
+.form :global(.sign-in-stack) { gap: 16px; }
+.form :global(.sign-in-google-button) { min-height: 44px; border-color: var(--line); border-radius: var(--radius-sm); font-weight: 600; }
+.form :global(.sign-in-google-icon) { border: 0; background: transparent; width: 20px; height: 20px; }
+.form :global(.sign-in-divider) { font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.form :global(label) { font-size: 13px; }
+.form :global(input) { min-height: 44px; border-radius: var(--radius-sm); }
+.form :global(.sign-in-stack.compact .field-grid) { margin: 0; }
+.form :global(.notice) { font-size: 13px; padding: 12px 14px; border-radius: var(--radius-sm); }
+.support { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 24px 0 0; color: var(--muted); font-size: 12px; }
+.support a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 640px) { .form :global(input) { font-size: 16px; } }

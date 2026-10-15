@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalURL, privateMetadata, privatePaths, publicMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
+import { canonicalURL, privateMetadata, privatePaths, publicMetadata, publicPageMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
+import { siteConfig } from "../content/site";
+import { appEnv } from "../lib/env";
 import { articles } from "../content/articles";
 import { documentation } from "../content/docs";
 
@@ -60,4 +62,14 @@ test("private metadata explicitly suppresses indexing and does not inherit the h
   assert.equal(metadata.alternates?.canonical, null);
   assert.deepEqual(metadata.alternates?.languages, {});
   assert.equal(metadata.openGraph, null);
+});
+
+test("both homepage metadata variants use the configured public identity", () => {
+  for (const locale of ["en", "zh"] as const) {
+    const metadata = publicPageMetadata("/", locale)!;
+    assert.equal(metadata.title, `${siteConfig.homepageTitle[locale]} · ${appEnv.appName}`);
+    assert.equal(metadata.description, siteConfig.description[locale]);
+    assert.ok(metadata.openGraph && "siteName" in metadata.openGraph);
+    assert.equal(metadata.openGraph.siteName, appEnv.appName);
+  }
 });

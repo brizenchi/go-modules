@@ -3,38 +3,25 @@
 import { LocalizedLink as Link } from "@/components/localized-link";
 import {
   useEffect,
-  useId,
   useMemo,
-  useRef,
   useState
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
-import { getPublicSiteSettings, publicSiteSettingsFallback, SITE_SETTINGS_EVENT } from "@/lib/site-settings";
-import { logout, userLabel, type ReferralStats, type SubscriptionView } from "@/lib/api";
-import { loadAccountSummary, type AccountSummary } from "@/lib/account-summary";
+import { siteConfig } from "@/content/site";
+import { type AccountSummary } from "@/lib/account-summary";
 import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { humanizeSegment, stripLocalePrefix, localizeHref, isPublicPath } from "@/lib/locale";
-import {
-  describeRequestFailure,
-  failedResource,
-  loadingResource,
-  type ResourceState
-} from "@/lib/request-state";
-import { SignInDialog } from "@/components/sign-in-dialog";
+import { humanizeSegment, stripLocalePrefix, localizeHref } from "@/lib/locale";
+import { CustomerPage } from "@/components/customer-shell";
+import { AccountMenu } from "@/components/account-menu";
+import { LocaleSwitch } from "@/components/locale-switch";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { LanguagePicker } from "@/components/language-picker";
 import { SiteFooter } from "@/components/site-footer";
 import { publicPaths } from "@/lib/seo";
 import {
-  activeWorkspaceHref,
   customerSignInDestination,
-  auxiliaryWorkspaceItems,
   isWorkspacePath,
-  workspaceNavItems,
-  type WorkspaceIcon as WorkspaceIconName
 } from "@/lib/workspace";
 
 type NavItem = {
@@ -59,11 +46,14 @@ type TOCItem = {
 
 type SiteShellProps = {
   variant?: "article" | "compact";
+  className?: string;
   eyebrow: string;
   title: string;
   description: string;
   sideTitle?: string;
   sideBody?: React.ReactNode;
+  heroVisual?: React.ReactNode;
+  heroFootnote?: React.ReactNode;
   showEnvironment?: boolean;
   children: React.ReactNode;
   actions?: React.ReactNode;
@@ -71,19 +61,6 @@ type SiteShellProps = {
   toc?: TOCItem[];
   accountMenuData?: Partial<AccountSummary>;
 };
-
-type AccountMenuData = Partial<AccountSummary>;
-
-function LocaleSwitch() {
-  const { locale, setLocale, t } = useI18n();
-  const path = usePathname() || "/";
-  return <LanguagePicker
-    locale={locale}
-    label={t({ en: "Choose language", zh: "选择语言" })}
-    destinations={isPublicPath(path) ? { en: localizeHref(path, "en"), zh: localizeHref(path, "zh") } : undefined}
-    onSelect={setLocale}
-  />;
-}
 
 function TableOfContents({
   items,
@@ -110,34 +87,6 @@ function TableOfContents({
   );
 }
 
-function WorkspaceIcon({ name }: { name: WorkspaceIconName }) {
-  if (name === "credits") return <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 4 16 4 16 0V6M4 12v6c0 4 16 4 16 0v-6" /></svg>;
-  if (name === "notes" || name === "files") return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h6" /></svg>;
-  if (name === "billing") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3" y="5" width="18" height="14" rx="3" />
-        <path d="M3 10h18M7 15h4" />
-      </svg>
-    );
-  }
-  if (name === "referrals") {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="8" cy="8" r="3" />
-        <circle cx="17" cy="7" r="2.5" />
-        <path d="M3 19c.4-3.5 2.2-5.3 5-5.3s4.6 1.8 5 5.3M14 13.8c3.8-.8 6.2 1 6.6 4.2" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4.5 20c.6-4.1 3.1-6.2 7.5-6.2s6.9 2.1 7.5 6.2" />
-    </svg>
-  );
-}
-
 function buildBreadcrumbs(pathname: string): Array<{ href?: string; label: string }> {
   if (pathname === "/") {
     return [{ label: "Home" }];
@@ -158,233 +107,22 @@ function buildBreadcrumbs(pathname: string): Array<{ href?: string; label: strin
   return breadcrumbs;
 }
 
-function AccountMenu({
-  session,
-  details,
-  onSignInSuccess
-}: {
-  session: AuthSession | null;
-  details?: AccountMenuData;
-  onSignInSuccess?: (session: AuthSession) => void;
-}) {
-  const { locale, t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [signInOpen, setSignInOpen] = useState(false);
-  const [logoutError, setLogoutError] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const dismissOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
-    };
-    const dismissWithEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("pointerdown", dismissOutside);
-    document.addEventListener("keydown", dismissWithEscape);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOutside);
-      document.removeEventListener("keydown", dismissWithEscape);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    setOpen(false);
-    setBusy(false);
-    setLogoutError(false);
-  }, [session?.token]);
-
-  async function handleLogout() {
-    if (busy) {
-      return;
-    }
-
-    const requestToken = session?.token || "";
-    setBusy(true);
-    setLogoutError(false);
-    try {
-      if (requestToken) {
-        await logout(requestToken);
-      }
-      if (!readSession() || readSession()?.token === requestToken) setOpen(false);
-    } catch {
-      if (readSession()?.token === requestToken) setLogoutError(true);
-    } finally {
-      const currentToken = readSession()?.token || "";
-      if (!currentToken || currentToken === requestToken) {
-        setBusy(false);
-      }
-    }
+export function SiteShell(props: SiteShellProps) {
+  const pathname = stripLocalePrefix(usePathname());
+  if (isWorkspacePath(pathname)) {
+    return <CustomerPage title={props.title} description={props.description} actions={props.actions}
+      context={props.sideBody} contextTitle={props.sideTitle}>{props.children}</CustomerPage>;
   }
-
-  if (!session) {
-    return (
-      <>
-        <div className="nav-actions">
-          <button className="button primary" type="button" onClick={() => setSignInOpen(true)}>
-            {t({ en: "Sign In", zh: "登录" })}
-          </button>
-        </div>
-        <SignInDialog
-          open={signInOpen}
-          onClose={() => setSignInOpen(false)}
-          onSuccess={onSignInSuccess}
-        />
-      </>
-    );
-  }
-
-  const initials = (session.user.username || session.user.email || session.user.id)
-    .slice(0, 2)
-    .toUpperCase();
-  function stateText<T>(state: ResourceState<T> | undefined, format: (data: T) => string): string {
-    if (!state || state.status === "idle" || state.status === "loading") {
-      return t({ en: "Loading...", zh: "加载中..." });
-    }
-    if (state.status === "ready") {
-      return format(state.data);
-    }
-    switch (state.failure.kind) {
-      case "auth":
-        return t({ en: "Sign in again", zh: "请重新登录" });
-      case "disabled":
-        return t({ en: "Not enabled", zh: "尚未启用" });
-      case "configuration":
-        return t({ en: "Setup required", zh: "需要配置" });
-      case "network":
-        return t({ en: "API unreachable", zh: "无法连接 API" });
-      case "unavailable":
-        return t({ en: "Temporarily unavailable", zh: "暂时不可用" });
-      default:
-        return t({ en: "Request failed", zh: "请求失败" });
-    }
-  }
-
-  const capabilities = details?.capabilities?.data;
-  const accountText = capabilities && !capabilities.account.enabled
-    ? t({ en: "Not enabled on this API", zh: "API 尚未启用" })
-    : t({ en: "Profile, identity and security", zh: "个人资料、身份与安全" });
-  const subscriptionText = capabilities && !capabilities.billing.enabled
-    ? t({ en: "Stripe setup required", zh: "需要配置 Stripe" })
-    : stateText(details?.subscription, (value) => {
-    const subscription = value as SubscriptionView;
-    return `${subscription.plan} · ${subscription.status}`;
-  });
-  const referralText = capabilities && !capabilities.referral.enabled
-    ? t({ en: "Not enabled", zh: "尚未启用" })
-    : stateText(details?.referralStats, (value) => {
-    const stats = value as ReferralStats;
-    return `${stats.activated}/${stats.total_referred}`;
-  });
-  const subscriptionFailure = capabilities && !capabilities.billing.enabled
-    ? "configuration"
-    : details?.subscription?.status === "error"
-    ? details.subscription.failure.kind
-    : "";
-  const referralFailure = capabilities && !capabilities.referral.enabled
-    ? "disabled"
-    : details?.referralStats?.status === "error"
-    ? details.referralStats.failure.kind
-    : "";
-
-  return (
-    <div className="account-menu" ref={menuRef} onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-    }}>
-      <button
-        ref={triggerRef}
-        className="avatar-button"
-        type="button"
-        aria-expanded={open}
-        aria-controls={popoverId}
-        aria-label={t({ en: "Open account options", zh: "打开账户选项" })}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="avatar-badge">{initials}</span>
-        <span className="avatar-copy">
-          <strong>{userLabel(session.user)}</strong>
-          <span>{session.user.email}</span>
-        </span>
-      </button>
-
-      {open ? (
-        <div className="account-popover" id={popoverId}>
-          <div className="account-popover-head">
-            <span className="panel-kicker">{t({ en: "Account center", zh: "账户中心" })}</span>
-            <strong>{appEnv.appName}</strong>
-          </div>
-
-          <div className="account-popover-grid">
-            <Link className="popover-link-card featured" href="/account" onClick={() => setOpen(false)}>
-              <span>{t({ en: "Settings", zh: "设置" })}</span>
-              <small>{accountText}</small>
-            </Link>
-            <Link className="popover-link-card" href="/billing" onClick={() => setOpen(false)}>
-              <span>{t({ en: "Subscription", zh: "订阅管理" })}</span>
-              <small className={subscriptionFailure ? `menu-resource-state ${subscriptionFailure}` : ""}>{subscriptionText}</small>
-            </Link>
-            <Link className="popover-link-card" href="/referrals" onClick={() => setOpen(false)}>
-              <span>{t({ en: "Referral Center", zh: "推荐中心" })}</span>
-              <small className={referralFailure ? `menu-resource-state ${referralFailure}` : ""}>
-                {details?.referralStats?.status === "ready"
-                  ? `${t({ en: "Activated / total", zh: "已激活 / 总数" })}: ${referralText}`
-                  : referralText}
-              </small>
-            </Link>
-          </div>
-
-          <div className="account-popover-meta">
-            <div>
-              <span className="panel-kicker">{t({ en: "Session expires", zh: "会话到期" })}</span>
-              <strong>{formatDate(session.expires_at, locale)}</strong>
-            </div>
-          </div>
-
-          <button
-            className="button danger wide"
-            type="button"
-            disabled={busy}
-            onClick={() => void handleLogout()}
-          >
-            {busy ? t({ en: "Signing out...", zh: "退出中..." }) : t({ en: "Sign Out", zh: "退出登录" })}
-          </button>
-          {logoutError ? <p role="alert">{t({ en: "Sign-out failed. Your session is still active; please retry.", zh: "退出失败，会话仍有效，请重试。" })}</p> : null}
-        </div>
-      ) : null}
-    </div>
-  );
+  return <PublicSiteShell {...props} />;
 }
 
-export function SiteShell(props: SiteShellProps) {
+function PublicSiteShell(props: SiteShellProps) {
   const rawPathname = usePathname();
   const pathname = stripLocalePrefix(rawPathname);
   const router = useRouter();
   const isHome = pathname === "/";
-  const isWorkspace = isWorkspacePath(pathname);
-  const activeWorkspace = activeWorkspaceHref(pathname);
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [siteSettings, setSiteSettings] = useState(publicSiteSettingsFallback);
-  const [accountDetails, setAccountDetails] = useState<AccountSummary | null>(null);
   const { t, locale } = useI18n();
-  useEffect(() => {
-    let current: AbortController | undefined;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const syncSettings = () => {
-      current?.abort(); if (timeout) clearTimeout(timeout);
-      const controller = new AbortController(); current = controller;
-      timeout = setTimeout(() => controller.abort(), 8000);
-      void getPublicSiteSettings(controller.signal).then((value) => { if (!controller.signal.aborted) setSiteSettings(value); }).catch(() => {}).finally(() => { if (current === controller && timeout) clearTimeout(timeout); });
-    };
-    syncSettings(); window.addEventListener(SITE_SETTINGS_EVENT, syncSettings);
-    return () => { current?.abort(); if (timeout) clearTimeout(timeout); window.removeEventListener(SITE_SETTINGS_EVENT, syncSettings); };
-  }, []);
 
   useEffect(() => {
     const sync = () => setSession(readSession());
@@ -397,62 +135,15 @@ export function SiteShell(props: SiteShellProps) {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!session?.token) {
-      setAccountDetails(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setAccountDetails({
-      capabilities: loadingResource(),
-      subscription: loadingResource(),
-      referralStats: loadingResource()
-    });
-
-    void loadAccountSummary(session.token)
-      .then((details) => {
-        if (!cancelled) {
-          setAccountDetails(details);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          const failure = describeRequestFailure(new Error("Account summary request failed."), "Account summary");
-          setAccountDetails({
-            capabilities: failedResource(failure),
-            subscription: failedResource(failure),
-            referralStats: failedResource(failure)
-          });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.token]);
-
   const breadcrumbs = useMemo(
     () => (props.breadcrumbs && props.breadcrumbs.length > 0 ? props.breadcrumbs : buildBreadcrumbs(pathname)).map(item => ({ ...item, href: item.href ? localizeHref(item.href, locale) : undefined })),
     [pathname, props.breadcrumbs, locale]
   );
 
   const navItems = useMemo(() => topNav, []);
-  const mergedAccountDetails: AccountMenuData = {
-    capabilities: props.accountMenuData?.capabilities ?? accountDetails?.capabilities,
-    subscription: props.accountMenuData?.subscription ?? accountDetails?.subscription,
-    referralStats: props.accountMenuData?.referralStats ?? accountDetails?.referralStats
-  };
-
-  const currentWorkspaceItem = [...workspaceNavItems, ...auxiliaryWorkspaceItems].find((item) => item.href === activeWorkspace);
-  const customDescription = siteSettings.description && siteSettings.description !== publicSiteSettingsFallback.description ? siteSettings.description : "";
   const accountMenu = (
     <AccountMenu
       session={session}
-      details={mergedAccountDetails}
       onSignInSuccess={() => {
         const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
         const destination = customerSignInDestination(currentPath);
@@ -461,124 +152,11 @@ export function SiteShell(props: SiteShellProps) {
     />
   );
 
-  if (isWorkspace) {
-    return (
-      <div className="workspace-shell">
-        <a className="skip-content" href="#main-content">{t({ en: "Skip to content", zh: "跳到正文" })}</a>
-        <aside className="workspace-sidebar">
-          <Link className="workspace-brand" href="/" aria-label={`${siteSettings.brand_name} · ${t({ en: "Back to home", zh: "返回首页" })}`}>
-            <span className="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 28 28" role="img">
-                <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
-                <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
-              </svg>
-            </span>
-            <span className="workspace-brand-copy">
-              <strong>{siteSettings.brand_name}</strong>
-              <small>{t({ en: "Back to home", zh: "返回首页" })}</small>
-            </span>
-          </Link>
-
-          <div className="workspace-status">
-            <span>{t({ en: "PERSONAL ACCOUNT", zh: "个人账户" })}</span>
-          </div>
-
-          <nav className="workspace-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
-            {workspaceNavItems.map((item) => (
-              <Link
-                className={`workspace-nav-link${activeWorkspace === item.href ? " active" : ""}`}
-                href={item.href}
-                key={item.href}
-                aria-current={activeWorkspace === item.href ? "page" : undefined}
-              >
-                <span className="workspace-nav-icon"><WorkspaceIcon name={item.icon} /></span>
-                <span className="workspace-nav-copy">
-                  <strong>{t(item.label)}</strong>
-                  <small>{t(item.description)}</small>
-                </span>
-              </Link>
-            ))}
-          </nav>
-
-          <div className="workspace-sidebar-foot">
-            {session ? (
-              <div className="workspace-user-card">
-                <span className="avatar-badge">
-                  {(session.user.username || session.user.email || session.user.id).slice(0, 2).toUpperCase()}
-                </span>
-                <span>
-                  <strong>{userLabel(session.user)}</strong>
-                  <small>{session.user.email}</small>
-                </span>
-              </div>
-            ) : (
-              <p>{t({ en: "Sign in to load your account data.", zh: "登录后加载你的账户数据。" })}</p>
-            )}
-            <Link className="workspace-public-link" href="/">
-              <span>{t({ en: "View public site", zh: "返回网站首页" })}</span>
-              <span aria-hidden="true">↗</span>
-            </Link>
-          </div>
-        </aside>
-
-        <div className="workspace-main">
-          <header className="workspace-topbar">
-            <div className="workspace-topbar-copy">
-              <Link className="workspace-home-link" href="/">
-                <span aria-hidden="true">←</span>
-                <span>{t({ en: "Home", zh: "返回首页" })}</span>
-              </Link>
-              <div className="workspace-current-page">
-                <strong>{currentWorkspaceItem ? t(currentWorkspaceItem.label) : t({ en: "Account", zh: "账户中心" })}</strong>
-                <small>{siteSettings.brand_name}</small>
-              </div>
-            </div>
-            <div className="workspace-topbar-tools">
-              <LocaleSwitch />
-              {accountMenu}
-            </div>
-          </header>
-
-          <nav className="workspace-mobile-nav" aria-label={t({ en: "Account navigation", zh: "账户导航" })}>
-            {workspaceNavItems.map((item) => (
-              <Link
-                className={`workspace-mobile-link${activeWorkspace === item.href ? " active" : ""}`}
-                href={item.href}
-                key={item.href}
-                aria-current={activeWorkspace === item.href ? "page" : undefined}
-              >
-                <WorkspaceIcon name={item.icon} />
-                <span>{t(item.label)}</span>
-              </Link>
-            ))}
-          </nav>
-
-          <main id="main-content" tabIndex={-1} className="workspace-page">
-            <section className="workspace-page-header">
-              <div className="workspace-page-intro">
-                <h1>{props.title}</h1>
-                <p>{props.description}</p>
-                {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
-              </div>
-              {props.sideBody ? (
-                <aside className="workspace-context-card">
-                  <span className="panel-kicker">{props.sideTitle || t({ en: "At a glance", zh: "概览" })}</span>
-                  {props.sideBody}
-                </aside>
-              ) : null}
-            </section>
-            {props.children}
-          </main>
-        </div>
-      </div>
-    );
-  }
-
   const Content = props.variant === "article" ? "article" : "div";
   const hasPublicSchema = publicPaths.includes(pathname) || pathname.startsWith("/docs/") || pathname.startsWith("/blog/");
 
   return (
-    <div className={`app-shell${props.variant === "article" ? " article-shell" : props.variant === "compact" ? " compact-shell" : ""}`}>
+    <div className={`app-shell ${props.className || ""}${props.variant === "article" ? " article-shell" : props.variant === "compact" ? " compact-shell" : ""}`}>
       <a className="skip-content" href="#main-content">{t({ en: "Skip to content", zh: "跳到正文" })}</a>
       <header className="topbar">
         <div className="topbar-inner">
@@ -590,8 +168,8 @@ export function SiteShell(props: SiteShellProps) {
               </svg>
             </span>
             <span className="brand-copy">
-              <span className="brand-title">{siteSettings.brand_name}</span>
-              <span className="brand-subtitle">{t({ en: "Powered by go-modules", zh: "由 go-modules 驱动" })}</span>
+              <span className="brand-title">{appEnv.appName}</span>
+              <span className="brand-subtitle">{t(siteConfig.brand.subtitle)}</span>
             </span>
           </Link>
 
@@ -618,16 +196,17 @@ export function SiteShell(props: SiteShellProps) {
       <main id="main-content" tabIndex={-1} className={`page-shell${isHome ? " home-page-shell" : ""}`}>
         {!isHome ? <Breadcrumbs items={breadcrumbs} path={rawPathname} label={t({ en: "Breadcrumb", zh: "面包屑导航" })} structured={hasPublicSchema} /> : null}
         <Content aria-label={props.variant === "article" ? props.title : undefined}>
-          <section className={`hero-grid${isHome ? " home-hero" : ""}`}>
+          <section className={`hero-grid${isHome ? " home-hero" : ""}${props.heroVisual ? " hero-with-visual" : ""}`}>
             <div className="hero-main-card">
               <span className="eyebrow">{props.eyebrow}</span>
               <h1>{props.title}</h1>
-              <p>{isHome && customDescription ? customDescription : props.description}</p>
+              <p>{props.description}</p>
               {props.variant === "article" ? <div className="article-byline">{props.sideBody}</div> : null}
               {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
+              {props.heroFootnote ? <div className="hero-footnote">{props.heroFootnote}</div> : null}
             </div>
 
-            {!props.variant ? <div className="hero-side-stack">
+            {props.heroVisual ? <div className="hero-visual">{props.heroVisual}</div> : !props.variant ? <div className="hero-side-stack">
               <div className="hero-side-card">
                 <div className="panel-title-row compact">
                   <div>
@@ -650,7 +229,7 @@ export function SiteShell(props: SiteShellProps) {
         </Content>
       </main>
 
-      <SiteFooter name={siteSettings.brand_name} description={customDescription} />
+      <SiteFooter name={appEnv.appName} />
     </div>
   );
 }

@@ -71,22 +71,22 @@ export const marketingPages: MarketingPage[] = [
   {
     kind: "features", path: "/features/authentication", updatedAt,
     title: text("Email and OAuth login for your SaaS", "为 SaaS 接入邮箱与 OAuth 登录"),
-    description: text("Start with email-code login, optional Google and GitHub sign-in, account settings, and a separate administrator login.", "从邮箱验证码、可选 Google 与 GitHub 登录、账户设置和独立管理员登录开始。"),
-    intro: text("Customers can create an account with an email code and return to their workspace. Google and GitHub sign-in are available when you configure those providers.", "用户可通过邮箱验证码创建账号，再进入自己的工作台。配置对应服务后，还可以使用 Google 和 GitHub 登录。"),
+    description: text("Start with email-code login, optional Google and GitHub sign-in, a read-only account dialog, and a separate administrator login.", "从邮箱验证码、可选 Google 与 GitHub 登录、只读账户弹窗和独立管理员登录开始。"),
+    intro: text("Customers can create an account with an email code and return to their account center. Google and GitHub sign-in are available when you configure those providers.", "用户可通过邮箱验证码创建账号，再进入账户中心。配置对应服务后，还可以使用 Google 和 GitHub 登录。"),
     primaryCta: link("/account", "Try customer login", "体验用户登录"),
     facts: [
       { label: text("Customer access", "用户登录"), value: text("Email code; optional Google / GitHub", "邮箱验证码；可选 Google / GitHub") },
-      { label: text("Account", "账户管理"), value: text("Profile, session refresh, sign-out", "资料、会话刷新与退出") },
+      { label: text("Account", "账户管理"), value: text("Read-only email dialog and sign-out", "只读邮箱弹窗与退出") },
       { label: text("Administrator", "管理员"), value: text("Separate access and permissions", "独立入口与权限") }
     ],
     steps: [
       { title: text("Choose an available method", "选择已启用的登录方式"), body: text("Open the account page. The interface shows the methods enabled by the backend.", "打开账户页，界面会显示后端已启用的登录方式。") },
       { title: text("Complete verification", "完成身份验证"), body: text("Enter your email code or complete the configured provider flow. A new email account is created after verification.", "输入邮箱验证码，或完成已配置的第三方登录流程。新邮箱通过验证后创建账号。") },
-      { title: text("Continue your task", "继续刚才的任务"), body: text("Manage your profile, then open notes, subscriptions, or credit history from the workspace.", "查看账户资料，再从工作台进入笔记、订阅或积分明细。") }
+      { title: text("Continue your task", "继续刚才的任务"), body: text("Open your account information in a compact dialog to view the read-only sign-in email or sign out. Use the account center for subscriptions, credit history and referrals.", "在简洁的账户弹窗中查看只读登录邮箱或退出登录，从账户中心管理订阅、积分与邀请奖励。") }
     ],
     sections: [
       { title: text("One identity across the customer journey", "用同一个账号完成用户流程"), body: text("The customer account connects private notes, credit transactions, purchases, and referrals. It gives your product a place to continue after a visit to a public page.", "账户连接私有笔记、积分流水、购买和邀请记录，让访客从公开页面进入产品后有明确的操作空间。") },
-      { title: text("Customer and administrator access have different jobs", "用户与管理员各自完成自己的任务"), body: text("Customers manage their own information in the workspace. Authorized administrators use a separate console to operate the site; a normal customer login does not grant administrator access.", "用户在工作台管理自己的信息；获得授权的管理员通过独立后台运营网站。普通用户登录不会获得管理员权限。") }
+      { title: text("Customer and administrator access have different jobs", "用户与管理员各自完成自己的任务"), body: text("Customers use their own account center and view a read-only sign-in email in the account dialog. Authorized administrators use a separate console to operate the site; a normal customer login does not grant administrator access.", "用户使用自己的账户中心，在账户弹窗查看只读登录邮箱；获得授权的管理员通过独立后台运营网站。普通用户登录不会获得管理员权限。") }
     ],
     limitations: [
       text("Email delivery and OAuth require your own service configuration. Available login methods depend on the providers enabled for this site.", "邮件发送与 OAuth 需要接入自己的服务配置，可用登录方式以本站启用的服务为准。"),
@@ -211,7 +211,7 @@ export const marketingPages: MarketingPage[] = [
     ],
     limitations: [text("The shipped service does not include credit reservation, later settlement, partial refunds, or a job queue for external providers.", "已有服务不包含积分预冻结、事后结算、部分退款或外部服务任务队列。"), text("A credit purchase still needs configured payment services. The isolated preview can demonstrate spending, but not checkout.", "购买积分需要已配置的支付服务；隔离预览可以体验消费流程，无法完成支付结账。")],
     faq: [
-      { question: text("Is an AI generation service included?", "模板已经接入 AI 生成服务了吗？"), answer: text("No. The supplied paid action is note export. AI providers and their task lifecycle are product work you add yourself.", "没有。已有的付费操作是笔记导出，AI 服务及其任务流程需要你自己接入。") },
+      { question: text("Is an AI generation service included?", "模板已经接入 AI 生成服务了吗？"), answer: text("A server-side model adapter is included. It makes stateless text requests, without a default chat UI, conversation storage or charging policy. Your product defines its conversations, tasks and credit usage.", "模板包含服务端模型适配器，支持无状态文本请求；默认不提供聊天界面、对话存储或收费规则。对话、任务与积分消费方式由具体产品定义。") },
       { question: text("What happens when the balance is insufficient?", "余额不足时会发生什么？"), answer: text("The credit service rejects the consumption. Your product should give the customer a clear way to review their balance or purchase more credits when checkout is available.", "积分服务会拒绝消费。你的产品应给用户清楚的余额查看入口，并在支付可用时提供购买积分的路径。") }
     ],
     related: [link("/features/credits", "Understand the credit service", "了解积分服务"), link("/use-cases/paid-exports", "Apply this to file exports", "用于文件导出"), link("/docs/payments", "Connect credit checkout", "连接积分购买")],
@@ -278,7 +278,7 @@ export const marketingPages: MarketingPage[] = [
     kind: "examples", path: "/examples/notes-to-markdown", updatedAt,
     title: text("From a private note to a Markdown download", "从一条私有笔记到 Markdown 下载"),
     description: text("Follow a real example: save a note for free, confirm the current credit cost, download Markdown, and check your ledger.", "按实际示例免费保存笔记，确认当前积分价格，下载 Markdown，再核对积分流水。"),
-    intro: text("This example is included in the starter. It shows a complete customer action with a clear input, a delivered file, and a recorded credit charge.", "这是模板中已经实现的示例，用明确的输入、可下载文件和积分流水展示一次完整用户操作。"),
+    intro: text("This replaceable developer example demonstrates content storage and credit charging. It is not a required note-taking product or a default account-center tool.", "这是可替换的开发示例，用来展示内容存储与积分扣费，不代表模板默认提供笔记产品，也不会出现在账户中心的常用入口中。"),
     primaryCta: link("/notes", "Open the note example", "打开笔记示例"),
     facts: [
       { label: text("Input", "输入"), value: text("A note title and body", "笔记标题与正文") },
@@ -302,7 +302,33 @@ export const marketingPages: MarketingPage[] = [
     ],
     related: [link("/credits", "Inspect your credit history", "查看自己的积分流水"), link("/use-cases/paid-exports", "Build your own paid export", "开发自己的付费导出"), link("/features/credits", "Understand the credit foundation", "了解积分基础能力")],
     sources: [exportSource, link(`${repository}/blob/main/templates/quickstart/internal/feature/credits/export_repository.go`, "Export snapshot and Markdown format", "导出快照与 Markdown 格式"), creditGuide]
+  },
+  {
+    kind: "examples", path: "/examples/private-image-upload", updatedAt: "2026-10-15",
+    title: text("Private image upload and ownership", "私有图片上传与资源归属"),
+    description: text("Explore a replaceable developer example of uploading, listing and privately viewing an image through the Go API.", "通过可替换的开发示例，了解图片上传、列表展示与登录后的私有访问。"),
+    intro: text("This example demonstrates storage integration and ownership checks. It is not a file-management product: your own feature decides what the image is for and how customers use it.", "这个示例用于演示存储接入与归属校验，不代表模板默认提供文件管理产品。图片的用途与用户操作流程，由你自己的业务决定。"),
+    primaryCta: link("/files", "Open the upload example", "打开上传示例"),
+    facts: [
+      { label: text("Input", "输入"), value: text("One PNG, JPEG, WebP or GIF", "一张 PNG、JPEG、WebP 或 GIF") },
+      { label: text("Size", "大小"), value: text("Up to 5 MB per image", "每张最大 5 MB") },
+      { label: text("Access", "访问方式"), value: text("Signed-in owner only", "仅登录后的所属用户") }
+    ],
+    steps: [
+      { title: text("Configure storage", "配置存储"), body: text("Enable backend uploads and choose a private local directory or S3-compatible storage. Keep storage credentials on the server. The isolated preview may leave uploads disabled.", "在后端启用上传，并配置私有本地目录或 S3 兼容存储，凭证保留在服务端。隔离预览环境可能未启用上传。") },
+      { title: text("Upload an image", "上传图片"), body: text("Sign in, select one supported image under the size limit, then upload it. The backend checks the actual file content and records the signed-in owner.", "登录后选择一张格式与大小符合要求的图片并上传。后端校验实际文件内容，并记录当前用户归属。") },
+      { title: text("View the private result", "查看私有结果"), body: text("Open the image from your upload list. The browser requests it with your session and offers a preview and download, rather than exposing a public storage URL.", "从上传列表中打开图片，浏览器通过登录状态获取内容后提供预览与下载，不直接公开存储地址。") }
+    ],
+    sections: [
+      { title: text("What is reusable", "哪些部分可以复用"), body: text("Reuse the storage connection, file validation and ownership boundary. Replace the example page and connect the upload to your actual product, such as an image input or a task attachment.", "可以复用存储连接、文件校验与归属边界，再替换示例页面，将上传接入实际产品，例如图片输入或任务附件。") },
+      { title: text("What the example stores", "示例保存什么"), body: text("The backend records an image identifier, generated filename, content type, size, storage provider and owner. Listing and reading images are scoped to that account. Images are returned with private, no-store caching headers.", "后端记录图片编号、生成的文件名、内容类型、大小、存储服务与所属用户。列表和读取均限定在该账号内，图片响应使用 private、no-store 缓存设置。") }
+    ],
+    limitations: [text("Storage must be configured before an upload succeeds. This example does not supply folders, sharing links, file deletion or an attachment billing policy.", "上传成功前必须配置存储。示例不提供文件夹、分享链接、文件删除或附件计费规则。")],
+    faq: [{ question: text("Can another account open the image?", "其他账号能打开图片吗？"), answer: text("The API checks image ownership and returns not found for another account's image. The example does not create public sharing links.", "接口会校验归属，访问其他账号的图片时返回不存在。示例不会生成公开分享链接。") }],
+    related: [link("/examples/notes-to-markdown", "Explore the credit export example", "查看积分导出示例"), link("/docs/features", "See the template boundaries", "了解模板能力边界")],
+    sources: [link(`${repository}/blob/main/templates/quickstart/internal/feature/operations/uploads.go`, "Upload and ownership implementation", "上传与归属校验实现"), frontendReadme]
   }
+
 ];
 
 export const aboutPage: MarketingUtilityPage = {
@@ -311,7 +337,7 @@ export const aboutPage: MarketingUtilityPage = {
   description: text("Learn what the go-modules starter includes, where its source lives, and what you own when you build a product with it.", "了解 go-modules 模板包含什么、源码在哪里，以及用它开发产品时由你负责哪些部分。"),
   intro: text("This website demonstrates the SaaS templates in the go-modules repository. You can obtain the source for free, run it yourself, and build your own product on the supplied workflows.", "这个网站演示 go-modules 仓库中的 SaaS 模板。你可以免费获取源码，自行运行，并基于已有流程开发自己的产品。"),
   sections: [
-    { title: text("What is included", "模板已经提供什么"), body: text("A Next.js public website and customer workspace connect to a Go API. Examples cover account login, Stripe subscriptions, credit accounting, referrals, private notes, file uploads when configured, and administrator operations.", "Next.js 公开网站与用户工作台连接 Go API，示例覆盖账户登录、Stripe 订阅、积分记账、邀请、私有笔记、配置后的文件上传与管理员操作。") },
+    { title: text("What is included", "模板已经提供什么"), body: text("A Next.js public website and account center connect to a Go API. Shared capabilities cover login, Stripe subscriptions, credits, referrals, AI integration and administrator operations. Notes/export and private uploads are separate developer examples.", "Next.js 公开网站与账户中心连接 Go API，公共能力包括登录、Stripe 订阅、积分、邀请、AI 接入与管理后台。笔记导出和私有上传作为独立开发示例提供。") },
     { title: text("What you build and operate", "哪些部分由你开发与运营"), body: text("You add the core service, define customer entitlements, configure your providers, and operate the deployment. Sample prices describe a possible customer offer; they are not a charge for the starter source.", "你需要添加核心业务、定义客户权益、配置服务商并负责部署运营。示例价格展示面向客户的收费方式，不是获取模板源码的费用。") },
     { title: text("Where to verify details", "在哪里核对实现"), body: text("The public source repository and its setup documentation are the reference for these pages. Check the implementation before adopting a workflow, and use the project's GitHub issue tracker for reproducible code problems.", "这些介绍以公开源码仓库和配置文档为依据。采用某个流程前可以查看实现，能够复现的代码问题可以提交到项目的 GitHub issue。") }
   ],
