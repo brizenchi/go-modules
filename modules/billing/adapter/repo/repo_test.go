@@ -3,12 +3,14 @@ package repo
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	billingport "github.com/brizenchi/go-modules/modules/billing/port"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -204,6 +206,69 @@ func TestCustomerStoreReleasesSessionlessReservationByReservationID(t *testing.T
 	}
 	if released, err := store.ReleaseCheckoutReservationByReservationID(ctx, "stripe", "reservation-sessionless"); err != nil || !released {
 		t.Fatalf("matching release=%t err=%v", released, err)
+	}
+}
+
+func TestSubscriptionRepoPostgreSQLUpsertSnapshotQualifiesConflictColumns(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("GO_MODULES_BILLING_POSTGRES_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("set GO_MODULES_BILLING_POSTGRES_TEST_DSN to run the PostgreSQL regression test")
+	}
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open postgres: %v", err)
+	}
+	if err := AutoMigrate(db); err != nil {
+		t.Fatalf("migrate billing: %v", err)
+	}
+
+	userID := "u-postgres-upsert-regression"
+	t.Cleanup(func() {
+		if err := db.Where("user_id = ? AND provider = ?", userID, "stripe").Delete(&billingdomain.BillingSubscription{}).Error; err != nil {
+			t.Errorf("cleanup PostgreSQL snapshot: %v", err)
+		}
+	})
+
+	repo := NewSubscriptionRepo(db)
+	ctx := context.Background()
+	firstAt := time.Unix(100, 0).UTC()
+	secondAt := time.Unix(200, 0).UTC()
+
+	if _, err := repo.UpsertSnapshot(ctx, userID, "stripe", billingdomain.SubscriptionSnapshot{
+		ProviderCustomerID:     "cus_postgres_regression",
+		ProviderSubscriptionID: "sub_postgres_regression",
+		ProviderPriceID:        "price_pro",
+		ProductType:            billingdomain.ProductSubscription,
+		Plan:                   billingdomain.PlanPro,
+		Interval:               billingdomain.IntervalMonthly,
+		Status:                 billingdomain.StatusActive,
+	}, firstAt, "evt_postgres_create"); err != nil {
+		t.Fatalf("create snapshot: %v", err)
+	}
+
+	if _, err := repo.UpsertSnapshot(ctx, userID, "stripe", billingdomain.SubscriptionSnapshot{
+		ProviderCustomerID:     "cus_postgres_regression",
+		ProviderSubscriptionID: "sub_postgres_regression",
+		ProviderPriceID:        "price_premium",
+		ProductType:            billingdomain.ProductSubscription,
+		Plan:                   billingdomain.PlanPremium,
+		Interval:               billingdomain.IntervalYearly,
+		Status:                 billingdomain.StatusCanceling,
+		CancelAtPeriodEnd:      true,
+	}, secondAt, "evt_postgres_update"); err != nil {
+		t.Fatalf("update snapshot: %v", err)
+	}
+
+	got, err := repo.FindByUser(ctx, userID)
+	if err != nil {
+		t.Fatalf("find snapshot: %v", err)
+	}
+	if got.Plan != string(billingdomain.PlanPremium) ||
+		got.BillingInterval != string(billingdomain.IntervalYearly) ||
+		got.Status != string(billingdomain.StatusCanceling) ||
+		got.SnapshotEventID != "evt_postgres_update" {
+		t.Fatalf("snapshot = %+v, want updated PostgreSQL snapshot", got)
 	}
 }
 

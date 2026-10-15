@@ -7,6 +7,11 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- Qualify PostgreSQL subscription snapshot conflict columns so successful Stripe
+  webhooks can persist subscription state without an ambiguous-column error.
+
 ### Added
 
 - Optional `CheckoutSessionExpirer` capability; Stripe can expire abandoned open
