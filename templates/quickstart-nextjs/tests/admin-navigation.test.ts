@@ -11,7 +11,7 @@ test("administrator sections belong to a separate route space from the customer 
     assert.equal(isWorkspacePath(path), false);
     assert.equal(workspaceNavItems.some((item) => item.href === path), false);
   }
-  for (const path of ["/account", "/billing", "/referrals", "/notes", "/credits", "/files"]) {
+  for (const path of ["/account", "/billing", "/referrals", "/credits"]) {
     assert.equal(activeAdminSection(path), null);
     assert.equal(isWorkspacePath(path), true);
   }

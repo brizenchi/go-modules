@@ -50,7 +50,6 @@ export default function HomePage() {
           <ol className={styles.previewFlow}>
             {content.flow.map((step, index) => <li key={step.title}><span className={styles.flowNumber}>0{index + 1}</span><strong>{step.title}</strong><p>{step.description}</p><span className={styles.flowLabel}>{step.label}</span></li>)}
           </ol>
-          <p className={styles.previewFoot}>{t({ en: "Notes, exports and private uploads are replaceable developer examples, available in the examples directory.", zh: "笔记、导出和私有上传属于可替换的开发示例，可在示例目录中体验。" })} <Link href="/examples">{t({ en: "Browse examples →", zh: "查看示例 →" })}</Link></p>
         </div></div>
       </PageSection>
 

@@ -1,4 +1,4 @@
-export type WorkspaceIcon = "billing" | "referrals" | "account" | "credits" | "notes" | "files";
+export type WorkspaceIcon = "billing" | "referrals" | "account" | "credits";
 
 export type WorkspaceNavItem = {
   href: string;
@@ -36,15 +36,9 @@ export const auxiliaryWorkspaceItems: WorkspaceNavItem[] = [
 
 export const accountServiceItems: WorkspaceNavItem[] = [workspaceNavItems[1], auxiliaryWorkspaceItems[0], workspaceNavItems[2]];
 
-/** Replaceable developer examples, never default customer tools. */
-export const exampleWorkspaceItems: WorkspaceNavItem[] = [
-  { href: "/notes", icon: "notes", label: { en: "Note export example", zh: "笔记导出示例" }, description: { en: "Example of saving and credit consumption", zh: "演示内容保存与积分扣费" } },
-  { href: "/files", icon: "files", label: { en: "Private upload example", zh: "私有上传示例" }, description: { en: "Example of storage and ownership", zh: "演示存储接入与资源归属" } }
-];
-
 export function activeWorkspaceHref(pathname: string): string {
   const normalized = pathname.split(/[?#]/, 1)[0] || "/";
-  return [...workspaceNavItems, ...auxiliaryWorkspaceItems, ...exampleWorkspaceItems].find((item) =>
+  return [...workspaceNavItems, ...auxiliaryWorkspaceItems].find((item) =>
     normalized === item.href || normalized.startsWith(`${item.href}/`)
   )?.href || "";
 }

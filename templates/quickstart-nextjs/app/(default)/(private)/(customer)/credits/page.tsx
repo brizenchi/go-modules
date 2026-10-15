@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import { useCallback, useEffect, useState } from "react";
 import { SiteShell } from "@/components/site-shell";
 import { DataTable } from "@/components/data-table";
@@ -18,7 +18,7 @@ export default function CreditsPage() {
   const loader = useCallback((key: string) => listCreditTransactions(key, page), [page]);
   const history = useConsoleResource(token, loader);
   const labels: Record<string, { en: string; zh: string }> = { opening: { en: "Opening balance", zh: "期初余额" }, grant: { en: "Received", zh: "获得积分" }, consume: { en: "Used", zh: "消费积分" }, refund: { en: "Returned", zh: "积分退回" }, expire: { en: "Expired", zh: "积分过期" }, expiry: { en: "Expired", zh: "积分过期" } };
-  return <SiteShell eyebrow={t({ en: "Your credits", zh: "我的积分" })} title={t({ en: "Every credit, accounted for.", zh: "积分收支，清楚可查。" })} description={t({ en: "See your available balance, upcoming expiry and the history of every grant, purchase and use.", zh: "查看可用积分、即将到期的权益，以及奖励、购买和使用产生的每一笔记录。" })} actions={<div className="button-row"><Link className="button primary" href="/billing">{t({ en: "Get more credits", zh: "购买积分" })}</Link><Link className="button" href="/notes">{t({ en: "Use credits", zh: "使用积分" })}</Link></div>}>
+  return <SiteShell eyebrow={t({ en: "Your credits", zh: "我的积分" })} title={t({ en: "Every credit, accounted for.", zh: "积分收支，清楚可查。" })} description={t({ en: "See your available balance, upcoming expiry and the history of every grant, purchase and use.", zh: "查看可用积分、即将到期的权益，以及奖励、购买和使用产生的每一笔记录。" })} actions={<div className="button-row"><Link className="button primary" href="/pricing#one-time">{t({ en: "Get more credits", zh: "购买积分" })}</Link></div>}>
     <ConsoleGate session={session} ready={ready}><div className={styles.stack}>
       <ConsoleError error={balance.error} retry={() => void balance.refresh()} />
       <div className={styles.metrics}><div className={styles.metric}><span>{t({ en: "Available credits", zh: "可用积分" })}</span><strong>{balance.data?.balance ?? "—"}</strong></div><div className={styles.metric}><span>{t({ en: "Expiring within 30 days", zh: "30 天内到期" })}</span><strong>{balance.data?.expiring_credits ?? "—"}</strong></div><div className={styles.metric}><span>{t({ en: "Next expiry", zh: "最近到期时间" })}</span><p>{balance.data?.next_expiry_at ? formatDate(balance.data.next_expiry_at, locale === "zh" ? "zh-CN" : "en-US") : balance.data ? t({ en: "No upcoming expiry", zh: "暂无到期计划" }) : "—"}</p></div></div>

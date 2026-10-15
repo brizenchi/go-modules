@@ -61,10 +61,17 @@ export const marketingCategories: MarketingCategory[] = [
   },
   {
     kind: "examples", path: "/examples",
-    title: text("Follow a working customer journey", "沿着一个可用示例体验产品"),
-    description: text("Try a real starter workflow: save a private note, confirm a credit-based export, and review the transaction.", "体验已有流程：保存私有笔记、确认积分导出，再查看对应流水。"),
-    intro: text("Use the examples to understand what happens before, during, and after a paid customer action.", "通过实际示例理解一次付费操作前后，用户会看到什么、得到什么。")
+    title: text("Explore the customer account", "体验账户服务"),
+    description: text("Try account access, subscription management and referral rewards.", "体验账户中心、订阅与账单，以及推荐奖励。"),
+    intro: text("Open one of the three common account services. Sign in when prompted to view your own records.", "选择以下三个通用账户服务，需要时登录后查看自己的记录。")
   }
+];
+
+/** Direct product entries; no separate article is needed to try account services. */
+export const customerExamples = [
+  { ...link("/account", "My account", "账户中心"), description: text("Sign in, view account information and check your credit balance.", "登录、查看账户信息与积分余额。") },
+  { ...link("/billing", "Subscription & billing", "订阅与账单"), description: text("Review your subscription, payment methods and billing history.", "查看订阅状态、付款方式与账单记录。") },
+  { ...link("/referrals", "Referral rewards", "推荐奖励"), description: text("Share your invitation link and review your referral records.", "分享邀请链接，查看推荐与奖励记录。") }
 ];
 
 export const marketingPages: MarketingPage[] = [
@@ -85,7 +92,7 @@ export const marketingPages: MarketingPage[] = [
       { title: text("Continue your task", "继续刚才的任务"), body: text("Open your account information in a compact dialog to view the read-only sign-in email or sign out. Use the account center for subscriptions, credit history and referrals.", "在简洁的账户弹窗中查看只读登录邮箱或退出登录，从账户中心管理订阅、积分与邀请奖励。") }
     ],
     sections: [
-      { title: text("One identity across the customer journey", "用同一个账号完成用户流程"), body: text("The customer account connects private notes, credit transactions, purchases, and referrals. It gives your product a place to continue after a visit to a public page.", "账户连接私有笔记、积分流水、购买和邀请记录，让访客从公开页面进入产品后有明确的操作空间。") },
+      { title: text("One identity across the customer journey", "用同一个账号完成用户流程"), body: text("The customer account connects subscriptions, credit transactions, purchases, and referrals. It gives your product a place to continue after a visit to a public page.", "账户连接订阅、积分流水、购买和邀请记录，让访客从公开页面进入产品后有明确的操作空间。") },
       { title: text("Customer and administrator access have different jobs", "用户与管理员各自完成自己的任务"), body: text("Customers use their own account center and view a read-only sign-in email in the account dialog. Authorized administrators use a separate console to operate the site; a normal customer login does not grant administrator access.", "用户使用自己的账户中心，在账户弹窗查看只读登录邮箱；获得授权的管理员通过独立后台运营网站。普通用户登录不会获得管理员权限。") }
     ],
     limitations: [
@@ -96,7 +103,7 @@ export const marketingPages: MarketingPage[] = [
       { question: text("Do customers need a password?", "普通用户需要设置密码吗？"), answer: text("The supplied customer flow uses email codes or an enabled OAuth provider. The administrator password flow is separate.", "模板中的普通用户通过邮箱验证码或已启用的 OAuth 登录；管理员密码登录是独立流程。") },
       { question: text("Does downloading the template enable Google login?", "下载模板后就能直接使用 Google 登录吗？"), answer: text("No. Register your own OAuth application, configure the backend credentials and callback, and enable the provider before offering it to customers.", "需要先注册自己的 OAuth 应用，配置后端凭证与回调地址并启用服务，再向用户开放。") }
     ],
-    related: [link("/docs/auth-email", "Configure authentication", "配置登录服务"), link("/features/subscriptions", "Connect login to subscriptions", "接上订阅流程"), link("/examples/notes-to-markdown", "Try the note workflow", "体验笔记流程")],
+    related: [link("/docs/auth-email", "Configure authentication", "配置登录服务"), link("/features/subscriptions", "Connect login to subscriptions", "接上订阅流程"), link("/examples", "Explore account services", "体验账户服务")],
     sources: [frontendReadme, link("/docs/admin", "Administrator access guide", "管理员访问指南")]
   },
   {
@@ -133,16 +140,16 @@ export const marketingPages: MarketingPage[] = [
   {
     kind: "features", path: "/features/credits", updatedAt,
     title: text("A credit balance with a transaction history", "每笔变化都有记录的积分账本"),
-    description: text("Use the starter's credit service for grants, purchases, expiry, consumption, and recorded refunds, with a paid export example.", "使用模板的积分服务处理发放、购买、到期、消费和退回，并通过付费导出示例理解完整流程。"),
+    description: text("Use the starter's credit service for grants, purchases, expiry, consumption and recorded returns in your own product.", "使用模板的积分服务处理发放、购买、到期、消费和退回，再接入自己的产品业务。"),
     intro: text("Credits connect a customer's balance to individual actions. The starter records where credits came from, when they expire, and which operation consumed them.", "积分将用户余额与具体操作连接起来。模板记录积分来源、到期情况，以及每次消费对应的业务操作。"),
     primaryCta: link("/credits", "Open balance and history", "查看积分与明细"),
     facts: [
       { label: text("Customer view", "用户视图"), value: text("Balance, expiry, and transactions", "余额、到期信息与流水") },
       { label: text("Operations", "业务操作"), value: text("Grant, consume, and refund", "发放、消费与退回") },
-      { label: text("Working example", "可用示例"), value: text("Private note to Markdown", "私有笔记导出 Markdown") }
+      { label: text("Integration", "接入方式"), value: text("Product-owned paid actions", "接入产品自己的收费操作") }
     ],
     steps: [
-      { title: text("Define the paid action", "定义收费动作"), body: text("Choose the outcome customers buy and set its credit cost on the server. The note example displays the current cost before confirmation.", "明确用户购买的结果，在服务端设置积分消耗。笔记示例在用户确认前显示当前价格。") },
+      { title: text("Define the paid action", "定义收费动作"), body: text("Choose the outcome customers buy and set its credit cost on the server. Your product should display that cost before confirmation.", "明确用户购买的结果，在服务端设置积分消耗。你的产品应在用户确认前显示当前价格。") },
       { title: text("Complete the action once", "完成一次业务操作"), body: text("For local database work, the credit service can store the result and charge in one transaction. A retry reuses the same operation identifier.", "针对本地数据库操作，积分服务可在同一事务中保存结果并扣分；重试需要复用同一个操作编号。") },
       { title: text("Explain the balance change", "说明余额为什么变化"), body: text("The customer checks the transaction history. Authorized administrators can review entries and issue a recorded full refund of a consumption.", "用户可以查看流水；获得授权的管理员可核对记录，并按消费流水执行有记录的全额积分退回。") }
     ],
@@ -155,10 +162,10 @@ export const marketingPages: MarketingPage[] = [
       text("External AI or other API calls need a separate task and compensation design. Credit reservation, settlement, and partial refunds are not included.", "外部 AI 等 API 调用需要独立的任务与补偿设计；当前不提供积分预冻结、结算或部分退款。")
     ],
     faq: [
-      { question: text("Does retrying a paid export charge again?", "付费导出重试会再次扣分吗？"), answer: text("Retrying the same successful operation with the same identifier returns its saved result. A new operation is a new purchase; the note page preserves the identifier for its retry.", "使用同一操作编号重试已成功的操作，会返回保存的结果。新操作属于新的消费；笔记页面会在重试时保留原编号。") },
+      { question: text("Does retrying a paid export charge again?", "付费导出重试会再次扣分吗？"), answer: text("Retrying the same successful operation with the same identifier returns its saved result. A new operation is a new purchase; your product must preserve the identifier when retrying.", "使用同一操作编号重试已成功的操作，会返回保存的结果。新操作属于新的消费；产品应在重试时保留原编号。") },
       { question: text("Can credits expire?", "积分可以设置有效期吗？"), answer: text("The service supports grants with an expiry date, and the customer credit page shows expiry information. Publish the expiry rules you choose for your product.", "服务支持发放带到期时间的积分，用户积分页会显示到期信息。上线时应公开自己产品采用的有效期规则。") }
     ],
-    related: [link("/examples/notes-to-markdown", "Follow a paid export", "体验一次付费导出"), link("/use-cases/usage-based-products", "Design a credit-based product", "设计积分产品"), link("/docs/payments", "Configure credit purchases", "配置积分购买")],
+    related: [link("/examples", "Explore account services", "体验账户服务"), link("/use-cases/usage-based-products", "Design a credit-based product", "设计积分产品"), link("/docs/payments", "Configure credit purchases", "配置积分购买")],
     sources: [creditGuide, exportSource]
   },
   {
@@ -193,8 +200,8 @@ export const marketingPages: MarketingPage[] = [
     kind: "use-cases", path: "/use-cases/usage-based-products", updatedAt,
     title: text("Build a product that charges prepaid credits per action", "搭建按操作消耗预付积分的产品"),
     description: text("Use a credit balance for individually priced actions, with clear confirmation, transaction records, and defined retry behavior.", "为单次收费操作接入积分余额、价格确认、流水记录和清楚的重试规则。"),
-    intro: text("Prepaid credits fit products where a customer buys a balance and spends it on individual results. The included note export shows this pattern with a local database operation.", "用户先获得积分，再按次购买具体结果，适合预付积分模式。模板已有的笔记导出通过本地数据库操作演示了这一流程。"),
-    primaryCta: link("/examples/notes-to-markdown", "See the working example", "查看可用示例"),
+    intro: text("Prepaid credits fit products where a customer buys a balance and spends it on individual results. Connect your own paid action to the shared credit service.", "用户先获得积分，再按次购买具体结果，适合预付积分模式。可以将自己的收费操作接入共享积分服务。"),
+    primaryCta: link("/examples", "Explore account services", "体验账户服务"),
     facts: [
       { label: text("Billing model", "计费模型"), value: text("Prepaid credits per operation", "预付积分，按操作消费") },
       { label: text("Customer confirmation", "用户确认"), value: text("Cost before the action", "操作前显示积分价格") },
@@ -218,31 +225,31 @@ export const marketingPages: MarketingPage[] = [
     sources: [creditGuide, exportSource]
   },
   {
-    kind: "use-cases", path: "/use-cases/paid-exports", updatedAt,
-    title: text("Let customers create freely and pay for an export", "免费创建内容，按需付费导出"),
-    description: text("Start from a private note workflow that separates free saving from a confirmed Markdown export paid with credits.", "从私有笔记示例开始，将免费保存与确认后消耗积分的 Markdown 导出区分开。"),
-    intro: text("Make the paid boundary easy to understand: saving a note is free, and a new Markdown export uses the displayed number of credits. Customers can inspect the cost before they confirm.", "把付费边界讲清楚：保存笔记免费，新建一次 Markdown 导出消耗页面显示的积分。用户确认前可以查看价格。"),
-    primaryCta: link("/notes", "Try notes and exports", "体验笔记与导出"),
+    kind: "use-cases", path: "/use-cases/paid-exports", updatedAt: "2026-10-15",
+    title: text("Build exports that charge credits", "开发按积分计费的导出功能"),
+    description: text("Connect your own generated files to authentication, credit accounting and recorded consumption.", "将自己的文件生成业务接入认证、积分记账与消费记录。"),
+    intro: text("The template supplies shared account and credit services. You build the export screen, generate the file and define what a successful paid result means.", "模板提供通用账户与积分服务。导出界面、文件生成，以及什么情况算完成付费交付，由自己的产品实现。"),
+    primaryCta: link("/docs/features", "Read the integration guide", "阅读接入指南"),
     facts: [
-      { label: text("Free action", "免费操作"), value: text("Create and save a note", "创建与保存笔记") },
-      { label: text("Paid action", "付费操作"), value: text("Confirm a new export", "确认新建一次导出") },
-      { label: text("Delivered file", "交付文件"), value: text("Markdown (.md)", "Markdown（.md）") }
+      { label: text("Reusable", "可复用能力"), value: text("Authentication and credit ledger", "用户认证与积分账本") },
+      { label: text("Product-owned", "产品自行实现"), value: text("Export interface and generator", "导出界面与生成器") },
+      { label: text("Customer records", "用户记录"), value: text("Credit history", "积分明细") }
     ],
     steps: [
-      { title: text("Save useful content", "先保存需要的内容"), body: text("Sign in and create a note with a title and body. Saving does not consume export credits.", "登录后填写标题与正文并保存笔记。保存不会消耗导出积分。") },
-      { title: text("Confirm the paid boundary", "确认付费操作"), body: text("Choose export, review the current credit cost, and confirm. If the price has changed, refresh it before starting a new attempt.", "选择导出，查看当前积分消耗后确认。如果价格已变更，需要刷新价格再发起操作。") },
-      { title: text("Download and verify", "下载并核对"), body: text("Download the prepared Markdown file and open credit history to inspect the recorded consumption.", "下载已生成的 Markdown 文件，再打开积分明细查看本次消费。") }
+      { title: text("Define the output", "定义交付结果"), body: text("Choose the file format, generation rules and server-side credit cost for your own product.", "为自己的产品选择文件格式、生成规则与服务端积分价格。") },
+      { title: text("Review before charging", "扣费前确认"), body: text("Show the selected result and cost before the customer confirms. Check resource ownership on the server.", "在用户确认前显示交付结果与费用，并在服务端检查资源归属。") },
+      { title: text("Deliver and record", "交付并记录"), body: text("Return the generated file and record its credit consumption. Preserve an operation identifier when retrying.", "返回生成文件并记录积分消费，重试时复用同一操作编号。") }
     ],
     sections: [
-      { title: text("Sell a clear output", "让用户知道会获得什么"), body: text("The included result is a Markdown file containing the note title as a heading followed by its body. It is a simple, inspectable output you can use to understand the purchase flow.", "已有示例输出一个 Markdown 文件：笔记标题作为一级标题，其后是笔记正文。结果明确、容易核对，适合理解完整消费流程。") },
-      { title: text("Adapt the pattern to your own deliverable", "将流程用于你自己的交付结果"), body: text("A report or other export can use the same product pattern, but its generator, file format, delivery process, and price are your own implementation. The starter does not generate PDF reports or AI documents.", "报告或其他导出功能可以采用相同收费方式，但生成器、文件格式、交付流程和价格需要自行实现。模板没有内置 PDF 报告或 AI 文档生成。") }
+      { title: text("Use the shared accounting boundary", "复用记账边界"), body: text("For local database work, store the result and credit consumption in the same transaction. Backend export code is an implementation reference, without a default customer interface.", "本地数据库操作可在同一事务中保存结果并记录积分消费。后端导出代码保留为实现参考，不提供默认用户界面。") },
+      { title: text("Own external generation", "实现自己的生成流程"), body: text("External generation needs its own task lifecycle and compensation rules. The template does not supply a report generator or ready-made export product.", "外部生成服务需要独立的任务流程与补偿规则。模板不提供报告生成器或现成的导出产品。") }
     ],
-    limitations: [text("Re-downloading a ready export on the current page is free. Starting a new export operation can consume credits again.", "在当前页面重复下载已生成的文件不再次扣分；发起新的导出操作可能再次消耗积分。"), text("Notes are private. This workflow does not publish customer content as a public gallery or search page.", "笔记属于私有内容；这个流程不会将用户内容发布为公开广场或搜索页面。")],
+    limitations: [text("Export screens, file formats and delivery rules belong to your product.", "导出界面、文件格式与交付规则由产品实现。"), text("File access requires server-side authorization and ownership checks.", "文件访问需要服务端认证与资源归属检查。")],
     faq: [
-      { question: text("Does the starter export PDF or Word files?", "模板可以导出 PDF 或 Word 吗？"), answer: text("The included note example exports Markdown only. Other formats need their own generation and delivery implementation.", "已有笔记示例只导出 Markdown；其他格式需要实现各自的生成与交付流程。") },
-      { question: text("Is the credit cost fixed in this guide?", "本指南里的导出价格是固定的吗？"), answer: text("No. The note page reads the current configured price and shows it before confirmation. Use that value when testing the workflow.", "不是。笔记页面读取当前配置的价格，并在确认前显示。体验时以页面显示为准。") }
+      { question: text("Does the starter generate PDF or Word files?", "模板会生成 PDF 或 Word 文件吗？"), answer: text("No. Implement and connect a generator for the formats your product needs.", "不会，需要为产品所需格式实现并接入生成器。") },
+      { question: text("Where is the cost defined?", "在哪里定义费用？"), answer: text("Your business service defines the cost and confirms it on the server before recording consumption.", "由业务服务定义费用，并在服务端确认后记录消费。") }
     ],
-    related: [link("/examples/notes-to-markdown", "See the exact input and output", "查看具体输入与输出"), link("/features/credits", "Review credit accounting", "了解积分记账"), link("/docs/launch", "Prepare your own product", "准备自己的产品")],
+    related: [link("/features/credits", "Review credit accounting", "了解积分记账"), link("/docs/launch", "Prepare your own product", "准备自己的产品")],
     sources: [exportSource, creditGuide]
   },
   {
@@ -258,7 +265,7 @@ export const marketingPages: MarketingPage[] = [
     ],
     steps: [
       { title: text("Compare your real requirements", "先对照真实需求"), body: text("List the authentication, billing, data, and operational workflows you need. Match them to the supplied examples rather than to a feature count.", "列出所需的登录、计费、数据与运营流程，再与模板示例逐项对照。") },
-      { title: text("Run one complete journey", "跑通一个完整流程"), body: text("Try account creation, a private note, and a paid export. Read the source for the business rules you expect to change.", "体验注册、私有笔记与积分导出，阅读预计需要修改的业务规则源码。") },
+      { title: text("Run one complete journey", "跑通一个完整流程"), body: text("Try account creation, subscription management and referral rewards. Read the source for the business rules you expect to change.", "体验注册、订阅管理与推荐奖励，阅读预计需要修改的业务规则源码。") },
       { title: text("Choose what you can maintain", "选择能够持续维护的方案"), body: text("Consider familiarity with the stack, custom integrations, upgrades, and test coverage. There is no universal time or cost saving for every team.", "考虑技术栈熟悉度、定制集成、升级与测试覆盖。不同团队的开发时间和成本没有统一答案。") }
     ],
     sections: [
@@ -271,63 +278,9 @@ export const marketingPages: MarketingPage[] = [
       { question: text("Does the starter include hosting?", "模板包含托管服务吗？"), answer: text("No. You obtain the source and deploy your own frontend, API, and database with providers you choose.", "不包含。你获得源码，再自行选择服务商部署前端、API 与数据库。") },
       { question: text("Can I replace the example business?", "可以替换示例业务吗？"), answer: text("Yes. Notes and exports demonstrate how to connect a user action to ownership and charging. Your own business feature belongs in the product template.", "可以。笔记与导出演示了如何连接用户操作、资源归属和收费，你可以在产品模板中实现自己的业务。") }
     ],
-    related: [link("/features", "Browse included foundations", "浏览基础能力"), link("/examples/notes-to-markdown", "Run the example journey", "体验示例流程"), link("/about", "Understand the project", "了解项目定位")],
+    related: [link("/features", "Browse included foundations", "浏览基础能力"), link("/examples", "Explore account services", "体验账户服务"), link("/about", "Understand the project", "了解项目定位")],
     sources: [source, frontendReadme, link("/docs/launch", "What remains before launch", "上线前还需要什么")]
   },
-  {
-    kind: "examples", path: "/examples/notes-to-markdown", updatedAt,
-    title: text("From a private note to a Markdown download", "从一条私有笔记到 Markdown 下载"),
-    description: text("Follow a real example: save a note for free, confirm the current credit cost, download Markdown, and check your ledger.", "按实际示例免费保存笔记，确认当前积分价格，下载 Markdown，再核对积分流水。"),
-    intro: text("This replaceable developer example demonstrates content storage and credit charging. It is not a required note-taking product or a default account-center tool.", "这是可替换的开发示例，用来展示内容存储与积分扣费，不代表模板默认提供笔记产品，也不会出现在账户中心的常用入口中。"),
-    primaryCta: link("/notes", "Open the note example", "打开笔记示例"),
-    facts: [
-      { label: text("Input", "输入"), value: text("A note title and body", "笔记标题与正文") },
-      { label: text("Output", "输出"), value: text("note-{id}.md", "note-{id}.md") },
-      { label: text("Charge", "消费"), value: text("Current configured export cost", "当前配置的导出积分") }
-    ],
-    steps: [
-      { title: text("Create a note", "创建一条笔记"), body: text("Sign in at /notes. Use “Launch checklist” as the title and “Connect email. Test checkout. Review support details.” as the body, then save for free.", "登录笔记页，以“上线检查”为标题，以“接入邮件。测试结账。核对支持信息。”为正文，免费保存。") },
-      { title: text("Review and confirm export", "查看价格并确认导出"), body: text("Check your available balance and the export price. Choose the saved note, confirm the displayed credit cost, and wait for the result.", "查看可用余额与导出价格，选择刚保存的笔记，确认显示的积分消耗，等待结果。") },
-      { title: text("Download and inspect the record", "下载文件并查看记录"), body: text("Download the Markdown file. The page shows the remaining balance; the credit history records the consumption for this export.", "下载 Markdown 文件。页面显示剩余余额，积分明细记录这次导出的消费。") }
-    ],
-    sections: [
-      { title: text("What the file contains", "文件包含什么"), body: text("For the example above, the file starts with “# Launch checklist”, followed by a blank line and “Connect email. Test checkout. Review support details.” The filename uses the saved note's identifier, such as note-42.md; your identifier may differ.", "上面的示例会生成以“# 上线检查”开头的文件，空一行后是“接入邮件。测试结账。核对支持信息。”。文件名使用已保存笔记的编号，例如 note-42.md；你的编号可能不同。") },
-      { title: text("What happens if the request is retried", "请求重试时会发生什么"), body: text("The export saves a snapshot of the file and its credit transaction. A retry with the same operation identifier returns that snapshot, even if the note or price later changes. The page reuses the identifier for its retry action.", "导出会保存文件快照及关联的积分流水。使用相同操作编号重试时，即使笔记或价格随后发生变化，也会返回原快照。页面的重试操作会复用这个编号。") },
-      { title: text("What to check in local preview", "本地预览时可以检查什么"), body: text("Check that saving is free, confirmation shows the cost, a successful export changes the balance, and the history explains that change. The isolated preview has temporary data and disabled payments, so purchasing additional credits needs a separately configured environment.", "检查保存不扣分、确认时显示消耗、导出成功后余额变化，以及流水能解释这次变化。隔离预览使用临时数据并关闭支付，购买更多积分需要另外配置支付环境。") }
-    ],
-    limitations: [text("A ready download on the current page does not create a new charge. After starting a new export operation, a new charge may apply.", "在当前页面下载已生成的文件不会产生新扣费；重新发起一次导出操作时可能再次扣费。"), text("This example does not generate new text, export other formats, or make private notes publicly searchable.", "本示例不会生成新正文、导出其他格式，或让私有笔记成为可公开搜索的内容。")],
-    faq: [
-      { question: text("Can I export another customer's note?", "可以导出其他用户的笔记吗？"), answer: text("No. The export checks the note's owner before charging or returning its content. Use your own signed-in account to create the example.", "不可以。导出在扣分或返回内容前校验笔记归属，请用自己的登录账号创建示例。") },
-      { question: text("What if the displayed price has changed?", "页面显示的价格已经变化怎么办？"), answer: text("The backend compares the confirmed price with the current configured cost. If they differ, the operation is rejected; refresh the price and review it before trying again.", "后端会对照用户确认的价格与当前配置，若不一致则拒绝本次操作。刷新价格，重新核对后再尝试。") }
-    ],
-    related: [link("/credits", "Inspect your credit history", "查看自己的积分流水"), link("/use-cases/paid-exports", "Build your own paid export", "开发自己的付费导出"), link("/features/credits", "Understand the credit foundation", "了解积分基础能力")],
-    sources: [exportSource, link(`${repository}/blob/main/templates/quickstart/internal/feature/credits/export_repository.go`, "Export snapshot and Markdown format", "导出快照与 Markdown 格式"), creditGuide]
-  },
-  {
-    kind: "examples", path: "/examples/private-image-upload", updatedAt: "2026-10-15",
-    title: text("Private image upload and ownership", "私有图片上传与资源归属"),
-    description: text("Explore a replaceable developer example of uploading, listing and privately viewing an image through the Go API.", "通过可替换的开发示例，了解图片上传、列表展示与登录后的私有访问。"),
-    intro: text("This example demonstrates storage integration and ownership checks. It is not a file-management product: your own feature decides what the image is for and how customers use it.", "这个示例用于演示存储接入与归属校验，不代表模板默认提供文件管理产品。图片的用途与用户操作流程，由你自己的业务决定。"),
-    primaryCta: link("/files", "Open the upload example", "打开上传示例"),
-    facts: [
-      { label: text("Input", "输入"), value: text("One PNG, JPEG, WebP or GIF", "一张 PNG、JPEG、WebP 或 GIF") },
-      { label: text("Size", "大小"), value: text("Up to 5 MB per image", "每张最大 5 MB") },
-      { label: text("Access", "访问方式"), value: text("Signed-in owner only", "仅登录后的所属用户") }
-    ],
-    steps: [
-      { title: text("Configure storage", "配置存储"), body: text("Enable backend uploads and choose a private local directory or S3-compatible storage. Keep storage credentials on the server. The isolated preview may leave uploads disabled.", "在后端启用上传，并配置私有本地目录或 S3 兼容存储，凭证保留在服务端。隔离预览环境可能未启用上传。") },
-      { title: text("Upload an image", "上传图片"), body: text("Sign in, select one supported image under the size limit, then upload it. The backend checks the actual file content and records the signed-in owner.", "登录后选择一张格式与大小符合要求的图片并上传。后端校验实际文件内容，并记录当前用户归属。") },
-      { title: text("View the private result", "查看私有结果"), body: text("Open the image from your upload list. The browser requests it with your session and offers a preview and download, rather than exposing a public storage URL.", "从上传列表中打开图片，浏览器通过登录状态获取内容后提供预览与下载，不直接公开存储地址。") }
-    ],
-    sections: [
-      { title: text("What is reusable", "哪些部分可以复用"), body: text("Reuse the storage connection, file validation and ownership boundary. Replace the example page and connect the upload to your actual product, such as an image input or a task attachment.", "可以复用存储连接、文件校验与归属边界，再替换示例页面，将上传接入实际产品，例如图片输入或任务附件。") },
-      { title: text("What the example stores", "示例保存什么"), body: text("The backend records an image identifier, generated filename, content type, size, storage provider and owner. Listing and reading images are scoped to that account. Images are returned with private, no-store caching headers.", "后端记录图片编号、生成的文件名、内容类型、大小、存储服务与所属用户。列表和读取均限定在该账号内，图片响应使用 private、no-store 缓存设置。") }
-    ],
-    limitations: [text("Storage must be configured before an upload succeeds. This example does not supply folders, sharing links, file deletion or an attachment billing policy.", "上传成功前必须配置存储。示例不提供文件夹、分享链接、文件删除或附件计费规则。")],
-    faq: [{ question: text("Can another account open the image?", "其他账号能打开图片吗？"), answer: text("The API checks image ownership and returns not found for another account's image. The example does not create public sharing links.", "接口会校验归属，访问其他账号的图片时返回不存在。示例不会生成公开分享链接。") }],
-    related: [link("/examples/notes-to-markdown", "Explore the credit export example", "查看积分导出示例"), link("/docs/features", "See the template boundaries", "了解模板能力边界")],
-    sources: [link(`${repository}/blob/main/templates/quickstart/internal/feature/operations/uploads.go`, "Upload and ownership implementation", "上传与归属校验实现"), frontendReadme]
-  }
 
 ];
 
@@ -337,7 +290,7 @@ export const aboutPage: MarketingUtilityPage = {
   description: text("Learn what the go-modules starter includes, where its source lives, and what you own when you build a product with it.", "了解 go-modules 模板包含什么、源码在哪里，以及用它开发产品时由你负责哪些部分。"),
   intro: text("This website demonstrates the SaaS templates in the go-modules repository. You can obtain the source for free, run it yourself, and build your own product on the supplied workflows.", "这个网站演示 go-modules 仓库中的 SaaS 模板。你可以免费获取源码，自行运行，并基于已有流程开发自己的产品。"),
   sections: [
-    { title: text("What is included", "模板已经提供什么"), body: text("A Next.js public website and account center connect to a Go API. Shared capabilities cover login, Stripe subscriptions, credits, referrals, AI integration and administrator operations. Notes/export and private uploads are separate developer examples.", "Next.js 公开网站与账户中心连接 Go API，公共能力包括登录、Stripe 订阅、积分、邀请、AI 接入与管理后台。笔记导出和私有上传作为独立开发示例提供。") },
+    { title: text("What is included", "模板已经提供什么"), body: text("A Next.js public website and account center connect to a Go API. Shared capabilities cover login, Stripe subscriptions, credits, referrals, AI integration and administrator operations. Product-specific screens and workflows are supplied by your own application.", "Next.js 公开网站与账户中心连接 Go API，公共能力包括登录、Stripe 订阅、积分、邀请、AI 接入与管理后台。具体业务的界面与流程由你的产品接入。") },
     { title: text("What you build and operate", "哪些部分由你开发与运营"), body: text("You add the core service, define customer entitlements, configure your providers, and operate the deployment. Sample prices describe a possible customer offer; they are not a charge for the starter source.", "你需要添加核心业务、定义客户权益、配置服务商并负责部署运营。示例价格展示面向客户的收费方式，不是获取模板源码的费用。") },
     { title: text("Where to verify details", "在哪里核对实现"), body: text("The public source repository and its setup documentation are the reference for these pages. Check the implementation before adopting a workflow, and use the project's GitHub issue tracker for reproducible code problems.", "这些介绍以公开源码仓库和配置文档为依据。采用某个流程前可以查看实现，能够复现的代码问题可以提交到项目的 GitHub issue。") }
   ],
@@ -352,7 +305,7 @@ export const resourcesPage: MarketingUtilityPage = {
   intro: text("Choose the task you are working on. Start with the product journey, then open the matching setup guide when you are ready to connect your own services.", "从正在处理的任务出发，先理解产品流程，准备接入自己的服务时再打开对应配置指南。"),
   sections: [
     { title: text("Understand the starting point", "了解开发起点"), body: text("Browse the authentication, subscription, and credit pages to see what is already connected. The comparison explains when adapting the template is a reasonable fit.", "通过登录、订阅与积分页面了解已有能力，再通过比较页判断模板是否适合自己的业务。") },
-    { title: text("Choose and try a customer workflow", "选择并体验用户流程"), body: text("Explore subscriptions, prepaid credits, and paid exports as business patterns. The note-to-Markdown example is a concrete workflow you can run with an account.", "了解订阅、预付积分与付费导出的业务方式，再用笔记转 Markdown 示例体验一个能够实际运行的流程。") },
+    { title: text("Choose and try a customer workflow", "选择并体验用户流程"), body: text("Open the account center to try sign-in, subscription management, credit history and referral rewards.", "进入账户中心，体验登录、订阅管理、积分明细和推荐奖励。") },
     { title: text("Connect your services and prepare to launch", "接入服务并准备上线"), body: text("Use the setup guides for domains, authentication, payments, and deployment preparation. The source repository contains the implementation and more detailed developer references.", "使用配置指南连接域名、登录与支付，再完成上线准备。源码仓库提供具体实现与更详细的开发参考。") }
   ],
   related: [

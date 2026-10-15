@@ -1,6 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  async redirects() {
+    return [
+      ...["/notes", "/files"].map(source => ({ source, destination: "/account", permanent: false })),
+      ...["/examples/notes-to-markdown", "/examples/private-image-upload"].flatMap(source => [
+        { source, destination: "/examples", permanent: false },
+        { source: `/zh${source}`, destination: "/zh/examples", permanent: false }
+      ])
+    ];
+  },
   async headers() {
     return [
       {

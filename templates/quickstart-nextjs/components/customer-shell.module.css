@@ -7,7 +7,7 @@
 .brandMark svg { width: 24px; height: 24px; }
 .tools { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 .container { width: min(1240px, 100%); margin: 0 auto; padding: 0 32px 80px; }
-.breadcrumb { display: flex; align-items: center; gap: 12px; padding: 28px 0 32px; font-size: 12px; color: var(--muted); }
+.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 28px 0 32px; font-size: 12px; color: var(--muted); }
 .breadcrumb a:hover { color: var(--text); }
 .breadcrumb > span:last-child { color: var(--muted-strong); }
 .grid { display: grid; grid-template-columns: 192px minmax(0, 1fr); gap: 48px; align-items: start; }

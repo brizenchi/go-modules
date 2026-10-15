@@ -197,12 +197,12 @@ test("customer OAuth preserves the billing selection only in its own browser flo
 test("customer destinations preserve query and fragment while rejecting path normalization and external redirects", async () => {
   installBrowserStorage();
   const flow = loadOAuthFlow();
-  for (const path of ["/account#security", "/billing?product=credits#credits", "/referrals", "/credits?page=2", "/notes", "/files"]) {
+  for (const path of ["/account#security", "/billing?product=credits#credits", "/referrals", "/credits?page=2"]) {
     const id = await flow.prepareOAuthBrowserFlow("google", path);
     assert.equal(flow.readOAuthReturnTo(id), path);
     assert.equal(flow.resolveOAuthReturnTo(path, "user"), path);
   }
-  for (const path of ["https://evil.example/billing", "//evil.example/billing", "/billing/../admin", "/billing/%2e%2e/admin", "/billing/", "/billing/unknown", "/billing\\evil", "/%62illing", "/billing\n?product=credits", "/billing?x=\u0000", "/billing-evil", "/billing?" + "x".repeat(2048)]) {
+  for (const path of ["/notes", "/files", "https://evil.example/billing", "//evil.example/billing", "/billing/../admin", "/billing/%2e%2e/admin", "/billing/", "/billing/unknown", "/billing\\evil", "/%62illing", "/billing\n?product=credits", "/billing?x=\u0000", "/billing-evil", "/billing?" + "x".repeat(2048)]) {
     await assert.rejects(flow.prepareOAuthBrowserFlow("google", path), /Unsupported OAuth return destination/, path);
     assert.equal(flow.resolveOAuthReturnTo(path, "admin"), "/account", path);
   }

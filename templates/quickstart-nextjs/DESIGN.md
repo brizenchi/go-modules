@@ -28,8 +28,8 @@ display typography belongs to public marketing surfaces, not account forms.
 
 ## Layout and interaction
 
-- Customer navigation remains account, subscription and referrals. Notes, files
-  and credit history remain auxiliary personal features; admin never joins this nav.
+- Customer navigation remains account, subscription and referrals. Credit history remains an auxiliary account service. Do not add product-specific
+  note, upload or chat pages to the default customer area; admin has its own navigation.
 - Each page has one main heading, short supporting copy and a clear next action.
 - Tables/lists represent comparable records; cards group distinct tasks or key
   account states. Keep table overflow within its own container on small screens.
@@ -89,7 +89,7 @@ New purchases belong on the public pricing page: select billing interval, choose
 
 ### Customer account interactions
 
-Account information opens in a compact native dialog from the account menu or workspace overview. Show the sign-in email as read-only and offer sign-out; do not expose avatar URLs, profile editing, session refresh, or WebSocket tickets in the customer interface. `/account` contains common account services: subscriptions, credits and referrals. Notes/export and private uploads are replaceable developer examples linked from `/examples`, not default customer tools. Subscription, invoices, payment methods, and referral history retain dedicated pages; new purchases start on `/pricing`.
+Account information opens in a compact native dialog from the account menu or workspace overview. Show the sign-in email as read-only and offer sign-out; do not expose avatar URLs, profile editing, session refresh, or WebSocket tickets in the customer interface. `/account` contains common account services: subscriptions, credits and referrals. Notes and uploads have no default frontend pages; `/examples` links directly to the three common customer services. Subscription, invoices, payment methods, and referral history retain dedicated pages; new purchases start on `/pricing`.
 
 ## Customer UI finish
 
@@ -105,7 +105,7 @@ Pricing keeps a global request lock but renders progress and errors only in the 
 
 ## Extension UI primitives
 
-Use `DataTable<T>` for repeated records and server pagination; include a caption, loading, empty, and error states. Keep horizontal overflow within the table region. Use `FormField` to associate one native control with its label, description, and inline error; use `FormActions` for pending submissions. The credits and notes pages are working examples.
+Use `DataTable<T>` for repeated records and server pagination; include a caption, loading, empty, and error states. Keep horizontal overflow within the table region. Use `FormField` to associate one native control with its label, description, and inline error; use `FormActions` for pending submissions. Credit history uses the shared table. Product features can use the form primitives when they add their own workflows.
 
 ## Public homepage
 
@@ -132,3 +132,8 @@ Use `DataTable` for lists: labeled search controls, a record count, scoped overf
 Use `StatusBadge` with `adminTag` to label enums within their section and field. A pending payment, invitation and audit action have different meanings. Never translate arbitrary reasons, IDs or unknown states into a different business outcome. Include text in every status; color alone is insufficient.
 
 Credit grants, consumption returns and referral reconciliation use `ResponsiveDialog` for focused operations. Keep reasons, validation, idempotency, session ownership and existing API behavior intact. Site settings separate API service details, support channels and developer-example parameters. Service integration forms distinguish saved configuration from the running API process; configured credentials do not imply a tested connection.
+
+
+## Customer area scope
+
+Keep exactly three primary destinations: account, subscription/billing and referrals. Credit history remains an auxiliary account page. Product-specific content, file and AI interfaces belong to the product built from this template. The frontend has no default notes/export or file-upload page. Retired `/notes` and `/files` addresses redirect to `/account`; their old public example articles redirect to the localized `/examples` directory, which links directly to the three common services. Preserve the shared infrastructure, backend reference code and existing data.

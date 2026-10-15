@@ -5,7 +5,7 @@ import { NavigationLabel } from "./navigation-label";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { InterfaceIcon } from "@/components/interface-icon";
 import { ResponsiveDialog } from "@/components/responsive-dialog";
-import { workspaceNavItems } from "@/lib/workspace";
+import { auxiliaryWorkspaceItems, workspaceNavItems } from "@/lib/workspace";
 import { useI18n } from "@/lib/i18n";
 import styles from "./customer-shell.module.css";
 
@@ -19,6 +19,7 @@ type CustomerShellProps = {
 
 export function CustomerShell({ brand, activeHref, accountMenu, localeControl, children }: CustomerShellProps) {
   const { t } = useI18n();
+  const current = [...workspaceNavItems, ...auxiliaryWorkspaceItems].find(item => item.href === activeHref);
   const [navOpen, setNavOpen] = useState(false);
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 761px)");
@@ -54,10 +55,11 @@ export function CustomerShell({ brand, activeHref, accountMenu, localeControl, c
     <div className={styles.container}>
       <div className={styles.breadcrumb}>
         <button type="button" className={styles.mobileTrigger} aria-label={t({ en: "Open account navigation", zh: "打开账户导航" })} aria-haspopup="dialog" aria-expanded={navOpen} onClick={() => setNavOpen(true)}><InterfaceIcon name="menu" /></button>
-        <Link href="/">{t({ en: "Home", zh: "首页" })}</Link><span aria-hidden="true">/</span><span>{t({ en: "Account", zh: "账户中心" })}</span></div>
+        <Link href="/">{t({ en: "Home", zh: "首页" })}</Link><span aria-hidden="true">/</span>
+        {activeHref === "/account" ? <span aria-current="page">{t({ en: "My account", zh: "账户中心" })}</span> : <><Link href="/account">{t({ en: "My account", zh: "账户中心" })}</Link>{current ? <><span aria-hidden="true">/</span><span aria-current="page">{t(current.label)}</span></> : null}</>}</div>
       <div className={styles.grid}>
         <aside className={styles.sidebar}>
-          <p className={styles.navLabel}>{t({ en: "Your account", zh: "个人账户" })}</p>
+          <p className={styles.navLabel}>{t({ en: "My account", zh: "账户中心" })}</p>
           {navigation()}
           <Link className={styles.support} href="/contact">{t({ en: "Help & support", zh: "帮助与支持" })}<span aria-hidden="true">↗</span></Link>
         </aside>
@@ -66,7 +68,7 @@ export function CustomerShell({ brand, activeHref, accountMenu, localeControl, c
         </main>
       </div>
     </div>
-    <ResponsiveDialog open={navOpen} onClose={() => setNavOpen(false)} title={t({ en: "Your account", zh: "个人账户" })}
+    <ResponsiveDialog open={navOpen} onClose={() => setNavOpen(false)} title={t({ en: "My account", zh: "账户中心" })}
       closeLabel={t({ en: "Close navigation", zh: "关闭导航" })} presentation="side">
       {(dismiss) => <>{navigation()}<Link className={styles.support} href="/contact" onClick={dismiss}>{t({ en: "Help & support", zh: "帮助与支持" })}<span aria-hidden="true">↗</span></Link></>}
     </ResponsiveDialog>

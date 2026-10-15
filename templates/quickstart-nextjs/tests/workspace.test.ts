@@ -12,7 +12,7 @@ test("signing in retains a customer's purchase selection and destination", () =>
   for (const path of [
     "/billing?product=subscription&plan=starter&interval=yearly#plans",
     "/billing?product=credits#credits",
-    "/notes?page=2",
+    "/credits?page=2",
     "/account"
   ]) assert.equal(customerSignInDestination(path), path);
   for (const path of ["/", "/pricing", "/admin", "https://example.com/billing", "//example.com/billing"]) {
@@ -21,7 +21,7 @@ test("signing in retains a customer's purchase selection and destination", () =>
 });
 
 test("personal account routes do not capture public pages or administrator routes", () => {
-  for (const path of ["/account", "/billing", "/referrals", "/billing/history", "/credits", "/notes", "/files"]) {
+  for (const path of ["/account", "/billing", "/referrals", "/billing/history", "/credits"]) {
     assert.equal(isWorkspacePath(path), true, path);
   }
   for (const path of ["/", "/dashboard", "/login", "/pricing", "/docs", "/invite", "/referral-story", "/admin", "/admin/users", "/admin/settings", "/admin?tab=users", "/admin/credits#grant"]) {
@@ -51,6 +51,14 @@ test("auxiliary personal features keep route recognition without expanding accou
 test("the account center does not advertise product-specific examples or a chat product", () => {
   assert.deepEqual(auxiliaryWorkspaceItems.map(item => item.href), ["/credits"]);
   assert.equal(isWorkspacePath("/ai"), false);
-  assert.equal(isWorkspacePath("/notes"), true);
-  assert.equal(isWorkspacePath("/files"), true);
+  assert.equal(isWorkspacePath("/notes"), false);
+  assert.equal(isWorkspacePath("/files"), false);
+});
+
+
+test("retired product examples cannot become a customer sign-in destination", () => {
+  for (const path of ["/notes", "/notes?page=2", "/files", "/files/item"]) {
+    assert.equal(activeWorkspaceHref(path), "");
+    assert.equal(customerSignInDestination(path), "/account");
+  }
 });

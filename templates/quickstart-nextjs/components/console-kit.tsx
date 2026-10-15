@@ -66,7 +66,7 @@ export function ConsoleGate({ session, ready, admin = false, children }: { sessi
   if (!ready) return <p role="status">{t({ en: "Loading your account…", zh: "正在读取账号…" })}</p>;
   if (!session) return <div className={styles.empty}>
     <h2>{t({ en: "Sign in to continue", zh: "登录后继续" })}</h2>
-    <p>{t({ en: "Your files, credits and activity belong to your account.", zh: "登录后查看属于你的文件、积分和操作记录。" })}</p>
+    <p>{t({ en: "Manage your subscription, credits and referral rewards.", zh: "登录后管理自己的订阅、积分和推荐奖励。" })}</p>
     <button className="button primary" type="button" onClick={() => setOpen(true)}>{t({ en: "Sign in", zh: "登录" })}</button>
     <SignInDialog open={open} onClose={() => setOpen(false)} />
   </div>;

@@ -10,7 +10,7 @@ Credit history at `/credits` uses this component. Pass translated labels with `u
 
 ## Forms
 
-`components/form-field.tsx` exposes `FormField` and `FormActions`. A field links its label, optional description and error to one native control. Required controls retain native validation. `FormActions` disables submission while busy and displays the shared pending indicator. The note editor at `/notes` uses both components. Request, auth and domain validation remain in their original API/service layers.
+`components/form-field.tsx` exposes `FormField` and `FormActions`. A field links its label, optional description and error to one native control. Required controls retain native validation. `FormActions` disables submission while busy and displays the shared pending indicator. Use these primitives when adding your own product forms. Request, auth and domain validation remain in their original API/service layers.
 
 ## Google Analytics 4
 
@@ -30,7 +30,7 @@ Reference: https://help.crisp.chat/en/article/how-to-embed-the-crisp-live-chat-c
 
 ## AI integration
 
-`foundation/aix` is a reusable, stateless model adapter. `templates/quickstart/internal/ai` maps the backend configuration to that adapter. Neither supplies a customer chat product, HTTP routes, conversation storage, quotas or credit charging. The account center contains common account services only; notes/export and private uploads live in the public examples directory as replaceable developer examples.
+`foundation/aix` is a reusable, stateless model adapter. `templates/quickstart/internal/ai` maps the backend configuration to that adapter. Neither supplies a customer chat product, HTTP routes, conversation storage, quotas or credit charging. The customer area contains account, subscription/billing and referral services, with credit history as an auxiliary page. No note or upload UI is supplied; the backend implementation references and shared integration capabilities remain available.
 
 Configure the **backend**:
 

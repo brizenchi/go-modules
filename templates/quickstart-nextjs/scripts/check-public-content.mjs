@@ -66,16 +66,16 @@ for (const directory of ["docs", "blog", "zh/docs", "zh/blog"]) {
   }
 }
 
-for (const path of ["account", "billing", "referrals", "credits", "files", "notes", "login", "invite", "admin"]) {
+for (const path of ["account", "billing", "referrals", "credits", "login", "invite", "admin"]) {
   const html = readFileSync(join(root, `${path}.html`), "utf8");
   assert.match(html, /<meta name="robots" content="[^"]*noindex/, `${path}: private page noindex`);
   assert.ok(!html.includes('rel="canonical"'), `${path}: no public canonical inherited`);
-  if (["account", "billing", "referrals", "credits", "files", "notes"].includes(path)) {
+  if (["account", "billing", "referrals", "credits"].includes(path)) {
     const rendered = withoutScripts(html);
     for (const tag of ["header", "main", "h1"]) {
       assert.equal((rendered.match(new RegExp(`<${tag}\\b`, "g")) ?? []).length, 1, `${path}: one ${tag} inside the shared account layout`);
     }
-    assert.equal((rendered.match(/aria-label="Account navigation"/g) ?? []).length, 1, `${path}: one shared account navigation`);
+    assert.equal((rendered.match(/aria-label="Account navigation"/g) ?? []).length, 1, `${path}: one account navigation`);
   }
 }
 

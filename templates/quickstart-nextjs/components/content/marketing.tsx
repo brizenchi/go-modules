@@ -2,6 +2,7 @@
 
 import {
   aboutPage,
+  customerExamples,
   marketingCategories,
   marketingPages,
   resourcesPage,
@@ -131,7 +132,7 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
           <span className={styles.sectionLabel}>{t({ en: "A practical starting point", zh: "从实际需求出发" })}</span>
           <p>{t(category.intro)}</p>
         </div>
-        <div className={styles.indexList}>
+        {kind === "examples" ? <div className={styles.exampleCards}>{customerExamples.map(item => <section className={styles.exampleCard} key={item.href}><h2>{t(item.label)}</h2><p>{t(item.description)}</p><LocalizedLink className="button" href={item.href}>{t({ en: "Open", zh: "打开" })}<span aria-hidden="true">→</span></LocalizedLink></section>)}</div> : <div className={styles.indexList}>
           {pages.map((page, index) => (
             <article className={styles.indexItem} key={page.path}>
               <span className={styles.itemNumber} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
@@ -149,7 +150,7 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
               </dl>
             </article>
           ))}
-        </div>
+        </div>}
         <div className={styles.nextStep}>
           <div>
             <span className={styles.sectionLabel}>{t({ en: "Your next step", zh: "下一步" })}</span>
@@ -299,7 +300,7 @@ export function ResourcesPageContent() {
               <h2><LocalizedLink href={category.path}>{t(category.title)}<span aria-hidden="true">↗</span></LocalizedLink></h2>
               <p>{t(category.description)}</p>
               <ul className={styles.resourceLinks}>
-                {marketingPages.filter((page) => page.kind === category.kind).map((page) => (
+                {category.kind === "examples" ? customerExamples.map(item => <li key={item.href}><LocalizedLink href={item.href}>{t(item.label)}<span aria-hidden="true">→</span></LocalizedLink></li>) : marketingPages.filter((page) => page.kind === category.kind).map((page) => (
                   <li key={page.path}><LocalizedLink href={page.path}>{t(page.title)}<span aria-hidden="true">→</span></LocalizedLink></li>
                 ))}
               </ul>

@@ -9,7 +9,7 @@ const ADMIN_RETURN_PATHS = [
   "/admin", "/admin/users", "/admin/orders", "/admin/subscriptions",
   "/admin/referrals", "/admin/credits", "/admin/settings", "/admin/integrations", "/admin/audit"
 ] as const;
-const CUSTOMER_RETURN_PATHS = ["/account", "/billing", "/referrals", "/credits", "/notes", "/files", "/pricing", "/zh/pricing"] as const;
+const CUSTOMER_RETURN_PATHS = ["/account", "/billing", "/referrals", "/credits", "/pricing", "/zh/pricing"] as const;
 type CustomerReturnPath = (typeof CUSTOMER_RETURN_PATHS)[number];
 type CustomerReturnTo = CustomerReturnPath | `${CustomerReturnPath}?${string}` | `${CustomerReturnPath}#${string}`;
 export type OAuthReturnTo = (typeof ADMIN_RETURN_PATHS)[number] | CustomerReturnTo;
