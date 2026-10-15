@@ -471,3 +471,25 @@ func enableGoogleForTest(cfg *AppConfig) {
 	cfg.Auth.Google.RedirectURL = "https://api.example.com/api/v1/auth/google/callback"
 	cfg.Auth.Google.StateSecret = "abcdef0123456789abcdef0123456789"
 }
+
+func TestAIEnvironmentConfiguration(t *testing.T) {
+	t.Setenv("QUICKSTART_AI_HOST_AI_ENABLED", "true")
+	t.Setenv("QUICKSTART_AI_HOST_AI_API_KEY", "sk_test_not-a-real-key")
+	t.Setenv("QUICKSTART_AI_HOST_AI_MODEL", "example-model")
+	t.Setenv("QUICKSTART_AI_HOST_AI_MAX_OUTPUT_TOKENS", "2048")
+	source, err := os.ReadFile("../../deploy/config.yaml.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err = os.WriteFile(path, source, 0600); err != nil {
+		t.Fatal(err)
+	}
+	var cfg AppConfig
+	if err = foundationconfig.Load(path, "QUICKSTART_AI", &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Host.AI.Enabled || cfg.Host.AI.Model != "example-model" || cfg.Host.AI.MaxOutputTokens != 2048 || cfg.Host.AI.Validate() != nil {
+		t.Fatal("AI environment schema mapping failed")
+	}
+}

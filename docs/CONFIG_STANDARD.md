@@ -117,3 +117,9 @@ referral:
 `onReferralRegistered`（绑定邀请后）或 `onReferralActivated`（激活后）直接编写规则。
 两个函数默认无副作用，不发积分或会员；旧 `referral.activation_reward` /
 `APP_REFERRAL_ACTIVATION_REWARD` 已移除。邀请开关、链接、激活期限配置仍然有效。
+
+## Optional AI integration
+
+Host-owned configuration lives in `host.ai` / `APP_HOST_AI_*`: `enabled` (default false), `base_url` (HTTPS API base), `api_key` (server secret), `model`, and `max_output_tokens` (default 1024, maximum 4096). Invalid enabled configuration fails startup validation. Restart after changes. Public configuration and browser variables never contain the key.
+
+Configuration supplies the `internal/ai` factory; products explicitly inject the resulting `foundation/aix.Generator` into their own features. It opens no default AI routes and defines no conversation storage, daily quota, subscription or credit policy. See `templates/quickstart-nextjs/EXTENSIONS.md` and `foundation/aix/README.md` for integration and transport limits.

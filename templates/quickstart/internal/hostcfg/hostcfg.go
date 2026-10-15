@@ -10,8 +10,12 @@
 //	    enable_export: true        →  APP_HOST_FEATURE_ENABLE_EXPORT
 package hostcfg
 
+import "github.com/brizenchi/go-modules/foundation/aix"
+
 // Config 是当前 SaaS 的业务配置。
 type Config struct {
+	AI AIConfig `mapstructure:"ai"`
+
 	// SignupCredits 演示如何响应 UserSignedUp；设为 0 可关闭，
 	// 也可以在 host_hooks.go 中替换成当前 SaaS 自己的规则。
 	SignupCredits int64 `mapstructure:"signup_credits"`
@@ -39,4 +43,20 @@ type WelcomeEmailConfig struct {
 	Subject      string `mapstructure:"subject"`
 	TextBody     string `mapstructure:"text_body"`
 	HTMLBody     string `mapstructure:"html_body"`
+}
+
+// AIConfig contains deployment-only credentials; no API key is returned to the browser.
+type AIConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`
+	BaseURL         string `mapstructure:"base_url"`
+	APIKey          string `mapstructure:"api_key" json:"-"`
+	Model           string `mapstructure:"model"`
+	MaxOutputTokens int    `mapstructure:"max_output_tokens"`
+}
+
+func (c AIConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	return (aix.Config{BaseURL: c.BaseURL, APIKey: c.APIKey, Model: c.Model, MaxOutputTokens: c.MaxOutputTokens}).Validate()
 }
