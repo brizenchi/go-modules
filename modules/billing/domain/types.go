@@ -29,6 +29,13 @@ type CheckoutInput struct {
 type CheckoutResult struct {
 	SessionID   string
 	CheckoutURL string
+	// Optional read-only checkout facts for host analytics. These are not proof
+	// of payment and must never grant entitlements.
+	AmountTotal *int64
+	Currency    string
+	Livemode    *bool
+	CreatedAt   *time.Time
+	ExpiresAt   *time.Time
 }
 
 // CheckoutSessionState is the provider-side lifecycle state used to decide

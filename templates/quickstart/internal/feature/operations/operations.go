@@ -12,6 +12,7 @@ import (
 	authdomain "github.com/brizenchi/go-modules/modules/auth/domain"
 	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
 	"github.com/brizenchi/quickstart-template/internal/audit"
+	"github.com/brizenchi/quickstart-template/internal/checkoutlog"
 	"github.com/brizenchi/quickstart-template/internal/feature/content"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
@@ -140,7 +141,7 @@ type Upload struct {
 func (Upload) TableName() string { return "private_image_uploads" }
 
 func Models() []any {
-	models := append([]any{&SiteSettings{}, &Upload{}}, audit.Models()...)
+	models := append([]any{&SiteSettings{}, &Upload{}, &checkoutlog.Record{}}, audit.Models()...)
 	models = append(models, content.Models()...)
 	return append(models, serviceconfig.Models()...)
 }

@@ -10,7 +10,7 @@ export const siteLinks = {
   features: link("/features", "Features", "功能介绍"),
   useCases: link("/use-cases", "Use cases", "使用场景"),
   pricing: link("/pricing", "Pricing", "价格"),
-  resources: link("/resources", "Resources", "资源"),
+  resources: link("/resources", "Guides", "指南"),
   docs: link("/docs", "Documentation", "使用文档"),
   blog: link("/blog", "Articles", "产品文章"),
   updates: link("/updates", "Updates", "更新日志"),
@@ -30,7 +30,7 @@ export const publicNavigation = [siteLinks.home, siteLinks.features, siteLinks.p
 export const customerFooterLinks = [siteLinks.help, siteLinks.privacy, siteLinks.terms];
 export const siteFooterGroups: Array<{ title: Copy; links: SiteLink[] }> = [
   { title: { en: "Product", zh: "产品" }, links: [siteLinks.features, siteLinks.useCases, siteLinks.pricing, siteLinks.examples] },
-  { title: { en: "Resources", zh: "资源" }, links: [siteLinks.resources, siteLinks.docs, siteLinks.blog, siteLinks.updates, siteLinks.compare] },
+  { title: siteLinks.resources.label, links: [siteLinks.resources, siteLinks.docs, siteLinks.blog, siteLinks.updates, siteLinks.compare] },
   { title: { en: "Support & legal", zh: "支持与条款" }, links: [siteLinks.help, siteLinks.about, siteLinks.privacy, siteLinks.terms] }
 ];
 

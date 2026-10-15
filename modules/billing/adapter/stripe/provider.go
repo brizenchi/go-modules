@@ -260,7 +260,19 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		return nil, fmt.Errorf("stripe: create checkout: %w", err)
 	}
 	slog.InfoContext(ctx, "stripe: checkout created", "session_id", sess.ID, "user_id", in.UserID, "plan", in.Plan)
-	return &domain.CheckoutResult{SessionID: sess.ID, CheckoutURL: sess.URL}, nil
+	result := &domain.CheckoutResult{SessionID: sess.ID, CheckoutURL: sess.URL, Currency: string(sess.Currency), Livemode: &sess.Livemode}
+	if sess.Currency != "" && sess.AmountTotal >= 0 {
+		result.AmountTotal = &sess.AmountTotal
+	}
+	if sess.Created > 0 {
+		created := time.Unix(sess.Created, 0).UTC()
+		result.CreatedAt = &created
+	}
+	if sess.ExpiresAt > 0 {
+		expires := time.Unix(sess.ExpiresAt, 0).UTC()
+		result.ExpiresAt = &expires
+	}
+	return result, nil
 }
 
 func (p *Provider) GetCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error) {

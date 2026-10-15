@@ -244,7 +244,7 @@ export function MarketingDetail({ page }: { page: MarketingPage }) {
             <span className={styles.sectionLabel}>{t({ en: "On this page", zh: "本页内容" })}</span>
             <ol>{toc.map((item) => <li key={item.id}><a href={`#${item.id}`}>{item.label}</a></li>)}</ol>
           </nav>
-          <LocalizedLink className={styles.railLink} href="/resources">{t({ en: "All resources", zh: "所有资源" })}<span aria-hidden="true">↗</span></LocalizedLink>
+          <LocalizedLink className={styles.railLink} href="/resources">{t({ en: "All guides", zh: "所有指南" })}<span aria-hidden="true">↗</span></LocalizedLink>
         </aside>
       </div>
     </SiteShell>
@@ -285,7 +285,7 @@ export function ResourcesPageContent() {
   return (
     <SiteShell
       variant="compact"
-      eyebrow={t({ en: "LEARN & BUILD", zh: "学习与构建" })}
+      eyebrow={t(resourcesPage.title)}
       title={t(resourcesPage.title)}
       description={t(resourcesPage.description)}
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { label: t(resourcesPage.title) }]}

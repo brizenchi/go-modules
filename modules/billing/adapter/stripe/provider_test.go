@@ -180,7 +180,7 @@ func TestCreateCheckout_Subscription(t *testing.T) {
 		captured = readForm(t, r)
 		idempotencyKey = r.Header.Get("Idempotency-Key")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"cs_test_1","url":"https://stripe.test/cs_test_1","object":"checkout.session"}`))
+		_, _ = w.Write([]byte(`{"id":"cs_test_1","url":"https://stripe.test/cs_test_1","object":"checkout.session","amount_total":1900,"currency":"usd","livemode":false,"created":1999996400,"expires_at":2000000000}`))
 	})
 
 	res, err := p.CreateCheckout(context.Background(), domain.CheckoutInput{
@@ -203,6 +203,12 @@ func TestCreateCheckout_Subscription(t *testing.T) {
 	}
 	if res.SessionID != "cs_test_1" || res.CheckoutURL != "https://stripe.test/cs_test_1" {
 		t.Errorf("unexpected result: %+v", res)
+	}
+	if res.AmountTotal == nil || *res.AmountTotal != 1900 || res.Currency != "usd" || res.Livemode == nil || *res.Livemode {
+		t.Fatalf("checkout history amount/environment = %+v", res)
+	}
+	if res.CreatedAt == nil || !res.CreatedAt.Equal(time.Unix(1_999_996_400, 0)) || res.ExpiresAt == nil || !res.ExpiresAt.Equal(time.Unix(2_000_000_000, 0)) {
+		t.Fatalf("checkout history timestamps = %+v", res)
 	}
 	if want := stableIdempotencyKey("checkout-reservation", "reservation-123"); idempotencyKey != want {
 		t.Fatalf("idempotency key = %q, want %q", idempotencyKey, want)

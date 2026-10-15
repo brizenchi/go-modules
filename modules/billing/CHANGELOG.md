@@ -14,6 +14,10 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Added
 
+- Optional `CheckoutService.WithObserver` and read-only checkout result facts for
+  host-owned checkout history. Observation does not verify payment or change
+  checkout, subscription or entitlement decisions.
+
 - Optional `CheckoutSessionExpirer` capability; Stripe can expire abandoned open
   checkouts before switching to a different offer, while preserving paid and
   concurrently completed checkout protection.

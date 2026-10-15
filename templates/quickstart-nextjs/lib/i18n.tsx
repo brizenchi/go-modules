@@ -11,14 +11,13 @@ import { usePathname } from "next/navigation";
 import {
   DEFAULT_LOCALE,
   isPublicPath,
-  localizeHref,
+  localeFromPath,
   type Locale,
   normalizeLocale,
   pickLocaleText,
   resolvePageLocale
 } from "./locale";
-
-const STORAGE_KEY = "go-modules.quickstart-nextjs.locale";
+import { browserLocaleStorage, LOCALE_STORAGE_KEY, readLocalePreference, saveLocalePreference } from "./locale-preference";
 
 type LocaleText<T> = {
   en: T;
@@ -47,36 +46,39 @@ export function LocaleProvider({ children, initialLocale = DEFAULT_LOCALE }: { c
   const locale = resolvePageLocale(pathname, preference);
 
   useEffect(() => {
+    const storage = browserLocaleStorage();
     if (publicPage) {
-      applyDocumentLanguage(resolvePageLocale(pathname));
-      return;
+      // Indexed public URLs retain their own language and carry it into the
+      // account/admin area, including visits through a direct translated link.
+      const current = localeFromPath(pathname);
+      saveLocalePreference(current, storage);
+      setLocaleState(current);
+    } else {
+      setLocaleState(current => readLocalePreference(storage, current));
     }
-    let stored: string | null = null;
-    try { stored = window.localStorage.getItem(STORAGE_KEY); } catch { /* A browser can disable storage. */ }
-    const next = normalizeLocale(stored || (typeof navigator !== "undefined" ? navigator.language : DEFAULT_LOCALE));
-    setLocaleState(next);
-    applyDocumentLanguage(next);
+
+    const sync = (event: StorageEvent) => {
+      if (!publicPage && (event.key === LOCALE_STORAGE_KEY || event.key === null)) {
+        setLocaleState(readLocalePreference(browserLocaleStorage()));
+      }
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
   }, [pathname, publicPage]);
+
+  useEffect(() => { applyDocumentLanguage(locale); }, [locale]);
 
   const value = useMemo<I18nContextValue>(() => ({
     locale,
     setLocale(next: Locale) {
       const normalized = normalizeLocale(next);
-      if (typeof window !== "undefined") {
-        try { window.localStorage.setItem(STORAGE_KEY, normalized); } catch { /* Language selection remains usable without storage. */ }
-        if (publicPage) {
-          const destination = localizeHref(`${window.location.pathname}${window.location.search}${window.location.hash}`, normalized);
-          if (destination !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.location.assign(destination);
-          return;
-        }
-      }
+      saveLocalePreference(normalized, browserLocaleStorage());
       setLocaleState(normalized);
-      applyDocumentLanguage(normalized);
     },
     t<T>(values: LocaleText<T>): T {
       return pickLocaleText(locale, values);
     }
-  }), [locale, publicPage]);
+  }), [locale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

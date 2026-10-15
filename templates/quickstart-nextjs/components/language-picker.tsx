@@ -55,7 +55,7 @@ export function LanguagePicker({ locale, label, destinations, onSelect }: Props)
         {languageOptions.filter(option => !destinations || destinations[option.locale]).map(option => {
           const content = <><span>{option.label}</span><span aria-hidden="true">{option.locale === locale ? "✓" : ""}</span></>;
           return destinations ? (
-            <Link key={option.locale} href={destinations[option.locale]!} hrefLang={option.language} lang={option.language} aria-current={option.locale === locale ? "page" : undefined} onClick={() => { if (disclosure.current) disclosure.current.open = false; }}>{content}</Link>
+            <Link key={option.locale} href={destinations[option.locale]!} hrefLang={option.language} lang={option.language} aria-current={option.locale === locale ? "page" : undefined} onClick={() => select(option.locale)}>{content}</Link>
           ) : (
             <button key={option.locale} type="button" lang={option.language} aria-pressed={option.locale === locale} onClick={() => select(option.locale)}>{content}</button>
           );

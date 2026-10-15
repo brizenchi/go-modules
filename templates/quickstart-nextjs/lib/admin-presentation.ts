@@ -12,7 +12,7 @@ const subscriptionStates: Record<string, Tag> = {
 };
 const paymentStates: Record<string, Tag> = {
   succeeded: tag("Succeeded", "支付成功", "success"), paid: tag("Paid", "已支付", "success"),
-  failed: tag("Failed", "支付失败", "danger"), pending: tag("Pending", "待支付", "warning"),
+  failed: tag("Failed", "支付失败", "danger"), expired: tag("Expired", "已过期"), pending: tag("Pending", "待支付", "warning"),
   processing: tag("Processing", "处理中", "info"), unpaid: tag("Unpaid", "未支付", "warning"),
   no_payment_required: tag("No payment required", "无需支付"), refunded: tag("Refunded", "已退款")
 };

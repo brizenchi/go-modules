@@ -13,26 +13,34 @@ import (
 	"gorm.io/gorm"
 )
 
-// OrderSummary is projected from verified, persisted provider events. Amount is
-// in the provider currency's smallest unit. Missing amounts remain null.
+// OrderSummary combines recorded checkout intent with verified provider events
+// for administrators. Customer purchases use verified events only. Amounts are
+// in the provider currency's smallest unit; unknown amounts remain null.
 type OrderSummary struct {
-	ProductType     string    `json:"product_type,omitempty"`
-	ID              string    `json:"id"`
-	UserID          string    `json:"user_id"`
-	Email           string    `json:"email"`
-	Provider        string    `json:"provider"`
-	ProviderEventID string    `json:"provider_event_id"`
-	EventType       string    `json:"event_type"`
-	RecordType      string    `json:"record_type"`
-	Status          string    `json:"status"`
-	Amount          *int64    `json:"amount"`
-	Currency        string    `json:"currency"`
-	Processed       bool      `json:"processed"`
-	Livemode        *bool     `json:"livemode"`
-	CreatedAt       time.Time `json:"created_at"`
-	sortID          uint
-	eventAt         int64
-	paidAt          time.Time
+	CheckoutSessionID string     `json:"checkout_session_id,omitempty"`
+	Plan              string     `json:"plan,omitempty"`
+	BillingInterval   string     `json:"billing_interval,omitempty"`
+	Quantity          int64      `json:"quantity,omitempty"`
+	AmountDue         *int64     `json:"amount_due"`
+	PaidAt            *time.Time `json:"paid_at,omitempty"`
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	ProductType       string     `json:"product_type,omitempty"`
+	ID                string     `json:"id"`
+	UserID            string     `json:"user_id"`
+	Email             string     `json:"email"`
+	Provider          string     `json:"provider"`
+	ProviderEventID   string     `json:"provider_event_id"`
+	EventType         string     `json:"event_type"`
+	RecordType        string     `json:"record_type"`
+	Status            string     `json:"status"`
+	Amount            *int64     `json:"amount"`
+	Currency          string     `json:"currency"`
+	Processed         bool       `json:"processed"`
+	Livemode          *bool      `json:"livemode"`
+	CreatedAt         time.Time  `json:"created_at"`
+	sortID            uint
+	eventAt           int64
+	paidAt            time.Time
 }
 
 func objectID(raw json.RawMessage) string {
@@ -102,6 +110,7 @@ func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
 		result.Status = "paid"
 		result.Amount = object.AmountPaid
 	case "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed":
+		result.CheckoutSessionID = object.ID
 		result.RecordType = "checkout"
 		result.Amount = object.AmountTotal
 		if invoice := objectID(object.Invoice); invoice != "" {
@@ -124,6 +133,11 @@ func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
 	if id == "" {
 		id = e.ProviderEventID
 		result.RecordType = "payment_event"
+	}
+	result.AmountDue = result.Amount
+	if result.Status == "paid" {
+		paid := result.paidAt
+		result.PaidAt = &paid
 	}
 	result.ID = e.Provider + ":" + id
 	if result.Amount != nil && *result.Amount < 0 {
@@ -171,6 +185,7 @@ func (m *Module) purchases(c *gin.Context) {
 func (m *Module) orders(c *gin.Context) { m.paymentHistory(c, "") }
 
 func (m *Module) paymentHistory(c *gin.Context, owner string) {
+	includeIntents := owner == ""
 	p, ok := pagination(c)
 	if !ok {
 		return
@@ -195,6 +210,11 @@ func (m *Module) paymentHistory(c *gin.Context, owner string) {
 	byID, err := loadOrderSummaries(c.Request.Context(), db)
 	if queryFailed(c, err) {
 		return
+	}
+	if includeIntents {
+		if queryFailed(c, mergeCheckoutHistory(c.Request.Context(), db, byID)) {
+			return
+		}
 	}
 	identities := []struct {
 		ID    string
@@ -232,7 +252,7 @@ func (m *Module) paymentHistory(c *gin.Context, owner string) {
 		return
 	}
 	state := c.Query("status")
-	if state != "" && state != "paid" && state != "unpaid" && state != "failed" && state != "unknown" && state != "no_payment_required" {
+	if state != "" && state != "paid" && state != "unpaid" && state != "failed" && state != "unknown" && state != "no_payment_required" && state != "expired" {
 		httpresp.BadRequest(c, "invalid payment status")
 		return
 	}
@@ -259,6 +279,9 @@ func (m *Module) paymentHistory(c *gin.Context, owner string) {
 	}
 	sort.Slice(items, func(i, j int) bool {
 		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			if items[i].sortID == items[j].sortID {
+				return items[i].ID > items[j].ID
+			}
 			return items[i].sortID > items[j].sortID
 		}
 		return items[i].CreatedAt.After(items[j].CreatedAt)
@@ -272,7 +295,11 @@ func (m *Module) paymentHistory(c *gin.Context, owner string) {
 	if end > total {
 		end = total
 	}
-	httpresp.OK(c, gin.H{"items": items[start:end], "total": total, "page": p.page, "limit": p.limit, "source": "provider_payment_events", "amount_unit": "minor"})
+	source := "provider_payment_events"
+	if includeIntents {
+		source = "checkout_history_and_provider_events"
+	}
+	httpresp.OK(c, gin.H{"items": items[start:end], "total": total, "page": p.page, "limit": p.limit, "source": source, "amount_unit": "minor"})
 }
 
 // loadOrderSummaries shares the verified, deduplicated payment projection with reporting.
@@ -299,10 +326,17 @@ func loadOrderSummaries(ctx context.Context, db *gorm.DB) (map[string]OrderSumma
 			// An invoice is the authoritative monetary record if checkout also
 			// references it. Repeated provider event kinds stay one purchase.
 			if exists {
+				if item.CheckoutSessionID == "" {
+					item.CheckoutSessionID = previous.CheckoutSessionID
+				}
 				if item.ProductType == "" {
 					item.ProductType = previous.ProductType
 				}
 				if !replaceOrder(previous, item) {
+					if previous.CheckoutSessionID == "" {
+						previous.CheckoutSessionID = item.CheckoutSessionID
+						byID[item.ID] = previous
+					}
 					if previous.ProductType == "" {
 						previous.ProductType = item.ProductType
 						byID[item.ID] = previous

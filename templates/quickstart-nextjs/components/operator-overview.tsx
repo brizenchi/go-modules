@@ -4,6 +4,7 @@ import { useId } from "react";
 import type { OperatorMetricDay, OperatorOverview as Overview, OperatorReportFilters } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import styles from "./admin-shell.module.css";
+import { Select } from "./select";
 
 type Metric = "registrations" | "referrals" | "payments" | "new_paying_users";
 type Copy = { en: string; zh: string };
@@ -36,9 +37,9 @@ export function OperatorOverview({ data, filters, onFilters, loading }: { data: 
  ] as const;
  return <div className={styles.overview}>
   <div className={styles.reportControls}><p>{t({ en: "Acquisition & conversion", zh: "用户增长与付费转化" })}</p><div>
-   <label><span className="sr-only">{t({ en: "Date range", zh: "统计周期" })}</span><select value={filters.days} onChange={event => onFilters({ ...filters, days: Number(event.target.value) as 7 | 30 })}><option value="7">{t({ en: "Last 7 days", zh: "近 7 天" })}</option><option value="30">{t({ en: "Last 30 days", zh: "近 30 天" })}</option></select></label>
-   <label><span className="sr-only">{t({ en: "Reporting timezone", zh: "统计时区" })}</span><select value={filters.timezone} onChange={event => onFilters({ ...filters, timezone: event.target.value as OperatorReportFilters["timezone"] })}><option value="Asia/Shanghai">{t({ en: "UTC+8", zh: "北京时间 UTC+8" })}</option><option value="UTC">UTC</option></select></label>
-   <label><span className="sr-only">{t({ en: "Payment environment", zh: "支付环境" })}</span><select value={filters.mode} onChange={event => onFilters({ ...filters, mode: event.target.value as "live" | "test" })}><option value="live">{t({ en: "Live payments", zh: "正式支付" })}</option><option value="test">{t({ en: "Test payments", zh: "测试支付" })}</option></select></label>
+   <label><span className="sr-only">{t({ en: "Date range", zh: "统计周期" })}</span><Select value={filters.days} onChange={event => onFilters({ ...filters, days: Number(event.target.value) as 7 | 30 })}><option value="7">{t({ en: "Last 7 days", zh: "近 7 天" })}</option><option value="30">{t({ en: "Last 30 days", zh: "近 30 天" })}</option></Select></label>
+   <label><span className="sr-only">{t({ en: "Reporting timezone", zh: "统计时区" })}</span><Select value={filters.timezone} onChange={event => onFilters({ ...filters, timezone: event.target.value as OperatorReportFilters["timezone"] })}><option value="Asia/Shanghai">{t({ en: "UTC+8", zh: "北京时间 UTC+8" })}</option><option value="UTC">UTC</option></Select></label>
+   <label><span className="sr-only">{t({ en: "Payment environment", zh: "支付环境" })}</span><Select value={filters.mode} onChange={event => onFilters({ ...filters, mode: event.target.value as "live" | "test" })}><option value="live">{t({ en: "Live payments", zh: "正式支付" })}</option><option value="test">{t({ en: "Test payments", zh: "测试支付" })}</option></Select></label>
   </div></div>
   <div className={styles.metrics} aria-busy={loading}>{metrics.map(([key, label]) => <div className={styles.metric} key={key}><span>{t(label)}</span><strong>{data ? data[key].toLocaleString() : "—"}</strong></div>)}</div>
   {data ? <>

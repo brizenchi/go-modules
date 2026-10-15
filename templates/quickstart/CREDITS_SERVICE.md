@@ -87,6 +87,10 @@ _, err := deps.Credits.GrantCreditsWithExpiry(ctx, credit.Grant{
 return err
 ```
 
+后台用户弹窗的「积分变更记录」统一读取这一账本，显示来源、正负数量、变更后余额、原因、操作人和关联记录。邀请奖励、充值和管理员调整不再分散到多个用户标签。
+
+新业务可使用 `subscription_allowance` / `monthly` 表示周期发放，`campaign` / `promotion` 表示活动赠送，并提供稳定的 `SourceID` 防止重复发放；已有来源值和幂等键保持兼容，未知来源直接显示原值。这里提供记录和展示能力，不自动创建月度任务或活动发放规则。
+
 ## 业务失败时不扣分
 
 本地数据库操作使用 `ConsumeCreditsAndDo`，回调内仅执行使用传入 tx 的数据库读写。

@@ -1,4 +1,5 @@
 import type { LocalizedText } from "./articles";
+import { siteLinks } from "./navigation";
 
 export type { LocalizedText } from "./articles";
 export type MarketingKind = "features" | "use-cases" | "compare" | "examples";
@@ -300,7 +301,7 @@ export const aboutPage: MarketingUtilityPage = {
 
 export const resourcesPage: MarketingUtilityPage = {
   path: "/resources", updatedAt,
-  title: text("Find the next step for your SaaS", "找到搭建 SaaS 的下一步"),
+  title: siteLinks.resources.label,
   description: text("Find starter capabilities, business patterns, a working example, configuration guides, and source references in one place.", "集中查找模板能力、业务场景、可用示例、配置指南和源码依据。"),
   intro: text("Choose the task you are working on. Start with the product journey, then open the matching setup guide when you are ready to connect your own services.", "从正在处理的任务出发，先理解产品流程，准备接入自己的服务时再打开对应配置指南。"),
   sections: [

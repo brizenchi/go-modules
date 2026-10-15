@@ -24,6 +24,18 @@ type CheckoutService struct {
 	customers    port.CustomerStore
 	reservations port.CheckoutReservationRepository
 	returnURLs   port.ReturnURLValidator
+	observer     CheckoutObserver
+}
+
+// CheckoutObserver records successful checkout creation/reuse. Configure only
+// during composition, before serving requests. Hosts handle observation errors;
+// analytics must not change the payment outcome or expose checkout URLs.
+type CheckoutObserver func(context.Context, CheckoutInput, CheckoutResult)
+
+// WithObserver sets the host's observation callback before requests are served.
+func (s *CheckoutService) WithObserver(observer CheckoutObserver) *CheckoutService {
+	s.observer = observer
+	return s
 }
 
 func NewCheckoutService(p port.Provider, c port.CustomerStore, validators ...port.ReturnURLValidator) *CheckoutService {
@@ -42,7 +54,12 @@ type CheckoutInput = domain.CheckoutInput
 type CheckoutResult = domain.CheckoutResult
 
 // Create opens a checkout session, ensuring the user has a provider customer ID.
-func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (*CheckoutResult, error) {
+func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (result *CheckoutResult, err error) {
+	defer func() {
+		if err == nil && result != nil && s.observer != nil {
+			s.observer(ctx, in, *result)
+		}
+	}()
 	in.UserID = strings.TrimSpace(in.UserID)
 	if in.UserID == "" {
 		return nil, fmt.Errorf("%w: user_id required", domain.ErrInvalidInput)
@@ -239,7 +256,7 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (*Checko
 	}
 	in.CheckoutReservationID = reservationID
 	in.CheckoutExpiresAt = expiresAt
-	result, err := s.provider.CreateCheckout(ctx, in)
+	result, err = s.provider.CreateCheckout(ctx, in)
 	if err != nil {
 		// Keep the reservation: a network error can happen after Stripe created
 		// the Session. An exact retry is safe; a different intent stays blocked

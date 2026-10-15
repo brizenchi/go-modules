@@ -2,10 +2,11 @@ package http
 
 import (
 	"context"
-	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 
+	"github.com/brizenchi/quickstart-template/internal/checkoutlog"
 	"github.com/brizenchi/quickstart-template/internal/feature/account"
 	"github.com/brizenchi/quickstart-template/internal/feature/credits"
+	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 	"github.com/brizenchi/quickstart-template/internal/feature/note"
 	"github.com/brizenchi/quickstart-template/internal/feature/operations"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
@@ -25,6 +26,9 @@ import (
 // this runs; do not re-declare them here.
 func registerHostRoutes(deps hostapi.Deps, g hostapi.Groups) {
 	deps = deps.WithServices()
+	if deps.Modules != nil && deps.Modules.Billing != nil && deps.Modules.Billing.Checkout != nil {
+		deps.Modules.Billing.Checkout.WithObserver(checkoutlog.Observer(deps.DB, deps.Modules.Billing.Provider.Name()))
+	}
 	account.New(deps.Users).Register(g)
 	membership.Register(deps, g)
 	note.New(deps.DB).Register(g)
