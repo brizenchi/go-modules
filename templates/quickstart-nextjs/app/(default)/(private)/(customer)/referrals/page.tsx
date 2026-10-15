@@ -40,7 +40,7 @@ export default function ReferralsPage() {
   const [signInOpen, setSignInOpen] = useState(false);
   const copy = t({
     en: {
-      eyebrow: "Invite friends", title: "Share your link. Grow together.",
+      eyebrow: "Invite friends", title: "Referral rewards",
       description: "Invite new users and track each invitation from signup to activation. Rewards, when offered, follow the published site rules.",
       rules: "How invitations work", signup: "New accounts only", signupDetail: "An invitation is linked once, at signup. You cannot invite yourself or reassign an existing account.",
       qualify: "First paid subscription", qualifyDetail: "Signup creates a pending invitation. A free trial alone does not qualify; the subscription must become paid within the activation window.",
@@ -62,7 +62,7 @@ export default function ReferralsPage() {
       testHelp: "View test payment instructions", pendingHelp: "Registered; awaiting a qualifying paid subscription.", activatedHelp: "Qualifying subscription recorded.", expiredHelp: "The activation deadline passed without a qualifying subscription."
     },
     zh: {
-      eyebrow: "邀请好友", title: "分享给好友，查看邀请进展。",
+      eyebrow: "邀请好友", title: "推荐奖励",
       description: "邀请新用户注册，从注册到激活，每一笔邀请都有记录可查。好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。",
       rules: "邀请如何生效", signup: "首次注册时绑定", signupDetail: "每个新账号只能绑定一次邀请。不能邀请自己，已有账号不能重新绑定。",
       qualify: "首次符合条件的付费订阅", qualifyDetail: "好友注册后先进入待激活状态。仅开通免费试用不会激活邀请，需要在激活期限内完成付费订阅。",

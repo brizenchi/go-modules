@@ -49,7 +49,7 @@ func TestRequireChecksOwnerAndMinimumTier(t *testing.T) {
 	}
 	sqlDB, _ := db.DB()
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := db.AutoMigrate(&domain.BillingSubscription{}); err != nil {
+	if err := db.AutoMigrate(&domain.BillingSubscription{}, &Override{}); err != nil {
 		t.Fatal(err)
 	}
 	end := time.Now().UTC().Add(time.Hour)
@@ -74,5 +74,30 @@ func TestRequireChecksOwnerAndMinimumTier(t *testing.T) {
 		if w.Code != tc.status {
 			t.Fatalf("%+v: %d %s", tc, w.Code, w.Body)
 		}
+	}
+}
+
+func TestManualMembershipExpiryAndFreeOverride(t *testing.T) {
+	now := time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)
+	later := now.Add(time.Hour)
+	billing := View{Plan: "pro", Active: true, Reason: "active", Source: "billing", ValidUntil: &later}
+	for _, tc := range []struct {
+		name     string
+		override *Override
+		plan     string
+		active   bool
+	}{
+		{"manual premium", &Override{Plan: "premium", ExpiresAt: &later}, "premium", true},
+		{"expired fallback", &Override{Plan: "premium", ExpiresAt: &now}, "pro", true},
+		{"free override", &Override{Plan: "free"}, "free", false},
+		{"lifetime", &Override{Plan: "lifetime"}, "lifetime", true},
+		{"invalid missing expiry", &Override{Plan: "premium"}, "pro", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Resolve(billing, tc.override, now)
+			if got.Plan != tc.plan || got.Active != tc.active {
+				t.Fatalf("got %+v", got)
+			}
+		})
 	}
 }

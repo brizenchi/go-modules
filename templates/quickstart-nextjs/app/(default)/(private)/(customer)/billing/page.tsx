@@ -774,7 +774,7 @@ export default function BillingPage() {
   return (
     <SiteShell
       eyebrow={t({ en: "Account", zh: "账户" })}
-      title={t({ en: "Billing & plans", zh: "订阅与账单" })}
+      title={t({ en: "Subscription & billing", zh: "订阅与账单" })}
       description={t({ en: "Your access, payments, and next renewal in one place.", zh: "查看当前权益、管理续费与付款。" })}
       accountMenuData={{ capabilities: capabilitiesState, subscription: subscriptionState }}
       toc={[

@@ -4,8 +4,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LocalizedLink as Link } from "./localized-link";
 import { ApiError, logout } from "@/lib/api";
-import { activeAdminSection, adminNavigationGroups, adminSectionHref, adminSectionIcons, adminSectionNames } from "@/lib/admin-navigation";
-import { getOperatorOverview } from "@/lib/operations-api";
+import { activeAdminSection, adminPrimarySection, adminNavigationGroups, adminSectionHref, adminSectionIcons, adminSectionNames } from "@/lib/admin-navigation";
+import { getOperatorAuthorization } from "@/lib/operations-api";
+import { useSitePresentation } from "./site-presentation";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import { ConsoleError, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
@@ -20,7 +21,7 @@ import styles from "./admin-shell.module.css";
 async function verifyAdminAccess(token: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
-  try { return await getOperatorOverview(token, controller.signal); } finally { clearTimeout(timer); }
+  try { return await getOperatorAuthorization(token, controller.signal); } finally { clearTimeout(timer); }
 }
 
 function AdminIdentity({ email, name, busy, onSignOut }: { email: string; name: string; busy: boolean; onSignOut: () => void }) {
@@ -55,6 +56,7 @@ function AdminIdentity({ email, name, busy, onSignOut }: { email: string; name: 
 // Authorization remains in this persistent administrator layout and the API.
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+ const presentation=useSitePresentation();const siteName=presentation?.brand_name||appEnv.appName;
   const { t, locale, setLocale } = useI18n();
   const { session, ready } = useConsoleSession();
   const token = session?.token || "";
@@ -62,7 +64,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const access = useConsoleResource(isAdmin ? token : "", verifyAdminAccess);
   const action = useConsoleAction(token);
   const [navOpen, setNavOpen] = useState(false);
-  const current = activeAdminSection(pathname);
+  const current = adminPrimarySection(activeAdminSection(pathname));
   useEffect(() => { setNavOpen(false); }, [pathname]);
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 901px)");
@@ -72,9 +74,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
   }, []);
   function signOut() { void action.run(() => logout(token), () => {}); }
   const languageSwitch = <LanguagePicker locale={locale} label={t({ en: "Choose language", zh: "选择语言" })} onSelect={setLocale} />;
-  const brand = <Link className={styles.brand} href="/" aria-label={`${appEnv.appName} · ${t({ en: "Home", zh: "首页" })}`}>
+  const brand = <Link className={styles.brand} href="/" aria-label={`${siteName} · ${t({ en: "Home", zh: "首页" })}`}>
     <span className={styles.brandMark}><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" /><path d="m10 11 4-2.3 4 2.3v4.5L14 18l-4-2.5z" /></svg></span>
-    <strong>{appEnv.appName}</strong><span className={styles.tag}>{t({ en: "Admin", zh: "管理后台" })}</span>
+    <strong>{siteName}</strong><span className={styles.tag}>{t({ en: "Admin", zh: "管理后台" })}</span>
   </Link>;
   const header = <header className={styles.topbar}><div className={styles.headerInner}>{brand}<div className={styles.account}>{languageSwitch}{ready && isAdmin && access.data ? <AdminIdentity email={session?.user.email || ""} name={session?.user.username || ""} busy={action.busy} onSignOut={signOut} /> : null}</div></div></header>;
 

@@ -10,6 +10,9 @@
 package hostapi
 
 import (
+	"context"
+	"fmt"
+	"github.com/brizenchi/quickstart-template/internal/audit"
 	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 	"github.com/brizenchi/quickstart-template/internal/platform"
@@ -43,6 +46,7 @@ type Deps struct {
 
 	// Credits is the shared entry point for credit business operations.
 	Credits *credit.Service
+	Audit   *audit.Service
 
 	// Config is your own business config from internal/hostcfg.
 	Config hostcfg.Config
@@ -55,8 +59,14 @@ type Deps struct {
 // WithServices supports composition roots and existing hosts that supply Users.
 // Call once during construction; explicitly injected services are preserved.
 func (d Deps) WithServices() Deps {
+	if d.Audit == nil {
+		d.Audit = audit.New()
+	}
 	if d.Credits == nil && d.Users != nil {
-		d.Credits = credit.New(d.Users)
+		recorder := d.Audit
+		d.Credits = credit.New(d.Users.WithCreditAudit(func(ctx context.Context, tx *gorm.DB, entry *user.CreditTransaction) error {
+			return recorder.Record(ctx, tx, audit.Operation{ActorID: entry.ActorID, IdempotencyKey: fmt.Sprintf("credit:%d", entry.ID), Action: "credits." + entry.Kind, TargetID: entry.UserID, Reason: entry.Reason, RequestHash: audit.Hash(entry.ID)}, map[string]any{"transaction_id": entry.ID, "before": entry.BalanceAfter - entry.Amount, "after": entry.BalanceAfter, "amount": entry.Amount})
+		}))
 	}
 	return d
 }

@@ -15,7 +15,8 @@ test("known states use semantic tones and unknown codes are not misrepresented",
   assert.equal(adminTag("subscriptions", "status", "canceling")?.tone, "warning");
   assert.equal(adminTag("orders", "status", "failed")?.tone, "danger");
   assert.equal(adminTag("users", "role", "admin")?.label.zh, "管理员");
-  assert.equal(adminTag("subscriptions", "plan", "lifetime")?.label.zh, "终身版");
+  assert.equal(adminTag("users", "plan", "pro")?.label.zh, "Pro");
+  assert.equal(adminTag("subscriptions", "plan", "lifetime")?.label.zh, "Lifetime");
   assert.equal(adminTag("orders", "livemode", false)?.label.zh, "测试");
   assert.equal(adminTag("orders", "livemode", null)?.label.zh, "未知");
   assert.deepEqual(adminTag("orders", "status", "future_status"), { label: { en: "future_status", zh: "future_status" }, tone: "neutral" });

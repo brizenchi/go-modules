@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { exportNote, getPrivateImage, listCreditTransactions, listNotes, retryReferralReward, saveBusinessSettings, uploadImage } from "../lib/operations-api";
+import { getOperatorAuthorization, getOperatorOverview, getOperatorAccess, updateOperatorMembership, deductOperatorCredits, exportNote, getPrivateImage, listCreditTransactions, listNotes, retryReferralReward, saveBusinessSettings, uploadImage } from "../lib/operations-api";
 import { ApiError } from "../lib/api";
 import { readSession, writeSession } from "../lib/auth";
 
@@ -78,4 +78,34 @@ test("a stale private image request cannot sign out the newly logged-in account"
   globalThis.fetch = (async () => new Response(null, { status: 401 })) as typeof fetch;
   await assert.rejects(getPrivateImage("old-token", "old-file"), ApiError);
   assert.equal(readSession()?.token, "new-token");
+});
+
+test("admin reporting carries an explicit timezone, window and payment environment", async () => {
+ let captured = "";
+ globalThis.fetch = (async url => { captured = String(url); return response({}); }) as typeof fetch;
+ await getOperatorOverview("admin", undefined, { days: 7, mode: "test", timezone: "Asia/Shanghai" });
+ const query = new URL(captured).searchParams;
+ assert.equal(query.get("days"), "7"); assert.equal(query.get("mode"), "test"); assert.equal(query.get("timezone"), "Asia/Shanghai");
+});
+test("membership and credit edits stay user scoped and preserve retry keys", async () => {
+ const calls: Array<{ url: string; method: string | undefined; key: string | null; body: unknown }> = [];
+ globalThis.fetch = (async (url, options) => { calls.push({ url: String(url), method: options?.method, key: new Headers(options?.headers).get("Idempotency-Key"), body: options?.body ? JSON.parse(String(options.body)) : null }); return response({}); }) as typeof fetch;
+ await getOperatorAccess("admin", "target+user");
+ await updateOperatorMembership("admin", "target+user", { plan: "lifetime", reason: "Support grant" }, "member-key");
+ await deductOperatorCredits("admin", "target+user", 30, "Support correction", "deduct-key");
+ assert.match(calls[0].url, /target%2Buser\/access$/);
+ assert.equal(calls[1].method, "PATCH"); assert.equal(calls[1].key, "member-key");
+ assert.deepEqual(calls[1].body, { plan: "lifetime", reason: "Support grant" });
+ assert.equal(calls[2].key, "deduct-key"); assert.deepEqual(calls[2].body, { amount: 30, reason: "Support correction" });
+});
+
+test("admin authorization supports an older API without hiding permission failures", async () => {
+ const paths: string[] = [];
+ globalThis.fetch = (async url => { const path = new URL(String(url)).pathname; paths.push(path); return path.endsWith("/access") ? new Response(null, { status: 404 }) : response({ users: 1 }); }) as typeof fetch;
+ assert.deepEqual(await getOperatorAuthorization("admin"), { authorized: true });
+ assert.equal(paths.length, 2); assert.ok(paths[1].endsWith("/overview"));
+ paths.length = 0;
+ globalThis.fetch = (async url => { paths.push(String(url)); return new Response(null, { status: 403 }); }) as typeof fetch;
+ await assert.rejects(getOperatorAuthorization("user"), error => error instanceof ApiError && error.status === 403);
+ assert.equal(paths.length, 1);
 });

@@ -1,17 +1,16 @@
-import { apiRequest, ApiError } from "./api";
+import { apiRequest, ApiError, type OperatorOverview, type OperatorReportFilters, type OperatorAccess, type MembershipPatch, type OperatorAuthorization, type WebsiteSettings } from "./api";
+export type { OperatorUser, OperatorOverview, OperatorReportFilters, OperatorAccess, MembershipPatch } from "./api";
 import { apiUrl } from "./env";
 import { clearSessionIfToken } from "./auth";
 
 export type PageResult<T> = { items: T[]; total: number; page: number; limit: number };
-export type OperatorOverview = { users: number; subscriptions: number; active_subscriptions: number; referrals: number; pending_referrals: number; activated_referrals: number; billing_events: number };
-export type OperatorUser = { id: string; email: string; username: string; role: string; credits: number; email_verified: boolean; created_at: string; last_login_at?: string };
 export type OperatorSubscription = { id: number; user_id: string; email?: string; plan: string; status: string; billing_interval?: string; provider: string; provider_subscription_id?: string; period_end?: string; updated_at: string };
 export type OperatorOrder = { id: string; user_id: string; email?: string; provider: string; provider_event_id: string; event_type: string; processed: boolean; created_at: string; amount: number | null; currency: string; status: string; record_type: "invoice" | "checkout" | "payment_event"; livemode: boolean | null };
 export type OperatorReferral = { id: number; referrer_id: string; referee_id: string; referrer_email?: string; referee_email?: string; code: string; status: string; reward_credits: number; created_at: string; activated_at?: string; expires_at?: string };
 export type AuditEntry = { id: number; actor_id: string; action: string; target_id?: string; reason: string; created_at: string; idempotency_key?: string };
 export type CreditBalance = { balance: number; expiring_credits: number; next_expiry_at?: string | null };
 export type CreditTransaction = { id: number; user_id: string; kind: string; amount: number; balance_after: number; source: string; source_id: string; reason: string; actor_id?: string; expires_at?: string | null; related_transaction_id?: number | null; created_at: string };
-export type BusinessSettings = { brand_name: string; description: string; support_email: string; support_url: string; export_credit_cost: number };
+export type BusinessSettings = WebsiteSettings;
 export type NoteItem = { id: number; title: string; body: string; created_at: string };
 export type NoteExport = { filename: string; content: string; transaction_id: number; balance: number };
 export type UploadedImage = { id: string; url: string; content_type: string; size: number; filename: string };
@@ -24,10 +23,10 @@ export function queryString(values: Record<string, string | number | undefined>)
   return query.toString();
 }
 
-export function listOperator<T>(token: string, section: "users" | "subscriptions" | "orders" | "referrals" | "audit", page = 1, query = "", status = "") {
-  return apiRequest<PageResult<T>>(`/admin/${section}?${queryString({ page, limit: 20, query, status })}`, { authToken: token });
+export function listOperator<T>(token: string, section: "users" | "subscriptions" | "orders" | "referrals" | "audit", page = 1, query = "", status = "", filters: Record<string, string | number | undefined> = {}) {
+  return apiRequest<PageResult<T>>(`/admin/${section}?${queryString({ page, limit: 20, query, status, ...filters })}`, { authToken: token });
 }
-export function getOperatorOverview(token: string, signal?: AbortSignal) { return apiRequest<OperatorOverview>("/admin/overview", { authToken: token, signal }); }
+export function getOperatorOverview(token: string, signal?: AbortSignal, filters?: OperatorReportFilters) { return apiRequest<OperatorOverview>(`/admin/overview${filters ? `?${queryString(filters)}` : ""}`, { authToken: token, signal }); }
 export function getBusinessSettings(token: string) { return apiRequest<BusinessSettings>("/admin/settings", { authToken: token }); }
 export function saveBusinessSettings(token: string, data: BusinessSettings & { reason: string }, key: string) {
   return apiRequest<BusinessSettings>("/admin/settings", { authToken: token, method: "PATCH", headers: { "Idempotency-Key": key }, json: data });
@@ -69,3 +68,23 @@ export async function getPrivateImage(token: string, id: string): Promise<Blob> 
 }
 
 export function listUploadedImages(token: string, page = 1) { return apiRequest<PageResult<UploadedImage>>( `/uploads/images?${queryString({ page, limit: 20 })}`, { authToken: token }); }
+
+export function getOperatorAccess(token: string, id: string) {
+ return apiRequest<OperatorAccess>(`/admin/users/${encodeURIComponent(id)}/access`, { authToken: token });
+}
+export function updateOperatorMembership(token: string, id: string, data: MembershipPatch, key: string) {
+ return apiRequest(`/admin/users/${encodeURIComponent(id)}/membership`, { authToken: token, method: "PATCH", headers: { "Idempotency-Key": key }, json: data });
+}
+export function deductOperatorCredits(token: string, id: string, amount: number, reason: string, key: string) {
+ return apiRequest(`/admin/users/${encodeURIComponent(id)}/credit-deductions`, { authToken: token, method: "POST", headers: { "Idempotency-Key": key }, json: { amount, reason } });
+}
+
+export async function getOperatorAuthorization(token: string, signal?: AbortSignal): Promise<OperatorAuthorization> {
+ try { return await apiRequest<OperatorAuthorization>("/admin/access", { authToken: token, signal }); }
+ catch (error) {
+  // Keep the existing console reachable while frontend/backend roll out separately.
+  if (!(error instanceof ApiError) || error.status !== 404) throw error;
+  await getOperatorOverview(token, signal);
+  return { authorized: true };
+ }
+}

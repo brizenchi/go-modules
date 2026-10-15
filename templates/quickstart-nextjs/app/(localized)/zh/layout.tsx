@@ -1,3 +1,5 @@
+import { SitePresentationProvider } from "@/components/site-presentation";
+import { websitePresentation } from "@/lib/public-content";
 import type { Metadata } from "next";
 import "@fontsource-variable/manrope";
 import "@fontsource-variable/newsreader";
@@ -7,16 +9,18 @@ import { LocaleProvider } from "@/lib/i18n";
 import { siteOrigin } from "@/lib/seo";
 import "../../globals.css";
 
+export const revalidate = 30;
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin),
   applicationName: appEnv.appName
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const presentation=await websitePresentation();
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
-        <LocaleProvider initialLocale="zh">{children}<SiteExtensions /></LocaleProvider>
+        <SitePresentationProvider value={presentation}><LocaleProvider initialLocale="zh">{children}<SiteExtensions /></LocaleProvider></SitePresentationProvider>
       </body>
     </html>
   );

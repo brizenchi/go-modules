@@ -228,7 +228,10 @@ func (r *Repository) GrantCreditsWithExpiry(ctx context.Context, in CreditGrantI
 		if err := tx.Create(&CreditLot{UserID: in.UserID, TransactionID: entry.ID, Amount: in.Amount, Remaining: in.Amount, ExpiresAt: in.ExpiresAt}).Error; err != nil {
 			return err
 		}
-		return saveCreditBalance(tx, account)
+		if err := saveCreditBalance(tx, account); err != nil {
+			return err
+		}
+		return r.recordCredit(ctx, tx, &entry)
 	})
 	return &entry, err
 }
@@ -343,7 +346,10 @@ func (r *Repository) RefundCredits(ctx context.Context, in CreditRefundInput) (*
 		if err := tx.Create(&CreditLot{UserID: in.UserID, TransactionID: entry.ID, Amount: amount, Remaining: amount}).Error; err != nil {
 			return err
 		}
-		return saveCreditBalance(tx, account)
+		if err := saveCreditBalance(tx, account); err != nil {
+			return err
+		}
+		return r.recordCredit(ctx, tx, &entry)
 	})
 	return &entry, err
 }

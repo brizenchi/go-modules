@@ -109,7 +109,7 @@ Use `DataTable<T>` for repeated records and server pagination; include a caption
 
 ## Public homepage
 
-The homepage leads with one short value statement and a real, locale-specific account-center screenshot. Keep screenshot accounts and content fictional and label previews. The website/workspace/admin directory sits below the hero. Native FAQ disclosures answer practical setup questions; do not invent customer counts, testimonials or revenue. Main presentation defaults live in `content/site.ts`. Brand overrides are build-time only so navigation, initial HTML and sharing metadata stay consistent; runtime support configuration remains separate.
+The homepage leads with one short value statement and a real, locale-specific account-center screenshot. Keep screenshot accounts and content fictional and label previews. The website/workspace/admin directory sits below the hero. Native FAQ disclosures answer practical setup questions; do not invent customer counts, testimonials or revenue. Main presentation defaults live in `content/site.ts`. Runtime website identity is server-rendered into navigation, homepage and page metadata; code configuration supplies defaults. The generated sharing artwork remains build-time.
 
 Optional analytics and support UI only appear with valid configured provider IDs. AI is a server-side stateless integration, without a default chat page, chat API, conversation storage or charging policy. Public copy explains that products own these features.
 
@@ -125,15 +125,24 @@ Navigation uses Next.js `useLinkStatus` for a small pending indicator and access
 
 The administrator console uses the same brand mark, white surfaces, neutral borders, typography and semantic colors as the personal account area. Keep a wider 1440px frame for operational tables, a compact 72px header, and 28px page titles (24px on mobile). A grouped desktop sidebar becomes a navigation drawer below 901px. Administrator identity is read-only in a small disclosure with website and sign-out actions.
 
-`lib/admin-navigation.ts` owns section names, descriptions, icons and three navigation groups: Operations, Billing, and Website & system. `AdminPageHeader` keeps page hierarchy and refresh feedback consistent. Router-owned pending labels provide feedback until navigation commits; loading replaces only the page content. Keep authorization in `AdminShell` and the API.
+`lib/admin-navigation.ts` owns section names, descriptions, icons and three navigation groups: Workspace (overview/users), Business records (payments/subscriptions/referrals/credit history), and System. `AdminPageHeader` keeps page hierarchy and refresh feedback consistent. Router-owned pending labels provide feedback until navigation commits; loading replaces only the page content. Keep authorization in `AdminShell` and the API.
 
 Use `DataTable` for lists: labeled search controls, a record count, scoped overflow, loading/empty/error states and server pagination. Right-align numeric columns. Display account email with a secondary ID where the API provides both; keep identifiers available in full. Payment amounts remain in minor units and the UI must state that unit.
 
 Use `StatusBadge` with `adminTag` to label enums within their section and field. A pending payment, invitation and audit action have different meanings. Never translate arbitrary reasons, IDs or unknown states into a different business outcome. Include text in every status; color alone is insufficient.
 
-Credit grants, consumption returns and referral reconciliation use `ResponsiveDialog` for focused operations. Keep reasons, validation, idempotency, session ownership and existing API behavior intact. Site settings separate API service details, support channels and developer-example parameters. Service integration forms distinguish saved configuration from the running API process; configured credentials do not imply a tested connection.
+Credit grants, consumption returns and referral reconciliation use `ResponsiveDialog` for focused operations. Keep reasons, validation, idempotency, session ownership and existing API behavior intact. Website settings groups public identity, support contacts and non-secret sender details. Provider status is read-only; credentials belong to deployment configuration. Configured credentials do not imply a tested connection.
 
 
 ## Customer area scope
 
 Keep exactly three primary destinations: account, subscription/billing and referrals. Credit history remains an auxiliary account page. Product-specific content, file and AI interfaces belong to the product built from this template. The frontend has no default notes/export or file-upload page. Retired `/notes` and `/files` addresses redirect to `/account`; their old public example articles redirect to the localized `/examples` directory, which links directly to the three common services. Preserve the shared infrastructure, backend reference code and existing data.
+
+
+Operational lists use a compact toolbar with accessible labels, search, filters, reset and count. The toolbar sticks beneath the admin header; rows scroll within a bounded region with sticky column headings. Pagination stays outside row scrolling. Keep customer email primary, truncate auxiliary IDs visually while preserving their full title, and align numeric values to the right.
+
+The user list shows membership level rather than security role. Membership and credit adjustments open `OperatorUserDialog`, retain list filters/page, use stable retry keys and refresh after save. Manual access is distinct from Stripe charges. The overview uses real 7/30-day data, an explicit UTC+8/UTC reporting zone and live/test payment selector; never infer payments from webhook counts or trial subscriptions.
+
+Public navigation is Home / Features / Pricing / Resources. `content/navigation.ts` shares labels and destinations with footers and breadcrumbs. Features is a six-capability overview; use cases remain secondary. Account navigation stays at three services, with Help & support / Privacy / Terms in the compact footer on all screen sizes. `/contact` is customer self-service plus real configured support channels; operator setup guides belong in documentation.
+
+The five primary administration destinations are Overview, Users, Articles, Website settings and Audit log. Global payments and invitations are tabs inside Users; customer membership, subscription, credit, payment and referral histories share one dialog. Legacy section URLs redirect to their new home. Articles use a dedicated bilingual editor with draft/live separation and explicit per-language publication. Filters stay fixed above the bounded scrolling records; horizontal scrolling remains inside tables.

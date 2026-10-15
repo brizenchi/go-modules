@@ -84,7 +84,7 @@ func (m *Module) patchIntegration(c *gin.Context) {
 		if err != nil {
 			return serviceconfig.ErrStorage
 		}
-		return tx.Model(&AuditEvent{}).Where("id = ?", audit.ID).Update("details", string(raw)).Error
+		return m.deps.Audit.Finish(c.Request.Context(), tx, &audit, "succeeded", string(raw))
 	})
 	if integrationError(c, err) {
 		return

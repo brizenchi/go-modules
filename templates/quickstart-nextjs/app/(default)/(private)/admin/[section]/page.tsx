@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { OperatorConsole, type OperatorSection } from "@/components/operator-console";
 import { adminSections } from "@/lib/admin-navigation";
@@ -6,5 +7,9 @@ export function generateStaticParams() { return sections.map((section) => ({ sec
 export default async function AdminSectionPage({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
   if (!sections.includes(section)) notFound();
+  if (section==="orders")redirect("/admin/users?view=payments");
+  if (section==="referrals")redirect("/admin/users?view=invitations");
+  if (section==="subscriptions"||section==="credits")redirect("/admin/users");
+  if (section==="integrations")redirect("/admin/settings");
   return <OperatorConsole section={section as OperatorSection} />;
 }

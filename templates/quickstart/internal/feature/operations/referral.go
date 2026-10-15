@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
@@ -72,17 +71,10 @@ func (m *Module) retryReward(c *gin.Context) {
 		if err != nil {
 			status, details = "failed", "Reward listener failed; retry with the same idempotency key."
 		}
-		// Do not store raw provider/listener errors (they can contain credentials).
-		update := db.Model(&AuditEvent{}).Where("id = ?", audit.ID)
-		if status == "failed" {
-			// A concurrent successful retry is conclusive; a late failure must
-			// not overwrite the successful audit outcome.
-			update = update.Where("status <> ?", "succeeded")
-		}
-		if updateErr := update.Updates(map[string]any{"status": status, "details": details, "updated_at": time.Now().UTC()}).Error; updateErr != nil {
-			queryFailed(c, updateErr)
+		if updateErr := m.deps.Audit.Finish(c.Request.Context(), db, &audit, status, details); queryFailed(c, updateErr) {
 			return
 		}
+
 		if err != nil {
 			httpresp.Custom(c, 502, 502, details, nil)
 			return

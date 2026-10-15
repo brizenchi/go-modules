@@ -39,13 +39,13 @@ Email uses the log sender; OAuth and billing are disabled. No payment provider
 or email network request is made. Subscription/order screens therefore show
 their disabled/empty states; this does not verify a Stripe payment integration.
 
-At `/admin/integrations`, you can test saving Resend and Stripe settings and viewing
-their source and restart status. Use placeholder test credentials: the submitted
-values are stored as plaintext in the temporary SQLite database, but secrets are
-never read back through the API. Saving cannot activate an external provider in
-this fixture, even if you enable one in the form. Restarting the preview creates a
-fresh temporary database; it does not apply the previous run's settings. This
-checks the configuration workflow, not credentials, email delivery, or payments.
+The five admin destinations include a real Markdown article editor and Website
+settings. Service status is read-only; credential replacement endpoints return
+403. Local article publication and brand/support changes can be exercised against
+this disposable database; public pages require the frontend to point here and
+refresh their short-lived cache. Restarting preview creates a fresh database, so
+saved fixture content/settings do not persist. It never verifies external service
+credentials, delivery or payments.
 
 Each run generates a new JWT secret. Ctrl+C shuts down the server, closes SQLite,
 and removes the temporary database and private uploads. Force-killing the process

@@ -1,3 +1,6 @@
+import { publishedArticle, publishedIndex } from "@/lib/public-content";
+import type { Locale } from "@/lib/locale";
+import { PublishedContentArticle, PublishedContentIndex } from "./published-content";
 import { notFound } from "next/navigation";
 import HomePage from "@/app/(default)/(public)/page";
 import { ProductPricing } from "./content/pricing";
@@ -12,7 +15,16 @@ import { marketingCategories, getMarketingPage } from "@/content/marketing";
 import { findDocumentation } from "@/content/docs";
 import { findArticle } from "@/content/articles";
 
-export function PublicPage({ path }: { path: string }) {
+export async function PublicPage({ path, locale="en" }: { path: string; locale?: Locale }) {
+ if (/^\/(blog|docs|features|use-cases|compare)\/.+/.test(path)) {
+  const resolved=await publishedArticle(path,locale);
+  if(resolved.managed){if(!resolved.article)notFound();return <PublishedContentArticle article={resolved.article}/>;}
+ }
+ if (["/blog","/docs","/features","/use-cases","/compare","/resources"].includes(path)) {
+  const entries=await publishedIndex(locale);
+  if(entries)return <PublishedContentIndex kind={path.slice(1) as "blog"|"docs"|"features"|"use-cases"|"compare"|"resources"} entries={entries}/>;
+ }
+
   if (path === "/") return <HomePage />;
   if (path === "/pricing") return <ProductPricing />;
   if (path === "/docs") return <Documentation />;

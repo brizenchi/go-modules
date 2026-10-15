@@ -32,6 +32,7 @@ import (
 	emailport "github.com/brizenchi/go-modules/modules/email/port"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	"github.com/brizenchi/quickstart-template/internal/feature/credits"
+	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 	"github.com/brizenchi/quickstart-template/internal/feature/note"
 	"github.com/brizenchi/quickstart-template/internal/feature/operations"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
@@ -152,6 +153,7 @@ func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 	}
 	models := append([]any{&note.Note{}}, credits.Models()...)
 	models = append(models, operations.Models()...)
+	models = append(models, membership.Models()...)
 	if err = db.AutoMigrate(models...); err != nil {
 		return nil, err
 	}

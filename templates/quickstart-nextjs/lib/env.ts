@@ -35,6 +35,7 @@ function parseOAuthProviders(value: string | undefined): OAuthProvider[] {
 }
 
 export const appEnv = {
+  apiConfigured: Boolean(process.env.NEXT_PUBLIC_API_BASE_URL?.trim()),
   appName: process.env.NEXT_PUBLIC_APP_NAME?.trim() || siteConfig.brand.name,
   // Presentation only. Actual test/live payments are controlled by backend Stripe credentials.
   demoMode: parseBoolean(process.env.NEXT_PUBLIC_DEMO_MODE, true),

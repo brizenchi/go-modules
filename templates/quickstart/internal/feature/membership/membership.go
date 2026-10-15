@@ -4,7 +4,6 @@ package membership
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 
 type View struct {
 	Plan       string     `json:"plan"`
+	Source     string     `json:"source,omitempty"`
 	Active     bool       `json:"active"`
 	ValidUntil *time.Time `json:"valid_until,omitempty"`
 	Reason     string     `json:"reason"`
@@ -53,18 +53,11 @@ func Evaluate(row domain.BillingSubscription, now time.Time) View {
 }
 
 func Load(ctx context.Context, db *gorm.DB, uid string) (View, error) {
-	var row domain.BillingSubscription
-	if db == nil {
-		return View{Plan: "free", Reason: "membership_required"}, nil
-	}
-	err := db.WithContext(ctx).Where("user_id = ? AND provider = ?", uid, "stripe").Take(&row).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		err = nil
-	}
+	states, err := LoadStates(ctx, db, []string{uid}, time.Now().UTC(), db != nil && db.WithContext(ctx).Migrator().HasTable(&domain.BillingSubscription{}))
 	if err != nil {
 		return View{}, err
 	}
-	return Evaluate(row, time.Now().UTC()), nil
+	return states[uid].Membership, nil
 }
 
 func read(c *gin.Context, db *gorm.DB) (View, bool) {
@@ -104,7 +97,7 @@ func Require(db *gorm.DB, minimum string) gin.HandlerFunc {
 }
 
 func Register(deps hostapi.Deps, g hostapi.Groups) {
-	if g.User == nil || deps.Modules == nil || deps.Modules.Billing == nil {
+	if g.User == nil {
 		return
 	}
 	g.User.GET("/account/membership", func(c *gin.Context) {

@@ -1,23 +1,10 @@
-import { notFound } from "next/navigation";
-import { BlogArticle } from "@/components/content/blog";
-import { articles, findArticle } from "@/content/articles";
-import { publicMetadata } from "@/lib/seo";
-
-export const dynamicParams = false;
-export function generateStaticParams() { return articles.map(({ slug }) => ({ slug })); }
-
-type ArticlePageProps = { params: Promise<{ slug: string }> };
-
-export async function generateMetadata({ params }: ArticlePageProps) {
-  const { slug } = await params;
-  const article = findArticle(slug);
-  if (!article) notFound();
-  return publicMetadata(article.title.en, article.summary.en, `/blog/${article.slug}`, { publishedAt: article.publishedAt });
-}
-
-export default async function ArticlePage({ params }: ArticlePageProps) {
-  const { slug } = await params;
-  const article = findArticle(slug);
-  if (!article) notFound();
-  return <BlogArticle article={article} />;
-}
+import {notFound} from "next/navigation";
+import {PublicPage} from "@/components/public-page";
+import {managedMetadata, publishedPaths} from "@/lib/public-content";
+import { articles } from "@/content/articles";
+export const dynamicParams=true;
+export const revalidate=30;
+export async function generateStaticParams(){const paths=await publishedPaths("en",articles.map(({slug})=>`/blog/${slug}`));return paths.filter(path=>path.startsWith("/blog/")).map(path=>({slug:path.slice(6)}));}
+type Props={params:Promise<{slug:string}>};
+export async function generateMetadata({params}:Props){const{slug}=await params;const result=await managedMetadata(`/blog/${slug}`,"en");if(!result)notFound();return result;}
+export default async function Page({params}:Props){const{slug}=await params;return <PublicPage path={`/blog/${slug}`} locale="en"/>;}

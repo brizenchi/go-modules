@@ -19,9 +19,21 @@ func AutoMigrate(db *gorm.DB) error { return db.AutoMigrate(Models()...) }
 type Repository struct {
 	db          *gorm.DB
 	creditClock func() time.Time
+	creditAudit func(context.Context, *gorm.DB, *CreditTransaction) error
 }
 
 func NewRepository(db *gorm.DB) *Repository { return &Repository{db: db} }
+
+func (r *Repository) WithCreditAudit(record func(context.Context, *gorm.DB, *CreditTransaction) error) *Repository {
+	return &Repository{db: r.db, creditClock: r.creditClock, creditAudit: record}
+}
+
+func (r *Repository) recordCredit(ctx context.Context, tx *gorm.DB, entry *CreditTransaction) error {
+	if r.creditAudit != nil && entry.ActorID != "" {
+		return r.creditAudit(ctx, tx, entry)
+	}
+	return nil
+}
 
 func (r *Repository) FindByID(ctx context.Context, userID string) (*User, error) {
 	var user User

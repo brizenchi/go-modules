@@ -3,13 +3,14 @@ package operations
 import (
 	"fmt"
 	"github.com/brizenchi/quickstart-template/internal/credit"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
-	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
+	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 	"github.com/brizenchi/quickstart-template/internal/user"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -64,43 +65,11 @@ func (m *Module) db(c *gin.Context) *gorm.DB {
 }
 func queryFailed(c *gin.Context, err error) bool {
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "operator query failed", "error", err)
 		httpresp.InternalError(c, "operation failed")
 		return true
 	}
 	return false
-}
-
-func (m *Module) overview(c *gin.Context) {
-	db := m.db(c)
-	if db == nil {
-		return
-	}
-	counts := map[string]int64{}
-	queries := map[string]*gorm.DB{
-		"users":                db.Model(&user.User{}),
-		"subscriptions":        db.Model(&billingdomain.BillingSubscription{}),
-		"active_subscriptions": db.Model(&billingdomain.BillingSubscription{}).Where("status IN ?", []string{"active", "trialing", "canceling"}),
-		"billing_events":       db.Model(&billingdomain.BillingEvent{}),
-		"referrals":            db.Table("referrals"),
-		"pending_referrals":    db.Table("referrals").Where("status = ? AND (expires_at IS NULL OR expires_at > ?)", "pending", time.Now().UTC()),
-		"activated_referrals":  db.Table("referrals").Where("status = ?", "activated"),
-	}
-	for key, q := range queries {
-		if (strings.Contains(key, "subscription") || key == "billing_events") && m.deps.Modules != nil && m.deps.Modules.Billing == nil {
-			counts[key] = 0
-			continue
-		}
-		if strings.Contains(key, "referral") && m.deps.Modules != nil && m.deps.Modules.Referral == nil {
-			counts[key] = 0
-			continue
-		}
-		var count int64
-		if queryFailed(c, q.Count(&count).Error) {
-			return
-		}
-		counts[key] = count
-	}
-	httpresp.OK(c, counts)
 }
 
 func (m *Module) users(c *gin.Context) {
@@ -135,7 +104,25 @@ func (m *Module) users(c *gin.Context) {
 		}
 		items[i].Credits = summary.Balance
 	}
-	pageResponse(c, p, items, total)
+	ids := make([]string, len(items))
+	for i := range items {
+		ids[i] = items[i].ID
+	}
+	states, err := membership.LoadStates(c.Request.Context(), db, ids, time.Now().UTC(), m.deps.Modules == nil || m.deps.Modules.Billing != nil)
+	if queryFailed(c, err) {
+		return
+	}
+	type userView struct {
+		user.User
+		Plan       string          `json:"plan"`
+		Membership membership.View `json:"membership"`
+	}
+	views := make([]userView, 0, len(items))
+	for _, u := range items {
+		v := states[u.ID].Membership
+		views = append(views, userView{User: u, Plan: v.Plan, Membership: v})
+	}
+	pageResponse(c, p, views, total)
 }
 
 type subscriptionView struct {
@@ -217,6 +204,9 @@ func (m *Module) referrals(c *gin.Context) {
 	if status != "" {
 		q = q.Where("("+effectiveStatus+") = ?", now, status)
 	}
+	if uid := strings.TrimSpace(c.Query("user_id")); uid != "" {
+		q = q.Where("r.referrer_id = ?", uid)
+	}
 	var total int64
 	if queryFailed(c, q.Count(&total).Error) {
 		return
@@ -238,6 +228,13 @@ func (m *Module) audit(c *gin.Context) {
 		return
 	}
 	q := search(db.Model(&AuditEvent{}), p.query, "actor_id", "action", "target_id", "reason")
+	if status := c.Query("status"); status != "" {
+		if status != "succeeded" && status != "failed" && status != "pending" {
+			httpresp.BadRequest(c, "invalid audit status")
+			return
+		}
+		q = q.Where("status = ?", status)
+	}
 	var total int64
 	if queryFailed(c, q.Count(&total).Error) {
 		return

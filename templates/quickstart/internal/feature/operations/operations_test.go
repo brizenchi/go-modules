@@ -22,6 +22,7 @@ import (
 	refrepo "github.com/brizenchi/go-modules/modules/referral/adapter/gormrepo"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	refevent "github.com/brizenchi/go-modules/modules/referral/event"
+	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 	"github.com/brizenchi/quickstart-template/internal/platform"
@@ -56,6 +57,7 @@ func newFixture(t *testing.T) fixture {
 		t.Fatal(err)
 	}
 	models := append(Models(), refrepo.AutoMigrateModels()...)
+	models = append(models, membership.Models()...)
 	models = append(models, &billingdomain.BillingEvent{}, &billingdomain.BillingSubscription{})
 	if err := db.AutoMigrate(models...); err != nil {
 		t.Fatal(err)
@@ -106,7 +108,7 @@ func data(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
 
 func TestAdminEndpointsRejectUsersBeforeAnyWork(t *testing.T) {
 	f := newFixture(t)
-	for _, path := range []string{"/admin/overview", "/admin/users", "/admin/subscriptions", "/admin/orders", "/admin/referrals", "/admin/audit", "/admin/settings"} {
+	for _, path := range []string{"/admin/access", "/admin/overview", "/admin/users", "/admin/subscriptions", "/admin/orders", "/admin/referrals", "/admin/audit", "/admin/settings"} {
 		for _, role := range []string{"user", ""} {
 			want := 403
 			if role == "" {
@@ -151,7 +153,7 @@ func TestSettingsValidateAllowlistAndAuditIdempotently(t *testing.T) {
 		t.Fatalf("conflicting retry: %s", w.Body)
 	}
 	var audits []AuditEvent
-	if err := f.db.Find(&audits).Error; err != nil {
+	if err := f.db.Where("status = ?", "succeeded").Find(&audits).Error; err != nil {
 		t.Fatal(err)
 	}
 	if len(audits) != 1 || audits[0].ActorID != "owner" || audits[0].Reason != "Brand launch" || audits[0].Status != "succeeded" {
@@ -311,7 +313,7 @@ func TestReferralReconciliationCannotActivatePendingAndRewardsStayIdempotent(t *
 		t.Fatalf("credits=%d calls=%d", owner.Credits, calls)
 	}
 	var audits []AuditEvent
-	f.db.Find(&audits)
+	f.db.Where("status = ?", "succeeded").Find(&audits)
 	if len(audits) != 2 || audits[0].Status != "succeeded" {
 		t.Fatalf("audits %+v", audits)
 	}

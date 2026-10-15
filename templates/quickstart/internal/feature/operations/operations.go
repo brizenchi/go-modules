@@ -11,6 +11,8 @@ import (
 	"github.com/brizenchi/go-modules/foundation/ossx"
 	authdomain "github.com/brizenchi/go-modules/modules/auth/domain"
 	authhttp "github.com/brizenchi/go-modules/modules/auth/http"
+	"github.com/brizenchi/quickstart-template/internal/audit"
+	"github.com/brizenchi/quickstart-template/internal/feature/content"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 	"github.com/gin-gonic/gin"
@@ -29,6 +31,8 @@ func New(deps hostapi.Deps) *Module { return &Module{deps: deps.WithServices()} 
 func (m *Module) Register(g hostapi.Groups) {
 	if g.Public != nil {
 		g.Public.GET("/site/settings", m.getSettings)
+		g.Public.GET("/site/articles", m.publicArticles)
+		g.Public.GET("/site/articles/resolve", m.resolveArticle)
 	}
 	if g.User != nil {
 		g.User.GET("/billing/purchases", m.purchases)
@@ -39,18 +43,29 @@ func (m *Module) Register(g hostapi.Groups) {
 	if g.Admin == nil {
 		return
 	}
-	admin := g.Admin.Group("/admin", requireAdmin)
+	admin := g.Admin.Group("/admin", requireAdmin, m.auditFailures)
+	admin.GET("/access", func(c *gin.Context) { httpresp.OK(c, gin.H{"authorized": true}) })
 	admin.GET("/overview", m.overview)
 	admin.GET("/users", m.users)
+	admin.GET("/users/:id/access", m.userAccess)
+	admin.PATCH("/users/:id/membership", m.patchMembership)
+	admin.POST("/users/:id/credit-deductions", m.deductCredits)
 	admin.GET("/subscriptions", m.subscriptions)
 	admin.GET("/orders", m.orders)
 	admin.GET("/referrals", m.referrals)
 	admin.POST("/referrals/:id/retry-reward", m.retryReward)
+	admin.GET("/articles", m.articles)
+	admin.GET("/articles/:id", m.article)
+	admin.POST("/articles", m.saveArticle)
+	admin.PUT("/articles/:id", m.saveArticle)
+	admin.POST("/articles/:id/publications", m.publishArticle)
 	admin.GET("/audit", m.audit)
 	admin.GET("/settings", m.getSettings)
 	admin.PATCH("/settings", m.patchSettings)
 	admin.GET("/integrations", m.getIntegrations)
-	admin.PATCH("/integrations/:provider", m.patchIntegration)
+	admin.PATCH("/integrations/:provider", func(c *gin.Context) {
+		httpresp.Custom(c, 403, 403, "credentials are deployment-managed", gin.H{"reason": "INTEGRATION_DEPLOYMENT_MANAGED"})
+	})
 }
 
 func requireAdmin(c *gin.Context) {
@@ -79,6 +94,11 @@ type SiteSettings struct {
 	ID               uint      `gorm:"primaryKey" json:"-"`
 	BrandName        string    `gorm:"type:varchar(100);not null" json:"brand_name"`
 	Description      string    `gorm:"type:varchar(500);not null" json:"description"`
+	DescriptionZH    string    `gorm:"type:varchar(500);not null;default:''" json:"description_zh"`
+	HeadlineEN       string    `gorm:"type:varchar(160);not null;default:''" json:"headline_en"`
+	HeadlineZH       string    `gorm:"type:varchar(160);not null;default:''" json:"headline_zh"`
+	SenderEmail      string    `gorm:"type:varchar(255);not null;default:''" json:"sender_email"`
+	SenderName       string    `gorm:"type:varchar(100);not null;default:''" json:"sender_name"`
 	SupportEmail     string    `gorm:"type:varchar(255);not null" json:"support_email"`
 	SupportURL       string    `gorm:"type:varchar(1024);not null" json:"support_url"`
 	ExportCreditCost int64     `gorm:"not null" json:"export_credit_cost"`
@@ -103,21 +123,7 @@ func ReadSettings(ctx context.Context, db *gorm.DB) (*SiteSettings, error) {
 	return &settings, err
 }
 
-type AuditEvent struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	ActorID        string    `gorm:"type:varchar(36);not null;index;uniqueIndex:uniq_operations_actor_key" json:"actor_id"`
-	IdempotencyKey string    `gorm:"type:varchar(128);not null;uniqueIndex:uniq_operations_actor_key" json:"idempotency_key"`
-	Action         string    `gorm:"type:varchar(64);not null;index" json:"action"`
-	TargetID       string    `gorm:"type:varchar(255);not null" json:"target_id"`
-	Reason         string    `gorm:"type:varchar(500);not null" json:"reason"`
-	RequestHash    string    `gorm:"type:varchar(64);not null" json:"-"`
-	Status         string    `gorm:"type:varchar(32);not null" json:"status"`
-	Details        string    `gorm:"type:text" json:"details"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-func (AuditEvent) TableName() string { return "operations_audit_events" }
+type AuditEvent = audit.Operation
 
 type Upload struct {
 	ID          string    `gorm:"type:varchar(36);primaryKey" json:"id"`
@@ -134,5 +140,7 @@ type Upload struct {
 func (Upload) TableName() string { return "private_image_uploads" }
 
 func Models() []any {
-	return append([]any{&SiteSettings{}, &AuditEvent{}, &Upload{}}, serviceconfig.Models()...)
+	models := append([]any{&SiteSettings{}, &Upload{}}, audit.Models()...)
+	models = append(models, content.Models()...)
+	return append(models, serviceconfig.Models()...)
 }

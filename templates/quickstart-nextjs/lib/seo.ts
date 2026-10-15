@@ -85,7 +85,7 @@ const publicPageCopy: Record<string, { title: Record<Locale, string>; descriptio
   "/docs": { title: { en: "Template user guide", zh: "模板使用指南" }, description: { en: "Learn what the free SaaS template includes, try sign-in, payments and referrals, then configure your own website and administrator account.", zh: "了解免费 SaaS 模板的功能，体验登录、支付和邀请流程，再配置自己的网站和管理员账户。" } },
   "/blog": { title: { en: "Product guides", zh: "产品文章" }, description: { en: "Practical guides to configure your SaaS, understand invitation rewards, and support your users.", zh: "通过实用指南配置你的 SaaS、了解邀请奖励，并为用户提供支持。" } },
   "/updates": { title: { en: "Product updates", zh: "产品更新" }, description: { en: "Follow changes to the SaaS starter, with links to the features and guides.", zh: "查看 SaaS 启动模板的更新记录，以及相关功能与指南。" } },
-  "/contact": { title: { en: "Contact and support", zh: "联系与支持" }, description: { en: "Find product guides and the support channels configured for this site.", zh: "查阅产品指南，联系本站提供的支持渠道。" } },
+  "/contact": { title: { en: "Help & support", zh: "帮助与支持" }, description: { en: "Get help with your account, subscription, credits and referral rewards.", zh: "查找账户、订阅、积分和推荐奖励的帮助，联系本站支持渠道。" } },
   "/privacy": { title: { en: "Privacy", zh: "隐私政策" }, description: { en: "Editable privacy information for the SaaS starter. Adapt it to your actual service.", zh: "SaaS 启动模板的隐私说明，请按实际服务完善后使用。" } },
   "/terms": { title: { en: "Terms", zh: "服务条款" }, description: { en: "Editable service terms covering accounts, subscriptions, credits, and support for your product.", zh: "涵盖账户、订阅、积分与支持的服务条款示例，请按实际产品调整。" } }
 };

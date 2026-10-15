@@ -80,6 +80,7 @@ export function ConsoleError({ error, retry }: { error: unknown; retry?: () => v
   const api = error instanceof ApiError ? error : null;
   const message = api?.status === 403 ? t({ en: "You don't have permission for this action.", zh: "你没有执行此操作的权限。" })
     : api?.status === 401 ? t({ en: "Please sign in again.", zh: "请重新登录。" })
+    : api?.reason === "CREDITS_INSUFFICIENT_BALANCE" ? t({ en: "The balance is too low for this deduction. Refresh and enter a smaller amount.", zh: "当前余额不足，请刷新后填写较小的扣减数量。" })
     : api?.status === 409 && api.message === "price_changed" ? t({ en: "The export price changed. Refresh the price, then confirm again. No credits were charged.", zh: "导出价格已变更，请刷新价格后重新确认。本次没有扣除积分。" })
     : api?.status === 409 && api.message === "insufficient_credits" ? t({ en: "There are not enough credits for this export. Check your balance or get more credits.", zh: "当前积分不足，请查看余额或购买积分后重试。" })
     : api?.status === 409 ? t({ en: "This request conflicts with an earlier action. Refresh the page and check the latest record.", zh: "本次请求与已有操作冲突，请刷新页面并查看最新记录。" })

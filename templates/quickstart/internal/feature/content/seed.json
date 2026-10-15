@@ -1,0 +1,442 @@
+[
+  {
+    "path": "/blog/from-template-to-your-saas",
+    "kind": "blog",
+    "translations": {
+      "en": {
+        "title": "Make the template your product",
+        "summary": "Connect your services, define one useful workflow, and give your first customers a clear place to start.",
+        "body": "## Start with the job your customer needs done\n\nAuthentication, subscriptions, and invitations provide the foundation. Your product still needs a concrete job: create a report, organize a project, or deliver another result your customer values. Choose one workflow and make the path from signing up to that result easy to follow.\n\nReplace the example name, introduction, and plan descriptions together. Tell visitors who the product helps, what they can do, and what the next step is.\n\n## Connect the accounts you own\n\nConfigure the frontend and API domains, database, authentication providers, Resend sender, and Stripe catalog for your deployment. Keep private credentials on the backend. The setup guide explains which settings belong on each side.\n\nKeep payments in the provider's test environment while you check the flow. A test payment label in the UI is only a display setting; the backend credentials determine which payment environment is used.\n\n## Check the complete customer journey\n\nUse separate accounts to check signup, the first useful action, a test subscription, and an invitation. Confirm what each account sees when the operation succeeds, is still processing, or fails. Also check the experience on a narrow screen.\n\nBefore sharing the site publicly, replace the starter privacy and terms text with your own policies and add a support channel you actually monitor.",
+        "seo_title": "Make the template your product",
+        "seo_description": "Connect your services, define one useful workflow, and give your first customers a clear place to start."
+      },
+      "zh": {
+        "title": "把模板变成你的产品",
+        "summary": "接入自己的服务，做好一个有用的业务流程，让第一批用户知道从哪里开始。",
+        "body": "## 先确定用户要完成什么\n\n登录、订阅和邀请提供了基础能力。你的产品还需要一个明确的用途：生成报告、管理项目，或者交付其他有价值的结果。先选一个流程，让用户从注册到拿到结果都能顺利完成。\n\n一起替换示例品牌、首页介绍和套餐说明。让访问者清楚知道产品适合谁、能做什么，以及下一步该点哪里。\n\n## 接入你自己的服务账号\n\n为自己的部署配置前端与 API 域名、数据库、登录服务、Resend 发件人和 Stripe 商品。私密凭证放在后端。配置文档会说明前后端各自需要哪些设置。\n\n验证流程时使用支付服务的测试环境。界面上的测试支付提示只是展示设置，实际使用哪个支付环境由后端凭证决定。\n\n## 验证完整的用户体验\n\n使用不同账号验证注册、第一次使用业务功能、测试订阅和邀请。确认每个账号在成功、处理中和失败时看到的内容，并检查小屏幕上的体验。\n\n公开分享网站前，按实际业务完善隐私和条款页面，并配置一个有人处理的支持渠道。",
+        "seo_title": "把模板变成你的产品",
+        "seo_description": "接入自己的服务，做好一个有用的业务流程，让第一批用户知道从哪里开始。"
+      }
+    }
+  },
+  {
+    "path": "/blog/understand-invitation-rewards",
+    "kind": "blog",
+    "translations": {
+      "en": {
+        "title": "Know where an invitation stands",
+        "summary": "A shared link, an attributed signup, and a rewarded invitation are three different steps.",
+        "body": "## Share your personal invitation link\n\nSign in and open the referral center to copy your link. When another person opens it, the invitation page keeps the code for the sign-in flow. Opening a link alone does not mean an invitation has been attributed or rewarded.\n\n## Follow the status after signup\n\nA pending invitation means the relationship has been recorded and the activation requirement has not yet been met. An activated invitation has met that requirement. An expired invitation passed its activation deadline. The referral center shows the records available to your account.\n\nThe starter connects activation to a qualifying subscription event. The operator controls the reward policy and activation window. Check the published rules for the deployment you are using before expecting a reward.\n\n## Test with two separate accounts\n\nKeep the inviter signed in in one browser session. Open the invitation in a separate browser profile and register a new account. Complete the qualifying action in the test payment environment, then refresh the inviter's referral center to check the result.\n\nThe starter grants inviter / invitee 20 / 10 credits on signup, and another 20 / 10 on qualifying paid activation. Any product rewards are separate from third-party affiliate commissions the template author may receive from marked service recommendations.",
+        "seo_title": "Know where an invitation stands",
+        "seo_description": "A shared link, an attributed signup, and a rewarded invitation are three different steps."
+      },
+      "zh": {
+        "title": "看懂每一次邀请的进展",
+        "summary": "分享链接、注册归因和获得奖励，是邀请流程里的三个不同阶段。",
+        "body": "## 分享你的专属邀请链接\n\n登录后到推荐中心复制专属链接。对方打开链接后，邀请页会保留邀请码供登录流程使用。仅仅打开链接，并不代表已经建立邀请关系或发放奖励。\n\n## 注册之后，查看邀请状态\n\n“待激活”表示邀请关系已经记录，但尚未满足激活条件；“已激活”表示已经满足条件；“已过期”表示超过了激活期限。推荐中心展示与你账号相关的邀请记录。\n\n模板通过符合条件的订阅事件激活邀请。奖励规则和激活期限由站点运营者配置，请以正在使用的站点公布的规则为准。\n\n## 用两个独立账号测试\n\n在一个浏览器会话中保留邀请人登录状态。在另一个浏览器个人资料中打开邀请链接并注册新账号，使用支付测试环境完成符合条件的操作，再刷新邀请人的推荐中心检查结果。\n\n模板在邀请注册成功后给邀请人 20、被邀请人 10 积分；符合条件的首次付费后再各给 20 / 10。站点自定义的奖励与模板作者通过已标注的第三方服务推荐链接获得的佣金是两回事。",
+        "seo_title": "看懂每一次邀请的进展",
+        "seo_description": "分享链接、注册归因和获得奖励，是邀请流程里的三个不同阶段。"
+      }
+    }
+  },
+  {
+    "path": "/blog/publish-useful-product-content",
+    "kind": "blog",
+    "translations": {
+      "en": {
+        "title": "Give your product a place to explain itself",
+        "summary": "Use guides, release notes, and a reachable support channel to answer the questions around your product.",
+        "body": "## Answer a real question in each article\n\nStart with questions your first users ask: how to get a first result, how credits work, or where to find a subscription invoice. Keep the title specific and put the answer near the start.\n\nThe blog stores articles alongside the source code. Each article has a stable URL, a summary, and English and Chinese text. Search matches the article's title, category, summary, and body.\n\n## Describe changes people can use\n\nA useful release note says what changed and where to use it. Keep unfinished ideas in your internal plan. Link to a guide when a change needs more explanation.\n\n## Make help easy to find\n\nConfigure a support email or an HTTPS support page. The contact page displays configured channels and otherwise explains that direct support is not yet available. Do not publish an address or response-time promise you do not maintain.",
+        "seo_title": "Give your product a place to explain itself",
+        "seo_description": "Use guides, release notes, and a reachable support channel to answer the questions around your product."
+      },
+      "zh": {
+        "title": "让用户有地方了解你的产品",
+        "summary": "用操作指南、更新记录和联系渠道，回答用户在使用产品时遇到的问题。",
+        "body": "## 每篇文章回答一个真实问题\n\n从第一批用户的问题写起：如何完成第一次操作、积分如何使用、在哪里找订阅发票。标题要具体，把答案放在靠前的位置。\n\n博客文章与源码一起管理。每篇文章都有固定链接、摘要和中英文正文。搜索会匹配文章标题、分类、摘要和正文。\n\n## 更新记录写用户能感知的变化\n\n好的更新记录会告诉用户改了什么、在哪里使用。尚未完成的想法留在内部计划里。需要更多说明时，链接到相关指南。\n\n## 让用户容易找到帮助\n\n配置支持邮箱或 HTTPS 支持页面。联系页会展示已配置的渠道；如果尚未配置，会说明目前没有直接支持入口。不要发布无人维护的邮箱，也不要承诺无法兑现的回复时间。",
+        "seo_title": "让用户有地方了解你的产品",
+        "seo_description": "用操作指南、更新记录和联系渠道，回答用户在使用产品时遇到的问题。"
+      }
+    }
+  },
+  {
+    "path": "/docs/overview",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "What you can build with this template",
+        "summary": "Understand the free Next.js and Go starter, what it includes, and what you build yourself.",
+        "body": "This is a free Next.js + Go starter for building your own SaaS: a website where customers register, use your service, and manage a paid subscription. It connects the public website, customer account center, and administrator console so you can focus on the service you want to sell.\n\nYou get the source code and connected example workflows. Add your own core feature, replace the brand and sample plans, and connect your service accounts before launching. The prices shown here demonstrate how your future product can charge customers; they are not a price for downloading the template.\n\n[Get the template source](https://github.com/brizenchi/go-modules/tree/main/templates)\n\n[Try the customer journey](/docs/try-demo)\n\n[Set up your own project](/docs/domains)",
+        "seo_title": "What you can build with this template",
+        "seo_description": "Understand the free Next.js and Go starter, what it includes, and what you build yourself."
+      },
+      "zh": {
+        "title": "这个模板能帮你做什么",
+        "summary": "了解免费的 Next.js 与 Go 模板包含什么，以及哪些业务需要自己开发。",
+        "body": "这是一个免费的 Next.js + Go SaaS 启动模板，用来搭建你自己的在线产品：用户注册、使用服务、购买和管理订阅。模板已经连接好公开网站、账户中心和管理员后台，你可以把开发精力放在真正要出售的服务上。\n\n你拿到的是源码和已经串联好的示例流程。上线前，需要加入自己的核心业务、替换品牌和示例套餐，并接入自己的服务账号。这里展示的套餐价格，是你未来的产品如何收费的示例；下载模板本身免费。\n\n[获取模板源码](https://github.com/brizenchi/go-modules/tree/main/templates)\n\n[先体验用户流程](/docs/try-demo)\n\n[开始配置自己的项目](/docs/domains)",
+        "seo_title": "这个模板能帮你做什么",
+        "seo_description": "了解免费的 Next.js 与 Go 模板包含什么，以及哪些业务需要自己开发。"
+      }
+    }
+  },
+  {
+    "path": "/docs/features",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "What is included, and where to find it",
+        "summary": "Explore the public website, customer account center, admin console, and reusable examples.",
+        "body": "Each part has a different audience. Your customers manage their own accounts; the site owner uses a separate administrator console to run the service.\n\n## Public website\n\nOverview, pricing, setup guide, searchable blog, updates, contact, privacy, and terms pages. Chinese and English copy, sharing metadata, and a sitemap are included.\n\n## Customer account center\n\nThe account center at /account, a read-only account information dialog, subscriptions and invoices at /billing, credit history at /credits, and invitations and rewards at /referrals. Email-code login and optional Google/GitHub sign-in connect to the Go API.\n\n## Administrator console\n\nThe administrator console has five destinations: overview, users, articles, website settings and audit log. Manage membership, credits, payments and invitations from a user dialog; keep a global payment view for reconciliation. Credentials remain in deployment configuration.\n\n## Examples you can extend\n\nThe customer area supplies common account services only. Add your own product feature and connect it to the existing authentication, credit and storage interfaces. Backend note/export and upload code remains available as implementation references, without default frontend pages.\n\n[See what to add before launch](/docs/launch)",
+        "seo_title": "What is included, and where to find it",
+        "seo_description": "Explore the public website, customer account center, admin console, and reusable examples."
+      },
+      "zh": {
+        "title": "已经有什么功能，分别在哪里",
+        "summary": "浏览产品官网、账户中心、管理员后台与可复用的功能示例。",
+        "body": "不同页面服务不同的人。你的客户在账户中心管理自己的账号；网站所有者使用独立的管理员后台运营整个网站。\n\n## 公开网站 · 向访客介绍产品\n\n总览、价格、使用指南、可搜索的博客、更新记录、联系、隐私与条款页面，带有中英文文案、分享信息和站点地图。\n\n## 账户中心 · 管理自己的账户\n\n在 /account 进入账户中心，在账户弹窗查看只读登录邮箱，在 /billing 管理订阅和账单，在 /credits 查看积分，在 /referrals 管理邀请与奖励。支持邮箱验证码登录，也可配置 Google / GitHub 登录。\n\n## 管理员后台 · 运营整个网站\n\n管理员后台保留运营概览、用户管理、文章管理、网站设置和审计日志五个入口。在用户弹窗中管理会员、积分、支付与邀请，全站支付记录便于对账。密钥保留在部署配置中。\n\n## 业务示例 · 改造成你自己的产品\n\n用户区仅提供通用账户服务。你可以添加自己的核心业务，再接入已有的认证、积分与存储接口。后端笔记导出和上传代码保留为实现参考，不提供默认前端页面。\n\n[查看上线前还需要补什么](/docs/launch)",
+        "seo_title": "已经有什么功能，分别在哪里",
+        "seo_description": "浏览产品官网、账户中心、管理员后台与可复用的功能示例。"
+      }
+    }
+  },
+  {
+    "path": "/docs/try-demo",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Try a complete customer journey",
+        "summary": "Walk through registration, a Stripe test purchase, and an invitation with two accounts.",
+        "body": "Registration, customer actions, and invitation records use the backend and its database. Payment testing uses Stripe’s test environment when configured. The isolated local preview keeps temporary data and has payments disabled, so a checkout cannot be completed there.\n\n## Create your first account\n\nOpen the account center and use an available sign-in method. With email login, request a code and enter it; a new address creates an account. Open account information to check the read-only email, then try signing out and back in.\n\n## Try a subscription in test mode\n\nOpen /pricing, choose monthly or yearly billing and a plan, then continue directly to Checkout. Only after confirming Stripe test mode, use 4242 4242 4242 4242, a future expiry date, and any three-digit CVC. Return to subscriptions to check the result. If payments are unavailable, the owner must configure them first.\n\n## Invite a separate new account\n\nCopy your link from referrals. Open it in a separate browser profile or private window and register with a different email. Check the inviter’s pending record, then have the new account complete a qualifying test purchase and check the activation and reward.\n\n[Start with an account](/account)\n\n[Read the reward conditions](/docs/invitations)\n\n[Stripe’s official test cards](https://docs.stripe.com/testing)",
+        "seo_title": "Try a complete customer journey",
+        "seo_description": "Walk through registration, a Stripe test purchase, and an invitation with two accounts."
+      },
+      "zh": {
+        "title": "按这三步，体验完整用户流程",
+        "summary": "完成注册、Stripe 测试购买，并用两个账号体验邀请流程。",
+        "body": "注册、用户操作和邀请记录会经过后端并写入数据库。支付体验需要接入 Stripe 测试环境。隔离的本地 preview 使用临时数据，支付默认关闭，因此不能在其中完成购买。\n\n## 注册并进入账户中心\n\n进入账户中心，选择页面提供的登录方式。使用邮箱时，发送并输入验证码；新邮箱会创建账号。打开账户信息查看只读邮箱，再退出并重新登录，确认完整流程可用。\n\n## 在测试环境购买一次订阅\n\n打开 /pricing，选择月付或年付及套餐，直接进入 Checkout。确认使用 Stripe 测试模式后，填写 4242 4242 4242 4242、未来有效期和任意三位 CVC。支付后回到订阅页查看结果；如果支付不可用，需要先由站点所有者完成配置。\n\n## 邀请一个独立的新账号\n\n到邀请页面复制链接，在另一浏览器个人资料或无痕窗口中打开，用不同邮箱注册新账号。先在邀请人账号确认“待激活”记录，再让被邀请人完成符合条件的测试购买，检查激活状态和奖励。\n\n[从注册账号开始](/account)\n\n[查看邀请奖励条件](/docs/invitations)\n\n[Stripe 官方测试卡说明](https://docs.stripe.com/testing)",
+        "seo_title": "按这三步，体验完整用户流程",
+        "seo_description": "完成注册、Stripe 测试购买，并用两个账号体验邀请流程。"
+      }
+    }
+  },
+  {
+    "path": "/docs/domains",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Connect your frontend and backend",
+        "summary": "Connect the frontend and API domains, prepare environment variables, and configure CORS.",
+        "body": "The source contains two projects: templates/quickstart-nextjs for the Next.js frontend and templates/quickstart for the Go API. Use both for the full SaaS workflow. Follow their READMEs for the matching runtime, dependency, and database setup.\n\nFor local development, copy the frontend .env.example to .env.local and the backend .env.example to .env; also copy the backend deploy/config.yaml.example to deploy/config.yaml. Replace example secrets. For deployment, start from the .env.production.example files and configure your own HTTPS domains and database.\n\nThe frontend API address must include /api/v1. The backend CORS origin must match the frontend address. Start the Go API with go run ./cmd/quickstart in its directory, then run npm ci and npm run dev in the frontend directory. OAuth callbacks and Stripe return URLs must use the same configured domains.\n\n```\n# Frontend: .env.local\nNEXT_PUBLIC_APP_URL=http://localhost:3000\nNEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1\n\n# Backend: .env\nAPP_HTTP_ALLOWED_ORIGINS=http://localhost:3000\n```\n\n[Frontend setup README](https://github.com/brizenchi/go-modules/tree/main/templates/quickstart-nextjs#readme)\n\n[Backend setup README](https://github.com/brizenchi/go-modules/tree/main/templates/quickstart#readme)",
+        "seo_title": "Connect your frontend and backend",
+        "seo_description": "Connect the frontend and API domains, prepare environment variables, and configure CORS."
+      },
+      "zh": {
+        "title": "准备项目，连接前后端",
+        "summary": "连接前端与 API 域名，准备环境变量并配置跨域访问。",
+        "body": "源码包含两个配套项目：templates/quickstart-nextjs 是 Next.js 前端，templates/quickstart 是 Go API。完整的 SaaS 流程需要两者一起运行。先按各自 README 准备运行环境、依赖和自己的数据库。\n\n本地开发时，将前端 .env.example 复制为 .env.local，后端 .env.example 复制为 .env，并将后端 deploy/config.yaml.example 复制为 deploy/config.yaml，替换示例密钥。部署时从 .env.production.example 开始，配置自己的 HTTPS 域名和数据库。\n\n前端的 API 地址需要包含 /api/v1；后端 CORS 填写前端来源地址。在后端目录用 go run ./cmd/quickstart 启动 API，再在前端目录运行 npm ci 和 npm run dev。OAuth 回调和 Stripe 返回地址也要匹配实际域名。\n\n```\n# Frontend: .env.local\nNEXT_PUBLIC_APP_URL=http://localhost:3000\nNEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1\n\n# Backend: .env\nAPP_HTTP_ALLOWED_ORIGINS=http://localhost:3000\n```\n\n[前端启动说明](https://github.com/brizenchi/go-modules/tree/main/templates/quickstart-nextjs#readme)\n\n[后端启动说明](https://github.com/brizenchi/go-modules/tree/main/templates/quickstart#readme)",
+        "seo_title": "准备项目，连接前后端",
+        "seo_description": "连接前端与 API 域名，准备环境变量并配置跨域访问。"
+      }
+    }
+  },
+  {
+    "path": "/docs/auth-email",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Enable customer sign-in with Resend",
+        "summary": "Set up Resend email delivery and enable the sign-in methods your product needs.",
+        "body": "Configure the Resend API key and email-code sign-in in the deployment environment. Website settings can manage the verified sender address and name; restart the API after sender changes. Provider keys cannot be edited in the operator console.\n\nGoogle and GitHub sign-in are optional. Configure their client credentials and callback URLs on the backend when you need them. The frontend shows methods enabled by the API. Verify sign-in, account creation, and sign-out with an email you control before inviting customers.\n\n```\nAPP_AUTH_EMAIL_ENABLED=true\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_EMAIL_PROVIDER=resend\nAPP_EMAIL_RESEND_API_KEY=<your-resend-api-key>\nAPP_EMAIL_RESEND_SENDER_EMAIL=<your-verified-sender>\n```\n\n[How service settings take effect](/docs/integrations)\n\n[Get a Resend API key](https://resend.com/docs/dashboard/api-keys/introduction)\n\n[Check customer sign-in](/account)",
+        "seo_title": "Enable customer sign-in with Resend",
+        "seo_description": "Set up Resend email delivery and enable the sign-in methods your product needs."
+      },
+      "zh": {
+        "title": "接入 Resend，配置用户登录",
+        "summary": "配置 Resend 发信，启用产品需要的邮箱或第三方登录方式。",
+        "body": "在部署环境中配置 Resend API Key 和邮箱验证码登录。网站设置可以维护经过验证的发件邮箱和名称，修改发件信息后重启后端。运营后台不编辑服务商密钥。\n\nGoogle 和 GitHub 登录按需启用，在后端填写对应应用凭证和回调地址即可。前端会读取 API 提供的登录方式。邀请真实客户之前，先用自己的邮箱验证收码、注册、登录和退出。\n\n```\nAPP_AUTH_EMAIL_ENABLED=true\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_EMAIL_PROVIDER=resend\nAPP_EMAIL_RESEND_API_KEY=<your-resend-api-key>\nAPP_EMAIL_RESEND_SENDER_EMAIL=<your-verified-sender>\n```\n\n[服务配置如何生效](/docs/integrations)\n\n[获取 Resend API Key](https://resend.com/docs/dashboard/api-keys/introduction)\n\n[检查用户登录](/account)",
+        "seo_title": "接入 Resend，配置用户登录",
+        "seo_description": "配置 Resend 发信，启用产品需要的邮箱或第三方登录方式。"
+      }
+    }
+  },
+  {
+    "path": "/docs/admin",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Set your administrator email and password",
+        "summary": "Configure administrator credentials and understand which settings belong in the console.",
+        "body": "Set both variables below in the backend environment, restart the backend, and open /admin. Sign in with that email and password; you do not need to register the administrator account first. There is no shared default administrator password. Use a generated password of 12–72 bytes; ASCII characters make the byte length easy to check.\n\nWebsite settings manage the public brand, bilingual introduction and homepage heading, support contacts and sender details. Public pages refresh through their short-lived cache. Use article management for localized guides and product articles. Database, authentication, payment and mail credentials remain deployment configuration.\n\n```\nAPP_AUTH_ADMIN_EMAIL=<your-admin-email>\nAPP_AUTH_ADMIN_PASSWORD=<your-generated-password>\n```\n\n[Open administrator sign-in](/admin)",
+        "seo_title": "Set your administrator email and password",
+        "seo_description": "Configure administrator credentials and understand which settings belong in the console."
+      },
+      "zh": {
+        "title": "设置管理员邮箱和密码",
+        "summary": "配置管理员账号，了解后台设置与后端环境变量各自负责的内容。",
+        "body": "在后端环境变量中同时填写下面两项，重启后端，再打开 /admin，用设置的邮箱和密码登录，无需提前注册管理员账号。模板没有通用的默认管理员密码。密码要求为 12–72 字节，建议使用随机生成的英数符号密码，便于确认长度。\n\n在网站设置维护公开品牌、中英文服务介绍和首页标题、客服渠道及发件资料，公开页面通过短时缓存刷新。在文章管理编辑和发布多语言指南与产品文章。数据库、登录、支付及邮件密钥由部署环境管理。\n\n```\nAPP_AUTH_ADMIN_EMAIL=<your-admin-email>\nAPP_AUTH_ADMIN_PASSWORD=<your-generated-password>\n```\n\n[打开管理员登录](/admin)",
+        "seo_title": "设置管理员邮箱和密码",
+        "seo_description": "配置管理员账号，了解后台设置与后端环境变量各自负责的内容。"
+      }
+    }
+  },
+  {
+    "path": "/docs/integrations",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Configure deployment services and review their status",
+        "summary": "Understand service credentials, configuration overrides, and when a backend restart is needed.",
+        "body": "Configure the database, JWT, administrator credentials, API domains and provider keys in your deployment environment. Website settings shows provider configuration status and lets you maintain non-secret sender information. Existing installations with database overrides retain compatibility until the operator explicitly migrates those values.\n\nThe operator console does not edit provider credentials. Existing database overrides are retained for compatibility; move them to your deployment secret configuration through an explicit operator-controlled migration before removing them.\n\n## Where the settings come from\n\nNew installations use deployment configuration for provider credentials. Website settings maintains public identity, support contacts and non-secret sender details. Existing provider overrides keep their previous precedence until explicitly migrated.\n\n## When changes apply\n\nPublic branding and article publication refresh through the website cache, usually within one minute of subsequent visits. Sender or deployment credential changes require a backend restart; a configured badge does not prove a successful connection.\n\n## What saving verifies\n\nStatus reports configuration, not external API permissions, email delivery or successful charges. Verify delivery and test payments in an isolated test environment. The local preview never activates external email or payments.\n\n```\n# First boot only; also configure your database, JWT, admin credentials and domains.\nAPP_AUTH_ENABLED=true\nAPP_AUTH_EMAIL_ENABLED=false\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_AUTH_GOOGLE_ENABLED=false\nAPP_AUTH_GITHUB_ENABLED=false\nAPP_EMAIL_PROVIDER=none\nAPP_BILLING_ENABLED=false\n```\n\n[Open website settings](/admin/settings)",
+        "seo_title": "Configure deployment services and review their status",
+        "seo_description": "Understand service credentials, configuration overrides, and when a backend restart is needed."
+      },
+      "zh": {
+        "title": "配置部署服务并查看状态",
+        "summary": "了解服务密钥、配置覆盖规则，以及哪些修改需要重启后端。",
+        "body": "在部署环境配置数据库、JWT、管理员凭据、前后端域名及服务商密钥。网站设置展示服务配置状态，并维护非敏感的发件信息。已有数据库覆盖配置的项目保持兼容，迁移需由站长明确选择。\n\n运营后台不编辑服务商凭据。已有数据库覆盖配置保持兼容；移除前，应由站长明确将其迁入部署密钥配置，避免影响已接入的支付和邮件服务。\n\n## 配置从哪里读取\n\n新项目通过部署配置管理服务商凭据，网站设置维护公开品牌、客服渠道和非敏感的发件资料。历史服务覆盖配置保持原有优先级，直到站长明确迁移。\n\n## 什么时候生效\n\n公开品牌和文章发布通过网站缓存刷新，通常在后续访问触发后一分钟内生效。发件资料和部署凭据变更需要重启后端；已配置状态不代表连通性已验证。\n\n## 保存会检查什么\n\n状态展示配置情况，不代表外部 API 权限、邮件投递或真实支付已验收。请在隔离测试环境验证发信与测试购买；本地 preview 始终不启用外部邮件或支付。\n\n```\n# First boot only; also configure your database, JWT, admin credentials and domains.\nAPP_AUTH_ENABLED=true\nAPP_AUTH_EMAIL_ENABLED=false\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_AUTH_GOOGLE_ENABLED=false\nAPP_AUTH_GITHUB_ENABLED=false\nAPP_EMAIL_PROVIDER=none\nAPP_BILLING_ENABLED=false\n```\n\n[打开网站设置](/admin/settings)",
+        "seo_title": "配置部署服务并查看状态",
+        "seo_description": "了解服务密钥、配置覆盖规则，以及哪些修改需要重启后端。"
+      }
+    }
+  },
+  {
+    "path": "/docs/ai-integration",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Connect AI to your own product",
+        "summary": "Connect a model provider on the server and inject it into your own product features.",
+        "body": "The template supplies a stateless model adapter in foundation/aix and a backend configuration factory in internal/ai. It accepts explicit messages and returns a text completion. There is no default customer chat page, chat API, conversation database or daily usage policy.\n\nConfigure a provider supporting the Chat Completions protocol, then create the adapter in your product composition code with the injected HTTP client. Configuration alone does not expose an AI endpoint. Keep the API key on the server and pass the request context into every model call.\n\nYour product owns its prompts, customer authorization, conversation history, task lifecycle and charging policy. Reuse the credit ledger if your feature charges credits; decide when to reserve, charge or refund in that business service. Product-specific screens and workflows are not included in the default customer area.\n\n```\nAPP_HOST_AI_ENABLED=true\nAPP_HOST_AI_BASE_URL=https://api.openai.com/v1\nAPP_HOST_AI_API_KEY=<your-server-side-provider-key>\nAPP_HOST_AI_MODEL=<your-compatible-chat-model>\nAPP_HOST_AI_MAX_OUTPUT_TOKENS=1024\n```\n\n[Read the adapter and usage example](https://github.com/brizenchi/go-modules/tree/main/foundation/aix)\n\n[Define your product rules](/docs/launch)",
+        "seo_title": "Connect AI to your own product",
+        "seo_description": "Connect a model provider on the server and inject it into your own product features."
+      },
+      "zh": {
+        "title": "为自己的产品接入 AI",
+        "summary": "在服务端接入模型服务商，并将调用能力注入自己的业务功能。",
+        "body": "模板在 foundation/aix 提供无状态模型适配器，在后端 internal/ai 提供配置工厂。输入明确的消息，返回文本结果；默认不提供用户聊天页面、聊天接口、对话数据库或每日用量规则。\n\n配置支持 Chat Completions 协议的服务商后，在产品组装代码中使用注入的 HTTP 客户端创建适配器。仅填写配置不会自动开放 AI 接口。密钥保留在服务端，每次模型调用都传递请求上下文。\n\n提示词、用户权限、对话历史、任务流程与收费规则属于具体产品。如果功能按积分收费，可以复用积分账本，在业务服务中决定何时预占、扣费或退款。具体业务的界面与流程不包含在默认用户区。\n\n```\nAPP_HOST_AI_ENABLED=true\nAPP_HOST_AI_BASE_URL=https://api.openai.com/v1\nAPP_HOST_AI_API_KEY=<your-server-side-provider-key>\nAPP_HOST_AI_MODEL=<your-compatible-chat-model>\nAPP_HOST_AI_MAX_OUTPUT_TOKENS=1024\n```\n\n[查看适配器与接入示例](https://github.com/brizenchi/go-modules/tree/main/foundation/aix)\n\n[定义自己的产品规则](/docs/launch)",
+        "seo_title": "为自己的产品接入 AI",
+        "seo_description": "在服务端接入模型服务商，并将调用能力注入自己的业务功能。"
+      }
+    }
+  },
+  {
+    "path": "/docs/payments",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Configure your plans and Stripe",
+        "summary": "Connect Stripe prices and webhooks, test checkout, and prepare for live payments.",
+        "body": "Create Stripe test products and prices, then configure matching keys, price IDs and the webhook signing secret in the deployment environment. Keep plan descriptions aligned with the catalog, configure the webhook endpoint and Customer Portal, and restart the backend after deployment configuration changes. Website settings shows configuration status without exposing keys.\n\nUse Stripe’s official test card only in its test environment: 4242 4242 4242 4242, a future expiry, and any three-digit CVC. When asked for billing details, complete the required test form fields. A test-mode purchase does not charge a real card.\n\nNEXT_PUBLIC_DEMO_MODE controls the on-page demo notice only. The backend Stripe credentials determine whether payments are in test or live mode. Missing payment configuration disables checkout; switching to live credentials can create real charges. Complete the test journey before configuring live products and keys.\n\n## After checkout\n\nReturn to billing and allow the payment result to sync before refreshing your subscription and invoices. If your plan has not updated, refresh shortly or contact the site owner.\n\n## Test a declined payment\n\nIn Stripe test mode only, use 4000 0000 0000 0002 to simulate a declined card. Check that the failed payment does not grant paid access.\n\n```\nAPP_BILLING_ENABLED=true\nAPP_BILLING_STRIPE_SECRET_KEY=sk_test_...\nAPP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...\nAPP_BILLING_STRIPE_PRICES_PRO_MONTHLY=price_...\nAPP_BILLING_STRIPE_PRICES_CREDITS=price_...\n```\n\n[Check subscriptions and billing](/billing)\n\n[Get Stripe API keys](https://docs.stripe.com/keys)\n\n[Stripe testing reference](https://docs.stripe.com/testing)",
+        "seo_title": "Configure your plans and Stripe",
+        "seo_description": "Connect Stripe prices and webhooks, test checkout, and prepare for live payments."
+      },
+      "zh": {
+        "title": "配置自己的套餐与 Stripe",
+        "summary": "连接 Stripe 价格与 Webhook，测试结账流程，再准备正式收款。",
+        "body": "先在 Stripe 测试环境创建商品与价格，再通过部署环境配置同一环境的密钥、价格编号和 Webhook 签名密钥。让套餐文案与商品一致，配置 Webhook 接收地址和 Customer Portal，修改部署配置后重启后端。网站设置展示配置状态，不展示密钥。\n\n仅在 Stripe 测试环境使用官方测试卡：4242 4242 4242 4242，填写未来有效期和任意三位 CVC；如果表单要求账单信息，补齐相应测试字段。测试模式的购买不会扣取真实银行卡资金。\n\nNEXT_PUBLIC_DEMO_MODE 只控制页面的演示提示。支付处于测试还是正式模式，由后端 Stripe 凭证决定；缺少支付配置时无法发起结账，换成正式凭证后可能产生真实扣款。先完成测试流程，再配置正式商品和密钥。\n\n## 购买完成后\n\n返回订阅管理，等待支付结果同步，再刷新套餐与账单。如果暂时没有更新，可以稍后重试或联系站点负责人。\n\n## 测试支付失败\n\n仅在 Stripe 测试模式使用 4000 0000 0000 0002 模拟银行卡拒付，并检查失败的支付没有开通付费权益。\n\n```\nAPP_BILLING_ENABLED=true\nAPP_BILLING_STRIPE_SECRET_KEY=sk_test_...\nAPP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...\nAPP_BILLING_STRIPE_PRICES_PRO_MONTHLY=price_...\nAPP_BILLING_STRIPE_PRICES_CREDITS=price_...\n```\n\n[检查订阅和账单](/billing)\n\n[获取 Stripe API 密钥](https://docs.stripe.com/keys)\n\n[Stripe 测试说明](https://docs.stripe.com/testing)",
+        "seo_title": "配置自己的套餐与 Stripe",
+        "seo_description": "连接 Stripe 价格与 Webhook，测试结账流程，再准备正式收款。"
+      }
+    }
+  },
+  {
+    "path": "/docs/invitations",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Set invitation rules and verify rewards",
+        "summary": "Configure referral conditions and verify attribution, activation, and credit rewards.",
+        "body": "Enable referrals with APP_REFERRAL_ENABLED, set APP_REFERRAL_BASE_LINK to your frontend /invite?ref= address, and set the activation window with APP_REFERRAL_ACTIVATION_WINDOW_DAYS. In internal/bootstrap/host_hooks.go, onReferralRegistered grants 20 / 10 credits immediately, and onReferralActivated grants another 20 / 10 on first qualifying payment. Amounts are fixed in code.\n\nA new account created through an invitation starts as pending. Its first qualifying paid subscription or lifetime purchase can activate the invitation. A free trial must convert to a paid subscription; buying a credit pack alone does not qualify. The activation deadline also applies. Each qualifying invitation grants 20 credits to the inviter and 10 to the invitee, once.\n\nTest with two separate accounts and compare the inviter’s referral status and credit history after the qualifying purchase. Publish your reward amount and conditions so customers know what to expect. Third-party affiliate fees the template author may receive from marked recommendations are a separate mechanism.\n\n```\nAPP_REFERRAL_ENABLED=true\nAPP_REFERRAL_BASE_LINK=https://app.example.com/invite?ref=\nAPP_REFERRAL_ACTIVATION_WINDOW_DAYS=30\n```\n\n[Open invitations](/referrals)",
+        "seo_title": "Set invitation rules and verify rewards",
+        "seo_description": "Configure referral conditions and verify attribution, activation, and credit rewards."
+      },
+      "zh": {
+        "title": "配置邀请规则，验证奖励到账",
+        "summary": "设置邀请条件，核对注册归因、激活状态与积分奖励。",
+        "body": "通过 APP_REFERRAL_ENABLED 开启邀请，将 APP_REFERRAL_BASE_LINK 设为自己前端的 /invite?ref= 地址，用 APP_REFERRAL_ACTIVATION_WINDOW_DAYS 设置激活期限。internal/bootstrap/host_hooks.go 的 onReferralRegistered 在注册后给双方 20 / 10，onReferralActivated 在首次符合条件的付费后再给双方 20 / 10，无需金额配置。\n\n新用户通过邀请注册后，关系先记为“待激活”。首次符合条件的订阅付款或终身套餐付款可以激活邀请；免费试用需要转为付费，单独购买积分包不会触发奖励，同时还需满足激活期限。符合条件的邀请激活后，邀请人获得 20 积分，被邀请人获得 10 积分，仅发一次。\n\n使用两个独立账号测试，在符合条件的购买完成后，对照邀请人的邀请状态和积分流水。上线时公开奖励数额与条件，让用户知道什么情况下会获得奖励。模板作者通过已标注的第三方服务推荐链接可能获得的佣金，是另一种独立机制。\n\n```\nAPP_REFERRAL_ENABLED=true\nAPP_REFERRAL_BASE_LINK=https://app.example.com/invite?ref=\nAPP_REFERRAL_ACTIVATION_WINDOW_DAYS=30\n```\n\n[打开邀请页面](/referrals)",
+        "seo_title": "配置邀请规则，验证奖励到账",
+        "seo_description": "设置邀请条件，核对注册归因、激活状态与积分奖励。"
+      }
+    }
+  },
+  {
+    "path": "/docs/content",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "Replace the public content",
+        "summary": "Replace starter branding and publish your own guides, articles, and support content.",
+        "body": "Use website settings for your brand, bilingual heading, service introduction and support contacts. The source presentation defaults remain in content/site.ts; customize product-specific buttons, FAQ and artwork there. Public branding and metadata use the saved website identity.\n\nUse article management to import Markdown, edit drafts and publish each language independently. English uses the original route and Chinese uses /zh. Only published translations appear in language links and the sitemap; drafts stay private. Release notes and legal policies retain their dedicated source files.\n\n[Read the example guides](/blog)\n\n[Check support information](/contact)",
+        "seo_title": "Replace the public content",
+        "seo_description": "Replace starter branding and publish your own guides, articles, and support content."
+      },
+      "zh": {
+        "title": "换成你的产品介绍与支持信息",
+        "summary": "替换模板品牌，发布自己的指南、文章与支持内容。",
+        "body": "在网站设置维护品牌、中英文首页标题、服务介绍和支持渠道。content/site.ts 保留默认展示资料，产品专属按钮、FAQ 与图片可在源码中定制。公开品牌和元信息使用已保存的网站资料。\n\n在文章管理导入 Markdown，编辑草稿，并按语言分别发布。英文保留原路径，中文使用 /zh；语言链接和站点地图只收录已发布的翻译，草稿保持私有。更新日志与法律条款仍使用专用源码文件。\n\n[阅读示例指南](/blog)\n\n[检查支持信息](/contact)",
+        "seo_title": "换成你的产品介绍与支持信息",
+        "seo_description": "替换模板品牌，发布自己的指南、文章与支持内容。"
+      }
+    }
+  },
+  {
+    "path": "/docs/launch",
+    "kind": "docs",
+    "translations": {
+      "en": {
+        "title": "What remains before your product launches",
+        "summary": "Add your core business feature and review the customer journey before going live.",
+        "body": "The template includes basic operational metrics: total users, subscriptions, payments, and invitation records. It does not yet include DAU, retention analysis, or project analytics. Those need your product’s own activity events and project model before they can be measured meaningfully.\n\nThe source is free to obtain. Hosting, database, email delivery, and payment-provider usage may have their own costs. Connect accounts you own and choose the services that fit your deployment.\n\n## Deliver your core feature\n\nGive a new customer a clear route from signup to the result you sell. Define which features require a subscription or consume credits.\n\n## Check customer and administrator access\n\nCheck signup, sign-in, subscriptions, invoices, invitations, rewards, and logout with separate test accounts. Confirm that ordinary users can only access their own data and cannot enter /admin.\n\n## Publish with your own configuration\n\nUse production configuration for your domains, database, mail, and secrets. Verify the payment environment, complete your public policies and support details, and replace the sample content before opening the product to customers.",
+        "seo_title": "What remains before your product launches",
+        "seo_description": "Add your core business feature and review the customer journey before going live."
+      },
+      "zh": {
+        "title": "上线自己的产品，还需要完成什么",
+        "summary": "接入核心业务功能，并在上线前检查完整用户流程与生产配置。",
+        "body": "模板已提供基础运营指标，可以查看用户总数、订阅、支付和邀请记录。目前还没有内置 DAU（日活跃用户数）、留存分析或项目数量分析。这些需要先定义你的产品中什么算活跃、什么是项目，再接入对应业务数据。\n\n模板源码免费获取，部署、数据库、邮件发送和支付服务可能产生各自的费用。接入你自己的服务账号，并按实际部署需要选择服务。\n\n## 让核心业务可以使用\n\n让新用户从注册到获得你出售的结果有一条清楚的路径，并定义哪些功能需要订阅、哪些操作消耗积分。\n\n## 验收用户与管理员流程\n\n用独立测试账号验证注册、登录、订阅、账单、邀请、奖励和退出。确认普通用户只能访问自己的数据，不能进入 /admin。\n\n## 使用自己的配置发布\n\n使用适合正式环境的域名、数据库、邮件和密钥配置，确认支付环境，完善公开条款与支持信息，替换示例内容后再向客户开放。",
+        "seo_title": "上线自己的产品，还需要完成什么",
+        "seo_description": "接入核心业务功能，并在上线前检查完整用户流程与生产配置。"
+      }
+    }
+  },
+  {
+    "path": "/features/authentication",
+    "kind": "features",
+    "translations": {
+      "en": {
+        "title": "Email and OAuth login for your SaaS",
+        "summary": "Start with email-code login, optional Google and GitHub sign-in, a read-only account dialog, and a separate administrator login.",
+        "body": "Customers can create an account with an email code and return to their account center. Google and GitHub sign-in are available when you configure those providers.\n\n## How it works\n\n### Choose an available method\n\nOpen the account page. The interface shows the methods enabled by the backend.\n\n### Complete verification\n\nEnter your email code or complete the configured provider flow. A new email account is created after verification.\n\n### Continue your task\n\nOpen your account information in a compact dialog to view the read-only sign-in email or sign out. Use the account center for subscriptions, credit history and referrals.\n\n## One identity across the customer journey\n\nThe customer account connects subscriptions, credit transactions, purchases, and referrals. It gives your product a place to continue after a visit to a public page.\n\n## Customer and administrator access have different jobs\n\nCustomers use their own account center and view a read-only sign-in email in the account dialog. Authorized administrators use a separate console to operate the site; a normal customer login does not grant administrator access.\n\n## Limitations\n\n- Email delivery and OAuth require your own service configuration. Available login methods depend on the providers enabled for this site.\n- Team invitations, enterprise SSO, and your product's organization model still need their own implementation.\n\n## Questions\n\n### Do customers need a password?\n\nThe supplied customer flow uses email codes or an enabled OAuth provider. The administrator password flow is separate.\n\n### Does downloading the template enable Google login?\n\nNo. Register your own OAuth application, configure the backend credentials and callback, and enable the provider before offering it to customers.",
+        "seo_title": "Email and OAuth login for your SaaS",
+        "seo_description": "Start with email-code login, optional Google and GitHub sign-in, a read-only account dialog, and a separate administrator login."
+      },
+      "zh": {
+        "title": "为 SaaS 接入邮箱与 OAuth 登录",
+        "summary": "从邮箱验证码、可选 Google 与 GitHub 登录、只读账户弹窗和独立管理员登录开始。",
+        "body": "用户可通过邮箱验证码创建账号，再进入账户中心。配置对应服务后，还可以使用 Google 和 GitHub 登录。\n\n## 如何使用\n\n### 选择已启用的登录方式\n\n打开账户页，界面会显示后端已启用的登录方式。\n\n### 完成身份验证\n\n输入邮箱验证码，或完成已配置的第三方登录流程。新邮箱通过验证后创建账号。\n\n### 继续刚才的任务\n\n在简洁的账户弹窗中查看只读登录邮箱或退出登录，从账户中心管理订阅、积分与邀请奖励。\n\n## 用同一个账号完成用户流程\n\n账户连接订阅、积分流水、购买和邀请记录，让访客从公开页面进入产品后有明确的操作空间。\n\n## 用户与管理员各自完成自己的任务\n\n用户使用自己的账户中心，在账户弹窗查看只读登录邮箱；获得授权的管理员通过独立后台运营网站。普通用户登录不会获得管理员权限。\n\n## 注意事项\n\n- 邮件发送与 OAuth 需要接入自己的服务配置，可用登录方式以本站启用的服务为准。\n- 团队邀请、企业 SSO 和产品自己的组织模型仍需单独实现。\n\n## 常见问题\n\n### 普通用户需要设置密码吗？\n\n模板中的普通用户通过邮箱验证码或已启用的 OAuth 登录；管理员密码登录是独立流程。\n\n### 下载模板后就能直接使用 Google 登录吗？\n\n需要先注册自己的 OAuth 应用，配置后端凭证与回调地址并启用服务，再向用户开放。",
+        "seo_title": "为 SaaS 接入邮箱与 OAuth 登录",
+        "seo_description": "从邮箱验证码、可选 Google 与 GitHub 登录、只读账户弹窗和独立管理员登录开始。"
+      }
+    }
+  },
+  {
+    "path": "/features/subscriptions",
+    "kind": "features",
+    "translations": {
+      "en": {
+        "title": "Stripe subscriptions with customer billing controls",
+        "summary": "Explore checkout, plan-change previews, cancellation, reactivation, invoices, and the Stripe Billing Portal in the starter.",
+        "body": "The starter connects plan selection to Stripe Checkout and a customer billing page. Customers can review their current subscription and see a change preview before confirming a new plan.\n\n## How it works\n\n### Select a configured offer\n\nChoose an available plan and billing period. The prices belong to your future SaaS; the template source itself is free.\n\n### Complete checkout\n\nContinue to Stripe after signing in. Payment events update the subscription; returning from checkout alone is not proof of payment.\n\n### Manage the subscription\n\nReview renewal information, preview a plan change, or use the available cancellation and billing controls.\n\n## Show the effect of a plan change\n\nA preview reports the amount due now, target plan, and whether the change is immediate or at period end. Pending payments and scheduled changes remain visible on the billing page.\n\n## Turn a paid plan into your product's entitlement\n\nBilling provides subscription and membership state. You decide which real features each plan unlocks and enforce those rules in your own product operations.\n\n## Limitations\n\n- Checkout requires configured Stripe products, credentials, and payment events. Purchases are available only when payment services are enabled.\n- Refund and dispute events provide extension hooks. They do not automatically reverse product entitlements or credit purchases.\n\n## Questions\n\n### Are the displayed prices the price of the template?\n\nNo. The source is free. The pricing page demonstrates offers you can configure for your own customers; hosting and service usage have separate costs.\n\n### Where does a customer change or cancel a plan?\n\nIn the subscriptions and billing page after login. Available actions depend on the current subscription and the configured payment provider.",
+        "seo_title": "Stripe subscriptions with customer billing controls",
+        "seo_description": "Explore checkout, plan-change previews, cancellation, reactivation, invoices, and the Stripe Billing Portal in the starter."
+      },
+      "zh": {
+        "title": "支持用户自助管理的 Stripe 订阅",
+        "summary": "了解模板中的结账、套餐变更预览、取消与恢复订阅、账单和 Stripe 自助门户。",
+        "body": "模板将套餐选择、Stripe Checkout 和用户账单页接在一起。用户可以查看当前订阅，并在确认更换套餐前查看变更预览。\n\n## 如何使用\n\n### 选择已配置的商品\n\n选择可用套餐与计费周期。页面价格用于演示未来 SaaS 的收费，模板源码本身免费。\n\n### 完成结账\n\n登录后进入 Stripe，支付事件会更新订阅状态；仅返回网站不代表付款成功。\n\n### 管理订阅\n\n查看续费信息、预览套餐变更，或使用可用的取消订阅与账单管理操作。\n\n## 先说明套餐变更会发生什么\n\n变更预览说明本次应付金额、目标套餐，以及立即生效还是周期结束后生效。待支付状态和计划中的变更会显示在账单页。\n\n## 把已付费套餐接到产品权益\n\n计费流程提供订阅与会员状态。每档套餐开放哪些真实功能，以及如何在业务操作中校验权益，需要由你的产品定义。\n\n## 注意事项\n\n- 结账需要配置 Stripe 商品、凭证与支付事件；启用支付服务后才能购买。\n- 退款与拒付事件提供业务扩展接口，不会自动撤销产品权益或积分购买。\n\n## 常见问题\n\n### 页面上的价格是购买模板的费用吗？\n\n不是。源码免费，价格页演示你可以向自己的客户出售的套餐；部署与第三方服务费用另计。\n\n### 用户在哪里更换或取消套餐？\n\n登录后进入订阅与账单页。可用操作取决于当前订阅状态和支付服务配置。",
+        "seo_title": "支持用户自助管理的 Stripe 订阅",
+        "seo_description": "了解模板中的结账、套餐变更预览、取消与恢复订阅、账单和 Stripe 自助门户。"
+      }
+    }
+  },
+  {
+    "path": "/features/credits",
+    "kind": "features",
+    "translations": {
+      "en": {
+        "title": "A credit balance with a transaction history",
+        "summary": "Use the starter's credit service for grants, purchases, expiry, consumption and recorded returns in your own product.",
+        "body": "Credits connect a customer's balance to individual actions. The starter records where credits came from, when they expire, and which operation consumed them.\n\n## How it works\n\n### Define the paid action\n\nChoose the outcome customers buy and set its credit cost on the server. Your product should display that cost before confirmation.\n\n### Complete the action once\n\nFor local database work, the credit service can store the result and charge in one transaction. A retry reuses the same operation identifier.\n\n### Explain the balance change\n\nThe customer checks the transaction history. Authorized administrators can review entries and issue a recorded full refund of a consumption.\n\n## A history customers can inspect\n\nA remaining balance alone does not explain what happened. Grants, purchases, spending, expiry, and refunds give customers and operators a shared record to investigate.\n\n## Credit refunds and cash refunds are different\n\nReturning credits restores a recorded consumption. It does not refund a Stripe charge. Decide how your product handles a cash refund, revoked access, and already-spent credits.\n\n## Limitations\n\n- This is a prepaid credit ledger, not a complete metered billing system with usage aggregation and invoices in arrears.\n- External AI or other API calls need a separate task and compensation design. Credit reservation, settlement, and partial refunds are not included.\n\n## Questions\n\n### Does retrying a paid export charge again?\n\nRetrying the same successful operation with the same identifier returns its saved result. A new operation is a new purchase; your product must preserve the identifier when retrying.\n\n### Can credits expire?\n\nThe service supports grants with an expiry date, and the customer credit page shows expiry information. Publish the expiry rules you choose for your product.",
+        "seo_title": "A credit balance with a transaction history",
+        "seo_description": "Use the starter's credit service for grants, purchases, expiry, consumption and recorded returns in your own product."
+      },
+      "zh": {
+        "title": "每笔变化都有记录的积分账本",
+        "summary": "使用模板的积分服务处理发放、购买、到期、消费和退回，再接入自己的产品业务。",
+        "body": "积分将用户余额与具体操作连接起来。模板记录积分来源、到期情况，以及每次消费对应的业务操作。\n\n## 如何使用\n\n### 定义收费动作\n\n明确用户购买的结果，在服务端设置积分消耗。你的产品应在用户确认前显示当前价格。\n\n### 完成一次业务操作\n\n针对本地数据库操作，积分服务可在同一事务中保存结果并扣分；重试需要复用同一个操作编号。\n\n### 说明余额为什么变化\n\n用户可以查看流水；获得授权的管理员可核对记录，并按消费流水执行有记录的全额积分退回。\n\n## 用户能够核对的消费记录\n\n只有余额不足以解释发生了什么。发放、购买、消费、到期和退回记录，让用户与运营人员可以对照同一份账本排查问题。\n\n## 积分退回与现金退款分别处理\n\n积分退回用于返还一笔已记录的积分消费，不会退还 Stripe 付款。现金退款、权益撤回和已使用积分如何处理，需要由你的产品制定规则。\n\n## 注意事项\n\n- 这是预付积分账本，没有完整的用量汇总与后付费出账系统。\n- 外部 AI 等 API 调用需要独立的任务与补偿设计；当前不提供积分预冻结、结算或部分退款。\n\n## 常见问题\n\n### 付费导出重试会再次扣分吗？\n\n使用同一操作编号重试已成功的操作，会返回保存的结果。新操作属于新的消费；产品应在重试时保留原编号。\n\n### 积分可以设置有效期吗？\n\n服务支持发放带到期时间的积分，用户积分页会显示到期信息。上线时应公开自己产品采用的有效期规则。",
+        "seo_title": "每笔变化都有记录的积分账本",
+        "seo_description": "使用模板的积分服务处理发放、购买、到期、消费和退回，再接入自己的产品业务。"
+      }
+    }
+  },
+  {
+    "path": "/use-cases/subscription-saas",
+    "kind": "use-cases",
+    "translations": {
+      "en": {
+        "title": "Build a SaaS with recurring subscriptions",
+        "summary": "Connect signup, plan selection, subscription state, and customer self-service while adding the core feature your SaaS sells.",
+        "body": "Use a subscription when customers pay for continued access to a service. The starter supplies the account and billing journey; your product supplies the recurring value.\n\n## How it works\n\n### Name the outcome\n\nDescribe the task your customer repeats and what each plan includes. Replace the starter's sample offers with your own.\n\n### Connect billing and access\n\nConfigure Stripe, then check membership and resource ownership in the product operations that require paid access.\n\n### Test the full lifecycle\n\nTest successful and failed payments, plan changes, cancellation, and reactivation before offering the service to customers.\n\n## Example: a paid workspace feature\n\nA customer signs in, selects a plan, and gains access to a feature you implement. They later change plans or cancel from billing. This is a proposed product flow, not an additional feature already shipped in the template.\n\n## Keep purchasing and daily work connected\n\nPublic feature and pricing pages explain the offer. The workspace completes the task. A visible billing entry lets existing customers manage their plan without going through the public sales journey again.\n\n## Limitations\n\n- The template does not decide your pricing, included seats, usage limits, or feature access policy.\n- Payment configuration and your core product must be ready before this becomes a service you can sell.\n\n## Questions\n\n### Can a subscription also use credits?\n\nBoth capabilities are available. You must define whether a plan grants credits, how often they are granted, and what happens when a plan changes; do not imply such rules until you implement them.\n\n### Is the example billing page already a complete product?\n\nIt is a working billing foundation. Customers still need a useful service, clear entitlements, support, and the policies you will operate.",
+        "seo_title": "Build a SaaS with recurring subscriptions",
+        "seo_description": "Connect signup, plan selection, subscription state, and customer self-service while adding the core feature your SaaS sells."
+      },
+      "zh": {
+        "title": "搭建按周期订阅的 SaaS",
+        "summary": "连接注册、套餐选择、订阅状态与用户自助管理，并接入你真正要出售的核心业务。",
+        "body": "当用户为持续使用服务付费时，可以采用订阅模式。模板提供账户与计费流程，你的产品负责交付值得持续付费的功能。\n\n## 如何使用\n\n### 定义用户要获得的结果\n\n写清用户会重复完成什么任务、每档套餐包含什么，并替换模板中的示例商品。\n\n### 连接计费与使用权限\n\n配置 Stripe，在需要付费的业务操作中校验会员权益和资源归属。\n\n### 验证完整订阅周期\n\n向客户开放前，验证付款成功与失败、套餐变更、取消和恢复订阅。\n\n## 场景示例：工作台中的会员功能\n\n用户登录、选择套餐后，获得你实现的某项工作台功能。之后可在账单页更换或取消套餐。这是业务接入示例，不代表模板已内置这项额外功能。\n\n## 让购买流程与日常使用衔接\n\n公开功能页与价格页说明购买内容，工作台负责完成任务。清楚的账单入口让已有用户直接管理套餐，无需重新经过介绍和购买流程。\n\n## 注意事项\n\n- 模板不会替你决定定价、席位数、用量限制或功能权限策略。\n- 支付配置与核心业务准备完成后，才能成为面向客户出售的产品。\n\n## 常见问题\n\n### 订阅可以同时使用积分吗？\n\n两种能力都可使用。套餐是否赠送积分、多久发放一次、套餐变更时如何处理，需要你定义并实现后再向用户说明。\n\n### 示例账单页面就是完整产品了吗？\n\n它是可接入的计费基础。用户仍需要有用的服务、明确权益、支持渠道和实际执行的规则。",
+        "seo_title": "搭建按周期订阅的 SaaS",
+        "seo_description": "连接注册、套餐选择、订阅状态与用户自助管理，并接入你真正要出售的核心业务。"
+      }
+    }
+  },
+  {
+    "path": "/use-cases/usage-based-products",
+    "kind": "use-cases",
+    "translations": {
+      "en": {
+        "title": "Build a product that charges prepaid credits per action",
+        "summary": "Use a credit balance for individually priced actions, with clear confirmation, transaction records, and defined retry behavior.",
+        "body": "Prepaid credits fit products where a customer buys a balance and spends it on individual results. Connect your own paid action to the shared credit service.\n\n## How it works\n\n### Price a meaningful unit\n\nChoose what counts as one paid operation, such as one export. Calculate costs on the server and explain the result before confirmation.\n\n### Define success and retry\n\nStore a stable operation identifier and the result. Repeating that operation should return the same result instead of treating a retry as a new purchase.\n\n### Expose the record\n\nShow the remaining balance and a ledger entry so customers can connect a delivered result to its credit cost.\n\n## Prepaid credits are different from monthly usage invoices\n\nThe starter accounts for a balance that customers spend. It does not aggregate metered usage and issue an invoice after the billing period. Choose that distinction deliberately when designing your offer.\n\n## For AI jobs, add a real task lifecycle\n\nAn external generation request cannot be rolled back by a database transaction. Add durable job state, provider retries, delivery tracking, and a compensation policy before charging for those jobs.\n\n## Limitations\n\n- The shipped service does not include credit reservation, later settlement, partial refunds, or a job queue for external providers.\n- A credit purchase still needs configured payment services. The isolated preview can demonstrate spending, but not checkout.\n\n## Questions\n\n### Is an AI generation service included?\n\nA server-side model adapter is included. It makes stateless text requests, without a default chat UI, conversation storage or charging policy. Your product defines its conversations, tasks and credit usage.\n\n### What happens when the balance is insufficient?\n\nThe credit service rejects the consumption. Your product should give the customer a clear way to review their balance or purchase more credits when checkout is available.",
+        "seo_title": "Build a product that charges prepaid credits per action",
+        "seo_description": "Use a credit balance for individually priced actions, with clear confirmation, transaction records, and defined retry behavior."
+      },
+      "zh": {
+        "title": "搭建按操作消耗预付积分的产品",
+        "summary": "为单次收费操作接入积分余额、价格确认、流水记录和清楚的重试规则。",
+        "body": "用户先获得积分，再按次购买具体结果，适合预付积分模式。可以将自己的收费操作接入共享积分服务。\n\n## 如何使用\n\n### 为明确的业务单位定价\n\n明确什么算一次付费操作，例如一次导出。由服务端决定消耗，在确认前说明用户将获得什么。\n\n### 定义成功与重试\n\n保存稳定的操作编号与结果。同一次操作重试应返回原结果，避免把重试当成新的购买。\n\n### 提供消费记录\n\n显示剩余余额和积分流水，让用户把实际收到的结果与本次消耗对应起来。\n\n## 预付积分与月末按量出账有所区别\n\n模板管理的是用户可消费的积分余额，没有在计费周期结束后汇总用量并出账的流程。设计收费方式时，需要先确定采用哪种模式。\n\n## 接入 AI 任务时，补齐任务流程\n\n数据库事务无法撤回外部生成请求。对这类任务收费前，需要补齐持久化任务状态、服务商重试、结果交付与补偿规则。\n\n## 注意事项\n\n- 已有服务不包含积分预冻结、事后结算、部分退款或外部服务任务队列。\n- 购买积分需要已配置的支付服务；隔离预览可以体验消费流程，无法完成支付结账。\n\n## 常见问题\n\n### 模板已经接入 AI 生成服务了吗？\n\n模板包含服务端模型适配器，支持无状态文本请求；默认不提供聊天界面、对话存储或收费规则。对话、任务与积分消费方式由具体产品定义。\n\n### 余额不足时会发生什么？\n\n积分服务会拒绝消费。你的产品应给用户清楚的余额查看入口，并在支付可用时提供购买积分的路径。",
+        "seo_title": "搭建按操作消耗预付积分的产品",
+        "seo_description": "为单次收费操作接入积分余额、价格确认、流水记录和清楚的重试规则。"
+      }
+    }
+  },
+  {
+    "path": "/use-cases/paid-exports",
+    "kind": "use-cases",
+    "translations": {
+      "en": {
+        "title": "Build exports that charge credits",
+        "summary": "Connect your own generated files to authentication, credit accounting and recorded consumption.",
+        "body": "The template supplies shared account and credit services. You build the export screen, generate the file and define what a successful paid result means.\n\n## How it works\n\n### Define the output\n\nChoose the file format, generation rules and server-side credit cost for your own product.\n\n### Review before charging\n\nShow the selected result and cost before the customer confirms. Check resource ownership on the server.\n\n### Deliver and record\n\nReturn the generated file and record its credit consumption. Preserve an operation identifier when retrying.\n\n## Use the shared accounting boundary\n\nFor local database work, store the result and credit consumption in the same transaction. Backend export code is an implementation reference, without a default customer interface.\n\n## Own external generation\n\nExternal generation needs its own task lifecycle and compensation rules. The template does not supply a report generator or ready-made export product.\n\n## Limitations\n\n- Export screens, file formats and delivery rules belong to your product.\n- File access requires server-side authorization and ownership checks.\n\n## Questions\n\n### Does the starter generate PDF or Word files?\n\nNo. Implement and connect a generator for the formats your product needs.\n\n### Where is the cost defined?\n\nYour business service defines the cost and confirms it on the server before recording consumption.",
+        "seo_title": "Build exports that charge credits",
+        "seo_description": "Connect your own generated files to authentication, credit accounting and recorded consumption."
+      },
+      "zh": {
+        "title": "开发按积分计费的导出功能",
+        "summary": "将自己的文件生成业务接入认证、积分记账与消费记录。",
+        "body": "模板提供通用账户与积分服务。导出界面、文件生成，以及什么情况算完成付费交付，由自己的产品实现。\n\n## 如何使用\n\n### 定义交付结果\n\n为自己的产品选择文件格式、生成规则与服务端积分价格。\n\n### 扣费前确认\n\n在用户确认前显示交付结果与费用，并在服务端检查资源归属。\n\n### 交付并记录\n\n返回生成文件并记录积分消费，重试时复用同一操作编号。\n\n## 复用记账边界\n\n本地数据库操作可在同一事务中保存结果并记录积分消费。后端导出代码保留为实现参考，不提供默认用户界面。\n\n## 实现自己的生成流程\n\n外部生成服务需要独立的任务流程与补偿规则。模板不提供报告生成器或现成的导出产品。\n\n## 注意事项\n\n- 导出界面、文件格式与交付规则由产品实现。\n- 文件访问需要服务端认证与资源归属检查。\n\n## 常见问题\n\n### 模板会生成 PDF 或 Word 文件吗？\n\n不会，需要为产品所需格式实现并接入生成器。\n\n### 在哪里定义费用？\n\n由业务服务定义费用，并在服务端确认后记录消费。",
+        "seo_title": "开发按积分计费的导出功能",
+        "seo_description": "将自己的文件生成业务接入认证、积分记账与消费记录。"
+      }
+    }
+  },
+  {
+    "path": "/compare/starter-vs-from-scratch",
+    "kind": "compare",
+    "translations": {
+      "en": {
+        "title": "Use the starter or build from scratch?",
+        "summary": "Compare the included Next.js + Go foundations, customization work, and maintenance responsibilities before choosing how to build.",
+        "body": "The starter is a practical fit when you want Next.js, Go, and its account and billing patterns. Building from scratch gives you a clean starting point when those choices do not fit your product.\n\n## How it works\n\n### Compare your real requirements\n\nList the authentication, billing, data, and operational workflows you need. Match them to the supplied examples rather than to a feature count.\n\n### Run one complete journey\n\nTry account creation, subscription management and referral rewards. Read the source for the business rules you expect to change.\n\n### Choose what you can maintain\n\nConsider familiarity with the stack, custom integrations, upgrades, and test coverage. There is no universal time or cost saving for every team.\n\n## Authentication and billing\n\nWith the starter, adapt connected email login, account pages, Stripe billing, and credit examples. From scratch, you select and implement those flows yourself. In either case, configure your service accounts and verify their behavior.\n\n## Product model and design\n\nThe starter provides a public site, customer workspace, and administrator console. You replace its content and add the core feature. From scratch, you control those boundaries from the first design decision and build their foundations too.\n\n## Ongoing costs and responsibility\n\nFree source does not include hosting, a managed database, email delivery, payment fees, or an operations team. Both approaches leave service operation, dependency updates, customer support, and product rules with you.\n\n## Limitations\n\n- This comparison describes this repository and the choice to build your own foundations. It is not a benchmark of other starter kits.\n- If you require another stack, enterprise identity, or a different billing model, assess the adaptation work before choosing the starter.\n\n## Questions\n\n### Does the starter include hosting?\n\nNo. You obtain the source and deploy your own frontend, API, and database with providers you choose.\n\n### Can I replace the example business?\n\nYes. Notes and exports demonstrate how to connect a user action to ownership and charging. Your own business feature belongs in the product template.",
+        "seo_title": "Use the starter or build from scratch?",
+        "seo_description": "Compare the included Next.js + Go foundations, customization work, and maintenance responsibilities before choosing how to build."
+      },
+      "zh": {
+        "title": "使用模板，还是从头搭建？",
+        "summary": "从已有基础能力、定制工作与维护责任三个方面，比较使用 Next.js + Go 模板和从头开发。",
+        "body": "当 Next.js、Go 与模板已有的账户计费方式符合需求时，可以从模板开始。如果这些选择不适合业务，从头搭建能让你按自己的约束设计。\n\n## 如何使用\n\n### 先对照真实需求\n\n列出所需的登录、计费、数据与运营流程，再与模板示例逐项对照。\n\n### 跑通一个完整流程\n\n体验注册、订阅管理与推荐奖励，阅读预计需要修改的业务规则源码。\n\n### 选择能够持续维护的方案\n\n考虑技术栈熟悉度、定制集成、升级与测试覆盖。不同团队的开发时间和成本没有统一答案。\n\n## 登录与计费\n\n使用模板时，可以调整已接通的邮箱登录、账户页、Stripe 计费和积分示例；从头搭建时，需要自行选择并实现这些流程。两种方式都需要配置服务账号并验收行为。\n\n## 产品模型与界面\n\n模板提供公开网站、用户工作台与管理后台，你需要替换内容并增加核心业务。从头搭建时，可以从最初就决定这些边界，同时也需要实现它们的基础。\n\n## 长期费用与责任\n\n免费源码不包含托管、数据库、邮件发送、支付手续费或运营团队。两种方式都需要你负责服务运营、依赖更新、客户支持与业务规则。\n\n## 注意事项\n\n- 本页比较的是当前仓库与自行搭建基础能力两种方式，不是对其他模板的测试排名。\n- 如果需要其他技术栈、企业身份系统或不同计费模型，应先评估改造工作再选择。\n\n## 常见问题\n\n### 模板包含托管服务吗？\n\n不包含。你获得源码，再自行选择服务商部署前端、API 与数据库。\n\n### 可以替换示例业务吗？\n\n可以。笔记与导出演示了如何连接用户操作、资源归属和收费，你可以在产品模板中实现自己的业务。",
+        "seo_title": "使用模板，还是从头搭建？",
+        "seo_description": "从已有基础能力、定制工作与维护责任三个方面，比较使用 Next.js + Go 模板和从头开发。"
+      }
+    }
+  }
+]

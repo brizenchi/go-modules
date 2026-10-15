@@ -15,9 +15,11 @@ type ResponsiveDialogProps = {
   children: ReactNode | ((dismiss: () => void) => ReactNode);
   footer?: ReactNode;
   presentation?: "sheet" | "side";
+  dismissible?: boolean;
+  size?: "default" | "wide";
 };
 
-export function ResponsiveDialog({ open, onClose, title, description, closeLabel, icon, children, footer, presentation = "sheet" }: ResponsiveDialogProps) {
+export function ResponsiveDialog({ open, onClose, title, description, closeLabel, icon, children, footer, presentation = "sheet", dismissible = true, size = "default" }: ResponsiveDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -38,9 +40,12 @@ export function ResponsiveDialog({ open, onClose, title, description, closeLabel
     };
   }, [open]);
 
-  function dismiss() {
+  function closeDialog() {
     dialog.current?.close();
     onClose();
+  }
+  function dismiss() {
+    if (dismissible) closeDialog();
   }
 
   function outside(element: HTMLDialogElement, x: number, y: number) {
@@ -48,7 +53,7 @@ export function ResponsiveDialog({ open, onClose, title, description, closeLabel
     return x < bounds.left || x > bounds.right || y < bounds.top || y > bounds.bottom;
   }
 
-  return <dialog ref={dialog} className={`${styles.dialog} ${presentation === "side" ? styles.side : styles.sheet}`}
+  return <dialog ref={dialog} className={`${styles.dialog} ${presentation === "side" ? styles.side : styles.sheet} ${size === "wide" ? styles.wide : ""}`}
     aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined}
     onCancel={(event) => { event.preventDefault(); dismiss(); }}
     onPointerDown={(event) => { startedOutside.current = event.target === event.currentTarget && outside(event.currentTarget, event.clientX, event.clientY); }}
@@ -64,13 +69,13 @@ export function ResponsiveDialog({ open, onClose, title, description, closeLabel
       if (target !== null) { event.preventDefault(); elements[target]?.focus(); }
     }}>
     <div className={styles.handle} aria-hidden="true" />
-    <button className={styles.close} type="button" aria-label={closeLabel} onClick={dismiss}><InterfaceIcon name="close" /></button>
+    <button className={styles.close} type="button" aria-label={closeLabel} disabled={!dismissible} onClick={dismiss}><InterfaceIcon name="close" /></button>
     <div className={styles.header}>
       {icon ? <span className={styles.icon}>{icon}</span> : null}
       <h2 id={titleId}>{title}</h2>
       {description ? <p id={descriptionId}>{description}</p> : null}
     </div>
-    <div className={styles.body}>{open ? typeof children === "function" ? children(dismiss) : children : null}</div>
+    <div className={styles.body}>{open ? typeof children === "function" ? children(closeDialog) : children : null}</div>
     {open && footer ? <footer className={styles.footer}>{footer}</footer> : null}
   </dialog>;
 }

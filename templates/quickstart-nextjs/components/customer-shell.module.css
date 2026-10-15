@@ -1,4 +1,4 @@
-.shell { min-height: 100dvh; background: var(--surface); }
+.shell { display: flex; flex-direction: column; min-height: 100dvh; background: var(--surface); }
 .header { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid var(--line); background: var(--surface); }
 .headerInner { width: min(1240px, 100%); min-height: 72px; margin: 0 auto; padding: 12px 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .brand { min-width: 0; display: inline-flex; align-items: center; gap: 10px; }
@@ -6,7 +6,7 @@
 .brandMark { flex-shrink: 0; display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-strong); color: var(--accent); }
 .brandMark svg { width: 24px; height: 24px; }
 .tools { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.container { width: min(1240px, 100%); margin: 0 auto; padding: 0 32px 80px; }
+.container { flex: 1; width: min(1240px, 100%); margin: 0 auto; padding: 0 32px 48px; }
 .breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 28px 0 32px; font-size: 12px; color: var(--muted); }
 .breadcrumb a:hover { color: var(--text); }
 .breadcrumb > span:last-child { color: var(--muted-strong); }
@@ -61,3 +61,11 @@
 .loadingPanel span:last-child { width: 58%; height: 12px; }
 @keyframes navigation-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .navigationStatus svg { animation: none; } }
+
+.breadcrumb :global(.content-breadcrumbs) { margin: 0; padding: 0; min-width: 0; color: var(--muted); font-size: 12px; }
+.breadcrumb :global(.content-breadcrumbs ol) { flex-wrap: wrap; }
+.footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; width: min(1240px, 100%); margin: 0 auto; padding: 20px 32px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.footer nav { display: flex; flex-wrap: wrap; gap: 20px; }
+.footer a { display: inline-flex; align-items: center; min-height: 36px; }
+.footer a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 760px) { .footer { padding: 16px 20px; } .footer a { min-height: 44px; } }

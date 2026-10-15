@@ -12,7 +12,7 @@ export const languageOptions: { locale: Locale; label: string; language: string 
 type Props = {
   locale: Locale;
   label: string;
-  destinations?: Record<Locale, string>;
+  destinations?: Partial<Record<Locale, string>>;
   onSelect: (locale: Locale) => void;
 };
 
@@ -52,10 +52,10 @@ export function LanguagePicker({ locale, label, destinations, onSelect }: Props)
         <svg className="language-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg>
       </summary>
       <nav className="language-options" aria-label={label}>
-        {languageOptions.map(option => {
+        {languageOptions.filter(option => !destinations || destinations[option.locale]).map(option => {
           const content = <><span>{option.label}</span><span aria-hidden="true">{option.locale === locale ? "✓" : ""}</span></>;
           return destinations ? (
-            <Link key={option.locale} href={destinations[option.locale]} hrefLang={option.language} lang={option.language} aria-current={option.locale === locale ? "page" : undefined} onClick={() => { if (disclosure.current) disclosure.current.open = false; }}>{content}</Link>
+            <Link key={option.locale} href={destinations[option.locale]!} hrefLang={option.language} lang={option.language} aria-current={option.locale === locale ? "page" : undefined} onClick={() => { if (disclosure.current) disclosure.current.open = false; }}>{content}</Link>
           ) : (
             <button key={option.locale} type="button" lang={option.language} aria-pressed={option.locale === locale} onClick={() => select(option.locale)}>{content}</button>
           );

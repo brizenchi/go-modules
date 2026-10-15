@@ -41,3 +41,14 @@
   .release { grid-template-columns: 1fr; gap: 14px; }
   .release .meta { flex-direction: row; flex-wrap: wrap; }
 }
+
+.accountHelp { margin-bottom: 48px; }
+.accountHelp > h2 { font-size: 24px; margin: 0 0 24px; }
+.helpLinks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-bottom: 28px; }
+.helpLinks a { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 64px; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; }
+.helpLinks a:hover { border-color: var(--line-strong); background: var(--surface-subtle); }
+.accountHelp details { border-top: 1px solid var(--line); padding: 20px 0; }
+.accountHelp details:last-child { border-bottom: 1px solid var(--line); }
+.accountHelp summary { cursor: pointer; font-size: 15px; font-weight: 600; line-height: 1.6; }
+.accountHelp details p { margin: 16px 0 0; font-size: 14px; line-height: 1.9; color: var(--muted-strong); }
+@media (max-width: 640px) { .helpLinks { grid-template-columns: minmax(0,1fr); } }

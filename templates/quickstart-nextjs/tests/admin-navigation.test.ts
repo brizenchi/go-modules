@@ -24,11 +24,13 @@ test("admin navigation accepts known sections only and handles query strings", (
   for (const path of ["/administrator", "/admin/settings/extra", "/admin/unknown", "//admin", "/"]) assert.equal(activeAdminSection(path), null);
 });
 
-test("admin navigation groups cover every destination once with bilingual descriptions", async () => {
+test("admin navigation has five primary destinations and retains legacy route recognition", async () => {
   const { adminNavigationGroups, adminSectionDescriptions } = await import("../lib/admin-navigation");
   const grouped = adminNavigationGroups.flatMap(group => group.sections);
-  assert.equal(new Set(grouped).size, adminSections.length);
-  assert.deepEqual([...grouped].sort(), [...adminSections].sort());
+  assert.equal(new Set(grouped).size,5);
+ assert.deepEqual(grouped,["overview","users","articles","settings","audit"]);
+ const {adminPrimarySection}=await import("../lib/admin-navigation");
+ for(const section of adminSections)assert.ok(grouped.includes(adminPrimarySection(section)!));
   for (const group of adminNavigationGroups) assert.ok(group.label.en && group.label.zh);
   for (const section of adminSections) assert.ok(adminSectionDescriptions[section].en && adminSectionDescriptions[section].zh);
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSitePresentation } from "@/components/site-presentation";
 import Image from "next/image";
 import { getHomeContent, siteConfig } from "@/content/site";
 import { LocalizedLink as Link } from "@/components/localized-link";
@@ -12,14 +13,15 @@ import styles from "./overview.module.css";
 
 export default function HomePage() {
   const { t, locale } = useI18n();
+ const presentation=useSitePresentation();
   const demo = appEnv.demoMode;
   const content = t(getHomeContent(demo));
 
   return (
     <SiteShell
       eyebrow={t(siteConfig.hero.eyebrow)}
-      title={t(siteConfig.hero.title)}
-      description={t(siteConfig.hero.description)}
+      title={(locale === "zh" ? presentation?.headline_zh : presentation?.headline_en) || t(siteConfig.hero.title)}
+      description={(locale === "zh" ? presentation?.description_zh : presentation?.description) || t(siteConfig.hero.description)}
       showEnvironment={false}
       heroVisual={
         <figure className={styles.heroPreview}>

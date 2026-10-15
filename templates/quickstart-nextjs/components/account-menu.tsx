@@ -60,7 +60,7 @@ export function AccountMenu({ session, onSignInSuccess }: {
         }}>
         <div className={accountStyles.identity}><strong>{session.user.username || t({ en: "Personal account", zh: "个人账户" })}</strong><span>{session.user.email}</span></div>
         <button data-account-item className={accountStyles.item} type="button" onClick={() => { setOpen(false); setAccountOpen(true); }}><InterfaceIcon name="account" />{t({ en: "Account information", zh: "账户信息" })}</button>
-        <Link data-account-item className={accountStyles.item} href="/account" onClick={() => setOpen(false)}><InterfaceIcon name="notes" />{t({ en: "My account", zh: "账户中心" })}</Link>
+        <Link data-account-item className={accountStyles.item} href="/account" onClick={() => setOpen(false)}><InterfaceIcon name="account" />{t({ en: "My account", zh: "账户中心" })}</Link>
         <Link data-account-item className={accountStyles.item} href="/billing" onClick={() => setOpen(false)}><InterfaceIcon name="billing" />{t({ en: "Subscription & billing", zh: "订阅与账单" })}</Link>
         <Link data-account-item className={accountStyles.item} href="/referrals" onClick={() => setOpen(false)}><InterfaceIcon name="referrals" />{t({ en: "Referral rewards", zh: "推荐奖励" })}</Link>
       </div> : null}

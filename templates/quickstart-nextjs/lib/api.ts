@@ -154,6 +154,7 @@ export class ApiError extends Error {
 
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   authToken?: string;
+  next?: { revalidate: number };
   body?: BodyInit | null;
   json?: unknown;
 };
@@ -184,7 +185,7 @@ async function parseEnvelope<T>(response: Response): Promise<ApiEnvelope<T> | nu
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const response = await fetch(apiUrl(path), {
     ...options,
-    cache: "no-store",
+    cache: options.authToken ? "no-store" : options.cache || "no-store",
     headers: buildHeaders(options),
     body: options.json !== undefined ? JSON.stringify(options.json) : options.body
   });
@@ -535,7 +536,30 @@ export type PurchaseItem = { product_type?:string; id:string; status:string; amo
 export function listPurchases(token:string,page=1,limit=10):Promise<{items:PurchaseItem[];total:number;page:number;limit:number}> {
  return apiRequest(`/billing/purchases?page=${page}&limit=${limit}`,{authToken:token});
 }
-export type MembershipView = {plan:string;active:boolean;valid_until?:string;reason:string};
+export type MembershipView = {plan:string;active:boolean;valid_until?:string;reason:string;source?:string};
 export function getMembership(token:string):Promise<MembershipView> {
  return apiRequest("/account/membership",{authToken:token});
 }
+
+export type MembershipOverride = { user_id: string; plan: string; expires_at: string | null; updated_at: string };
+export type OperatorAccess = { membership: MembershipView; billing: MembershipView; override: MembershipOverride | null; user: OperatorUser; subscription: { plan: string; status: string; period_end?: string; billing_interval?: string; provider_subscription_id?: string } | null };
+export type OperatorMetricDay = { date: string; registrations: number; referrals: number; payments: number; new_paying_users: number };
+export type OperatorOverview = {
+ users: number; subscriptions: number; active_subscriptions: number; referrals: number;
+ pending_referrals: number; activated_referrals: number; billing_events: number;
+ today_registrations: number; today_referrals: number; today_payments: number; paid_users: number;
+ timezone: string; mode: "live" | "test"; as_of: string; series: OperatorMetricDay[];
+};
+export type OperatorReportFilters = { days: 7 | 30; timezone: "Asia/Shanghai" | "UTC"; mode: "live" | "test" };
+export type MembershipPatch = { plan: "automatic" | "free" | "starter" | "pro" | "premium" | "lifetime"; expires_at?: string; reason: string };
+
+export type OperatorUser = { id: string; email: string; username: string; role: string; plan: string; membership: MembershipView; credits: number; email_verified: boolean; created_at: string; last_login_at?: string };
+export type OperatorAuthorization = { authorized: true };
+
+export type ContentTranslation = { title: string; summary: string; body: string; seo_title: string; seo_description: string };
+export type ContentPublication = ContentTranslation & { published_at: string };
+export type ContentKind = "blog" | "docs" | "features" | "use-cases" | "compare";
+export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translations: Partial<Record<"en" | "zh", ContentTranslation>>; published: Partial<Record<"en" | "zh", ContentPublication>>; updated_at: string };
+export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
+export type PublishedArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: Array<"en" | "zh"> };
+export type WebsiteSettings = { brand_name: string; description: string; description_zh?: string; headline_en?: string; headline_zh?: string; sender_email?: string; sender_name?: string; support_email: string; support_url: string; export_credit_cost: number; presentation_version?: number };

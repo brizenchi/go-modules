@@ -1,6 +1,5 @@
-import { BlogIndex } from "@/components/content/blog";
-import { publicMetadata } from "@/lib/seo";
-
-export const metadata = publicMetadata("Product guides", "Practical guides to configure your SaaS, understand invitation rewards, and support your users.", "/blog");
-
-export default function BlogPage() { return <BlogIndex />; }
+import {PublicPage} from "@/components/public-page";
+import {managedMetadata} from "@/lib/public-content";
+export const revalidate=30;
+export async function generateMetadata(){return managedMetadata("/blog","en");}
+export default function Page(){return <PublicPage path="/blog" locale="en"/>;}

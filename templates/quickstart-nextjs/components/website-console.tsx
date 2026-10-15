@@ -1,0 +1,38 @@
+"use client";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useI18n } from "@/lib/i18n";
+import { getBusinessSettings, saveBusinessSettings, type BusinessSettings } from "@/lib/operations-api";
+import { getAdminIntegrations } from "@/lib/integrations-api";
+import { SITE_SETTINGS_EVENT } from "@/lib/site-settings";
+import { ConsoleError, ConsoleGate, newIntentKey, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
+import { AdminPageHeader } from "./admin-page-header";
+import { StatusBadge } from "./status-badge";
+import { PendingLabel } from "./pending-label";
+import styles from "./admin-shell.module.css";
+const defaults: BusinessSettings = { brand_name: "", description: "", description_zh: "", headline_en: "", headline_zh: "", sender_email: "", sender_name: "", support_email: "", support_url: "", export_credit_cost: 1 };
+const keys = ["brand_name", "description", "description_zh", "headline_en", "headline_zh", "sender_email", "sender_name", "support_email", "support_url"] as const;
+export function WebsiteConsole() {
+ const { t } = useI18n(); const { session, ready } = useConsoleSession(); const token = session?.user.role === "admin" ? session.token : "";
+ const loader = useCallback((current: string) => getBusinessSettings(current), []); const resource = useConsoleResource(token, loader);
+ const serviceLoader = useCallback((current: string) => getAdminIntegrations(current), []); const providers = useConsoleResource(token, serviceLoader);
+ const [settings, setSettings] = useState<BusinessSettings | null>(null); const [reason, setReason] = useState(""); const action = useConsoleAction(token); const intent = useRef({ payload: "", key: "" });
+ useEffect(() => { if (resource.data) setSettings({ ...defaults, ...resource.data }); }, [resource.data]);
+ function submit(event: FormEvent) {
+  event.preventDefault(); if (!settings) return;
+  const payload = { ...Object.fromEntries(keys.map(key => [key, settings[key] || ""])), export_credit_cost: settings.export_credit_cost, reason: reason.trim() } as BusinessSettings & { reason: string };
+  const serialized = JSON.stringify(payload); if (intent.current.payload !== serialized) intent.current = { payload: serialized, key: newIntentKey() };
+  void action.run(() => saveBusinessSettings(token, payload, intent.current.key), () => { setReason(""); intent.current = { payload: "", key: "" }; window.dispatchEvent(new Event(SITE_SETTINGS_EVENT)); action.setMessage(t({ en: "Settings saved. Public branding refreshes after subsequent requests, usually within one minute. Sender changes apply after an API restart.", zh: "设置已保存。官网品牌将在后续访问触发缓存刷新，通常一分钟内生效；发件设置在后端重启后生效。" })); void resource.refresh(); });
+ }
+ function field(key: typeof keys[number], label: { en: string; zh: string }, multiline = false) {
+  const props = { id: `website-${key}`, value: String(settings?.[key] || ""), onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => settings && setSettings({ ...settings, [key]: event.target.value }), maxLength: key === "brand_name" || key === "sender_name" ? 100 : key.includes("headline") ? 160 : key === "support_url" ? 1024 : multiline ? 500 : 255, required: key === "brand_name" };
+  return <div className="field"><label htmlFor={props.id}>{t(label)}</label>{multiline ? <textarea {...props} rows={3} /> : <input {...props} type={key.endsWith("email") ? "email" : key === "support_url" ? "url" : "text"} pattern={key === "support_url" ? "https://.+" : undefined} />}</div>;
+ }
+ return <><AdminPageHeader section="settings" onRefresh={() => { void resource.refresh(); void providers.refresh(); }} busy={resource.loading} /><ConsoleGate session={session} ready={ready} admin><ConsoleError error={resource.error} retry={() => void resource.refresh()} /><ConsoleError error={action.error} />{action.message ? <p role="status" className={styles.dialogNote}>{action.message}</p> : null}
+  {settings ? <form className={styles.websiteForm} onSubmit={submit}><fieldset disabled={action.busy} className={styles.websiteSection}><legend>{t({ en: "Website identity", zh: "网站资料" })}</legend><p>{t({ en: "Used by the public header, footer, homepage and search metadata.", zh: "用于官网页头、页脚、首页介绍与搜索展示信息。" })}</p>{field("brand_name", { en: "Website name", zh: "网站名称" })}<div className={styles.editorMeta}>{field("description", { en: "Service introduction · EN", zh: "服务介绍 · EN" }, true)}{field("description_zh", { en: "Service introduction · 中文", zh: "服务介绍 · 中文" }, true)}</div><div className={styles.editorMeta}>{field("headline_en", { en: "Homepage heading · EN (optional)", zh: "首页标题 · EN（选填）" })}{field("headline_zh", { en: "Homepage heading · 中文 (optional)", zh: "首页标题 · 中文（选填）" })}</div></fieldset>
+   <fieldset disabled={action.busy} className={styles.websiteSection}><legend>{t({ en: "Help & support", zh: "帮助与支持" })}</legend><div className={styles.editorMeta}>{field("support_email", { en: "Support email", zh: "客服邮箱" })}{field("support_url", { en: "Help page (HTTPS)", zh: "支持页面（HTTPS）" })}</div></fieldset>
+   <fieldset disabled={action.busy} className={styles.websiteSection}><legend>{t({ en: "Email delivery", zh: "邮件发送" })}</legend><p>{t({ en: "Set the verified sender address and name. Provider credentials stay in deployment configuration. Restart the API after changing the sender.", zh: "填写服务商已验证的发件邮箱与名称，服务商密钥由部署配置管理。修改发件设置后需重启后端。" })}</p><div className={styles.editorMeta}>{field("sender_email", { en: "Sender email", zh: "发件邮箱" })}{field("sender_name", { en: "Sender name", zh: "发件人名称" })}</div></fieldset>
+   <section className={styles.websiteSection}><h2>{t({ en: "Service status", zh: "服务状态" })}</h2><p>{t({ en: "Configuration status does not prove connectivity. Credentials cannot be viewed or changed here.", zh: "配置状态不代表已验证连通性。此处不查看或修改任何密钥。" })}</p><ConsoleError error={providers.error} retry={() => void providers.refresh()} /><div className={styles.serviceStatuses}>{providers.data?.providers.map(provider => <div key={provider.provider}><strong>{provider.provider === "stripe" ? "Stripe" : "Resend"}</strong><StatusBadge tone={provider.active_enabled ? "success" : "neutral"}>{t(provider.active_enabled ? { en: "Enabled", zh: "已启用" } : { en: "Disabled", zh: "未启用" })}</StatusBadge><span>{provider.provider === "stripe" ? provider.fields.mode === "live" ? t({ en: "Live environment", zh: "正式环境" }) : t({ en: "Test environment", zh: "测试环境" }) : provider.fields.sender_email || "—"}</span><span>{t(Object.values(provider.secrets).every(secret => secret.configured) ? { en: "Credentials configured", zh: "密钥已配置" } : { en: "Credentials incomplete", zh: "密钥未完整配置" })}</span></div>)}</div></section>
+   <div className={styles.editorSave}><div className="field"><label htmlFor="website-reason">{t({ en: "Change reason", zh: "修改原因" })}</label><input id="website-reason" required minLength={3} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} disabled={action.busy} /></div><button type="submit" className="button primary" disabled={action.busy || Array.from(reason.trim()).length < 3} aria-busy={action.busy}>{action.busy ? <PendingLabel>{t({ en: "Saving…", zh: "保存中…" })}</PendingLabel> : t({ en: "Save settings", zh: "保存设置" })}</button></div>
+  </form> : null}
+ </ConsoleGate></>;
+}

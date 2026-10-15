@@ -718,3 +718,11 @@
 .exampleCard h2 { margin: 0; font-size: 18px; font-weight: 650; }
 .exampleCard p { flex: 1; margin: 12px 0 24px; color: var(--muted); font-size: 13px; line-height: 1.8; }
 @media (max-width: 760px) { .exampleCards { grid-template-columns: 1fr; } }
+
+.capabilities { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; }
+.capability { min-width: 0; padding: 30px; border: 1px solid var(--line); border-radius: var(--radius-md); display: flex; flex-direction: column; align-items: flex-start; }
+.capability > span { color: var(--muted); font-size: 11px; line-height: 1.7; }
+.capability h2 { margin: 24px 0 14px; font-size: 24px; letter-spacing: -.02em; }
+.capability p { margin: 0 0 28px; color: var(--muted-strong); font-size: 14px; line-height: 1.9; }
+.capability a { margin-top: auto; font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+@media (max-width: 640px) { .capabilities { grid-template-columns: minmax(0,1fr); gap: 14px; } .capability { padding: 24px; } }

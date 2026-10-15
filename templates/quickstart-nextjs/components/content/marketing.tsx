@@ -12,6 +12,8 @@ import {
 import { LocalizedLink } from "@/components/localized-link";
 import { SiteShell } from "@/components/site-shell";
 import { useI18n } from "@/lib/i18n";
+import { getHomeContent } from "@/content/site";
+import { appEnv } from "@/lib/env";
 import styles from "./marketing.module.css";
 
 type Text = { en: string; zh: string };
@@ -28,7 +30,7 @@ const labels = {
 };
 
 const categoryLabels = {
-  features: { en: "Features", zh: "产品功能" },
+  features: { en: "Features", zh: "功能介绍" },
   "use-cases": { en: "Use cases", zh: "使用场景" },
   compare: { en: "Comparisons", zh: "方案比较" },
   examples: { en: "Examples", zh: "使用示例" }
@@ -110,7 +112,7 @@ function SourceNotes({ sources, updatedAt }: { sources: ContentLink[]; updatedAt
 }
 
 export function MarketingIndex({ kind }: { kind: MarketingKind }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const category = marketingCategories.find((item) => item.kind === kind);
   if (!category) return null;
   const pages = marketingPages.filter((page) => page.kind === kind);
@@ -132,7 +134,7 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
           <span className={styles.sectionLabel}>{t({ en: "A practical starting point", zh: "从实际需求出发" })}</span>
           <p>{t(category.intro)}</p>
         </div>
-        {kind === "examples" ? <div className={styles.exampleCards}>{customerExamples.map(item => <section className={styles.exampleCard} key={item.href}><h2>{t(item.label)}</h2><p>{t(item.description)}</p><LocalizedLink className="button" href={item.href}>{t({ en: "Open", zh: "打开" })}<span aria-hidden="true">→</span></LocalizedLink></section>)}</div> : <div className={styles.indexList}>
+        {kind === "features" ? <div className={styles.capabilities}>{getHomeContent(appEnv.demoMode)[locale].features.map(feature => <article className={styles.capability} key={feature.label}><span>{feature.label} / {feature.detail}</span><h2>{feature.title}</h2><p>{feature.description}</p><LocalizedLink href={feature.href}>{t({ en: "Explore this capability", zh: "了解这项功能" })} <span aria-hidden="true">→</span></LocalizedLink></article>)}</div> : kind === "examples" ? <div className={styles.exampleCards}>{customerExamples.map(item => <section className={styles.exampleCard} key={item.href}><h2>{t(item.label)}</h2><p>{t(item.description)}</p><LocalizedLink className="button" href={item.href}>{t({ en: "Open", zh: "打开" })}<span aria-hidden="true">→</span></LocalizedLink></section>)}</div> : <div className={styles.indexList}>
           {pages.map((page, index) => (
             <article className={styles.indexItem} key={page.path}>
               <span className={styles.itemNumber} aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>

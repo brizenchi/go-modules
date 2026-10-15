@@ -40,3 +40,5 @@
   .icon { margin-bottom: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .dialog[open], .sheet[open] { animation: none; } }
+
+@media (min-width: 641px) { .wide { width: min(820px, calc(100vw - 48px)); } }

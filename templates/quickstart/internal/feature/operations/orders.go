@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"context"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/brizenchi/go-modules/foundation/httpresp"
 	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // OrderSummary is projected from verified, persisted provider events. Amount is
@@ -30,6 +32,7 @@ type OrderSummary struct {
 	CreatedAt       time.Time `json:"created_at"`
 	sortID          uint
 	eventAt         int64
+	paidAt          time.Time
 }
 
 func objectID(raw json.RawMessage) string {
@@ -52,16 +55,19 @@ type paymentEnvelope struct {
 	} `json:"data"`
 }
 type paymentObject struct {
-	Metadata      map[string]string `json:"metadata"`
-	Mode          string            `json:"mode"`
-	ID            string            `json:"id"`
-	Invoice       json.RawMessage   `json:"invoice"`
-	AmountPaid    *int64            `json:"amount_paid"`
-	AmountTotal   *int64            `json:"amount_total"`
-	Currency      string            `json:"currency"`
-	PaymentStatus string            `json:"payment_status"`
-	Status        string            `json:"status"`
-	Created       int64             `json:"created"`
+	Metadata          map[string]string `json:"metadata"`
+	Mode              string            `json:"mode"`
+	ID                string            `json:"id"`
+	Invoice           json.RawMessage   `json:"invoice"`
+	AmountPaid        *int64            `json:"amount_paid"`
+	AmountTotal       *int64            `json:"amount_total"`
+	Currency          string            `json:"currency"`
+	PaymentStatus     string            `json:"payment_status"`
+	Status            string            `json:"status"`
+	Created           int64             `json:"created"`
+	StatusTransitions struct {
+		PaidAt int64 `json:"paid_at"`
+	} `json:"status_transitions"`
 }
 
 func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
@@ -79,6 +85,13 @@ func summarizeOrder(e billingdomain.BillingEvent) (OrderSummary, bool) {
 		result.ProductType = "subscription"
 	}
 	result.eventAt = envelope.Created
+	result.paidAt = e.CreatedAt
+	if envelope.Created > 0 {
+		result.paidAt = time.Unix(envelope.Created, 0).UTC()
+	}
+	if object.StatusTransitions.PaidAt > 0 {
+		result.paidAt = time.Unix(object.StatusTransitions.PaidAt, 0).UTC()
+	}
 	if object.Created > 0 {
 		result.CreatedAt = time.Unix(object.Created, 0).UTC()
 	}
@@ -173,16 +186,105 @@ func (m *Module) paymentHistory(c *gin.Context, owner string) {
 	// Stream event batches to avoid holding webhook payloads in memory. The
 	// minimal template derives summaries on demand; larger installations should
 	// materialize this projection from their billing listener.
+	if owner == "" {
+		owner = strings.TrimSpace(c.Query("user_id"))
+	}
 	if owner != "" {
 		db = db.Where("user_id = ?", owner)
 	}
+	byID, err := loadOrderSummaries(c.Request.Context(), db)
+	if queryFailed(c, err) {
+		return
+	}
+	identities := []struct {
+		ID    string
+		Email string
+	}{}
+	identityQuery := m.db(c).Table("users").Select("id,email")
+	if owner != "" {
+		identityQuery = identityQuery.Where("id = ?", owner)
+	}
+	if queryFailed(c, identityQuery.Order("id ASC").Limit(10000).Find(&identities).Error) {
+		return
+	}
+	emails := map[string]string{}
+	for _, identity := range identities {
+		emails[identity.ID] = identity.Email
+	}
+	var from, to time.Time
+	for name, target := range map[string]*time.Time{"from": &from, "to": &to} {
+		if raw := c.Query(name); raw != "" {
+			parsed, err := time.Parse(time.RFC3339, raw)
+			if err != nil {
+				httpresp.BadRequest(c, "invalid payment date range")
+				return
+			}
+			*target = parsed
+		}
+	}
+	if !from.IsZero() && !to.IsZero() && !from.Before(to) {
+		httpresp.BadRequest(c, "invalid payment date range")
+		return
+	}
+	mode := c.Query("mode")
+	if mode != "" && mode != "live" && mode != "test" {
+		httpresp.BadRequest(c, "invalid payment environment")
+		return
+	}
+	state := c.Query("status")
+	if state != "" && state != "paid" && state != "unpaid" && state != "failed" && state != "unknown" && state != "no_payment_required" {
+		httpresp.BadRequest(c, "invalid payment status")
+		return
+	}
+	items := make([]OrderSummary, 0, len(byID))
+	term := strings.ToLower(p.query)
+	for _, item := range byID {
+		if mode != "" && (item.Livemode == nil || *item.Livemode != (mode == "live")) {
+			continue
+		}
+		if state != "" && item.Status != state {
+			continue
+		}
+		if !from.IsZero() && item.CreatedAt.Before(from) {
+			continue
+		}
+		if !to.IsZero() && !item.CreatedAt.Before(to) {
+			continue
+		}
+		item.Email = emails[item.UserID]
+		if term != "" && !strings.Contains(strings.ToLower(item.ID+" "+item.UserID+" "+item.Email+" "+item.ProviderEventID), term) {
+			continue
+		}
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			return items[i].sortID > items[j].sortID
+		}
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+	total := len(items)
+	start := (p.page - 1) * p.limit
+	if start > total {
+		start = total
+	}
+	end := start + p.limit
+	if end > total {
+		end = total
+	}
+	httpresp.OK(c, gin.H{"items": items[start:end], "total": total, "page": p.page, "limit": p.limit, "source": "provider_payment_events", "amount_unit": "minor"})
+}
+
+// loadOrderSummaries shares the verified, deduplicated payment projection with reporting.
+func loadOrderSummaries(ctx context.Context, db *gorm.DB) (map[string]OrderSummary, error) {
+	db = db.WithContext(ctx)
 	byID := map[string]OrderSummary{}
 	lastID := uint(0)
 	for {
 		batch := []billingdomain.BillingEvent{}
 		err := db.Where("id > ? AND event_type IN ?", lastID, []string{"invoice.paid", "invoice.payment_succeeded", "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"}).Order("id ASC").Limit(500).Find(&batch).Error
-		if queryFailed(c, err) {
-			return
+		if err != nil {
+			return nil, err
 		}
 		if len(batch) == 0 {
 			break
@@ -211,44 +313,5 @@ func (m *Module) paymentHistory(c *gin.Context, owner string) {
 			byID[item.ID] = item
 		}
 	}
-	identities := []struct {
-		ID    string
-		Email string
-	}{}
-	identityQuery := m.db(c).Table("users").Select("id,email")
-	if owner != "" {
-		identityQuery = identityQuery.Where("id = ?", owner)
-	}
-	if queryFailed(c, identityQuery.Order("id ASC").Limit(10000).Find(&identities).Error) {
-		return
-	}
-	emails := map[string]string{}
-	for _, identity := range identities {
-		emails[identity.ID] = identity.Email
-	}
-	items := make([]OrderSummary, 0, len(byID))
-	term := strings.ToLower(p.query)
-	for _, item := range byID {
-		item.Email = emails[item.UserID]
-		if term != "" && !strings.Contains(strings.ToLower(item.ID+" "+item.UserID+" "+item.Email+" "+item.ProviderEventID), term) {
-			continue
-		}
-		items = append(items, item)
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
-			return items[i].sortID > items[j].sortID
-		}
-		return items[i].CreatedAt.After(items[j].CreatedAt)
-	})
-	total := len(items)
-	start := (p.page - 1) * p.limit
-	if start > total {
-		start = total
-	}
-	end := start + p.limit
-	if end > total {
-		end = total
-	}
-	httpresp.OK(c, gin.H{"items": items[start:end], "total": total, "page": p.page, "limit": p.limit, "source": "provider_payment_events", "amount_unit": "minor"})
+	return byID, nil
 }

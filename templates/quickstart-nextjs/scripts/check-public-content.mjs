@@ -27,8 +27,18 @@ for (const page of pages) {
   const chinese = path === "/zh" || path.startsWith("/zh/");
   assert.ok(rendered.includes(`lang="${chinese ? "zh-CN" : "en"}"`), `${page}: server-rendered language`);
   assert.ok(!html.includes('content="noindex'), `${page}: public content is indexable`);
+  const basePath = path.replace(/^\/zh(?=\/|$)/, "") || "/";
+  const expectedLanguages = [
+    ...(paths.has(basePath) ? ["en"] : []),
+    ...(paths.has(basePath === "/" ? "/zh" : `/zh${basePath}`) ? ["zh-CN"] : []),
+    "x-default"
+  ];
   for (const language of ["en", "zh-CN", "x-default"]) {
     const alternate = [...html.matchAll(/<link[^>]+>/g)].find(match => match[0].includes(`hrefLang="${language}"`) || match[0].includes(`hreflang="${language}"`))?.[0];
+    if (!expectedLanguages.includes(language)) {
+      assert.ok(!alternate, `${page}: unpublished ${language} alternative is absent`);
+      continue;
+    }
     assert.ok(alternate, `${page}: ${language} alternative exists`);
     assert.ok(paths.has(new URL(alternate.match(/href="([^"]+)"/)[1]).pathname), `${page}: alternative is a published page`);
   }

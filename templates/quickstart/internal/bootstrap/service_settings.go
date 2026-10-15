@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/brizenchi/quickstart-template/internal/feature/operations"
 	"github.com/brizenchi/quickstart-template/internal/platform"
 	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 	"gorm.io/gorm"
@@ -24,6 +25,20 @@ func loadServiceSettings(ctx context.Context, db *gorm.DB, cfg *AppConfig) (*ser
 		return nil, fmt.Errorf("load service settings: %w", err)
 	}
 	cfg.Auth, cfg.Email, cfg.Billing = effective.Auth, effective.Email, effective.Billing
+	if db.WithContext(ctx).Migrator().HasTable(&operations.SiteSettings{}) {
+		site, err := operations.ReadSettings(ctx, db)
+		if err != nil {
+			return nil, fmt.Errorf("read website settings: %w", err)
+		}
+		if site.SenderEmail != "" {
+			cfg.Email.Resend.SenderEmail = site.SenderEmail
+			cfg.Email.Brevo.SenderEmail = site.SenderEmail
+		}
+		if site.SenderName != "" {
+			cfg.Email.Resend.SenderName = site.SenderName
+			cfg.Email.Brevo.SenderName = site.SenderName
+		}
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("effective config: %w", err)
 	}

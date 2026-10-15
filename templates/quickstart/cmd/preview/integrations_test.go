@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestPreviewServiceSettingsStayIsolatedAfterSavingEnabledProvider(t *testing.T) {
+func TestPreviewProviderCredentialsStayDeploymentManaged(t *testing.T) {
 	app, err := newPreview("http://localhost:3100", "")
 	if err != nil {
 		t.Fatal(err)
@@ -36,9 +36,8 @@ func TestPreviewServiceSettingsStayIsolatedAfterSavingEnabledProvider(t *testing
 	req.Header.Set("Idempotency-Key", "isolated-service-settings-save")
 	w := httptest.NewRecorder()
 	app.handler.ServeHTTP(w, req)
-	saved := previewData(t, w)
-	if saved["source"] != "database" || saved["enabled"] != true || saved["active_enabled"] != false {
-		t.Fatal("saving preview configuration changed its active service state")
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("credential write accepted: %d", w.Code)
 	}
 	if strings.Contains(w.Body.String(), secret) {
 		t.Fatal("secret returned by save response")

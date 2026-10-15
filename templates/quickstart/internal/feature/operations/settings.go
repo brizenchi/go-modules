@@ -1,8 +1,6 @@
 package operations
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,12 +11,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
+	"github.com/brizenchi/quickstart-template/internal/audit"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-var errKeyConflict = errors.New("idempotency key already used for another request")
+var errKeyConflict = audit.ErrConflict
 
 func decodeBody(c *gin.Context, target any) bool {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8192)
@@ -46,31 +45,9 @@ func operationMetadata(c *gin.Context, reason string) (string, bool) {
 	}
 	return key, true
 }
-func requestHash(value any) string {
-	raw, _ := json.Marshal(value)
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:])
-}
-
-// claimAudit reserves a key atomically. It must be inside the same transaction
-// as the business write; a repeated key with a changed payload is rejected.
+func requestHash(value any) string { return audit.Hash(value) }
 func claimAudit(tx *gorm.DB, row *AuditEvent) (bool, error) {
-	result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "actor_id"}, {Name: "idempotency_key"}}, DoNothing: true}).Create(row)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	if result.RowsAffected > 0 {
-		return true, nil
-	}
-	var existing AuditEvent
-	if err := tx.Where("actor_id = ? AND idempotency_key = ?", row.ActorID, row.IdempotencyKey).Take(&existing).Error; err != nil {
-		return false, err
-	}
-	if existing.RequestHash != row.RequestHash || existing.Action != row.Action || existing.TargetID != row.TargetID {
-		return false, errKeyConflict
-	}
-	*row = existing
-	return false, nil
+	return audit.New().Claim(tx.Statement.Context, tx, row)
 }
 
 func (m *Module) getSettings(c *gin.Context) {
@@ -78,7 +55,7 @@ func (m *Module) getSettings(c *gin.Context) {
 	if queryFailed(c, err) {
 		return
 	}
-	httpresp.OK(c, settings)
+	httpresp.OK(c, gin.H{"brand_name": settings.BrandName, "description": settings.Description, "description_zh": settings.DescriptionZH, "headline_en": settings.HeadlineEN, "headline_zh": settings.HeadlineZH, "sender_email": settings.SenderEmail, "sender_name": settings.SenderName, "support_email": settings.SupportEmail, "support_url": settings.SupportURL, "export_credit_cost": settings.ExportCreditCost, "presentation_version": 1})
 }
 
 type settingsPatch struct {
@@ -87,14 +64,19 @@ type settingsPatch struct {
 	SupportEmail     *string `json:"support_email"`
 	SupportURL       *string `json:"support_url"`
 	ExportCreditCost *int64  `json:"export_credit_cost"`
+	DescriptionZH    *string `json:"description_zh"`
+	HeadlineEN       *string `json:"headline_en"`
+	HeadlineZH       *string `json:"headline_zh"`
+	SenderEmail      *string `json:"sender_email"`
+	SenderName       *string `json:"sender_name"`
 	Reason           string  `json:"reason"`
 }
 
 func validSettingsPatch(p *settingsPatch) bool {
-	if p.BrandName == nil && p.Description == nil && p.SupportEmail == nil && p.SupportURL == nil && p.ExportCreditCost == nil {
+	if p.BrandName == nil && p.Description == nil && p.SupportEmail == nil && p.SupportURL == nil && p.ExportCreditCost == nil && p.DescriptionZH == nil && p.HeadlineEN == nil && p.HeadlineZH == nil && p.SenderEmail == nil && p.SenderName == nil {
 		return false
 	}
-	for value, max := range map[*string]int{p.BrandName: 100, p.Description: 500, p.SupportEmail: 255, p.SupportURL: 1024} {
+	for value, max := range map[*string]int{p.BrandName: 100, p.Description: 500, p.SupportEmail: 255, p.SupportURL: 1024, p.DescriptionZH: 500, p.HeadlineEN: 160, p.HeadlineZH: 160, p.SenderEmail: 255, p.SenderName: 100} {
 		if value == nil {
 			continue
 		}
@@ -109,6 +91,12 @@ func validSettingsPatch(p *settingsPatch) bool {
 	if p.SupportEmail != nil && *p.SupportEmail != "" {
 		a, err := mail.ParseAddress(*p.SupportEmail)
 		if err != nil || a.Address != *p.SupportEmail {
+			return false
+		}
+	}
+	if p.SenderEmail != nil && *p.SenderEmail != "" {
+		a, err := mail.ParseAddress(*p.SenderEmail)
+		if err != nil || a.Address != *p.SenderEmail {
 			return false
 		}
 	}
@@ -151,13 +139,32 @@ func (m *Module) patchSettings(c *gin.Context) {
 			return err
 		}
 		if !created {
-			return json.Unmarshal([]byte(audit.Details), &result)
+			var change struct {
+				After *SiteSettings `json:"after"`
+			}
+			if err := json.Unmarshal([]byte(audit.Details), &change); err != nil {
+				return err
+			}
+			if change.After != nil {
+				result = *change.After
+				return nil
+			}
+			return json.Unmarshal([]byte(audit.Details), &result) // Legacy audit snapshots.
 		}
 		defaults := DefaultSettings()
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&defaults).Error; err != nil {
 			return err
 		}
+		var before SiteSettings
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", 1).Take(&before).Error; err != nil {
+			return err
+		}
 		updates := map[string]any{}
+		for value, column := range map[*string]string{patch.DescriptionZH: "description_zh", patch.HeadlineEN: "headline_en", patch.HeadlineZH: "headline_zh", patch.SenderEmail: "sender_email", patch.SenderName: "sender_name"} {
+			if value != nil {
+				updates[column] = *value
+			}
+		}
 		if patch.BrandName != nil {
 			updates["brand_name"] = *patch.BrandName
 		}
@@ -179,8 +186,11 @@ func (m *Module) patchSettings(c *gin.Context) {
 		if err := tx.Where("id = ?", 1).Take(&result).Error; err != nil {
 			return err
 		}
-		raw, _ := json.Marshal(result)
-		return tx.Model(&AuditEvent{}).Where("id = ?", audit.ID).Update("details", string(raw)).Error
+		raw, _ := json.Marshal(struct {
+			Before SiteSettings `json:"before"`
+			After  SiteSettings `json:"after"`
+		}{Before: before, After: result})
+		return m.deps.Audit.Finish(c.Request.Context(), tx, &audit, "succeeded", string(raw))
 	})
 	if errors.Is(err, errKeyConflict) {
 		httpresp.Conflict(c, err.Error())

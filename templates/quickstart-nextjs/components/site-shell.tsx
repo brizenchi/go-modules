@@ -8,6 +8,8 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
+import { activePublicNavigationHref, publicNavigation, siteLinkForPath } from "@/content/navigation";
+import { useSitePresentation } from "./site-presentation";
 import { siteConfig } from "@/content/site";
 import { type AccountSummary } from "@/lib/account-summary";
 import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
@@ -23,21 +25,6 @@ import {
   customerSignInDestination,
   isWorkspacePath,
 } from "@/lib/workspace";
-
-type NavItem = {
-  href: string;
-  label: {
-    en: string;
-    zh: string;
-  };
-};
-
-const topNav: NavItem[] = [
-  { href: "/features", label: { en: "Product", zh: "产品功能" } },
-  { href: "/use-cases", label: { en: "Use cases", zh: "使用场景" } },
-  { href: "/pricing", label: { en: "Pricing", zh: "价格" } },
-  { href: "/resources", label: { en: "Resources", zh: "资源" } }
-];
 
 type TOCItem = {
   id: string;
@@ -121,6 +108,8 @@ function PublicSiteShell(props: SiteShellProps) {
   const pathname = stripLocalePrefix(rawPathname);
   const router = useRouter();
   const isHome = pathname === "/";
+ const presentation=useSitePresentation();
+ const brand=presentation?.brand_name || appEnv.appName;
   const [session, setSession] = useState<AuthSession | null>(null);
   const { t, locale } = useI18n();
 
@@ -136,11 +125,14 @@ function PublicSiteShell(props: SiteShellProps) {
   }, []);
 
   const breadcrumbs = useMemo(
-    () => (props.breadcrumbs && props.breadcrumbs.length > 0 ? props.breadcrumbs : buildBreadcrumbs(pathname)).map(item => ({ ...item, href: item.href ? localizeHref(item.href, locale) : undefined })),
-    [pathname, props.breadcrumbs, locale]
+    () => (props.breadcrumbs && props.breadcrumbs.length > 0 ? props.breadcrumbs : buildBreadcrumbs(pathname)).map((item, index, items) => {
+      const known = siteLinkForPath(item.href || (index === items.length - 1 ? pathname : ""));
+      return { ...item, label: known ? t(known.label) : item.label, href: item.href ? localizeHref(item.href, locale) : undefined };
+    }),
+    [pathname, props.breadcrumbs, locale, t]
   );
 
-  const navItems = useMemo(() => topNav, []);
+  const activeNav = activePublicNavigationHref(pathname);
   const accountMenu = (
     <AccountMenu
       session={session}
@@ -153,14 +145,14 @@ function PublicSiteShell(props: SiteShellProps) {
   );
 
   const Content = props.variant === "article" ? "article" : "div";
-  const hasPublicSchema = publicPaths.includes(pathname) || pathname.startsWith("/docs/") || pathname.startsWith("/blog/");
+  const hasPublicSchema = publicPaths.includes(pathname) || pathname.startsWith("/docs/") || pathname.startsWith("/blog/") || /^\/(features|use-cases|compare)\//.test(pathname);
 
   return (
     <div className={`app-shell ${props.className || ""}${props.variant === "article" ? " article-shell" : props.variant === "compact" ? " compact-shell" : ""}`}>
       <a className="skip-content" href="#main-content">{t({ en: "Skip to content", zh: "跳到正文" })}</a>
       <header className="topbar">
         <div className="topbar-inner">
-          <Link className="brand-lockup" href="/">
+          <Link className="brand-lockup" href="/" aria-label={`${brand} · ${t({ en: "Home", zh: "首页" })}`}>
             <span className="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 28 28" role="img">
                 <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
@@ -168,18 +160,18 @@ function PublicSiteShell(props: SiteShellProps) {
               </svg>
             </span>
             <span className="brand-copy">
-              <span className="brand-title">{appEnv.appName}</span>
+              <span className="brand-title">{brand}</span>
               <span className="brand-subtitle">{t(siteConfig.brand.subtitle)}</span>
             </span>
           </Link>
 
-          <nav className="main-nav" aria-label="Primary">
-            {navItems.map((item) => (
+          <nav className="main-nav" aria-label={t({ en: "Primary", zh: "主导航" })}>
+            {publicNavigation.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`main-nav-link${pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`)) ? " active" : ""}`}
-                aria-current={pathname === item.href ? "page" : undefined}
+                className={`main-nav-link${activeNav === item.href ? " active" : ""}`}
+                aria-current={pathname === item.href ? "page" : activeNav === item.href ? "true" : undefined}
               >
                 {t(item.label)}
               </Link>
@@ -229,7 +221,7 @@ function PublicSiteShell(props: SiteShellProps) {
         </Content>
       </main>
 
-      <SiteFooter name={appEnv.appName} />
+      <SiteFooter name={brand} description={presentation ? (locale === "zh" ? presentation.description_zh : presentation.description) || undefined : undefined} />
     </div>
   );
 }
