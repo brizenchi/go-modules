@@ -212,8 +212,19 @@ test("sign-in defaults to the current customer page and only uses admin destinat
   const flow = loadOAuthFlow();
   const destination = "/billing?product=subscription&plan=pro&interval=yearly#plans";
   assert.equal(flow.resolveSignInDestination(destination), destination);
-  assert.equal(flow.resolveSignInDestination("/pricing"), "/account");
+  assert.equal(flow.resolveSignInDestination("/pricing"), "/pricing");
   assert.equal(flow.resolveSignInDestination("/admin/users"), "/account");
   assert.equal(flow.resolveSignInDestination(destination, "/admin/orders"), "/admin/orders");
   assert.equal(flow.resolveSignInDestination(destination, "https://evil.example"), "/account");
+});
+
+ test("pricing OAuth returns to its selected public-language page without entering the workspace", async () => {
+  installBrowserStorage();
+  const flow = loadOAuthFlow();
+  for (const destination of ["/pricing?product=subscription&plan=pro&interval=monthly#plans", "/zh/pricing?product=credits&quantity=3#one-time"]) {
+    const id = await flow.prepareOAuthBrowserFlow("google", destination);
+    assert.equal(flow.readOAuthReturnTo(id), destination);
+    assert.equal(flow.resolveOAuthReturnTo(destination, "user"), destination);
+  }
+  assert.equal(flow.resolveOAuthReturnTo("/zh/pricing/../admin", "user"), "/account");
 });

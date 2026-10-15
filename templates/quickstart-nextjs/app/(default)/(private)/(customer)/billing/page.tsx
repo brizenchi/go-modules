@@ -42,6 +42,7 @@ import { appEnv, appUrl } from "@/lib/env";
 import { readBillingIntent, type BillingIntent } from "@/lib/billing-intent";
 import { billingPlaceholderState, billingSelectionPath, initialBillingSection, isBillingIntentAvailable } from "@/lib/billing-selection";
 import { formatCurrencyUSD, formatDate } from "@/lib/format";
+import { localizeHref } from "@/lib/locale";
 import { useI18n } from "@/lib/i18n";
 import {
   describeRequestFailure,
@@ -884,7 +885,7 @@ export default function BillingPage() {
                 {ongoingRecurringSubscription || hasLifetime ? <button className="button" disabled={baseActionDisabled} onClick={() => void handleOpenPortal()}>
                   {busy === "portal" ? t({ en: "Opening…", zh: "正在打开…" }) : t({ en: "Manage payment & invoices", zh: "管理支付方式与发票" })}
                 </button> : null}
-                {!hasLifetime ? <a className={`button${!ongoingRecurringSubscription ? " primary" : ""}`} href="#plans" onClick={() => setPlansOpen(true)}>{ongoingRecurringSubscription ? t({ en: "Change plan", zh: "更换套餐" }) : t({ en: "Choose a plan", zh: "选择套餐" })}</a> : null}
+                {!hasLifetime ? ongoingRecurringSubscription ? <a className="button" href="#plans" onClick={() => setPlansOpen(true)}>{t({ en: "Change plan", zh: "更换套餐" })}</a> : <Link className="button primary" href={localizeHref("/pricing", locale)}>{t({ en: "View plans", zh: "查看套餐" })}</Link> : null}
                 {ongoingRecurringSubscription && cancellationPending ? <button className="button primary" disabled={baseActionDisabled} onClick={handleReactivate}>{busy === "reactivate" ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal", zh: "恢复续费" })}</button> : null}
                 {ongoingRecurringSubscription && !cancellationPending ? <button ref={cancelTriggerRef} className={`button ${styles.cancelTrigger}`} disabled={baseActionDisabled} aria-expanded={cancelConfirmOpen} aria-controls="cancel-renewal-confirmation" onClick={() => setCancelConfirmOpen(value => !value)}>{t({ en: "Cancel renewal", zh: "取消续费" })}</button> : null}
               </div>
@@ -910,7 +911,7 @@ export default function BillingPage() {
           {actionFeedback("current")}
         </Panel>
 
-        <details id="plans" className={`span-12 ${styles.disclosure}`} open={plansOpen} onToggle={event => setPlansOpen(event.currentTarget.open)}>
+        {ongoingRecurringSubscription ? <details id="plans" className={`span-12 ${styles.disclosure}`} open={plansOpen} onToggle={event => setPlansOpen(event.currentTarget.open)}>
           <summary><span className={styles.disclosureTitle}>{ongoingRecurringSubscription ? t({ en: "Change plan", zh: "更换套餐" }) : t({ en: "Choose a plan", zh: "套餐选择" })}</span><span className={styles.disclosureDescription}>{t({ en: "Compare options, choose a billing interval, and review costs.", zh: "查看可用套餐、计费周期与变更费用。" })}</span></summary>
           <div className={styles.disclosureBody}>
         <Panel className={styles.purchasePanel} title={t({ en: "Review your selection", zh: "核对套餐选择" })}
@@ -968,7 +969,7 @@ export default function BillingPage() {
           {actionFeedback("plans")}
         </Panel>
           </div>
-        </details>
+        </details> : !hasLifetime ? <Panel className="span-12" title={t({ en: "Choose your subscription", zh: "选择适合你的订阅" })} subtitle={t({ en: "Compare monthly and yearly plans on the pricing page and continue directly to secure checkout.", zh: "在价格页比较月付与年付套餐，选择后直接进入安全结账。" })}><Link className="button primary" href={localizeHref("/pricing", locale)}>{t({ en: "Explore plans", zh: "浏览套餐与价格" })}</Link></Panel> : null}
 
         <details id="credits" className={`span-12 ${styles.disclosure}`} open={creditsOpen} onToggle={event => {
           setCreditsOpen(event.currentTarget.open);

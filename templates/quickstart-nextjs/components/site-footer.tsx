@@ -1,5 +1,6 @@
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { useI18n } from "@/lib/i18n";
+import { siteConfig } from "@/content/site";
 import styles from "./site-footer.module.css";
 
 const groups = [
@@ -25,7 +26,7 @@ const groups = [
   ] }
 ];
 
-export function SiteFooter({ name, description }: { name: string; description: string }) {
+export function SiteFooter({ name, description }: { name: string; description?: string }) {
   const { t } = useI18n();
   return (
     <footer className={styles.footer}>
@@ -33,8 +34,8 @@ export function SiteFooter({ name, description }: { name: string; description: s
         <div className={styles.grid}>
           <div className={styles.identity}>
             <Link className={styles.brand} href="/"><span aria-hidden="true">◈</span>{name}</Link>
-            <p>{description || t({ en: "Less groundwork. More room for your next idea. A free Next.js + Go SaaS starter.", zh: "少一些重复搭建，多一些专注业务。免费的 Next.js + Go SaaS 启动模板。" })}</p>
-            <span className={styles.stack}>Next.js + Go</span>
+            <p>{description || t(siteConfig.footer.description)}</p>
+            <span className={styles.stack}>{t(siteConfig.brand.subtitle)}</span>
           </div>
           {groups.map((group, index) => (
             <nav key={group.title.en} aria-labelledby={`footer-group-${index}`}>
@@ -45,7 +46,7 @@ export function SiteFooter({ name, description }: { name: string; description: s
         </div>
         <div className={styles.bottom}>
           <span>© {new Date().getFullYear()} {name}</span>
-          <span>{t({ en: "Built with go-modules", zh: "基于 go-modules 构建" })}</span>
+          <span>{t(siteConfig.brand.attribution)}</span>
           <a href="#main-content">{t({ en: "Back to top ↑", zh: "返回顶部 ↑" })}</a>
         </div>
       </div>

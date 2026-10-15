@@ -27,8 +27,8 @@ export function safeSupportURL(value: unknown): string {
 export const publicSiteSettingsFallback: PublicSiteSettings = {
   brand_name: appEnv.appName,
   description: "Launch your SaaS with authentication, billing and referrals.",
-  support_email: safeSupportEmail(process.env.NEXT_PUBLIC_SUPPORT_EMAIL),
-  support_url: safeSupportURL(process.env.NEXT_PUBLIC_SUPPORT_URL),
+  support_email: safeSupportEmail(appEnv.supportEmail),
+  support_url: safeSupportURL(appEnv.supportURL),
   export_credit_cost: 1
 };
 

@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 import { articles } from "../content/articles";
+import { siteConfig } from "../content/site";
 import { documentation } from "../content/docs";
 import { appEnv } from "./env";
 import { marketingRoutes } from "../content/marketing";
 import { localizeHref, localeFromPath, stripLocalePrefix, type Locale } from "./locale";
 
-export const siteDescription = "Launch your SaaS faster with a free Next.js and Go template. Authentication, Stripe subscriptions, credits, referrals, Resend email, and a public website are already integrated.";
-export const siteDescriptions = {
-  en: siteDescription,
-  zh: "使用免费的 Next.js + Go 模板开始构建 SaaS。已整合用户认证、Stripe 订阅、积分、邀请推荐、Resend 邮件和公开产品网站。"
-};
+export const siteDescription = siteConfig.description.en;
+export const siteDescriptions = siteConfig.description;
 export const siteOrigin = new URL(appEnv.appUrl).origin;
 export const publicPaths = ["/", "/pricing", "/docs", "/blog", "/updates", "/contact", "/privacy", "/terms", ...marketingRoutes.map(page => page.path)];
 export const privatePaths = ["/account", "/dashboard", "/billing", "/referrals", "/credits", "/files", "/notes", "/admin", "/login", "/invite", "/oauth", "/api"];
@@ -82,7 +80,7 @@ export function sitemapEntries(): Array<{ url: string; lastModified?: string; al
 }
 
 const publicPageCopy: Record<string, { title: Record<Locale, string>; description: Record<Locale, string> }> = {
-  "/": { title: { en: "Free SaaS starter", zh: "免费 SaaS 启动模板" }, description: siteDescriptions },
+  "/": { title: siteConfig.homepageTitle, description: siteDescriptions },
   "/pricing": { title: { en: "Pricing", zh: "价格方案" }, description: { en: "Compare subscriptions, lifetime access, and credit packages in the example SaaS catalog. The starter template is free.", zh: "比较示例 SaaS 的周期订阅、终身权益和积分包。启动模板本身免费。" } },
   "/docs": { title: { en: "Template user guide", zh: "模板使用指南" }, description: { en: "Learn what the free SaaS template includes, try sign-in, payments and referrals, then configure your own website and administrator account.", zh: "了解免费 SaaS 模板的功能，体验登录、支付和邀请流程，再配置自己的网站和管理员账户。" } },
   "/blog": { title: { en: "Product guides", zh: "产品文章" }, description: { en: "Practical guides to configure your SaaS, understand invitation rewards, and support your users.", zh: "通过实用指南配置你的 SaaS、了解邀请奖励，并为用户提供支持。" } },

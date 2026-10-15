@@ -1,3 +1,5 @@
+import { siteConfig } from "../content/site";
+
 function normalizeOrigin(value: string | undefined, fallback: string): string {
   const raw = value?.trim() || fallback;
   return raw.replace(/\/+$/, "");
@@ -33,7 +35,7 @@ function parseOAuthProviders(value: string | undefined): OAuthProvider[] {
 }
 
 export const appEnv = {
-  appName: (process.env.NEXT_PUBLIC_APP_NAME || "Clawmesh Quickstart Frontend").trim(),
+  appName: process.env.NEXT_PUBLIC_APP_NAME?.trim() || siteConfig.brand.name,
   // Presentation only. Actual test/live payments are controlled by backend Stripe credentials.
   demoMode: parseBoolean(process.env.NEXT_PUBLIC_DEMO_MODE, true),
   appUrl: normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL, "http://localhost:3000"),
@@ -42,6 +44,10 @@ export const appEnv = {
   authEmailEnabled: parseBoolean(process.env.NEXT_PUBLIC_AUTH_EMAIL_ENABLED, true),
   authOAuthProvidersConfigured: process.env.NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS !== undefined,
   authOAuthProviders: parseOAuthProviders(process.env.NEXT_PUBLIC_AUTH_OAUTH_PROVIDERS),
+  analyticsMeasurementId: (process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID || "").trim(),
+  crispWebsiteId: (process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID || "").trim(),
+  supportEmail: (process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "").trim(),
+  supportURL: (process.env.NEXT_PUBLIC_SUPPORT_URL || "").trim(),
   defaultPlan: (process.env.NEXT_PUBLIC_DEFAULT_PLAN || "pro").trim(),
   defaultInterval: (process.env.NEXT_PUBLIC_DEFAULT_INTERVAL || "monthly").trim(),
   defaultCreditsQuantity: parsePositiveInt(process.env.NEXT_PUBLIC_DEFAULT_CREDITS_QUANTITY, 1),

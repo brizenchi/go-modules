@@ -24,3 +24,12 @@ test("private workspace language choices change preference without translated wo
   assert.match(html, /aria-pressed="true"/);
   assert.ok(!html.includes("href="));
 });
+
+test("both languages use a decorative vector chevron without a font-dependent baseline", () => {
+  for (const locale of ["en", "zh"] as const) {
+    const html = renderToStaticMarkup(<LanguagePicker locale={locale} label="Language" onSelect={() => {}} />);
+    const trigger = html.match(/<summary\b[^>]*>(.*?)<\/summary>/s)?.[1] || "";
+    assert.match(trigger, /<svg\b[^>]*class="language-chevron"[^>]*aria-hidden="true"/);
+    assert.doesNotMatch(trigger, /⌄/u);
+  }
+});

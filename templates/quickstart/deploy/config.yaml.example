@@ -131,6 +131,12 @@ referral:
 # 再通过 hostapi.Deps.Config 读取。
 # 环境变量示例：host.openai_api_key → APP_HOST_OPENAI_API_KEY
 host:
+  ai:
+    enabled: false
+    base_url: "https://api.openai.com/v1"
+    api_key: ""
+    model: ""
+    max_output_tokens: 1024
   signup_credits: 0
   uploads:
     enabled: false

@@ -209,6 +209,9 @@ func applyDefaults(cfg *AppConfig) {
 }
 
 func (c AppConfig) Validate() error {
+	if err := c.Host.AI.Validate(); err != nil {
+		return err
+	}
 	modules := c.ModuleConfig()
 	if err := modules.ValidateAdminPassword(); err != nil {
 		return err

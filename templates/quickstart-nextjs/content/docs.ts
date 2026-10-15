@@ -23,7 +23,7 @@ export const documentation: DocumentationSection[] = [
     summary: { en: "Understand the free Next.js and Go starter, what it includes, and what you build yourself.", zh: "了解免费的 Next.js 与 Go 模板包含什么，以及哪些业务需要自己开发。" },
     title: { en: "What you can build with this template", zh: "这个模板能帮你做什么" },
     paragraphs: [
-      { en: "This is a free Next.js + Go starter for building your own SaaS: a website where customers register, use your service, and manage a paid subscription. It connects the public website, customer account center, and administrator console so you can focus on the service you want to sell.", zh: "这是一个免费的 Next.js + Go SaaS 启动模板，用来搭建你自己的在线产品：用户注册、使用服务、购买和管理订阅。模板已经连接好公开网站、用户工作台和管理员后台，你可以把开发精力放在真正要出售的服务上。" },
+      { en: "This is a free Next.js + Go starter for building your own SaaS: a website where customers register, use your service, and manage a paid subscription. It connects the public website, customer account center, and administrator console so you can focus on the service you want to sell.", zh: "这是一个免费的 Next.js + Go SaaS 启动模板，用来搭建你自己的在线产品：用户注册、使用服务、购买和管理订阅。模板已经连接好公开网站、账户中心和管理员后台，你可以把开发精力放在真正要出售的服务上。" },
       { en: "You get the source code and connected example workflows. Add your own core feature, replace the brand and sample plans, and connect your service accounts before launching. The prices shown here demonstrate how your future product can charge customers; they are not a price for downloading the template.", zh: "你拿到的是源码和已经串联好的示例流程。上线前，需要加入自己的核心业务、替换品牌和示例套餐，并接入自己的服务账号。这里展示的套餐价格，是你未来的产品如何收费的示例；下载模板本身免费。" }
     ],
     links: [
@@ -35,14 +35,14 @@ export const documentation: DocumentationSection[] = [
   {
     id: "features",
     group: "start",
-    summary: { en: "Explore the public website, customer workspace, admin console, and reusable examples.", zh: "浏览产品官网、用户工作台、管理员后台与可复用的功能示例。" },
+    summary: { en: "Explore the public website, customer account center, admin console, and reusable examples.", zh: "浏览产品官网、账户中心、管理员后台与可复用的功能示例。" },
     title: { en: "What is included, and where to find it", zh: "已经有什么功能，分别在哪里" },
     paragraphs: [
-      { en: "Each part has a different audience. Your customers manage their own accounts; the site owner uses a separate administrator console to run the service.", zh: "不同页面服务不同的人。你的客户在工作台管理自己的账号；网站所有者使用独立的管理员后台运营整个网站。" }
+      { en: "Each part has a different audience. Your customers manage their own accounts; the site owner uses a separate administrator console to run the service.", zh: "不同页面服务不同的人。你的客户在账户中心管理自己的账号；网站所有者使用独立的管理员后台运营整个网站。" }
     ],
     items: [
       { title: { en: "Public website", zh: "公开网站 · 向访客介绍产品" }, body: { en: "Overview, pricing, setup guide, searchable blog, updates, contact, privacy, and terms pages. Chinese and English copy, sharing metadata, and a sitemap are included.", zh: "总览、价格、使用指南、可搜索的博客、更新记录、联系、隐私与条款页面，带有中英文文案、分享信息和站点地图。" } },
-      { title: { en: "Customer account center", zh: "用户工作台 · 管理自己的账户" }, body: { en: "Account settings at /account, subscriptions and invoices at /billing, and invitation links, progress, and rewards at /referrals. Email-code login and optional Google/GitHub sign-in connect to the Go API.", zh: "在 /account 管理账户资料，在 /billing 管理自己的订阅和账单，在 /referrals 分享邀请链接、查看进展与奖励。支持邮箱验证码登录，也可配置 Google / GitHub 登录。" } },
+      { title: { en: "Customer account center", zh: "账户中心 · 管理自己的账户" }, body: { en: "The account center at /account, a read-only account information dialog, subscriptions and invoices at /billing, credit history at /credits, and invitations and rewards at /referrals. Email-code login and optional Google/GitHub sign-in connect to the Go API.", zh: "在 /account 进入账户中心，在账户弹窗查看只读登录邮箱，在 /billing 管理订阅和账单，在 /credits 查看积分，在 /referrals 管理邀请与奖励。支持邮箱验证码登录，也可配置 Google / GitHub 登录。" } },
       { title: { en: "Administrator console", zh: "管理员后台 · 运营整个网站" }, body: { en: "At /admin, authorized administrators can view users, payment records, subscriptions, referrals, credits, and audit logs, edit public site settings, and configure Resend and Stripe at /admin/integrations. Ordinary accounts cannot access it.", zh: "在 /admin 查看全站用户、支付记录、订阅、邀请、积分和操作审计，修改公开网站设置，并在 /admin/integrations 配置 Resend 与 Stripe。需要管理员权限，普通用户无法进入。" } },
       { title: { en: "Examples you can extend", zh: "业务示例 · 改造成你自己的产品" }, body: { en: "Use /notes for free note creation and credit-based exports, /credits for balance and transaction history, and /files for private image uploads when enabled. They demonstrate how to connect a customer action to ownership, billing, and records.", zh: "在 /notes 体验免费创建笔记、用积分导出，在 /credits 查看余额和流水，在启用上传后使用 /files 保存私有图片。这些示例展示如何把用户操作、数据归属和计费记录接起来，你可以据此开发自己的功能。" } }
     ],
@@ -54,12 +54,12 @@ export const documentation: DocumentationSection[] = [
     summary: { en: "Walk through registration, a Stripe test purchase, and an invitation with two accounts.", zh: "完成注册、Stripe 测试购买，并用两个账号体验邀请流程。" },
     title: { en: "Try a complete customer journey", zh: "按这三步，体验完整用户流程" },
     paragraphs: [
-      { en: "Registration, account changes, and invitation records use the backend and its database. Payment testing uses Stripe’s test environment when configured. The isolated local preview keeps temporary data and has payments disabled, so a checkout cannot be completed there.", zh: "注册、账户修改和邀请记录会经过后端并写入数据库。支付体验需要接入 Stripe 测试环境。隔离的本地 preview 使用临时数据，支付默认关闭，因此不能在其中完成购买。" }
+      { en: "Registration, customer actions, and invitation records use the backend and its database. Payment testing uses Stripe’s test environment when configured. The isolated local preview keeps temporary data and has payments disabled, so a checkout cannot be completed there.", zh: "注册、用户操作和邀请记录会经过后端并写入数据库。支付体验需要接入 Stripe 测试环境。隔离的本地 preview 使用临时数据，支付默认关闭，因此不能在其中完成购买。" }
     ],
     ordered: true,
     items: [
-      { title: { en: "Create your first account", zh: "注册并进入工作台" }, body: { en: "Open the account center and use an available sign-in method. With email login, request a code and enter it; a new address creates an account. Check your profile and try signing out and back in.", zh: "进入用户工作台，选择页面提供的登录方式。使用邮箱时，发送并输入验证码；新邮箱会创建账号。查看账户资料，再退出并重新登录，确认完整流程可用。" } },
-      { title: { en: "Try a subscription in test mode", zh: "在测试环境购买一次订阅" }, body: { en: "Open subscriptions, choose a plan, and continue to Checkout. Only after confirming Stripe test mode, use 4242 4242 4242 4242, a future expiry date, and any three-digit CVC. Return to subscriptions to check the result. If payments are unavailable, the owner must configure them first.", zh: "打开订阅页面，选择套餐并进入 Checkout。确认使用 Stripe 测试模式后，填写 4242 4242 4242 4242、未来有效期和任意三位 CVC。支付后回到订阅页查看结果；如果支付不可用，需要先由站点所有者完成配置。" } },
+      { title: { en: "Create your first account", zh: "注册并进入账户中心" }, body: { en: "Open the account center and use an available sign-in method. With email login, request a code and enter it; a new address creates an account. Open account information to check the read-only email, then try signing out and back in.", zh: "进入账户中心，选择页面提供的登录方式。使用邮箱时，发送并输入验证码；新邮箱会创建账号。打开账户信息查看只读邮箱，再退出并重新登录，确认完整流程可用。" } },
+      { title: { en: "Try a subscription in test mode", zh: "在测试环境购买一次订阅" }, body: { en: "Open /pricing, choose monthly or yearly billing and a plan, then continue directly to Checkout. Only after confirming Stripe test mode, use 4242 4242 4242 4242, a future expiry date, and any three-digit CVC. Return to subscriptions to check the result. If payments are unavailable, the owner must configure them first.", zh: "打开 /pricing，选择月付或年付及套餐，直接进入 Checkout。确认使用 Stripe 测试模式后，填写 4242 4242 4242 4242、未来有效期和任意三位 CVC。支付后回到订阅页查看结果；如果支付不可用，需要先由站点所有者完成配置。" } },
       { title: { en: "Invite a separate new account", zh: "邀请一个独立的新账号" }, body: { en: "Copy your link from referrals. Open it in a separate browser profile or private window and register with a different email. Check the inviter’s pending record, then have the new account complete a qualifying test purchase and check the activation and reward.", zh: "到邀请页面复制链接，在另一浏览器个人资料或无痕窗口中打开，用不同邮箱注册新账号。先在邀请人账号确认“待激活”记录，再让被邀请人完成符合条件的测试购买，检查激活状态和奖励。" } }
     ],
     links: [
@@ -107,7 +107,7 @@ export const documentation: DocumentationSection[] = [
     title: { en: "Set your administrator email and password", zh: "设置管理员邮箱和密码" },
     paragraphs: [
       { en: "Set both variables below in the backend environment, restart the backend, and open /admin. Sign in with that email and password; you do not need to register the administrator account first. There is no shared default administrator password. Use a generated password of 12–72 bytes; ASCII characters make the byte length easy to check.", zh: "在后端环境变量中同时填写下面两项，重启后端，再打开 /admin，用设置的邮箱和密码登录，无需提前注册管理员账号。模板没有通用的默认管理员密码。密码要求为 12–72 字节，建议使用随机生成的英数符号密码，便于确认长度。" },
-      { en: "Use site settings for your public brand, description, support details, and example export cost. Use /admin/integrations for Resend and Stripe. Database connections, JWT, administrator passwords, domains, and OAuth credentials remain in backend environment configuration. Customers manage their own profiles, subscriptions, and invitations in the account center.", zh: "登录后，在网站设置中修改公开品牌、简介、支持渠道和示例导出价格，在 /admin/integrations 配置 Resend 与 Stripe。数据库连接、JWT、管理员密码、域名和 OAuth 凭据仍通过后端环境变量配置。用户工作台供客户管理自己的资料、订阅和邀请。" }
+      { en: "Set website branding and homepage copy in content/site.ts; NEXT_PUBLIC_APP_NAME overrides the default brand. Rebuild the frontend to keep the website, metadata and sharing card aligned. Site settings manage API service details, support channels and the example export cost. Use /admin/integrations for Resend and Stripe. Database connections, JWT, administrator passwords, domains, and OAuth credentials remain in backend environment configuration. Customers view their read-only account information and manage subscriptions and invitations in the account center.", zh: "网站品牌和首页主文案在 content/site.ts 配置，NEXT_PUBLIC_APP_NAME 可覆盖默认品牌，重新构建前端后，页面、元信息与分享卡片一起更新。登录后，在网站设置管理 API 服务资料、支持渠道和示例导出价格，在 /admin/integrations 配置 Resend 与 Stripe。数据库连接、JWT、管理员密码、域名和 OAuth 凭据仍通过后端环境变量配置。账户中心供客户查看只读账户信息、管理订阅与邀请。" }
     ],
     code: "APP_AUTH_ADMIN_EMAIL=<your-admin-email>\nAPP_AUTH_ADMIN_PASSWORD=<your-generated-password>",
     links: [{ href: "/admin", label: { en: "Open administrator sign-in", zh: "打开管理员登录" } }]
@@ -128,6 +128,19 @@ export const documentation: DocumentationSection[] = [
     ],
     code: "# First boot only; also configure your database, JWT, admin credentials and domains.\nAPP_AUTH_ENABLED=true\nAPP_AUTH_EMAIL_ENABLED=false\nAPP_AUTH_EMAIL_DEBUG=false\nAPP_AUTH_GOOGLE_ENABLED=false\nAPP_AUTH_GITHUB_ENABLED=false\nAPP_EMAIL_PROVIDER=none\nAPP_BILLING_ENABLED=false",
     links: [{ href: "/admin/integrations", label: { en: "Open service settings", zh: "打开服务配置" } }]
+  },
+  {
+    id: "ai-integration",
+    group: "configure",
+    summary: { en: "Connect a model provider on the server and inject it into your own product features.", zh: "在服务端接入模型服务商，并将调用能力注入自己的业务功能。" },
+    title: { en: "Connect AI to your own product", zh: "为自己的产品接入 AI" },
+    paragraphs: [
+      { en: "The template supplies a stateless model adapter in foundation/aix and a backend configuration factory in internal/ai. It accepts explicit messages and returns a text completion. There is no default customer chat page, chat API, conversation database or daily usage policy.", zh: "模板在 foundation/aix 提供无状态模型适配器，在后端 internal/ai 提供配置工厂。输入明确的消息，返回文本结果；默认不提供用户聊天页面、聊天接口、对话数据库或每日用量规则。" },
+      { en: "Configure a provider supporting the Chat Completions protocol, then create the adapter in your product composition code with the injected HTTP client. Configuration alone does not expose an AI endpoint. Keep the API key on the server and pass the request context into every model call.", zh: "配置支持 Chat Completions 协议的服务商后，在产品组装代码中使用注入的 HTTP 客户端创建适配器。仅填写配置不会自动开放 AI 接口。密钥保留在服务端，每次模型调用都传递请求上下文。" },
+      { en: "Your product owns its prompts, customer authorization, conversation history, task lifecycle and charging policy. Reuse the credit ledger if your feature charges credits; decide when to reserve, charge or refund in that business service. Notes and uploads are separate developer examples, not a required AI workflow.", zh: "提示词、用户权限、对话历史、任务流程与收费规则属于具体产品。如果功能按积分收费，可以复用积分账本，在业务服务中决定何时预占、扣费或退款。笔记和上传是独立的开发示例，不是 AI 接入必须提供的业务。" }
+    ],
+    code: "APP_HOST_AI_ENABLED=true\nAPP_HOST_AI_BASE_URL=https://api.openai.com/v1\nAPP_HOST_AI_API_KEY=<your-server-side-provider-key>\nAPP_HOST_AI_MODEL=<your-compatible-chat-model>\nAPP_HOST_AI_MAX_OUTPUT_TOKENS=1024",
+    links: [{ href: "https://github.com/brizenchi/go-modules/tree/main/foundation/aix", label: { en: "Read the adapter and usage example", zh: "查看适配器与接入示例" } }, { href: "/docs/launch", label: { en: "Define your product rules", zh: "定义自己的产品规则" } }]
   },
   {
     id: "payments",
@@ -169,7 +182,7 @@ export const documentation: DocumentationSection[] = [
     summary: { en: "Replace starter branding and publish your own guides, articles, and support content.", zh: "替换模板品牌，发布自己的指南、文章与支持内容。" },
     title: { en: "Replace the public content", zh: "换成你的产品介绍与支持信息" },
     paragraphs: [
-      { en: "Explain the problem your product solves on the overview page and describe exactly what each plan includes. Replace the template’s example business workflow with your own. In the administrator’s site settings, add a support email or HTTPS help page that you maintain.", zh: "在总览页写清楚自己的产品解决什么问题，在套餐页说明每档价格包含什么，并把模板的示例业务替换成自己的功能。在管理员的网站设置中填写有人维护的支持邮箱或 HTTPS 帮助页面。" },
+      { en: "Edit content/site.ts for your default brand, bilingual homepage heading, introduction, buttons, FAQ and sharing copy. NEXT_PUBLIC_APP_NAME overrides the brand at build time. Rebuild after changes. Explain the problem your product solves and describe exactly what each plan includes. Replace the template’s example business workflow with your own. In the administrator’s site settings, add a support email or HTTPS help page that you maintain.", zh: "在 content/site.ts 修改默认品牌、双语首页标题、介绍、按钮、FAQ 与分享文案，NEXT_PUBLIC_APP_NAME 可在构建时覆盖品牌，修改后重新构建。在总览页写清楚自己的产品解决什么问题，在套餐页说明每档价格包含什么，并把模板的示例业务替换成自己的功能。在管理员的网站设置中填写有人维护的支持邮箱或 HTTPS 帮助页面。" },
       { en: "Edit content/articles.ts for bilingual blog posts, content/updates.ts for releases, and content/policies.ts for your actual privacy and terms. CONTENT.md covers publishing and metadata. English keeps the original URLs and Chinese uses /zh URLs with reciprocal language links; public pages include sharing metadata and a sitemap, while account and admin routes are excluded.", zh: "在 content/articles.ts 编辑中英文博客，在 content/updates.ts 发布更新，在 content/policies.ts 按实际业务完善隐私与条款。CONTENT.md 说明发布与元信息配置。英文保留原网址，中文使用 /zh 独立网址，并提供相互对应的语言链接；公开页面带有分享信息和站点地图，账户及管理路由不会出现在站点地图中。" }
     ],
     links: [

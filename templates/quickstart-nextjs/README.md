@@ -63,7 +63,7 @@ Stripe 订阅与积分计费、邀请推荐和 Resend 邮件能力；前端包�
 | `/contact` | 已配置的支持渠道与自助帮助 |
 | `/privacy`、`/terms` | 需按实际业务完善的隐私与条款模板 |
 | `/login` | 按配置显示邮箱、Google、GitHub 登录 |
-| `/account` | 会话刷新、退出、WebSocket ticket |
+| `/account` | 账户中心、订阅与积分入口、只读账户信息弹窗与退出 |
 | `/billing` | 固定价格 Checkout、订阅变更、Portal、账单、积分包 |
 | `/referrals` | 邀请链接、统计和历史 |
 | `/invite` | 注册前保存 `?ref=...` |
@@ -152,7 +152,7 @@ OAuth 控制台登记的是后端 callback；后端完成回调后，再把浏�
 
 ## 通常要改什么
 
-- `NEXT_PUBLIC_APP_NAME` 和品牌文案；
+- `content/site.ts` 中的品牌、双语首页主文案、按钮、FAQ 与分享卡片；`NEXT_PUBLIC_APP_NAME` 可在构建时覆盖品牌，修改后需重新构建；
 - 登录方式开关；
 - 首页、定价和文档内容；
 - 套餐和固定积分包默认值；
@@ -197,5 +197,13 @@ npm run build
 npm run verify
 ```
 
-手工验收至少覆盖：邀请码保存、所有已启用登录方式、会话刷新与退出、首次订阅、
+手工验收至少覆盖：邀请码保存、所有已启用登录方式、只读账户弹窗与退出、首次订阅、
 套餐变更、Billing Portal、固定积分包购买和邀请统计。生产和 CI 使用 Node 22 LTS。
+
+## Optional extension modules
+
+See [EXTENSIONS.md](./EXTENSIONS.md) for reusable tables/forms, GA4 analytics, on-demand Crisp chat, and server-side AI integration. External integrations default off. AI provides a stateless adapter for your own features, without a default chat page or conversation model; no extra payment provider is included.
+
+### 首页与品牌配置
+
+在 `content/site.ts` 配置默认品牌、首页标题与介绍、主按钮、功能条目、FAQ、页脚与分享文案。`NEXT_PUBLIC_APP_NAME` 非空时覆盖默认品牌，所有页面与元信息使用相同名称。首页截图位于 `public/previews/`，包含中英文两份真实界面预览，使用虚构演示账号。修改文案、环境变量或截图后重新构建前端。后台网站设置继续管理支持渠道、导出价格和 API 服务资料，不覆盖前端品牌。

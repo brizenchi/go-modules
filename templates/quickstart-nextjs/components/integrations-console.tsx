@@ -6,7 +6,9 @@ import { useI18n } from "@/lib/i18n";
 import { buildIntegrationPatch, integrationDraft, integrationIssues, type IntegrationDraft, type IntegrationIssue } from "@/lib/integration-form";
 import { getAdminIntegrations, saveAdminIntegration, IntegrationError, type IntegrationFailure, type IntegrationProvider, type IntegrationView, type IntegrationsView } from "@/lib/integrations-api";
 import { newIntentKey, useConsoleAction, useConsoleSession } from "./console-kit";
-import adminStyles from "./admin-shell.module.css";
+import { AdminPageHeader } from "./admin-page-header";
+import { PendingLabel } from "./pending-label";
+import { StatusBadge } from "./status-badge";
 import styles from "./integrations-console.module.css";
 
 type Copy = { en: string; zh: string };
@@ -118,9 +120,9 @@ function ProviderForm({ view, storageReady, localPreview, onSaved, onBusy }: {
 
   return <section className={styles.provider} aria-labelledby={`${id("title")}`}>
     <header className={styles.providerHeader}>
-      <span className={`${styles.providerMark} ${resend ? styles.resend : styles.stripe}`} aria-hidden="true">{resend ? "R" : "S"}</span>
+      <span className={styles.providerMark} aria-hidden="true">{resend ? "R" : "S"}</span>
       <div><h2 id={id("title")}>{name}</h2><p>{t(resend ? { en: "Email delivery & sign-in codes", zh: "邮件发送与登录验证码" } : { en: "Subscriptions, payments & credit packages", zh: "订阅、支付与积分包" })}</p></div>
-      <span className={view.restart_required || localPreview ? styles.pending : styles.status}>{t(localPreview ? { en: "Preview only", zh: "仅本地预览" } : view.restart_required ? { en: "Restart required", zh: "待重启生效" } : { en: "No pending changes", zh: "无待生效变更" })}</span>
+      <div className={styles.providerStatus}><StatusBadge tone={view.restart_required || localPreview ? "warning" : "neutral"}>{t(localPreview ? { en: "Preview only", zh: "仅本地预览" } : view.restart_required ? { en: "Restart required", zh: "待重启生效" } : { en: "No pending changes", zh: "无待生效变更" })}</StatusBadge></div>
     </header>
     <div className={styles.stateGrid}>
       <div><span>{t({ en: "Saved configuration", zh: "已保存配置" })}</span><strong>{t(view.source === "database" ? { en: "Database", zh: "后台数据库" } : { en: "Environment", zh: "环境变量" })} · {t(view.enabled ? { en: "Enabled", zh: "启用" } : { en: "Disabled", zh: "停用" })}</strong><small>{t({ en: `Version ${view.version}`, zh: `版本 ${view.version}` })}</small></div>
@@ -150,7 +152,7 @@ function ProviderForm({ view, storageReady, localPreview, onSaved, onBusy }: {
         </> : <p className={styles.environment}>{t(view.source === "database" ? { en: "Saving removes this service's dashboard override. Restart the API to use its deployment environment configuration.", zh: "保存后将移除此服务的后台覆盖配置，重启 API 后使用部署环境变量。" } : { en: "This service follows the deployment environment. Choose “Manage in this dashboard” to edit it here.", zh: "此服务目前跟随部署环境变量。选择「在后台管理配置」即可在此编辑。" })}</p>}
         <div className={styles.saveArea}><div className="field"><label htmlFor={id("reason")}>{t({ en: "Change reason", zh: "修改原因" })}</label><input id={id("reason")} value={reason} onChange={(event) => { setReason(event.target.value); setIssues([]); }} placeholder={t({ en: "For example: set up test payments", zh: "例如：配置测试支付" })} minLength={3} maxLength={500} required /></div>
           {issues.length ? <ul className={styles.error} role="alert">{issues.map((issue) => <li key={issue}>{t(issueCopy[issue])}</li>)}</ul> : null}
-          <button type="submit" className="button primary" disabled={action.busy || !token || !storageReady}>{t(action.busy ? { en: "Saving…", zh: "保存中…" } : { en: `Save ${name} settings`, zh: `保存 ${name} 配置` })}</button>
+          <button type="submit" className="button primary" aria-busy={action.busy} disabled={action.busy || !token || !storageReady}>{action.busy ? <PendingLabel>{t({ en: "Saving…", zh: "保存中…" })}</PendingLabel> : t({ en: `Save ${name} settings`, zh: `保存 ${name} 配置` })}</button>
         </div>
       </fieldset>
       <IntegrationFailureNotice error={action.error} />
@@ -185,10 +187,10 @@ function IntegrationsSession({ token }: { token: string }) {
   useEffect(() => { const counter = generation; const request = requestRef; void load(); return () => { counter.current++; request.current?.abort(); }; }, [load]);
   function saved(view: IntegrationView) { setConfiguration((current) => current ? { ...current, providers: current.providers.map((provider) => provider.provider === view.provider ? view : provider) } : current); }
   return <>
-    <header className={`${adminStyles.pageHeader} ${styles.pageHeader}`}><div><span className={adminStyles.eyebrow}>{t({ en: "EMAIL & PAYMENTS", zh: "邮件与支付" })}</span><h1>{t({ en: "Service configuration", zh: "服务配置" })}</h1><p>{t({ en: "Connect the services behind your SaaS. Save a configuration here, then restart all API instances to apply it.", zh: "配置 SaaS 使用的邮件与支付服务。保存配置后，重启所有后端实例使其生效。" })}</p></div><button className="button" type="button" disabled={loading || Object.values(busy).some(Boolean)} onClick={() => void load()}>{t({ en: "Reload saved settings", zh: "重新读取配置" })}</button></header>
+    <AdminPageHeader section="integrations" onRefresh={() => void load()} busy={loading} disabled={Object.values(busy).some(Boolean)} />
     <div className={styles.stack}>
       <IntegrationFailureNotice error={error} />
-      {loading ? <p role="status">{t({ en: "Loading saved and active configurations…", zh: "正在读取已保存配置和当前生效状态…" })}</p> : null}
+      {loading ? <p role="status"><PendingLabel>{t({ en: "Loading saved and active configurations…", zh: "正在读取已保存配置和当前生效状态…" })}</PendingLabel></p> : null}
       {configuration?.local_preview ? <aside className={styles.preview} role="status"><strong>{t({ en: "Local preview", zh: "本地预览" })}</strong><p>{t({ en: "Settings are saved only in this temporary preview database. Resend and Stripe stay inactive, including after a preview restart. Use test credentials here.", zh: "配置仅保存在此预览的临时数据库中。即使重启预览，Resend 和 Stripe 也不会连接外部服务。请使用测试凭据。" })}</p></aside> : null}
       {configuration && !configuration.storage_ready ? <IntegrationFailureNotice error={new IntegrationError("storage")} /> : null}
       {configuration ? <>{configuration.providers.map((view) => <ProviderForm key={`${revision}-${view.provider}`} view={view} storageReady={configuration.storage_ready && !loading} localPreview={configuration.local_preview} onSaved={saved} onBusy={onBusy} />)}<p className={styles.footnote}>{t({ en: "Service credentials are stored as plaintext in the database and are never returned to these fields. Database connection details, the administrator password and JWT secrets stay in deployment environment variables.", zh: "服务密钥以明文保存在数据库中，不会回显到表单。数据库连接、管理员密码和 JWT 密钥仍通过部署环境变量管理。" })}</p></> : null}

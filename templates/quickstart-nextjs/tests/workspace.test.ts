@@ -47,3 +47,10 @@ test("auxiliary personal features keep route recognition without expanding accou
     assert.ok(!workspaceNavItems.some((entry) => entry.href === item.href));
   }
 });
+
+test("the account center does not advertise product-specific examples or a chat product", () => {
+  assert.deepEqual(auxiliaryWorkspaceItems.map(item => item.href), ["/credits"]);
+  assert.equal(isWorkspacePath("/ai"), false);
+  assert.equal(isWorkspacePath("/notes"), true);
+  assert.equal(isWorkspacePath("/files"), true);
+});

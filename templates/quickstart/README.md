@@ -309,3 +309,7 @@ go build ./...
 ## 公共积分服务
 
 业务统一通过 `deps.Credits` 查询、发放、消费和退回积分。调用示例与分层说明见 [CREDITS_SERVICE.md](CREDITS_SERVICE.md)。
+
+## Optional AI integration
+
+`foundation/aix` supplies stateless Chat Completions-compatible text generation; `internal/ai` creates it from `APP_HOST_AI_*` and the injected HTTP client. It defaults off and registers no customer chat page or API. Conversation storage, authorization, usage policy and credit charging belong to your product feature. See the [adapter README](../../foundation/aix/README.md) and [extension guide](../quickstart-nextjs/EXTENSIONS.md#ai-integration).
