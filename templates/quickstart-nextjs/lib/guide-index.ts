@@ -1,6 +1,6 @@
 import type { ContentKind, PublishedArticle } from "./api";
 
-export type GuideIndexKind = ContentKind | "resources";
+export type GuideIndexKind = Exclude<ContentKind, "page"> | "resources";
 export type GuideCategory = "all" | "docs" | "blog";
 export type GuideIndexEntry = Pick<PublishedArticle, "id" | "path" | "kind"> & { translation: Pick<PublishedArticle["translation"], "title" | "summary"> };
 

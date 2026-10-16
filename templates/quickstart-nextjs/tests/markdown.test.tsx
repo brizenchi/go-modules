@@ -14,3 +14,11 @@ test("Markdown rejects dangerous URLs and imports a title into only the selected
  assert.throws(() => importMarkdown("字".repeat(50001)));
  assert.deepEqual(markdownBlocks("## Same\n\n## Same").map(block => "id" in block ? block.id : ""), ["same","same-2"]);
 });
+test("translated Markdown contains complete readable HTML and language-correct internal links without client requests", () => {
+ const html = renderToStaticMarkup(<MarkdownContent locale="zh" idPrefix="content-" source={'## 发布流程\n\n在后台保存 **草稿**，再发布当前语言。\n\n[指南](/docs/content#publish) [账户](/account) [外部](https://example.test)'} />);
+ assert.match(html, /<h2 id="content-发布流程">发布流程<\/h2>/);
+ assert.match(html, /在后台保存 <strong>草稿<\/strong>，再发布当前语言。/);
+ assert.match(html, /href="\/zh\/docs\/content#publish"/);
+ assert.match(html, /href="\/account"/);
+ assert.match(html, /href="https:\/\/example.test"/);
+});

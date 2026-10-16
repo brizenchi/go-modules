@@ -15,6 +15,8 @@ import { useI18n } from "@/lib/i18n";
 import { getHomeContent } from "@/content/site";
 import { appEnv } from "@/lib/env";
 import styles from "./marketing.module.css";
+import { ProductNavigation, RelatedContent } from "@/components/content-discovery";
+import type { DiscoveryEntry } from "@/lib/content-discovery";
 
 type Text = { en: string; zh: string };
 type ContentSection = { title: Text; body: Text; bullets?: Text[] };
@@ -28,30 +30,6 @@ const labels = {
   related: { en: "Continue exploring", zh: "继续了解" },
   sources: { en: "Sources & further reading", zh: "来源与延伸阅读" }
 };
-
-const categoryLabels = {
-  features: { en: "Features", zh: "功能介绍" },
-  "use-cases": { en: "Use cases", zh: "使用场景" },
-  compare: { en: "Comparisons", zh: "方案比较" },
-  examples: { en: "Examples", zh: "使用示例" }
-};
-
-function CategoryNavigation({ active }: { active?: MarketingKind }) {
-  const { t } = useI18n();
-  return (
-    <nav className={styles.categoryNav} aria-label={t({ en: "Explore the template", zh: "了解模板" })}>
-      {marketingCategories.map((category) => (
-        <LocalizedLink
-          key={category.kind}
-          href={category.path}
-          aria-current={category.kind === active ? "page" : undefined}
-        >
-          {t(categoryLabels[category.kind])}
-        </LocalizedLink>
-      ))}
-    </nav>
-  );
-}
 
 function ContentSections({ sections }: { sections: ContentSection[] }) {
   const { t } = useI18n();
@@ -129,7 +107,7 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
       ]}
     >
       <div className={styles.page}>
-        <CategoryNavigation active={kind} />
+        <ProductNavigation currentPath={category.path} />
         <div className={styles.indexIntro}>
           <span className={styles.sectionLabel}>{t({ en: "A practical starting point", zh: "从实际需求出发" })}</span>
           <p>{t(category.intro)}</p>
@@ -166,7 +144,7 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
   );
 }
 
-export function MarketingDetail({ page }: { page: MarketingPage }) {
+export function MarketingDetail({ page, entries }: { page: MarketingPage; entries: DiscoveryEntry[] }) {
   const { t } = useI18n();
   const category = marketingCategories.find((item) => item.kind === page.kind);
   const toc = [
@@ -190,6 +168,7 @@ export function MarketingDetail({ page }: { page: MarketingPage }) {
       ]}
       actions={<LocalizedLink className="button primary" href={page.primaryCta.href}>{t(page.primaryCta.label)}</LocalizedLink>}
     >
+      <ProductNavigation currentPath={page.path} />
       <div className={`${styles.page} ${styles.detailLayout}`}>
         <div className={styles.readingBody}>
           <section className={styles.summary} id="overview">
@@ -235,7 +214,6 @@ export function MarketingDetail({ page }: { page: MarketingPage }) {
             </div>
           </section>
 
-          <RelatedLinks links={page.related} />
           <SourceNotes sources={page.sources} updatedAt={page.updatedAt} />
         </div>
 
@@ -247,6 +225,7 @@ export function MarketingDetail({ page }: { page: MarketingPage }) {
           <LocalizedLink className={styles.railLink} href="/resources">{t({ en: "All guides", zh: "所有指南" })}<span aria-hidden="true">↗</span></LocalizedLink>
         </aside>
       </div>
+      <RelatedContent entries={entries} currentPath={page.path} />
     </SiteShell>
   );
 }

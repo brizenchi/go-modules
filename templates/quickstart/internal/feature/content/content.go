@@ -64,6 +64,7 @@ func Models() []any              { return []any{&Record{}} }
 //go:embed seed.json
 var seedJSON []byte
 
+// Seed returns importable drafts. It never contributes records to public reads.
 func Seed() []Article {
 	var rows []struct {
 		Path         string                 `json:"path"`
@@ -74,11 +75,7 @@ func Seed() []Article {
 	result := make([]Article, 0, len(rows))
 	for i, row := range rows {
 		sum := sha256.Sum256([]byte(row.Path))
-		published := map[string]Publication{}
-		for locale, t := range row.Translations {
-			published[locale] = Publication{Translation: t, PublishedAt: time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC)}
-		}
-		result = append(result, Article{ID: hex.EncodeToString(sum[:16]), Path: row.Path, Kind: row.Kind, Position: i, Translations: row.Translations, Published: published})
+		result = append(result, Article{ID: hex.EncodeToString(sum[:16]), Path: row.Path, Kind: row.Kind, Position: i, Translations: row.Translations, Published: map[string]Publication{}})
 	}
 	return result
 }
@@ -106,9 +103,6 @@ func decode(row Record) (Article, error) {
 }
 func (s *Service) List(ctx context.Context) ([]Article, error) {
 	byID := map[string]Article{}
-	for _, row := range Seed() {
-		byID[row.ID] = row
-	}
 	cursor := ""
 	for {
 		var rows []Record
@@ -149,30 +143,50 @@ func read(ctx context.Context, db *gorm.DB, id string) (Article, error) {
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return Article{}, err
 	}
-	for _, item := range Seed() {
-		if item.ID == id {
-			return item, nil
-		}
-	}
 	return Article{}, ErrNotFound
 }
 func (s *Service) Resolve(ctx context.Context, path, locale string) (*Article, error) {
-	if !validPath.MatchString(path) || (locale != "en" && locale != "zh") {
+	if !ValidPath(path) || (locale != "en" && locale != "zh") {
 		return nil, ErrInvalid
 	}
-	rows, err := s.List(ctx)
+	var record Record
+	err := s.db.WithContext(ctx).Where("path = ?", path).Take(&record).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	for _, row := range rows {
-		if row.Path == path {
-			if _, ok := row.Published[locale]; ok {
-				return &row, nil
-			}
-			return nil, nil
+	row, err := decode(record)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := row.Published[locale]; !ok {
+		return nil, nil
+	}
+	return &row, nil
+}
+
+// pagePaths is deliberately bounded: a CMS editor cannot shadow auth, billing,
+// API, legal or administrator routes.
+var pagePaths = []string{"/", "/features", "/use-cases", "/compare", "/resources", "/docs", "/blog", "/about", "/updates"}
+
+func ValidPath(path string) bool {
+	if validPath.MatchString(path) {
+		return true
+	}
+	for _, allowed := range pagePaths {
+		if path == allowed {
+			return true
 		}
 	}
-	return nil, nil
+	return false
+}
+func validKind(path, kind string) bool {
+	if kind == "page" {
+		return ValidPath(path) && !validPath.MatchString(path)
+	}
+	return validPath.MatchString(path) && strings.HasPrefix(path, "/"+kind+"/")
 }
 
 var validPath = regexp.MustCompile(`^/(blog|docs|features|use-cases|compare)/[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -187,7 +201,7 @@ type Save struct {
 }
 
 func Valid(in Save) bool {
-	if !validPath.MatchString(in.Path) || len(in.Path) > 200 || !strings.HasPrefix(in.Path, "/"+in.Kind+"/") || in.Position < 0 || in.Position > 100000 || len(in.Translations) > 2 {
+	if !validKind(in.Path, in.Kind) || len(in.Path) > 200 || in.Position < 0 || in.Position > 100000 || len(in.Translations) > 2 {
 		return false
 	}
 	for locale, t := range in.Translations {
@@ -245,11 +259,6 @@ func (s *Service) Save(ctx context.Context, id, actor, key string, in Save) (Art
 		}
 		if duplicate > 0 {
 			return ErrVersion
-		}
-		for _, seed := range Seed() {
-			if seed.Path == in.Path && seed.ID != id {
-				return ErrVersion
-			}
 		}
 		next := Article{ID: id, Path: in.Path, Kind: in.Kind, Position: in.Position, Version: in.Version + 1, Translations: in.Translations, Published: previous.Published, UpdatedAt: time.Now().UTC()}
 		if err := persist(tx, next, in.Version); err != nil {

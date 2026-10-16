@@ -10,8 +10,10 @@ import { useI18n } from "@/lib/i18n";
 import { ReadingLayout } from "./reading-layout";
 import styles from "./reading-layout.module.css";
 import guideStyles from "./docs.module.css";
+import { RelatedContent } from "@/components/content-discovery";
+import type { DiscoveryEntry } from "@/lib/content-discovery";
 
-export function GuideArticle({ guide }: { guide: DocumentationSection }) {
+export function GuideArticle({ guide, entries }: { guide: DocumentationSection; entries: DiscoveryEntry[] }) {
   const { t, locale } = useI18n();
   const group = documentationGroups.find((item) => item.id === guide.group)!;
   const position = documentation.findIndex((item) => item.id === guide.id);
@@ -49,6 +51,7 @@ export function GuideArticle({ guide }: { guide: DocumentationSection }) {
           {next ? <Link href={`/docs/${next.id}`}><span>{t({ en: "Next guide →", zh: "下一篇 →" })}</span>{t(next.title)}</Link> : <Link href="/blog"><span>{t({ en: "Keep reading →", zh: "继续阅读 →" })}</span>{t({ en: "The product journal", zh: "产品文章" })}</Link>}
         </nav>
       </ReadingLayout>
+      <RelatedContent entries={entries} currentPath={`/docs/${guide.id}`} />
     </SiteShell>
   );
 }

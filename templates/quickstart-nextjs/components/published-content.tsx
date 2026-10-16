@@ -6,24 +6,33 @@ import { useI18n } from "@/lib/i18n";
 import { localizeHref } from "@/lib/locale";
 import { SiteShell } from "./site-shell";
 import { MarkdownContent } from "./markdown-content";
+import { markdownBlocks } from "@/lib/markdown";
 import { ArticleLanguagesProvider } from "./article-language-context";
 import { StructuredData } from "./structured-data";
 import { articleStructuredData } from "@/lib/structured-data";
-import { getHomeContent } from "@/content/site";
-import { appEnv } from "@/lib/env";
 import { siteLinks } from "@/content/navigation";
 import { filterGuideIndex, type GuideCategory, type GuideIndexEntry } from "@/lib/guide-index";
-import styles from "./content/marketing.module.css";
+import type { DiscoveryEntry } from "@/lib/content-discovery";
+import { GuideDirectories, ProductNavigation, RelatedContent } from "./content-discovery";
 import listStyles from "./published-content.module.css";
-const names = { blog: { en: "Articles", zh: "产品文章" }, docs: { en: "Documentation", zh: "使用文档" }, features: { en: "Features", zh: "功能介绍" }, "use-cases": { en: "Use cases", zh: "使用场景" }, compare: { en: "Comparisons", zh: "方案比较" }, resources: siteLinks.resources.label };
-export function PublishedContentIndex({ kind, entries }: { kind: keyof typeof names; entries: GuideIndexEntry[] }) {
+const names = { page: { en: "Page", zh: "页面" }, blog: { en: "Articles", zh: "产品文章" }, docs: { en: "Documentation", zh: "使用文档" }, features: { en: "Features", zh: "功能介绍" }, "use-cases": { en: "Use cases", zh: "使用场景" }, compare: { en: "Comparisons", zh: "方案比较" }, resources: siteLinks.resources.label };
+const descriptions = {
+ blog: { en: "Practical answers to the questions around your product and account.", zh: "围绕产品与账户问题，查阅实用文章与操作建议。" },
+ docs: { en: "Set up your site, connect your services and prepare to launch.", zh: "从站点配置到服务接入，完成上线前的准备。" },
+ features: { en: "Explore the authentication, billing and account foundations already connected.", zh: "了解已经接通的登录、计费与账户基础能力。" },
+ "use-cases": { en: "Find a starting workflow for the way your product delivers value and charges customers.", zh: "根据产品的交付与收费方式，选择合适的起步流程。" },
+ compare: { en: "Compare development approaches and choose the starting point that fits your product.", zh: "比较不同开发方式，选择适合自己产品的起点。" },
+ resources: { en: "Practical guides to get started, use your account and make the most of the product.", zh: "从入门配置到日常使用，找到你需要的教程与实践方法。" }
+};
+export function PublishedContentIndex({ kind, entries, page }: { kind: Exclude<keyof typeof names, "page">; entries: GuideIndexEntry[]; page?: PublishedArticle }) {
  const { t, locale } = useI18n();
  const [query, setQuery] = useState("");
  const [category, setCategory] = useState<GuideCategory>("all");
  const rows = filterGuideIndex(entries, kind, category, query);
- const title = t(names[kind]);
- return <SiteShell variant="compact" eyebrow={title} title={title} description={t(kind === "resources" ? { en: "Practical guides to get started, use your account and make the most of the product.", zh: "从入门配置到日常使用，找到你需要的教程与实践方法。" } : { en: "Explore product capabilities and practical guides.", zh: "了解产品能力，查阅使用指南与实用文章。" })}>
-  {kind === "features" ? <div className={styles.capabilities}>{getHomeContent(appEnv.demoMode)[locale].features.map(feature => <section className={styles.capability} key={feature.label}><span>{feature.label} / {feature.detail}</span><h2>{feature.title}</h2><p>{feature.description}</p>{entries.some(entry => entry.path === feature.href) || ["/resources", "/docs", "/features"].includes(feature.href) ? <Link href={feature.href}>{t({ en: "Learn more", zh: "了解详情" })} →</Link> : null}</section>)}</div> : null}
+ const title = page?.translation.title || t(names[kind]);
+ return <ArticleLanguagesProvider locales={page?.locales || ["en", "zh"]}><SiteShell variant="compact" eyebrow={title} title={title} description={page?.translation.summary || t(descriptions[kind])}>
+  {kind === "resources" ? <GuideDirectories /> : ["features", "use-cases", "compare"].includes(kind) ? <ProductNavigation currentPath={`/${kind}`} /> : null}
+  {page ? <div className={listStyles.introduction}><MarkdownContent source={page.translation.body} locale={locale} /></div> : null}
   <section className={listStyles.library} aria-label={title}>
    <div className={listStyles.toolbar}>
     {kind === "resources" ? <div className={listStyles.filters} role="group" aria-label={t({ en: "Guide category", zh: "指南分类" })}>
@@ -52,12 +61,15 @@ export function PublishedContentIndex({ kind, entries }: { kind: keyof typeof na
    </ul>
    {!rows.length ? <p className={listStyles.empty}>{t({ en: "No published articles match this search.", zh: "暂无匹配的已发布文章。" })}</p> : null}
   </section>
- </SiteShell>;
+ </SiteShell></ArticleLanguagesProvider>;
 }
-export function PublishedContentArticle({ article }: { article: PublishedArticle }) {
+export function PublishedContentArticle({ article, entries }: { article: PublishedArticle; entries: DiscoveryEntry[] }) {
  const { t, locale } = useI18n(); const text = article.translation;
+ const toc = markdownBlocks(text.body).flatMap(block => block.kind === "heading" && block.level === 2 ? [{ id: `content-${block.id}`, label: block.text }] : []);
  return <ArticleLanguagesProvider locales={article.locales}><SiteShell variant="article" eyebrow={t(names[article.kind])} title={text.title} description={text.summary} breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { href: `/${article.kind}`, label: t(names[article.kind]) }, { label: text.title }]}>
+  {["features", "use-cases", "compare"].includes(article.kind) ? <ProductNavigation currentPath={article.path} /> : null}
   <StructuredData data={articleStructuredData({ title: text.title, description: text.summary, path: localizeHref(article.path, locale), language: locale === "zh" ? "zh-CN" : "en", publishedAt: article.published_at })} />
-  <div className="published-article" id="details"><MarkdownContent source={text.body} idPrefix="content-" /><footer><Link href={`/${article.kind}`}>← {t(names[article.kind])}</Link><Link href="/contact">{t({ en: "Help & support", zh: "帮助与支持" })} →</Link></footer></div>
+  <div className="published-article" id="details">{toc.length > 2 ? <details className={listStyles.outline}><summary>{t({ en: "On this page", zh: "本页目录" })}</summary><nav aria-label={t({ en: "On this page", zh: "本页目录" })}><ol>{toc.map(item => <li key={item.id}><a href={`#${item.id}`}>{item.label}</a></li>)}</ol></nav></details> : null}<MarkdownContent locale={locale} source={text.body} idPrefix="content-" /><footer><Link href={`/${article.kind}`}>← {t(names[article.kind])}</Link><Link href="/contact">{t({ en: "Help & support", zh: "帮助与支持" })} →</Link></footer></div>
+  <RelatedContent entries={entries} currentPath={article.path} />
  </SiteShell></ArticleLanguagesProvider>;
 }

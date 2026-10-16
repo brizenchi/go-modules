@@ -1,8 +1,10 @@
-import { publishedArticle, publishedIndex } from "@/lib/public-content";
+import { discoveryIndex, isManagedPath, publishedArticle } from "@/lib/public-content";
 import type { Locale } from "@/lib/locale";
 import { PublishedContentArticle, PublishedContentIndex } from "./published-content";
+import { ManagedHome } from "./content/managed-home";
+import { ManagedPage } from "./managed-page";
 import { notFound } from "next/navigation";
-import HomePage from "@/app/(default)/(public)/page";
+import { HomeContent } from "./content/home";
 import { ProductPricing } from "./content/pricing";
 import { Documentation } from "./content/docs";
 import { BlogIndex, BlogArticle } from "./content/blog";
@@ -12,21 +14,26 @@ import { ContactContent } from "./content/contact";
 import { PolicyContent } from "./content/policy";
 import { MarketingIndex, MarketingDetail, AboutPageContent } from "./content/marketing";
 import { marketingCategories, getMarketingPage } from "@/content/marketing";
-import { documentation, findDocumentation } from "@/content/docs";
-import { articles, findArticle } from "@/content/articles";
-import type { GuideIndexEntry } from "@/lib/guide-index";
+import { findDocumentation } from "@/content/docs";
+import { findArticle } from "@/content/articles";
 
 export async function PublicPage({ path, locale="en" }: { path: string; locale?: Locale }) {
- if (/^\/(blog|docs|features|use-cases|compare)\/.+/.test(path)) {
-  const resolved=await publishedArticle(path,locale);
-  if(resolved.managed){if(!resolved.article)notFound();return <PublishedContentArticle article={resolved.article}/>;}
- }
- if (["/blog","/docs","/features","/use-cases","/compare","/resources"].includes(path)) {
-  const entries=await publishedIndex(locale);
-  if(entries)return <PublishedContentIndex kind={path.slice(1) as "blog"|"docs"|"features"|"use-cases"|"compare"|"resources"} entries={entries}/>;
+ if (isManagedPath(path)) {
+  const resolved = await publishedArticle(path, locale);
+  if (resolved.managed) {
+   const page = resolved.article;
+   if (!page) notFound();
+   const entries = await discoveryIndex(locale);
+   if (path === "/") return <ManagedHome page={page} entries={entries} />;
+   if (["/blog", "/docs", "/features", "/use-cases", "/compare", "/resources"].includes(path)) {
+    return <PublishedContentIndex kind={path.slice(1) as "blog" | "docs" | "features" | "use-cases" | "compare" | "resources"} page={page} entries={entries} />;
+   }
+   if (page.kind === "page") return <ManagedPage page={page} />;
+   return <PublishedContentArticle article={page} entries={entries} />;
+  }
  }
 
-  if (path === "/") return <HomePage />;
+  if (path === "/") return <HomeContent entries={await discoveryIndex(locale)} />;
   if (path === "/pricing") return <ProductPricing />;
   if (path === "/docs") return <Documentation />;
   if (path === "/blog") return <BlogIndex />;
@@ -35,19 +42,15 @@ export async function PublicPage({ path, locale="en" }: { path: string; locale?:
   if (path === "/privacy" || path === "/terms") return <PolicyContent kind={path === "/privacy" ? "privacy" : "terms"} />;
   if (path === "/about") return <AboutPageContent />;
   if (path === "/resources") {
-    const entries: GuideIndexEntry[] = [
-      ...documentation.map(guide => ({ id: `docs:${guide.id}`, path: `/docs/${guide.id}`, kind: "docs" as const, translation: { title: guide.title[locale], summary: guide.summary[locale] } })),
-      ...articles.map(article => ({ id: `blog:${article.slug}`, path: `/blog/${article.slug}`, kind: "blog" as const, translation: { title: article.title[locale], summary: article.summary[locale] } }))
-    ];
-    return <PublishedContentIndex kind="resources" entries={entries} />;
+    return <PublishedContentIndex kind="resources" entries={await discoveryIndex(locale)} />;
   }
   const category = marketingCategories.find(item => item.path === path);
   if (category) return <MarketingIndex kind={category.kind} />;
   const page = getMarketingPage(path);
-  if (page) return <MarketingDetail page={page} />;
+  if (page) return <MarketingDetail page={page} entries={await discoveryIndex(locale)} />;
   const guide = path.startsWith("/docs/") ? findDocumentation(path.slice(6)) : undefined;
-  if (guide) return <GuideArticle guide={guide} />;
+  if (guide) return <GuideArticle guide={guide} entries={await discoveryIndex(locale)} />;
   const article = path.startsWith("/blog/") ? findArticle(path.slice(6)) : undefined;
-  if (article) return <BlogArticle article={article} />;
+  if (article) return <BlogArticle article={article} entries={await discoveryIndex(locale)} />;
   notFound();
 }

@@ -58,6 +58,7 @@ func (m *Module) Register(g hostapi.Groups) {
 	admin.GET("/articles", m.articles)
 	admin.GET("/articles/:id", m.article)
 	admin.POST("/articles", m.saveArticle)
+	admin.POST("/articles/import", m.importArticles)
 	admin.PUT("/articles/:id", m.saveArticle)
 	admin.POST("/articles/:id/publications", m.publishArticle)
 	admin.GET("/audit", m.audit)

@@ -72,18 +72,61 @@ func TestContentDraftPublicationLocalesAndAudit(t *testing.T) {
 		t.Fatalf("audit events: %d", events)
 	}
 }
-func TestSeedUnpublicationIsAuthoritativeAndInvalidPathsAreRejected(t *testing.T) {
+func TestStarterContentRequiresExplicitImportAndPersistsPublications(t *testing.T) {
 	f := newFixture(t)
-	seed := content.Seed()[0]
-	w := request(f, "POST", "/admin/articles/"+seed.ID+"/publications", `{"version":0,"locale":"en","action":"unpublish","reason":"Remove starter article"}`, "admin", "unpublish-seed")
+	w := request(f, "GET", "/site/articles?locale=en", "", "", "")
+	if w.Code != 200 || data(t, w)["total"] != float64(0) {
+		t.Fatalf("virtual articles leaked: %s", w.Body)
+	}
+	for _, role := range []string{"", "user"} {
+		if w := request(f, "POST", "/admin/articles/import", `{"apply":true,"reason":"Initialize content"}`, role, "import-denied"); w.Code != 401 && w.Code != 403 {
+			t.Fatalf("import authorization: %s", w.Body)
+		}
+	}
+	w = request(f, "POST", "/admin/articles/import", `{"apply":false}`, "admin", "")
+	if w.Code != 200 {
+		t.Fatalf("preview: %s", w.Body)
+	}
+	var count int64
+	f.db.Model(&content.Record{}).Count(&count)
+	if count != 0 {
+		t.Fatal("preview wrote content")
+	}
+	w = request(f, "POST", "/admin/articles/import", `{"apply":true,"reason":"Initialize verified content"}`, "admin", "import-starter")
+	if w.Code != 200 {
+		t.Fatalf("import: %s", w.Body)
+	}
+	f.db.Model(&content.Record{}).Count(&count)
+	if count != int64(len(content.Seed())) {
+		t.Fatalf("not persisted: %d", count)
+	}
+	var importEvents int64
+	f.db.Model(&audit.Event{}).Where("action IN ? AND outcome = ?", []string{"content.save", "content.publish"}, "succeeded").Count(&importEvents)
+	if importEvents != count*3 {
+		t.Fatalf("missing import audit: %d", importEvents)
+	}
+	service := content.New(f.db, nil)
+	row, err := service.Resolve(t.Context(), "/", "en")
+	if err != nil || row == nil || row.Version != 3 {
+		t.Fatalf("home snapshot: %+v %v", row, err)
+	}
+	w = request(f, "POST", "/admin/articles/import", `{"apply":true,"reason":"Preserve existing content"}`, "admin", "import-again")
+	if w.Code != 200 {
+		t.Fatalf("repeat import: %s", w.Body)
+	}
+	unchanged, _ := service.Read(t.Context(), row.ID)
+	if unchanged.Version != row.Version {
+		t.Fatal("import replaced existing content")
+	}
+	w = request(f, "POST", "/admin/articles/"+row.ID+"/publications", fmt.Sprintf(`{"version":%d,"locale":"en","action":"unpublish","reason":"Remove starter page"}`, row.Version), "admin", "unpublish-seed")
 	if w.Code != 200 {
 		t.Fatalf("seed: %s", w.Body)
 	}
-	w = request(f, "GET", "/site/articles/resolve?locale=en&path="+seed.Path, "", "", "")
+	w = request(f, "GET", "/site/articles/resolve?locale=en&path="+row.Path, "", "", "")
 	if data(t, w)["article"] != nil {
 		t.Fatal("unpublished seed reappeared")
 	}
-	w = request(f, "GET", "/site/articles/resolve?locale=zh&path="+seed.Path, "", "", "")
+	w = request(f, "GET", "/site/articles/resolve?locale=zh&path="+row.Path, "", "", "")
 	if data(t, w)["article"] == nil {
 		t.Fatal("unrelated locale unpublished")
 	}
@@ -92,6 +135,57 @@ func TestSeedUnpublicationIsAuthoritativeAndInvalidPathsAreRejected(t *testing.T
 		if w := request(f, "POST", "/admin/articles", body, "admin", fmt.Sprint("invalid", i)); w.Code != 400 {
 			t.Fatalf("invalid path accepted: %s", w.Body)
 		}
+	}
+}
+
+func TestStarterImportRollsBackWhenPublicationAuditFails(t *testing.T) {
+	f := newFixture(t)
+	if err := f.db.Callback().Create().Before("gorm:create").Register("test:import-audit-failure", func(tx *gorm.DB) {
+		if tx.Statement.Table == "audit_outcome_events" {
+			tx.AddError(errors.New("audit unavailable"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = f.db.Callback().Create().Remove("test:import-audit-failure") })
+	_, err := content.New(f.db, nil).ImportStarter(t.Context(), "owner", "atomic-import", "Initialize content", true)
+	if err == nil {
+		t.Fatal("failed audit accepted")
+	}
+	var count int64
+	f.db.Model(&content.Record{}).Count(&count)
+	if count != 0 {
+		t.Fatalf("partial import: %d", count)
+	}
+}
+
+func TestContentPackAndPagePathBoundaries(t *testing.T) {
+	paths := map[string]bool{}
+	for _, row := range content.Seed() {
+		if paths[row.Path] {
+			t.Fatalf("duplicate pack path: %s", row.Path)
+		}
+		paths[row.Path] = true
+		if !content.Valid(content.Save{Path: row.Path, Kind: row.Kind, Position: row.Position, Translations: row.Translations}) {
+			t.Fatalf("invalid pack record: %s", row.Path)
+		}
+		for _, locale := range []string{"en", "zh"} {
+			text := row.Translations[locale]
+			if text.Title == "" || text.Summary == "" || len(text.Body) < 80 {
+				t.Fatalf("incomplete %s %s", row.Path, locale)
+			}
+		}
+		if len(row.Published) != 0 {
+			t.Fatal("pack invented publication timestamps")
+		}
+	}
+	for _, path := range []string{"/admin", "/pricing", "/api/v1", "/account", "/zh", "/privacy", "/page/arbitrary"} {
+		if content.Valid(content.Save{Path: path, Kind: "page"}) {
+			t.Fatalf("page shadows application: %s", path)
+		}
+	}
+	if content.Valid(content.Save{Path: "/", Kind: "blog"}) || content.Valid(content.Save{Path: "/blog/a", Kind: "page"}) {
+		t.Fatal("mismatched kind accepted")
 	}
 }
 

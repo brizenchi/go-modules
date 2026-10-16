@@ -1,4 +1,8 @@
 .entryNumber { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+.sectionLinks { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 20px; margin-bottom: 20px; }
+.sectionLinks a, .aboutLink { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+.sectionLinks a:hover, .aboutLink:hover { text-decoration: underline; text-underline-offset: 4px; }
+.aboutLink { margin-top: 12px; }
 .heroPreview { margin: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); box-shadow: 0 18px 48px rgb(16 24 18 / 9%); }
 .previewChrome { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .previewChrome > span:first-child { color: var(--line-strong); letter-spacing: 3px; }
@@ -133,3 +137,8 @@
   .faq summary { font-size: 15px; }
   .faq p { margin-right: 12px; }
 }
+.editorial { margin-block: 4rem; padding: 2.5rem 0; border-block: 1px solid var(--line); }
+.editorial :global(.markdown-content) { max-width: 76ch; margin-inline: auto; }
+.editorial :global(h2) { margin-top: 2.5rem; font-size: clamp(1.5rem, 2.3vw, 2rem); letter-spacing: -.035em; }
+.editorial :global(h2:first-child) { margin-top: 0; }
+@media (max-width: 640px) { .editorial { margin-block: 2.5rem; padding-block: 1.5rem; } }

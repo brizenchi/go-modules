@@ -3,6 +3,7 @@ package operations
 import (
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
@@ -97,11 +98,47 @@ func (m *Module) publishArticle(c *gin.Context) {
 	}
 }
 
+func (m *Module) importArticles(c *gin.Context) {
+	if m.db(c) == nil {
+		return
+	}
+	var in struct {
+		Apply  bool   `json:"apply"`
+		Reason string `json:"reason"`
+	}
+	if !decodeBody(c, &in) {
+		return
+	}
+	key := ""
+	if in.Apply {
+		var ok bool
+		key, ok = operationMetadata(c, in.Reason)
+		if !ok {
+			return
+		}
+	}
+	result, err := m.contentService().ImportStarter(c.Request.Context(), userID(c), key, in.Reason, in.Apply)
+	if !contentError(c, err) {
+		httpresp.OK(c, result)
+	}
+}
+
 // Public views contain published snapshots only. An absent translation never
-// falls back to a draft or another language, and unpublishing overrides the seed.
+// falls back to a draft, starter file or another language.
+var markdownReference = regexp.MustCompile(`\]\((/[^\s)]+)\)`)
+
 func publicArticle(row content.Article, locale string, body bool) gin.H {
 	live := row.Published[locale]
 	translation := live.Translation
+	references := []string{}
+	seen := map[string]bool{}
+	for _, match := range markdownReference.FindAllStringSubmatch(translation.Body, -1) {
+		path := strings.SplitN(strings.SplitN(match[1], "#", 2)[0], "?", 2)[0]
+		if !seen[path] && !strings.HasPrefix(path, "//") {
+			references = append(references, path)
+			seen[path] = true
+		}
+	}
 	if !body {
 		translation.Body = ""
 	}
@@ -111,7 +148,7 @@ func publicArticle(row content.Article, locale string, body bool) gin.H {
 			locales = append(locales, l)
 		}
 	}
-	return gin.H{"id": row.ID, "path": row.Path, "kind": row.Kind, "position": row.Position, "version": row.Version, "translation": translation, "published_at": live.PublishedAt, "updated_at": row.UpdatedAt, "locales": locales}
+	return gin.H{"references": references, "id": row.ID, "path": row.Path, "kind": row.Kind, "position": row.Position, "version": row.Version, "translation": translation, "published_at": live.PublishedAt, "updated_at": row.UpdatedAt, "locales": locales}
 }
 func (m *Module) publicArticles(c *gin.Context) {
 	p, ok := pagination(c)

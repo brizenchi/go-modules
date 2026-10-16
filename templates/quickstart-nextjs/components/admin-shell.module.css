@@ -245,3 +245,11 @@
 .creditIncrease { color: var(--accent-ink); font-variant-numeric: tabular-nums; } .creditDecrease { color: var(--text); font-variant-numeric: tabular-nums; }
 .userHistory .cellIdentity > span { white-space: normal; }
 @media(max-width:640px){.customerFacts{grid-template-columns:minmax(0,1fr);gap:16px;padding:16px}.customerFacts>div{display:flex;justify-content:space-between;align-items:baseline;gap:20px}.customerFacts dt{margin:0}.customerFacts dd{text-align:right}.customerEditor{padding:16px}}
+
+.importItems { list-style: none; padding: 0; margin: 0; max-height: 42vh; overflow-y: auto; border-block: 1px solid var(--line); }
+.importItems li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .875rem 0; border-bottom: 1px solid var(--line); }
+.importItems li:last-child { border-bottom: 0; }
+.importItems span { display: grid; gap: .25rem; min-width: 0; }
+.importItems strong { font-size: .875rem; font-weight: 500; }
+.importItems code { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
+.importItems small { flex-shrink: 0; color: var(--muted); }

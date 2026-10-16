@@ -20,10 +20,12 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
 }).outputText;
 const files = ["components/language-picker.tsx", "components/account-menu.tsx", "components/sign-out-button.tsx", "components/interface-icon.tsx", "components/localized-link.tsx", "components/public-navigation.tsx", "components/published-content.tsx", "components/site-footer.tsx", "lib/guide-index.ts", "lib/disclosure-focus.ts", "lib/locale.ts", "content/navigation.ts", "content/docs.ts", "content/articles.ts"];
 files.push("components/sign-in-dialog.tsx", "components/sign-in-panel.tsx", "components/responsive-dialog.tsx", "components/ui.tsx", "components/resource-feedback.tsx", "lib/dialog-focus.ts", "lib/request-state.ts", "lib/request-generation.ts", "lib/auth-methods.ts", "lib/sign-in-methods-cache.ts");
+files.push("components/content-discovery.tsx", "lib/content-discovery.ts", "lib/markdown.ts");
 const modules = Object.fromEntries(files.map(file => [file.replace(/\.tsx?$/, ""), compile(file)]));
 const prefix = file => `m_${file.split("/").at(-1).replace(".module.css", "").replaceAll("-", "_")}_`;
 const stylesheets = ["components/account-menu.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
 stylesheets.push("components/sign-in-dialog.module.css", "components/responsive-dialog.module.css");
+stylesheets.push("components/content-discovery.module.css");
 // Apply module namespacing, leaving :global selectors intact.
 const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.map(file => {
   const globals = [];
@@ -111,6 +113,7 @@ try {
     await command("Page.navigate",{url:pathToFileURL(file).href});
     for(let attempt=0;attempt<30;attempt++){if(await evaluate("Boolean(document.querySelector('#published-search'))"))break;await new Promise(resolve=>setTimeout(resolve,40))}
     await check("Boolean(document.querySelector('#published-search'))",tag+': React fixture mounted');
+    await check(`JSON.stringify([...document.querySelectorAll('[data-guide-directories] a')].map(a=>a.getAttribute('href')))===JSON.stringify(${JSON.stringify(["docs","blog","updates"].map(path=>(locale==='zh'?'/zh':'')+'/'+path))})`,tag+': guide directories have real localized links');
     await evaluate("document.fonts.ready");await settle();
     await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': no page overflow');
     const expected=width>1000?3:1;

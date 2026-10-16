@@ -1,17 +1,19 @@
-.footer { background: #eef1eb; border-top: 1px solid var(--line); }
+.footer { background: var(--surface-subtle); border-top: 1px solid var(--line); }
 .inner { width: min(var(--content-width), calc(100% - 36px)); margin: auto; padding: 48px 0 24px; }
-.grid { display: grid; grid-template-columns: 1.7fr repeat(3, 1fr); gap: 48px; }
-.brand { display: inline-flex; align-items: center; gap: 10px; font-size: 24px; font-weight: 650; letter-spacing: -.04em; overflow-wrap: anywhere; }
-.brand span { color: var(--accent-ink); font-size: 32px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: 40px; }
+.brand { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; font-size: 20px; font-weight: 650; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.brandMark { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; color: var(--accent-ink); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.brandMark svg { width: 28px; height: 28px; }
 .identity p { max-width: 300px; margin: 18px 0; color: var(--muted-strong); font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
 .stack { font-family: monospace; font-size: 11px; color: var(--muted); }
-.grid h2 { margin: 8px 0 22px; font-size: 12px; font-weight: 650; letter-spacing: .04em; }
-.grid ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.grid li a { display: inline-block; color: var(--muted-strong); font-size: 13px; padding: 3px 0; }
+.grid h2 { margin: 12px 0 16px; color: var(--text); font-size: 13px; font-weight: 650; }
+.grid ul { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.grid li a { display: inline-flex; align-items: center; min-height: 36px; color: var(--muted-strong); font-size: 13px; padding: 6px 0; }
 .grid li a:hover { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 4px; }
 .bottom { display: flex; flex-wrap: wrap; gap: 16px 28px; margin-top: 52px; padding-top: 22px; border-top: 1px solid var(--line-strong); color: var(--muted-strong); font-size: 11px; }
 .bottom > a { margin-left: auto; }
 .legal { display: flex; flex-wrap: wrap; gap: 16px; }
+.legal a, .bottom > a { display: inline-flex; align-items: center; min-height: 32px; }
 .legal a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 800px) {
   .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 20px; }
@@ -22,4 +24,6 @@
   .inner { padding-top: 40px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bottom { margin-top: 32px; }
+  .grid li a, .legal a, .bottom > a { min-height: 44px; }
+  .bottom > a { margin-left: 0; }
 }

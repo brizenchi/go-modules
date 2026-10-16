@@ -31,6 +31,7 @@ import (
 	emaildomain "github.com/brizenchi/go-modules/modules/email/domain"
 	emailport "github.com/brizenchi/go-modules/modules/email/port"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
+	"github.com/brizenchi/quickstart-template/internal/feature/content"
 	"github.com/brizenchi/quickstart-template/internal/feature/credits"
 	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 	"github.com/brizenchi/quickstart-template/internal/feature/note"
@@ -176,6 +177,11 @@ func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 		if err = db.Create(&note.Note{UserID: account.ID, Title: "Welcome to your local preview", Body: "This note belongs to a temporary local account. Export it to test credit consumption. All preview data is removed when the command exits."}).Error; err != nil {
 			return nil, err
 		}
+	}
+	// This fixture owns a newly created temporary database. Production startup
+	// never performs this import; operators explicitly preview/apply it in admin.
+	if _, err = content.New(db, nil).ImportStarter(context.Background(), "local-preview-fixture", "preview-content-v1", "Initialize disposable preview content", true); err != nil {
+		return nil, err
 	}
 	installPreviewListeners(app.modules)
 	deps := hostapi.Deps{DB: db, Modules: app.modules, Users: app.modules.Users, ServiceSettings: serviceSettings, Config: hostcfg.Config{SignupCredits: previewInitialCredits, Uploads: hostcfg.UploadConfig{Enabled: true, Provider: "local", Directory: filepath.Join(directory, "private-images")}}}

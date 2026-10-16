@@ -6,7 +6,7 @@ export const dynamicParams = true;
 export const revalidate = 30;
 export async function generateStaticParams() {
  const paths=await publishedPaths("en",marketingRoutes.map(page=>page.path));
- return paths.filter(path=>!/^\/(blog|docs)(?:\/|$)/.test(path)).map(path=>({slug:path.slice(1).split("/")}));
+ return paths.filter(path=>path !== "/" && !/^\/(blog|docs)(?:\/|$)/.test(path)).map(path=>({slug:path.slice(1).split("/")}));
 }
 type Props = { params: Promise<{ slug?: string[] }> };
 export async function generateMetadata({ params }: Props) {

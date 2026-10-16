@@ -34,3 +34,9 @@
   .category { margin-bottom: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .entry { transition: none; } }
+.introduction { max-width: 76ch; margin-block: 1.5rem 2.5rem; color: var(--muted); }
+.outline { margin: 24px 0 32px; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; }
+.outline summary { color: var(--text); font-weight: 600; cursor: pointer; }
+.outline ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 32px; margin: 20px 0 4px; padding-left: 20px; color: var(--muted-strong); }
+.outline a:hover { color: var(--accent-ink); text-decoration: underline; }
+@media (max-width: 640px) { .outline ol { grid-template-columns: minmax(0, 1fr); } }

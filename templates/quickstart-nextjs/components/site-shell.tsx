@@ -33,6 +33,7 @@ type TOCItem = {
 };
 
 type SiteShellProps = {
+  pagePath?: string;
   variant?: "article" | "compact";
   className?: string;
   eyebrow: string;
@@ -106,7 +107,7 @@ export function SiteShell(props: SiteShellProps) {
 
 function PublicSiteShell(props: SiteShellProps) {
   const rawPathname = usePathname();
-  const pathname = stripLocalePrefix(rawPathname);
+  const pathname = props.pagePath ?? stripLocalePrefix(rawPathname);
   const router = useRouter();
   const isHome = pathname === "/";
  const presentation=useSitePresentation();

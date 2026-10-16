@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const root = ".next/server/app";
+const root = join(process.argv[2] || ".next", "server/app");
 const sitemap = readFileSync(join(root, "sitemap.xml.body"), "utf8");
 const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]));
 const paths = new Set(urls.map(url => url.pathname));
@@ -20,6 +20,7 @@ for (const page of pages) {
   assert.equal((rendered.match(/<h1\b/g) ?? []).length, 1, `${page}: one H1`);
   assert.equal((rendered.match(/<main\b/g) ?? []).length, 1, `${page}: one main landmark`);
   assert.ok(rendered.includes('id="main-content"'), `${page}: skip-link target`);
+  if (page === "index.html" || page === "zh.html") assert.ok(!rendered.includes('class="content-breadcrumbs"'), `${page}: homepage has no synthetic Index breadcrumb`);
   const canonicalHref = html.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
   assert.ok(canonicalHref, `${page}: canonical exists`);
   const canonical = new URL(canonicalHref).href;
@@ -89,4 +90,40 @@ for (const path of ["account", "billing", "referrals", "credits", "login", "invi
   }
 }
 
-console.log(`Public content checks passed: ${pages.length} pages, ${articlePages.length} articles, headings, anchors, canonical URLs, JSON-LD and sitemap.`);
+// A footer link is useful, but public product/learning paths must also be
+// discoverable through the header and page content. Check the built HTML so a
+// client-only filter or hard-coded recommendation cannot disguise a missing link.
+const edges = new Map();
+for (let index = 0; index < pages.length; index++) {
+  const rendered = withoutScripts(readFileSync(join(root, pages[index]), "utf8"));
+  const primary = [
+    rendered.match(/<header\b[^>]*>([\s\S]*?)<\/header>/)?.[1] || "",
+    rendered.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || ""
+  ].join("");
+  const targets = [...primary.matchAll(/href="(\/[^"#]*)"/g)]
+    .map(match => new URL(match[1].replaceAll("&amp;", "&"), urls[index]))
+    .filter(url => url.origin === urls[index].origin && paths.has(url.pathname))
+    .map(url => url.pathname);
+  edges.set(urls[index].pathname, targets);
+}
+for (const home of ["/", "/zh"]) {
+  const depth = new Map([[home, 0]]);
+  const queue = [home];
+  for (const source of queue) {
+    for (const target of edges.get(source) || []) {
+      if ((target === "/zh" || target.startsWith("/zh/")) !== (home === "/zh")) continue;
+      if (!depth.has(target)) { depth.set(target, depth.get(source) + 1); queue.push(target); }
+    }
+  }
+  for (const path of paths) {
+    if ((path === "/zh" || path.startsWith("/zh/")) !== (home === "/zh")) continue;
+    assert.ok(depth.has(path) && depth.get(path) <= 3, `${path}: reachable within three clicks without the global footer (depth: ${depth.get(path) ?? "unreachable"})`);
+  }
+  const guidePage = home === "/" ? "resources.html" : "zh/resources.html";
+  const guideMain = withoutScripts(readFileSync(join(root, guidePage), "utf8")).match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || "";
+  for (const directory of ["docs", "blog", "updates"]) {
+    assert.ok(guideMain.includes(`href="${home === "/zh" ? "/zh" : ""}/${directory}"`), `${guidePage}: real ${directory} directory link`);
+  }
+}
+
+console.log(`Public content checks passed: ${pages.length} pages, ${articlePages.length} articles, headings, anchors, canonical URLs, JSON-LD, sitemap and three-click discovery without the global footer.`);

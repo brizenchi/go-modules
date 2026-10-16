@@ -27,21 +27,27 @@ export const siteLinks = {
 };
 
 export const publicNavigation = [siteLinks.home, siteLinks.features, siteLinks.pricing, siteLinks.resources];
+export const productNavigation = [siteLinks.features, siteLinks.useCases, siteLinks.compare, siteLinks.examples];
+export const guideDirectories = [
+  { ...siteLinks.docs, description: { en: "Set up your site and connect the services you need.", zh: "配置站点，接入产品需要的服务。" } },
+  { ...siteLinks.blog, description: { en: "Practical answers to product and account questions.", zh: "围绕产品与账户问题，查阅实用文章。" } },
+  { ...siteLinks.updates, description: { en: "See what changed and where to use it.", zh: "了解最近改了什么，以及在哪里使用。" } }
+];
 export const customerFooterLinks = [siteLinks.help, siteLinks.privacy, siteLinks.terms];
 export const siteLegalLinks = [siteLinks.privacy, siteLinks.terms];
 export const siteFooterGroups: Array<{ title: Copy; links: SiteLink[] }> = [
   { title: { en: "Product", zh: "产品" }, links: [siteLinks.features, siteLinks.useCases, siteLinks.pricing, siteLinks.compare, siteLinks.examples] },
-  { title: { en: "Learn", zh: "学习" }, links: [siteLinks.resources, siteLinks.docs, siteLinks.blog, siteLinks.updates] },
-  { title: { en: "Support", zh: "支持" }, links: [siteLinks.help, siteLinks.about] }
+  { title: { en: "Guides", zh: "指南" }, links: [{ ...siteLinks.resources, label: { en: "All guides", zh: "指南总览" } }, siteLinks.docs, siteLinks.blog, siteLinks.updates] },
+  { title: { en: "About & support", zh: "关于与支持" }, links: [siteLinks.about, siteLinks.help] }
 ];
 
 export function activePublicNavigationHref(path: string): string {
   const pathname = stripLocalePrefix(path.split(/[?#]/, 1)[0]);
   if (pathname === "/") return "/";
   const within = (prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
-  if (["/features", "/use-cases", "/compare", "/examples"].some(within)) return "/features";
+  if (within("/features")) return "/features";
   if (within("/pricing")) return "/pricing";
-  if (["/resources", "/docs", "/blog", "/updates", "/contact", "/about"].some(within)) return "/resources";
+  if (["/resources", "/docs", "/blog", "/updates"].some(within)) return "/resources";
   return "";
 }
 

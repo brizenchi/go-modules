@@ -5,7 +5,7 @@ type Copy = { en: string; zh: string };
 export const adminSectionNames: Record<AdminSection, Copy> = {
   overview: { en: "Overview", zh: "运营概览" },
   users: { en: "Users", zh: "用户管理" },
- articles: {en:"Articles",zh:"文章管理"},
+ articles: {en:"Content",zh:"内容管理"},
   orders: { en: "Payments", zh: "支付记录" },
   subscriptions: { en: "Subscriptions", zh: "订阅管理" },
   referrals: { en: "Referrals", zh: "推荐奖励" },
@@ -16,7 +16,7 @@ export const adminSectionNames: Record<AdminSection, Copy> = {
 };
 
 export const adminSectionDescriptions: Record<AdminSection, Copy> = {
-  articles: {en:"Write, translate and publish website articles.",zh:"上传、编辑并按语言发布网站文章。"},
+  articles: {en:"Edit homepage, section introductions and articles. Publish each language separately.",zh:"管理首页、栏目介绍与文章，按语言分别发布。"},
   overview: { en: "Track daily acquisition, payments and customer conversion.", zh: "查看每日注册、邀请、支付和用户转化趋势。" },
   users: { en: "Manage customer memberships and credits without leaving the list.", zh: "查询用户，在弹窗中调整会员级别和积分。" },
   orders: { en: "Review payments, amounts and their live or test environment.", zh: "查看支付结果、实际金额及所属的正式或测试环境。" },

@@ -111,7 +111,15 @@ Use `DataTable<T>` for repeated records and server pagination; include a caption
 
 ## Public homepage
 
-The homepage leads with one short value statement and a real, locale-specific account-center screenshot. Keep screenshot accounts and content fictional and label previews. The website/workspace/admin directory sits below the hero. Native FAQ disclosures answer practical setup questions; do not invent customer counts, testimonials or revenue. Main presentation defaults live in `content/site.ts`. Runtime website identity is server-rendered into navigation, homepage and page metadata; code configuration supplies defaults. The generated sharing artwork remains build-time.
+### Public content discovery
+
+The four primary links remain Home / Features / Pricing / Guides. Product archives and product details offer visible peer navigation to Features, Use cases, Comparisons and the demo. Standalone product/support pages do not select an unrelated primary link. Breadcrumbs retain their shallow category hierarchy; footer group headings are not artificial parent pages.
+
+The homepage links directly to published use cases, recent guides, demo, updates and project information. Guides opens with crawlable documentation/article/update directory links; its existing category buttons only filter the list. Details recommend at most three published entries, prioritizing explicit references, backlinks and same-category pages. The server provides card metadata for the current language; article bodies are not included in the discovery payload. Empty managed catalogs stay empty, and service failures do not resurrect starter articles. Only unconfigured/legacy APIs use the static catalog.
+
+The footer uses the shared brand mark, Product / Guides / About & support columns and a separate legal row. Public build acceptance verifies directory anchors and that all published pages can be reached from the same-language homepage within three clicks through the header and main content, without relying on the global footer. This is an information architecture check, not a ranking guarantee.
+
+The homepage leads with one short value statement and a real, locale-specific account-center screenshot. Keep screenshot accounts and content fictional and label previews. The website/workspace/admin directory sits below the hero. Database-owned page copy explains workflows and boundaries; do not invent customer counts, testimonials or revenue. With an API configured, editorial home copy, section introductions and articles come exclusively from published CMS snapshots. Feature/scenario cards use published record metadata. Website settings supply brand identity and footer introduction; homepage SEO is not overwritten by legacy settings. `content/site.ts` supplies visual assets and unconfigured offline-preview defaults. The generated sharing artwork remains build-time.
 
 Optional analytics and support UI only appear with valid configured provider IDs. AI is a server-side stateless integration, without a default chat page, chat API, conversation storage or charging policy. Public copy explains that products own these features.
 

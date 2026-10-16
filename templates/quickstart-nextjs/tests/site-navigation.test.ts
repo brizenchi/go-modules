@@ -7,11 +7,12 @@ test("public navigation keeps one feature entry and an explicit home destination
   assert.deepEqual(publicNavigation.map(item => item.href), ["/", "/features", "/pricing", "/resources"]);
   assert.equal(activePublicNavigationHref("/"), "/");
   assert.equal(activePublicNavigationHref("/features/credits"), "/features");
-  assert.equal(activePublicNavigationHref("/use-cases/subscription-saas"), "/features");
+  assert.equal(activePublicNavigationHref("/use-cases/subscription-saas"), "");
   assert.equal(activePublicNavigationHref("/docs/payments"), "/resources");
   assert.equal(activePublicNavigationHref("/blog/a-guide"), "/resources");
-  assert.equal(activePublicNavigationHref("/compare/starter-vs-from-scratch"), "/features");
-  assert.equal(activePublicNavigationHref("/contact"), "/resources");
+  assert.equal(activePublicNavigationHref("/compare/starter-vs-from-scratch"), "");
+  assert.equal(activePublicNavigationHref("/contact"), "");
+  assert.equal(activePublicNavigationHref("/about"), "");
   for (const path of ["/account", "/admin", "/features-other", "/unknown"]) assert.equal(activePublicNavigationHref(path), "");
 });
 
