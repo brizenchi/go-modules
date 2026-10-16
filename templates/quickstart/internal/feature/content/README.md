@@ -38,6 +38,13 @@ claims must distinguish implemented foundations from proposed product examples.
 Update both languages when code changes, without silently overwriting a site's
 custom content on upgrade.
 
+Structural homepage and directory routes remain available before editorial
+initialization: they show saved site identity/navigation and empty lists, with
+`noindex`. They never fabricate article content or publication dates. Missing or
+unpublished article details still return 404. Home metadata belongs to the home
+page, not the shared public layout, so its temporary `noindex` cannot leak into
+pricing or other complete pages.
+
 Legal policies, prices/catalogue, artwork and functional application screens are
 separate product configuration/code. Server rendering and crawlable links help
 discovery; neither the template nor the copy guarantees indexing or rankings.

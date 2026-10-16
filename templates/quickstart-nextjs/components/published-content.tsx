@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { LocalizedLink as Link } from "./localized-link";
 import type { PublishedArticle } from "@/lib/api";
+import type { PagePresentation } from "@/lib/page-presentation";
 import { useI18n } from "@/lib/i18n";
 import { localizeHref } from "@/lib/locale";
 import { SiteShell } from "./site-shell";
@@ -24,13 +25,13 @@ const descriptions = {
  compare: { en: "Compare development approaches and choose the starting point that fits your product.", zh: "比较不同开发方式，选择适合自己产品的起点。" },
  resources: { en: "Practical guides to get started, use your account and make the most of the product.", zh: "从入门配置到日常使用，找到你需要的教程与实践方法。" }
 };
-export function PublishedContentIndex({ kind, entries, page }: { kind: Exclude<keyof typeof names, "page">; entries: GuideIndexEntry[]; page?: PublishedArticle }) {
+export function PublishedContentIndex({ kind, entries, page }: { kind: Exclude<keyof typeof names, "page">; entries: GuideIndexEntry[]; page?: PagePresentation }) {
  const { t, locale } = useI18n();
  const [query, setQuery] = useState("");
  const [category, setCategory] = useState<GuideCategory>("all");
  const rows = filterGuideIndex(entries, kind, category, query);
  const title = page?.translation.title || t(names[kind]);
- return <ArticleLanguagesProvider locales={page?.locales || ["en", "zh"]}><SiteShell variant="compact" eyebrow={title} title={title} description={page?.translation.summary || t(descriptions[kind])}>
+ return <ArticleLanguagesProvider locales={page?.locales || ["en", "zh"]}><SiteShell variant="compact" eyebrow={title} title={title} description={page ? page.translation.summary : t(descriptions[kind])}>
   {kind === "resources" ? <GuideDirectories /> : ["features", "use-cases", "compare"].includes(kind) ? <ProductNavigation currentPath={`/${kind}`} /> : null}
   {page ? <div className={listStyles.introduction}><MarkdownContent source={page.translation.body} locale={locale} /></div> : null}
   <section className={listStyles.library} aria-label={title}>

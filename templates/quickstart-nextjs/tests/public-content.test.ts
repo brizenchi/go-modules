@@ -32,15 +32,16 @@ test("managed article metadata keeps share artwork and only live language altern
 test("live build paths replace unpublished seed routes while retaining fixed layouts", async () => {
  appEnv.apiConfigured = true;
  globalThis.fetch = (async () => response({ items: [article], total: 1 })) as typeof fetch;
- assert.deepEqual(await publishedPaths("en", ["/", "/pricing", "/blog/removed"]), ["/pricing", "/blog/custom"]);
+ assert.deepEqual(await publishedPaths("en", ["/", "/pricing", "/blog/removed"]), ["/", "/pricing", "/blog/custom"]);
  globalThis.fetch = (async () => response({ article: null })) as typeof fetch;
  assert.deepEqual(await publishedArticle("/blog/removed", "en"), { managed: true, article: null });
 });
 
-test("configured CMS errors never resurrect bundled publications", async () => {
+test("legacy APIs without content endpoints remain usable during frontend upgrades", async () => {
  appEnv.apiConfigured = true;
  globalThis.fetch = (async () => new Response(JSON.stringify({ code: 404 }), { status: 404 })) as typeof fetch;
- await assert.rejects(publishedArticle("/blog/removed", "en"));
+ assert.deepEqual(await publishedArticle("/blog/removed", "en"), { managed: false, article: null });
+ assert.ok((await discoveryIndex("en")).length > 0);
  globalThis.fetch = (async () => new Response(JSON.stringify({ code: 503 }), { status: 503 })) as typeof fetch;
  await assert.rejects(publishedArticle("/blog/removed", "en"));
 });
@@ -87,9 +88,12 @@ test("homepage SEO comes from the published page instead of legacy settings", as
  assert.equal(metadata?.openGraph && "type" in metadata.openGraph ? metadata.openGraph.type : undefined, "website");
 });
 
-test("unpublished root pages are absent from metadata and build path enumeration", async () => {
+test("empty CMS keeps structural pages available without inventing published articles", async () => {
  appEnv.apiConfigured = true;
  globalThis.fetch = (async url => String(url).includes("/resolve") ? response({ article: null }) : response({ items: [], total: 0 })) as typeof fetch;
- assert.equal(await managedMetadata("/features", "en"), null);
- assert.deepEqual(await publishedPaths("en", ["/", "/features", "/resources", "/about", "/pricing"]), ["/pricing"]);
+ const metadata = await managedMetadata("/features", "en");
+ assert.equal(metadata?.title, `Features · ${appEnv.appName}`);
+ assert.deepEqual(metadata?.robots, { index: false, follow: true });
+ assert.deepEqual(await publishedPaths("en", ["/", "/features", "/resources", "/about", "/pricing"]), ["/", "/features", "/resources", "/about", "/pricing"]);
+ assert.equal(await managedMetadata("/blog/unpublished", "en"), null);
 });

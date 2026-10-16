@@ -1,5 +1,6 @@
-import { ProductUpdates } from "@/components/content/updates";
-import { publicMetadata } from "@/lib/seo";
+import { PublicPage } from "@/components/public-page";
+import { managedMetadata } from "@/lib/public-content";
 
-export const metadata = publicMetadata("Product updates", "Follow changes to the SaaS starter, with links to the features and guides.", "/updates");
-export default function UpdatesPage() { return <ProductUpdates />; }
+export const revalidate = 30;
+export async function generateMetadata() { return managedMetadata("/updates", "en"); }
+export default function UpdatesPage() { return <PublicPage path="/updates" />; }

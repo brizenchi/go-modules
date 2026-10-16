@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(process.argv[2] || ".next", "server/app");
@@ -9,8 +9,22 @@ const paths = new Set(urls.map(url => url.pathname));
 const pages = urls.map(url => url.pathname === "/" ? "index.html" : `${url.pathname.slice(1)}.html`);
 const articlePages = pages.filter(page => /^(zh\/)?(docs|blog)\//.test(page));
 const canonicals = new Set();
+const pageFile = path => path === "/" ? "index.html" : `${path.slice(1)}.html`;
+const shellPaths = new Set();
+// First-install directories/home still work before editorial initialization,
+// but must not masquerade as indexable publications or enter the sitemap.
+for (const base of ["/", "/features", "/use-cases", "/compare", "/resources", "/docs", "/blog", "/about", "/updates"]) {
+  for (const path of [base, base === "/" ? "/zh" : `/zh${base}`]) {
+    if (paths.has(path)) continue;
+    const file = join(root, pageFile(path));
+    assert.ok(existsSync(file), `${path}: structural route remains available before initialization`);
+    const html = readFileSync(file, "utf8");
+    assert.match(html, /<meta name="robots" content="[^\"]*noindex/, `${path}: empty structural page is not indexed`);
+    shellPaths.add(path);
+  }
+}
 for (const path of ["/features", "/use-cases", "/compare", "/examples", "/about", "/resources"]) {
-  assert.ok(paths.has(path) && paths.has(`/zh${path}`), `${path}: bilingual route coverage`);
+  assert.ok((paths.has(path) || shellPaths.has(path)) && (paths.has(`/zh${path}`) || shellPaths.has(`/zh${path}`)), `${path}: bilingual route coverage`);
 }
 const withoutScripts = (html) => html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
 
@@ -46,7 +60,7 @@ for (const page of pages) {
   for (const match of rendered.matchAll(/href="(\/[^"#?]*)[^"]*"/g)) {
     const target = match[1];
     if (/^\/(?:zh(?:\/|$)|features(?:\/|$)|use-cases(?:\/|$)|compare(?:\/|$)|examples(?:\/|$)|docs(?:\/|$)|blog(?:\/|$)|resources$|about$)/.test(target)) {
-      assert.ok(paths.has(target), `${page}: published internal link ${target}`);
+      assert.ok(paths.has(target) || shellPaths.has(target), `${page}: available internal link ${target}`);
     }
   }
   assert.ok(!canonicals.has(canonical), `${page}: unique canonical`);
@@ -94,17 +108,18 @@ for (const path of ["account", "billing", "referrals", "credits", "login", "invi
 // discoverable through the header and page content. Check the built HTML so a
 // client-only filter or hard-coded recommendation cannot disguise a missing link.
 const edges = new Map();
-for (let index = 0; index < pages.length; index++) {
-  const rendered = withoutScripts(readFileSync(join(root, pages[index]), "utf8"));
+const graphPaths = new Set([...paths, ...shellPaths]);
+for (const path of graphPaths) {
+  const rendered = withoutScripts(readFileSync(join(root, pageFile(path)), "utf8"));
   const primary = [
     rendered.match(/<header\b[^>]*>([\s\S]*?)<\/header>/)?.[1] || "",
     rendered.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || ""
   ].join("");
   const targets = [...primary.matchAll(/href="(\/[^"#]*)"/g)]
-    .map(match => new URL(match[1].replaceAll("&amp;", "&"), urls[index]))
-    .filter(url => url.origin === urls[index].origin && paths.has(url.pathname))
+    .map(match => new URL(match[1].replaceAll("&amp;", "&"), urls[0]))
+    .filter(url => url.origin === urls[0].origin && graphPaths.has(url.pathname))
     .map(url => url.pathname);
-  edges.set(urls[index].pathname, targets);
+  edges.set(path, targets);
 }
 for (const home of ["/", "/zh"]) {
   const depth = new Map([[home, 0]]);

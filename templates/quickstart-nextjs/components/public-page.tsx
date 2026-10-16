@@ -1,4 +1,6 @@
-import { discoveryIndex, isManagedPath, publishedArticle } from "@/lib/public-content";
+import { discoveryIndex, isManagedPath, managedPagePaths, publishedArticle, websitePresentation } from "@/lib/public-content";
+import { pagePresentation } from "@/lib/page-presentation";
+import { appEnv } from "@/lib/env";
 import type { Locale } from "@/lib/locale";
 import { PublishedContentArticle, PublishedContentIndex } from "./published-content";
 import { ManagedHome } from "./content/managed-home";
@@ -21,15 +23,15 @@ export async function PublicPage({ path, locale="en" }: { path: string; locale?:
  if (isManagedPath(path)) {
   const resolved = await publishedArticle(path, locale);
   if (resolved.managed) {
-   const page = resolved.article;
-   if (!page) notFound();
+   if (!resolved.article && !managedPagePaths.includes(path)) notFound();
+   const page = resolved.article || pagePresentation(path, locale, await websitePresentation(), appEnv.appName);
    const entries = await discoveryIndex(locale);
-   if (path === "/") return <ManagedHome page={page} entries={entries} />;
+   if (path === "/") return <ManagedHome page={page} entries={entries} identityOnly={!resolved.article} />;
    if (["/blog", "/docs", "/features", "/use-cases", "/compare", "/resources"].includes(path)) {
     return <PublishedContentIndex kind={path.slice(1) as "blog" | "docs" | "features" | "use-cases" | "compare" | "resources"} page={page} entries={entries} />;
    }
-   if (page.kind === "page") return <ManagedPage page={page} />;
-   return <PublishedContentArticle article={page} entries={entries} />;
+   if (!resolved.article || resolved.article.kind === "page") return <ManagedPage page={page} />;
+   return <PublishedContentArticle article={resolved.article} entries={entries} />;
   }
  }
 
