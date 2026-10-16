@@ -1,7 +1,7 @@
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { useI18n } from "@/lib/i18n";
 import { siteConfig } from "@/content/site";
-import { siteFooterGroups } from "@/content/navigation";
+import { siteFooterGroups, siteLegalLinks } from "@/content/navigation";
 import styles from "./site-footer.module.css";
 
 
@@ -25,7 +25,7 @@ export function SiteFooter({ name, description }: { name: string; description?: 
         </div>
         <div className={styles.bottom}>
           <span>© {new Date().getFullYear()} {name}</span>
-          <span>{t(siteConfig.brand.attribution)}</span>
+          <nav className={styles.legal} aria-label={t({ en: "Legal", zh: "法律条款" })}>{siteLegalLinks.map(link => <Link key={link.href} href={link.href}>{t(link.label)}</Link>)}</nav>
           <a href="#main-content">{t({ en: "Back to top ↑", zh: "返回顶部 ↑" })}</a>
         </div>
       </div>

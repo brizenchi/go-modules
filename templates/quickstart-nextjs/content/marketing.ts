@@ -79,22 +79,22 @@ export const marketingPages: MarketingPage[] = [
   {
     kind: "features", path: "/features/authentication", updatedAt,
     title: text("Email and OAuth login for your SaaS", "为 SaaS 接入邮箱与 OAuth 登录"),
-    description: text("Start with email-code login, optional Google and GitHub sign-in, a read-only account dialog, and a separate administrator login.", "从邮箱验证码、可选 Google 与 GitHub 登录、只读账户弹窗和独立管理员登录开始。"),
+    description: text("Start with email-code login, optional Google and GitHub sign-in, a compact account menu, and a separate administrator login.", "从邮箱验证码、可选 Google 与 GitHub 登录、简洁账户菜单和独立管理员登录开始。"),
     intro: text("Customers can create an account with an email code and return to their account center. Google and GitHub sign-in are available when you configure those providers.", "用户可通过邮箱验证码创建账号，再进入账户中心。配置对应服务后，还可以使用 Google 和 GitHub 登录。"),
     primaryCta: link("/account", "Try customer login", "体验用户登录"),
     facts: [
       { label: text("Customer access", "用户登录"), value: text("Email code; optional Google / GitHub", "邮箱验证码；可选 Google / GitHub") },
-      { label: text("Account", "账户管理"), value: text("Read-only email dialog and sign-out", "只读邮箱弹窗与退出") },
+      { label: text("Account", "账户管理"), value: text("Read-only identity and direct sign-out", "只读账户与直接退出") },
       { label: text("Administrator", "管理员"), value: text("Separate access and permissions", "独立入口与权限") }
     ],
     steps: [
       { title: text("Choose an available method", "选择已启用的登录方式"), body: text("Open the account page. The interface shows the methods enabled by the backend.", "打开账户页，界面会显示后端已启用的登录方式。") },
       { title: text("Complete verification", "完成身份验证"), body: text("Enter your email code or complete the configured provider flow. A new email account is created after verification.", "输入邮箱验证码，或完成已配置的第三方登录流程。新邮箱通过验证后创建账号。") },
-      { title: text("Continue your task", "继续刚才的任务"), body: text("Open your account information in a compact dialog to view the read-only sign-in email or sign out. Use the account center for subscriptions, credit history and referrals.", "在简洁的账户弹窗中查看只读登录邮箱或退出登录，从账户中心管理订阅、积分与邀请奖励。") }
+      { title: text("Continue your task", "继续刚才的任务"), body: text("Use the account menu to view the read-only sign-in email or sign out directly. Open the account center for subscriptions, credit history and referrals.", "在账户菜单中查看只读登录邮箱或直接退出，从账户中心管理订阅、积分与邀请奖励。") }
     ],
     sections: [
       { title: text("One identity across the customer journey", "用同一个账号完成用户流程"), body: text("The customer account connects subscriptions, credit transactions, purchases, and referrals. It gives your product a place to continue after a visit to a public page.", "账户连接订阅、积分流水、购买和邀请记录，让访客从公开页面进入产品后有明确的操作空间。") },
-      { title: text("Customer and administrator access have different jobs", "用户与管理员各自完成自己的任务"), body: text("Customers use their own account center and view a read-only sign-in email in the account dialog. Authorized administrators use a separate console to operate the site; a normal customer login does not grant administrator access.", "用户使用自己的账户中心，在账户弹窗查看只读登录邮箱；获得授权的管理员通过独立后台运营网站。普通用户登录不会获得管理员权限。") }
+      { title: text("Customer and administrator access have different jobs", "用户与管理员各自完成自己的任务"), body: text("Customers use their own account center and view a read-only sign-in email in the account menu. Authorized administrators use a separate console to operate the site; a normal customer login does not grant administrator access.", "用户使用自己的账户中心，在账户菜单查看只读登录邮箱；获得授权的管理员通过独立后台运营网站。普通用户登录不会获得管理员权限。") }
     ],
     limitations: [
       text("Email delivery and OAuth require your own service configuration. Available login methods depend on the providers enabled for this site.", "邮件发送与 OAuth 需要接入自己的服务配置，可用登录方式以本站启用的服务为准。"),
@@ -302,7 +302,7 @@ export const aboutPage: MarketingUtilityPage = {
 export const resourcesPage: MarketingUtilityPage = {
   path: "/resources", updatedAt,
   title: siteLinks.resources.label,
-  description: text("Find starter capabilities, business patterns, a working example, configuration guides, and source references in one place.", "集中查找模板能力、业务场景、可用示例、配置指南和源码依据。"),
+  description: text("Practical guides to get started, use your account, and connect your services.", "从入门配置到日常使用，查找账户、服务接入与产品实践指南。"),
   intro: text("Choose the task you are working on. Start with the product journey, then open the matching setup guide when you are ready to connect your own services.", "从正在处理的任务出发，先理解产品流程，准备接入自己的服务时再打开对应配置指南。"),
   sections: [
     { title: text("Understand the starting point", "了解开发起点"), body: text("Browse the authentication, subscription, and credit pages to see what is already connected. The comparison explains when adapting the template is a reasonable fit.", "通过登录、订阅与积分页面了解已有能力，再通过比较页判断模板是否适合自己的业务。") },

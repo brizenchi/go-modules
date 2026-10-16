@@ -25,7 +25,7 @@ test("marketing pages have unique published paths and complete bilingual content
   }
 });
 
-test("public capability copy matches the read-only account dialog and stateless AI integration", () => {
+test("public capability copy matches the read-only account identity and stateless AI integration", () => {
   const authentication = marketingPages.find(page => page.path === "/features/authentication")!;
   const accountCopy = JSON.stringify(authentication.facts);
   assert.doesNotMatch(accountCopy, /session refresh|会话刷新/iu);

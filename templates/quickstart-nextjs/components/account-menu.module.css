@@ -13,6 +13,9 @@
 .item svg { flex-shrink: 0; width: 18px; height: 18px; color: var(--muted); }
 .item:hover, .item:focus-visible { background: var(--surface-subtle); }
 .item:focus-visible { outline-offset: -2px; }
+.separator { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.item:disabled { color: var(--muted); cursor: wait; }
+.error { margin: 8px 12px 10px; color: var(--danger); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 @keyframes reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 640px) { .triggerName { display: none; } .trigger { gap: 6px; padding-inline: 5px; } }
 @media (prefers-reduced-motion: reduce) { .popover { animation: none; } .trigger, .item, .chevron { transition: none; } }

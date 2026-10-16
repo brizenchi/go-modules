@@ -54,7 +54,7 @@ Stripe 订阅与积分计费、邀请推荐和 Resend 邮件能力；前端包�
 | `/contact` | 已配置的支持渠道与自助帮助 |
 | `/privacy`、`/terms` | 需按实际业务完善的隐私与条款模板 |
 | `/login` | 按配置显示邮箱、Google、GitHub 登录 |
-| `/account` | 账户中心、订阅与积分入口、只读账户信息弹窗与退出 |
+| `/account` | 账户中心、订阅与积分入口、只读登录邮箱与直接退出 |
 | `/billing` | 固定价格 Checkout、订阅变更、Portal、账单、积分包 |
 | `/referrals` | 邀请链接、统计和历史 |
 | `/invite` | 注册前保存 `?ref=...` |
@@ -186,7 +186,7 @@ npm run build
 npm run verify
 ```
 
-手工验收至少覆盖：邀请码保存、所有已启用登录方式、只读账户弹窗与退出、首次订阅、
+手工验收至少覆盖：邀请码保存、所有已启用登录方式、账户菜单与直接退出、首次订阅、
 套餐变更、Billing Portal、固定积分包购买和邀请统计。生产和 CI 使用 Node 22 LTS。
 
 文章列表排版可在接入本地预览 API 完成构建后运行 `node scripts/check-published-layout.mjs`。
@@ -194,6 +194,9 @@ npm run verify
 1440、768、390px 下的标题、摘要、搜索框宽度和横向溢出，并输出截图目录。
 也可传入构建目录和浏览器路径：`node scripts/check-published-layout.mjs .next "/path/to/chrome"`。
 它不调用业务 API，不使用已有浏览器账号或配置，也不安装浏览器依赖。
+
+官网菜单与指南页可运行 `node scripts/check-public-ui.mjs`（可传入浏览器路径和截图目录）。
+使用隔离的 Chrome 配置与离线内容，检查真实悬停、退出成功/失败/并发登录保护、二级导航键盘操作、指南筛选和桌面/手机溢出，并生成截图。
 
 后台弹窗回归可运行 `node scripts/check-customer-dialog.mjs`（可依次传入浏览器路径和截图目录）。
 脚本使用真实 React 弹窗、表格和下拉组件，模拟 API 边界，离线检查中英文、1440/390px 下

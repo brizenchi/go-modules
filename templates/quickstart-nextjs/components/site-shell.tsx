@@ -8,7 +8,8 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
-import { activePublicNavigationHref, publicNavigation, siteLinkForPath } from "@/content/navigation";
+import { siteLinkForPath } from "@/content/navigation";
+import { PublicNavigation } from "./public-navigation";
 import { useSitePresentation } from "./site-presentation";
 import { siteConfig } from "@/content/site";
 import { type AccountSummary } from "@/lib/account-summary";
@@ -132,7 +133,6 @@ function PublicSiteShell(props: SiteShellProps) {
     [pathname, props.breadcrumbs, locale, t]
   );
 
-  const activeNav = activePublicNavigationHref(pathname);
   const accountMenu = (
     <AccountMenu
       session={session}
@@ -165,18 +165,7 @@ function PublicSiteShell(props: SiteShellProps) {
             </span>
           </Link>
 
-          <nav className="main-nav" aria-label={t({ en: "Primary", zh: "主导航" })}>
-            {publicNavigation.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`main-nav-link${activeNav === item.href ? " active" : ""}`}
-                aria-current={pathname === item.href ? "page" : activeNav === item.href ? "true" : undefined}
-              >
-                {t(item.label)}
-              </Link>
-            ))}
-          </nav>
+          <PublicNavigation pathname={pathname} />
 
           <div className="topbar-tools">
             <LocaleSwitch />

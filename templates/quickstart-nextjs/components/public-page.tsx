@@ -10,10 +10,11 @@ import { GuideArticle } from "./content/guide-article";
 import { ProductUpdates } from "./content/updates";
 import { ContactContent } from "./content/contact";
 import { PolicyContent } from "./content/policy";
-import { MarketingIndex, MarketingDetail, AboutPageContent, ResourcesPageContent } from "./content/marketing";
+import { MarketingIndex, MarketingDetail, AboutPageContent } from "./content/marketing";
 import { marketingCategories, getMarketingPage } from "@/content/marketing";
-import { findDocumentation } from "@/content/docs";
-import { findArticle } from "@/content/articles";
+import { documentation, findDocumentation } from "@/content/docs";
+import { articles, findArticle } from "@/content/articles";
+import type { GuideIndexEntry } from "@/lib/guide-index";
 
 export async function PublicPage({ path, locale="en" }: { path: string; locale?: Locale }) {
  if (/^\/(blog|docs|features|use-cases|compare)\/.+/.test(path)) {
@@ -33,7 +34,13 @@ export async function PublicPage({ path, locale="en" }: { path: string; locale?:
   if (path === "/contact") return <ContactContent />;
   if (path === "/privacy" || path === "/terms") return <PolicyContent kind={path === "/privacy" ? "privacy" : "terms"} />;
   if (path === "/about") return <AboutPageContent />;
-  if (path === "/resources") return <ResourcesPageContent />;
+  if (path === "/resources") {
+    const entries: GuideIndexEntry[] = [
+      ...documentation.map(guide => ({ id: `docs:${guide.id}`, path: `/docs/${guide.id}`, kind: "docs" as const, translation: { title: guide.title[locale], summary: guide.summary[locale] } })),
+      ...articles.map(article => ({ id: `blog:${article.slug}`, path: `/blog/${article.slug}`, kind: "blog" as const, translation: { title: article.title[locale], summary: article.summary[locale] } }))
+    ];
+    return <PublishedContentIndex kind="resources" entries={entries} />;
+  }
   const category = marketingCategories.find(item => item.path === path);
   if (category) return <MarketingIndex kind={category.kind} />;
   const page = getMarketingPage(path);

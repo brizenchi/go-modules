@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { InterfaceIcon } from "@/components/interface-icon";
-import { AccountDialog } from "@/components/account-dialog";
+import { SignOutButton } from "@/components/sign-out-button";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { SiteShell } from "@/components/site-shell";
 import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
@@ -15,7 +15,6 @@ export default function AccountPage() {
   const { t } = useI18n();
   const [session, setSession] = useState<AuthSession | null>(null);
   const [ready, setReady] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [signInOpen, setSignInOpen] = useState(false);
   useEffect(() => {
     const sync = () => { setSession(readSession()); setReady(true); };
@@ -43,12 +42,11 @@ export default function AccountPage() {
         <aside className={styles.account} aria-labelledby="workspace-account">
           <span className={styles.accountIcon}><InterfaceIcon name="account" /></span><h2 id="workspace-account">{t({ en: "Your account", zh: "我的账户" })}</h2>
           <p className={styles.email}>{session.user.email}</p>
-          <button className={styles.textButton} type="button" onClick={() => setAccountOpen(true)}>{t({ en: "Account information", zh: "账户信息" })}<span aria-hidden="true"> →</span></button>
-          <p className={styles.message}>{t({ en: "View your sign-in email or sign out from account information.", zh: "在账户信息中查看登录邮箱或退出登录。" })}</p>
+          <p className={styles.message}>{t({ en: "Account notices are sent to this email.", zh: "账户通知将发送至此邮箱。" })}</p>
+          <SignOutButton session={session} className="button" />
           <Link className={styles.pricing} href="/pricing">{t({ en: "Explore plans", zh: "查看可选套餐" })}<span aria-hidden="true"> ↗</span></Link>
         </aside>
       </div>}
-    <AccountDialog open={accountOpen} session={session} onClose={() => setAccountOpen(false)} />
     <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
   </SiteShell>;
 }

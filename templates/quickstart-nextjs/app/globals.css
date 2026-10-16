@@ -259,6 +259,8 @@ button {
   max-width: calc(100vw - 24px);
   max-height: min(320px, 60vh);
   overflow-y: auto;
+  display: grid;
+  gap: 4px;
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -281,8 +283,8 @@ button {
   text-align: left;
   cursor: pointer;
 }
-.language-options a:hover, .language-options button:hover,
-.language-options [aria-current="page"], .language-options [aria-pressed="true"] { background: var(--surface-subtle); }
+.language-options a:hover, .language-options button:hover { background: var(--surface-subtle); }
+.language-options [aria-current="page"], .language-options [aria-pressed="true"] { color: var(--accent-ink); font-weight: 650; }
 
 .account-menu {
   position: relative;

@@ -43,8 +43,9 @@ function offlinePage(page) {
       summary: row.querySelector('p')?.getBoundingClientRect().width || 0
     }));
     const input = document.querySelector('#published-search');
+    const list = document.querySelector('main article')?.closest('li')?.parentElement;
     const pre = document.createElement('pre'); pre.id = 'layout-result';
-    const result = { viewport: innerWidth, page: document.documentElement.scrollWidth, input: input?.getBoundingClientRect().width || 0, rows };
+    const result = { viewport: innerWidth, page: document.documentElement.scrollWidth, input: input?.getBoundingClientRect().width || 0, columns: list ? getComputedStyle(list).gridTemplateColumns.split(' ').length : 0, rows };
     pre.textContent = JSON.stringify(result);
     pre.hidden = true; document.body.append(pre);
     if (window.parent !== window) window.parent.postMessage({ type: 'layout-result', result }, '*');
@@ -75,6 +76,7 @@ for (const page of pages) {
       const layout = JSON.parse(raw);
       assert.equal(layout.viewport, width, `${page}: requested CSS viewport`);
       assert.ok(layout.rows.length > 0, `${page}: build must contain published CMS articles`);
+      assert.equal(layout.columns, width > 1000 ? 3 : width > 640 ? 2 : 1, `${page}/${width}: responsive card columns`);
       assert.ok(layout.page <= layout.viewport + 1, `${page}/${width}: no horizontal overflow`);
       assert.ok(layout.input >= Math.min(280, width - 48), `${page}/${width}: usable search width`);
       for (const row of layout.rows) {

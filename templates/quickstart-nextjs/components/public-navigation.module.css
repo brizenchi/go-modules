@@ -1,0 +1,17 @@
+.navigation:global(.main-nav) { overflow: visible; }
+.navigation :global(.main-nav-link) { min-height: 44px; }
+.group { position: relative; display: inline-flex; align-items: center; }
+.group :global(.main-nav-link) { padding-right: 4px; border-radius: 8px 0 0 8px; }
+.toggle { display: grid; place-items: center; flex-shrink: 0; width: 28px; min-height: 44px; padding: 0; border: 0; border-radius: 0 8px 8px 0; color: var(--muted-strong); background: transparent; }
+.toggle svg { width: 13px; height: 13px; transition: transform 120ms ease; }
+.toggle:hover, .toggle[aria-expanded="true"] { background: var(--surface-subtle); color: var(--text); }
+.toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.group:has(:global(.active)) .toggle { background: var(--surface-subtle); color: var(--text); }
+.popover { position: absolute; top: calc(100% + 10px); left: 0; z-index: 60; width: 224px; max-width: calc(100vw - 40px); padding: 6px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--shadow-md); }
+.group:last-child .popover { left: auto; right: 0; }
+.popover a { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 10px 12px; border-radius: 6px; font-size: 13px; color: var(--muted-strong); }
+.popover a svg { width: 15px; height: 15px; color: var(--muted); }
+.popover a:hover, .popover a:focus-visible { background: var(--surface-subtle); color: var(--text); }
+.popover a[aria-current="page"] { font-weight: 650; color: var(--accent-ink); }
+.popover a:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { .toggle svg { transition: none; } }

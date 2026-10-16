@@ -49,7 +49,7 @@ export function getHomeContent(demo: boolean) {
   return {
     zh: {
       features: [
-        { label: "01", title: "用户认证", description: "邮箱验证码，以及配置后可用的 Google、GitHub 登录。账户信息只读，日常操作保持简洁。", detail: "邮箱 · OAuth · 账户弹窗", href: "/features/authentication" },
+        { label: "01", title: "用户认证", description: "邮箱验证码，以及配置后可用的 Google、GitHub 登录。账户信息只读，日常操作保持简洁。", detail: "邮箱 · OAuth · 账户菜单", href: "/features/authentication" },
         { label: "02", title: "订阅与积分", description: "Stripe 订阅、一次性购买和积分账本，连接购买、账单与用量记录。", detail: "月付 / 年付 · 积分流水", href: "/features/subscriptions" },
         { label: "03", title: "邀请与邮件", description: "邀请链接连接注册归因与奖励，Resend 负责配置后的验证码和通知。", detail: "邀请奖励 · 邮件通知", href: "/docs/invitations" },
         { label: "04", title: "公开产品官网", description: "功能、场景、示例、文档与博客，配套双语路由与分享信息。", detail: "中英双语 · 内容与 SEO", href: "/resources" },
@@ -76,7 +76,7 @@ export function getHomeContent(demo: boolean) {
     },
     en: {
       features: [
-        { label: "01", title: "Authentication", description: "Email codes and optional Google or GitHub sign-in. A read-only account dialog keeps everyday account access simple.", detail: "Email · OAuth · Account dialog", href: "/features/authentication" },
+        { label: "01", title: "Authentication", description: "Email codes and optional Google or GitHub sign-in. A compact account menu keeps everyday account access simple.", detail: "Email · OAuth · Account menu", href: "/features/authentication" },
         { label: "02", title: "Billing & credits", description: "Stripe subscriptions, one-time purchases and a credit ledger connect checkout, invoices and usage records.", detail: "Monthly / yearly · Credit history", href: "/features/subscriptions" },
         { label: "03", title: "Referrals & email", description: "Invite links connect signup and rewards. Configure Resend for verification codes and notifications.", detail: "Referral rewards · Email delivery", href: "/docs/invitations" },
         { label: "04", title: "Your public website", description: "Features, use cases, examples, docs and a blog, with bilingual routes and sharing metadata.", detail: "Two languages · Content & SEO", href: "/resources" },
