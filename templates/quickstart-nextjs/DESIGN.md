@@ -101,6 +101,8 @@ Use a neutral sidebar, restrained green selection, compact 28px workspace titles
 
 `ResponsiveDialog` is the common modal primitive for sign-in, administrator operations and mobile navigation. Native dialogs provide modal semantics; shared code handles focus boundaries, Escape, backdrop dismissal, focus restoration, and body scroll locking. Sheet dialogs become bottom sheets below 641px. Closed dialogs do not mount their interactive content or load authentication capabilities.
 
+The shared sign-in/register dialog uses the neutral title “Sign in”. Authentication method discovery has a one-minute, tab-local memory cache and shares in-flight requests, so reopening a warm dialog immediately shows its methods. Expiry, page reload or an explicit error retry refreshes discovery. Billing capabilities and OAuth authorization URLs are never cached by this helper; OAuth starts only after the customer selects a provider.
+
 Pricing keeps a global request lock but renders progress and errors only in the selected product card. Other product labels remain stable. Monetary values, OAuth handling, available methods, checkout payloads, and demonstration behavior are unchanged.
 
 ## Extension UI primitives

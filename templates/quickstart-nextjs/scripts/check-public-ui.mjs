@@ -19,9 +19,11 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
   compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true }
 }).outputText;
 const files = ["components/language-picker.tsx", "components/account-menu.tsx", "components/sign-out-button.tsx", "components/interface-icon.tsx", "components/localized-link.tsx", "components/public-navigation.tsx", "components/published-content.tsx", "components/site-footer.tsx", "lib/guide-index.ts", "lib/disclosure-focus.ts", "lib/locale.ts", "content/navigation.ts", "content/docs.ts", "content/articles.ts"];
+files.push("components/sign-in-dialog.tsx", "components/sign-in-panel.tsx", "components/responsive-dialog.tsx", "components/ui.tsx", "components/resource-feedback.tsx", "lib/dialog-focus.ts", "lib/request-state.ts", "lib/request-generation.ts", "lib/auth-methods.ts", "lib/sign-in-methods-cache.ts");
 const modules = Object.fromEntries(files.map(file => [file.replace(/\.tsx?$/, ""), compile(file)]));
 const prefix = file => `m_${file.split("/").at(-1).replace(".module.css", "").replaceAll("-", "_")}_`;
 const stylesheets = ["components/account-menu.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
+stylesheets.push("components/sign-in-dialog.module.css", "components/responsive-dialog.module.css");
 // Apply module namespacing, leaving :global selectors intact.
 const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.map(file => {
   const globals = [];
@@ -33,10 +35,12 @@ const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.ma
 const umd = name => readFileSync(join(dirname(require.resolve(name)), "umd", `${name}.development.js`), "utf8");
 const fontFile = require.resolve("@fontsource-variable/manrope/index.css");
 const fonts = readFileSync(fontFile, "utf8").replace(/url\(([^)]+)\)/g, (_, asset) => `url(data:font/woff2;base64,${readFileSync(resolve(dirname(fontFile), asset.replaceAll(/["']/g, ""))).toString("base64")})`);
-function page(locale) {
+function page(locale, signIn = false) {
   const js = String.raw`
-const modules=MODULES,cache={},locale=LOCALE;
+const modules=MODULES,cache={},locale=LOCALE,authFixture=AUTH_FIXTURE;
 const fixture=window.fixture={session:{token:'fixture-token',expires_at:'2099-01-01T00:00:00Z',user:{id:'fixture',username:'Demo Customer',email:'customer@example.test',role:'user'}},calls:0,redirects:[],mode:'pending'};
+fixture.capabilityRequests=0;fixture.oauthRequests=0;fixture.now=100;fixture.advance=ms=>fixture.now+=ms;
+if(authFixture)Date.now=()=>fixture.now;
 const originalSession={...fixture.session};
 const i18n={useI18n:()=>({locale,t:copy=>copy[locale]})};
 const icon=React.createElement;
@@ -47,11 +51,15 @@ function load(name,parent=''){
   if(key==='next/link')return{__esModule:true,default:({href,onClick,onNavigate,...props})=>icon('a',{...props,href,onClick:event=>{event.preventDefault();onClick?.(event);onNavigate?.()}})};
   if(key==='next/navigation')return{usePathname:()=>'/resources',useRouter:()=>({replace:path=>fixture.redirects.push(path)})};
   if(key==='lib/i18n')return i18n;
+  if(authFixture && key==='lib/api')return{ApiError:class extends Error{},getCapabilities:()=>{fixture.capabilityRequests++;return new Promise((resolve,reject)=>{fixture.resolveMethods=auth=>resolve({auth,billing:{enabled:true}});fixture.rejectMethods=()=>reject(new TypeError('fixture offline'))})}};
+  if(authFixture && key==='lib/auth')return{readSession:()=>null,readReferralCode:()=>'',REFERRAL_EVENT:'fixture-referral'};
+  if(authFixture && key==='lib/env')return{appEnv:{authEmailConfigured:false,authEmailEnabled:true,authOAuthProvidersConfigured:false,authOAuthProviders:[]}};
+  if(authFixture && key==='lib/oauth-flow')return{resolveSignInDestination:()=>'/account',getOAuthRedirectURL:async()=>{fixture.oauthRequests++;throw new TypeError('fixture prevents external navigation')}};
   if(key==='lib/env')return{appEnv:{demoMode:true}};
   if(key==='lib/auth')return{readSession:()=>fixture.session};
   if(key==='lib/api')return{userLabel:user=>user.username||user.email,logout:token=>{fixture.calls++;return new Promise((resolve,reject)=>{fixture.resolve=()=>{if(fixture.session?.token===token){fixture.session=null;dispatchEvent(new Event('fixture-session'))}resolve({ok:true})};fixture.reject=()=>reject(new Error('private raw failure'))})}};
   if(key==='lib/account-actions')return{accountLogoutFailure:()=>locale==='zh'?'退出失败，请检查网络后重试。':'Sign-out failed. Check your connection and retry.'};
-  if(key==='components/sign-in-dialog')return{SignInDialog:()=>null};
+  if(!authFixture && key==='components/sign-in-dialog')return{SignInDialog:()=>null};
   if(key==='components/markdown-content')return{MarkdownContent:()=>null};
   if(key==='components/article-language-context')return{ArticleLanguagesProvider:props=>props.children};
   if(key==='components/structured-data')return{StructuredData:()=>null};
@@ -68,11 +76,15 @@ function Frame(props){const[session,setSession]=React.useState(fixture.session);
 const docs=load('content/docs').documentation.map(row=>({id:'docs:'+row.id,path:'/docs/'+row.id,kind:'docs',translation:{title:row.title[locale],summary:row.summary[locale]}}));
 const articles=load('content/articles').articles.map(row=>({id:'blog:'+row.slug,path:'/blog/'+row.slug,kind:'blog',translation:{title:row.title[locale],summary:row.summary[locale]}}));
 const entries=[...docs,...articles,{id:'feature-fixture',kind:'features',path:'/features/billing',translation:{title:'Feature page fixture',summary:'Not a guide'}}];
-ReactDOM.createRoot(document.getElementById('root')).render(icon(load('components/published-content').PublishedContentIndex,{kind:'resources',entries}));
+function SignInFixture(){const[open,setOpen]=React.useState(false);return icon(React.Fragment,null,icon('button',{id:'open-sign-in',className:'button primary',onClick:()=>setOpen(true)},'Open sign-in'),icon(load('components/sign-in-dialog').SignInDialog,{open,onClose:()=>setOpen(false)}))}
+ReactDOM.createRoot(document.getElementById('root')).render(authFixture?icon(React.StrictMode,null,icon(SignInFixture)):icon(load('components/published-content').PublishedContentIndex,{kind:'resources',entries}));
+fixture.open=()=>document.getElementById('open-sign-in').click();
+fixture.close=()=>document.querySelector('dialog[open] button[aria-label]').click();
+fixture.watchLoading=()=>{fixture.loadingSeen=false;new MutationObserver(()=>{if(document.querySelector('dialog[open] .sign-in-stack')?.textContent.match(/Loading available|正在加载可用/))fixture.loadingSeen=true}).observe(document.getElementById('root'),{subtree:true,childList:true,characterData:true})};
 fixture.reset=()=>{fixture.session={...originalSession};dispatchEvent(new Event('fixture-session'))};
 fixture.click=text=>{const element=[...document.querySelectorAll('button')].find(node=>node.textContent.trim()===text);if(!element)throw Error('Missing button '+text);element.click()};
 fixture.search=value=>{const input=document.getElementById('published-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))};
-`.replace("LOCALE", () => JSON.stringify(locale)).replace("MODULES", () => JSON.stringify(modules));
+`.replace("LOCALE", () => JSON.stringify(locale)).replace("AUTH_FIXTURE", () => JSON.stringify(signIn)).replace("MODULES", () => JSON.stringify(modules));
   return `<!doctype html><html lang="${locale}"><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${fonts}\n${css}</style></head><body><div id="root"></div><script>${umd("react")}</script><script>${umd("react-dom")}</script><script>${js.replaceAll("</script", "<\\/script")}</script></body></html>`;
 }
 
@@ -145,6 +157,42 @@ try {
     await check("document.querySelector('footer').getBoundingClientRect().bottom<=innerHeight+1",tag+': footer bottom is visible');
     await screenshot(tag+'-footer');
     console.log(tag+': interaction and layout checks passed');
+  }}
+  for(const locale of ["en","zh"]){for(const width of [1440,390]){
+    const tag=locale+'-'+width+'-sign-in';
+    await command("Emulation.setDeviceMetricsOverride",{width,height:1000,deviceScaleFactor:1,mobile:false});
+    const file=join(output,tag+'.html');writeFileSync(file,page(locale,true));
+    await command("Page.navigate",{url:pathToFileURL(file).href});
+    for(let attempt=0;attempt<30;attempt++){if(await evaluate("Boolean(document.querySelector('#open-sign-in'))"))break;await new Promise(resolve=>setTimeout(resolve,40))}
+    await settle();
+    await check("fixture.capabilityRequests===0 && !document.querySelector('.sign-in-stack')",tag+': closed dialog does not discover methods');
+    await evaluate("fixture.open()");await settle();
+    await check(`document.querySelector('dialog[open] h2').textContent==='${locale==='zh'?'登录':'Sign in'}'`,tag+': neutral sign-in heading');
+    await check("fixture.capabilityRequests===1 && fixture.oauthRequests===0",tag+': Strict Mode mount starts only one discovery and no OAuth request');
+    await evaluate("fixture.close()");await settle();await evaluate("fixture.open()");await settle();
+    await check("fixture.capabilityRequests===1",tag+': pending discovery survives close/reopen without another request');
+    await evaluate("fixture.resolveMethods({email_enabled:true,oauth_providers:['google']})");await settle();
+    await check("Boolean(document.querySelector('.sign-in-google-button')) && Boolean(document.querySelector('#sign-in-email'))",tag+': API enables Google and email');
+    await evaluate("document.querySelector('dialog[open]').getAnimations().forEach(animation=>animation.finish())");
+    await screenshot(tag);
+    await check("document.documentElement.scrollWidth<=innerWidth+1 && document.querySelector('dialog[open]').getBoundingClientRect().bottom<=innerHeight+1",tag+': responsive dialog fits viewport');
+    await evaluate("fixture.close();fixture.watchLoading()");await settle();await evaluate("fixture.open()");await settle();
+    await check("fixture.capabilityRequests===1 && !fixture.loadingSeen && Boolean(document.querySelector('.sign-in-google-button'))",tag+': warm reopen has no request or loading flash');
+    await evaluate("fixture.close();fixture.advance(60001)");await settle();await evaluate("fixture.open()");await settle();
+    await check("fixture.capabilityRequests===2 && !document.querySelector('.sign-in-google-button')",tag+': expired methods are checked again before display');
+    await evaluate("fixture.rejectMethods()");await settle();
+    await check("Boolean(document.querySelector('dialog[open] [role=alert] button'))",tag+': failed discovery can be retried');
+    await evaluate("document.querySelector('dialog[open] [role=alert] button').click()");await settle();
+    await check("fixture.capabilityRequests===3",tag+': retry makes a fresh request');
+    await evaluate("fixture.resolveMethods({email_enabled:true,oauth_providers:[]})");await settle();
+    await check("!document.querySelector('.sign-in-google-button') && Boolean(document.querySelector('#sign-in-email'))",tag+': disabled provider is removed');
+    await evaluate("fixture.close();fixture.advance(60001)");await settle();await evaluate("fixture.open()");await settle();
+    await evaluate("fixture.resolveMethods({email_enabled:true,oauth_providers:['google']})");await settle();
+    await check("fixture.oauthRequests===0",tag+': opening and retrying never starts OAuth');
+    await evaluate("document.querySelector('.sign-in-google-button').click()");await settle();
+    await evaluate("document.querySelector('.sign-in-google-button').click()");await settle();
+    await check("fixture.oauthRequests===2",tag+': each explicit OAuth attempt obtains a new authorization URL');
+    console.log(tag+': sign-in lifecycle checks passed');
   }}
   console.log(`Public UI checks passed: ${checks} assertions. Screenshots: ${output}`);
 } finally {

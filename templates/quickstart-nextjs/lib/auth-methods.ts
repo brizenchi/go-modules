@@ -1,5 +1,7 @@
 import type { CapabilitiesView, OAuthProvider } from "./api";
 
+export type AuthMethodCapabilities = Pick<CapabilitiesView, "auth">;
+
 export type AuthMethodPolicy = {
   emailConfigured: boolean;
   emailEnabled: boolean;
@@ -21,7 +23,7 @@ const knownOAuthProviders = new Set<OAuthProvider>(["google", "github"]);
  * did not report. Older APIs without `auth` retain the explicit env behavior.
  */
 export function resolveAuthMethods(
-  capabilities: CapabilitiesView,
+  capabilities: AuthMethodCapabilities | CapabilitiesView,
   policy: AuthMethodPolicy
 ): AvailableAuthMethods {
   if (!capabilities.auth) {

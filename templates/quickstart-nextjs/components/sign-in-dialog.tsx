@@ -19,7 +19,7 @@ type SignInDialogProps = {
 export function SignInDialog({ open, onClose, onSuccess, returnTo }: SignInDialogProps) {
   const { t } = useI18n();
   return <ResponsiveDialog open={open} onClose={onClose}
-    title={t({ en: "Welcome back", zh: "欢迎回来" })}
+    title={t({ en: "Sign in", zh: "登录" })}
     description={t({ en: "Sign in or create an account to continue.", zh: "登录或创建账户，继续使用。" })}
     closeLabel={t({ en: "Close login dialog", zh: "关闭登录弹窗" })}
     icon={<InterfaceIcon name="account" />}>

@@ -5,13 +5,13 @@ import { ResourceFailure } from "@/components/resource-feedback";
 import { Notice } from "@/components/ui";
 import {
   ApiError,
-  getCapabilities,
   sendCode,
   verifyCode,
   type OAuthProvider
 } from "@/lib/api";
 import { getOAuthRedirectURL, resolveSignInDestination } from "@/lib/oauth-flow";
-import { resolveAuthMethods } from "@/lib/auth-methods";
+import { resolveAuthMethods, type AuthMethodCapabilities } from "@/lib/auth-methods";
+import { loadSignInMethods, peekSignInMethods } from "@/lib/sign-in-methods-cache";
 import {
   clearReferralCode,
   readReferralCode,
@@ -31,6 +31,7 @@ import {
 import {
   idleResource,
   loadingResource,
+  readyResource,
   settleResource,
   type ResourceState
 } from "@/lib/request-state";
@@ -71,7 +72,10 @@ export function SignInPanel({
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<Awaited<ReturnType<typeof getCapabilities>>>>(idleResource());
+  const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<AuthMethodCapabilities>>(() => {
+    const cached = peekSignInMethods();
+    return cached ? readyResource(cached) : idleResource();
+  });
   const mountedRef = useRef(false);
   const capabilitiesGenerationRef = useRef(0);
   const emailActionGenerationRef = useRef(0);
@@ -104,11 +108,16 @@ export function SignInPanel({
     };
   }, []);
 
-  async function loadCapabilities() {
+  async function loadCapabilities(force = false) {
     if (!mountedRef.current) return;
     const generation = beginRequestGeneration(capabilitiesGenerationRef);
+    const cached = force ? null : peekSignInMethods();
+    if (cached) {
+      setCapabilitiesState(readyResource(cached));
+      return;
+    }
     setCapabilitiesState((current) => loadingResource(current.data));
-    const nextState = await settleResource(getCapabilities(), "Sign-in methods");
+    const nextState = await settleResource(loadSignInMethods(force), "Sign-in methods");
     if (
       mountedRef.current
       && isCurrentRequestGeneration(capabilitiesGenerationRef, generation)
@@ -241,7 +250,7 @@ export function SignInPanel({
       {capabilitiesState.status === "idle" || capabilitiesState.status === "loading" ? (
         <Notice>{t({ en: "Loading available sign-in methods...", zh: "正在加载可用登录方式..." })}</Notice>
       ) : capabilitiesState.status === "error" ? (
-        <ResourceFailure failure={capabilitiesState.failure} onRetry={() => void loadCapabilities()} />
+        <ResourceFailure failure={capabilitiesState.failure} onRetry={() => void loadCapabilities(true)} />
       ) : null}
 
       {oauthProviders.map((provider) => {

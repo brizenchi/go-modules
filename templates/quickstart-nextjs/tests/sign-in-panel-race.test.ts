@@ -50,7 +50,7 @@ test("OAuth preserves the validated customer destination before a top-level back
 });
 
 test("sign-in actions wait for backend capabilities and capability failures are retryable", () => {
-  assert.match(panelSource, /await settleResource\(getCapabilities\(\), "Sign-in methods"\)/);
+  assert.match(panelSource, /await settleResource\(loadSignInMethods\(force\), "Sign-in methods"\)/);
   assert.match(panelSource, /oauthProviders\.map/);
   assert.match(panelSource, /emailEnabled && \(!codeIssued/);
   assert.match(panelSource, /<ResourceFailure failure=\{capabilitiesState\.failure\} onRetry=/);

@@ -38,6 +38,7 @@ Stripe 订阅与积分计费、邀请推荐和 Resend 邮件能力；前端包�
 - 后端 API 挂在 `/api/v1`；
 - 响应使用 `foundation/httpresp` 的 JSON envelope；
 - 登录方式由后端 `/capabilities` 声明；前端环境变量只能进一步限制显示范围；
+- 登录弹窗在当前标签页内缓存可用登录方式一分钟，并复用进行中的查询。刷新页面、缓存过期或点击错误重试时重新获取；Google/GitHub 授权地址仍在点击对应按钮时获取；
 - 支付使用共享 billing 的 Stripe HTTP 接口；
 - 邀请使用 referral HTTP 接口；
 - 邮箱验证和 OAuth token exchange 都会提交 `referral_code`。
