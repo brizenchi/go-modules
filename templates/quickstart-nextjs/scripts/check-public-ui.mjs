@@ -20,12 +20,13 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
 }).outputText;
 const files = ["components/language-picker.tsx", "components/account-menu.tsx", "components/sign-out-button.tsx", "components/interface-icon.tsx", "components/localized-link.tsx", "components/public-navigation.tsx", "components/published-content.tsx", "components/site-footer.tsx", "lib/guide-index.ts", "lib/disclosure-focus.ts", "lib/locale.ts", "content/navigation.ts", "content/docs.ts", "content/articles.ts"];
 files.push("components/sign-in-dialog.tsx", "components/sign-in-panel.tsx", "components/responsive-dialog.tsx", "components/ui.tsx", "components/resource-feedback.tsx", "lib/dialog-focus.ts", "lib/request-state.ts", "lib/request-generation.ts", "lib/auth-methods.ts", "lib/sign-in-methods-cache.ts");
+files.push("components/brand-mark.tsx", "lib/site-branding.ts");
 files.push("components/content-discovery.tsx", "lib/content-discovery.ts", "lib/markdown.ts", "lib/workspace.ts");
 const modules = Object.fromEntries(files.map(file => [file.replace(/\.tsx?$/, ""), compile(file)]));
 const prefix = file => `m_${file.split("/").at(-1).replace(".module.css", "").replaceAll("-", "_")}_`;
 const stylesheets = ["components/account-menu.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
 stylesheets.push("components/sign-in-dialog.module.css", "components/responsive-dialog.module.css");
-stylesheets.push("components/content-discovery.module.css");
+stylesheets.push("components/content-discovery.module.css", "components/brand-mark.module.css");
 // Apply module namespacing, leaving :global selectors intact.
 const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.map(file => {
   const globals = [];
@@ -53,6 +54,7 @@ function load(name,parent=''){
   if(key==='next/link')return{__esModule:true,default:({href,onClick,onNavigate,...props})=>icon('a',{...props,href,onClick:event=>{event.preventDefault();onClick?.(event);onNavigate?.()}})};
   if(key==='next/navigation')return{usePathname:()=>'/resources',useRouter:()=>({replace:path=>fixture.redirects.push(path)})};
   if(key==='lib/i18n')return i18n;
+  if(key==='components/site-presentation')return{useSitePresentation:()=>null};
   if(authFixture && key==='lib/api')return{ApiError:class extends Error{},getCapabilities:()=>{fixture.capabilityRequests++;return new Promise((resolve,reject)=>{fixture.resolveMethods=auth=>resolve({auth,billing:{enabled:true}});fixture.rejectMethods=()=>reject(new TypeError('fixture offline'))})}};
   if(authFixture && key==='lib/auth')return{readSession:()=>null,readReferralCode:()=>'',REFERRAL_EVENT:'fixture-referral'};
   if(authFixture && key==='lib/env')return{appEnv:{authEmailConfigured:false,authEmailEnabled:true,authOAuthProvidersConfigured:false,authOAuthProviders:[]}};
@@ -66,7 +68,7 @@ function load(name,parent=''){
   if(key==='components/article-language-context')return{ArticleLanguagesProvider:props=>props.children};
   if(key==='components/structured-data')return{StructuredData:()=>null};
   if(key==='lib/structured-data')return{articleStructuredData:()=>({})};
-  if(key==='content/site')return{siteConfig:{footer:{description:{en:'A connected starting point for your product.',zh:'从清楚的起点，构建你的产品。'}},brand:{subtitle:{en:'SaaS Starter',zh:'SaaS 启动模板'}}},getHomeContent:()=>({})};
+  if(key==='content/site')return{siteConfig:{footer:{description:{en:'A connected starting point for your product.',zh:'从清楚的起点，构建你的产品。'}},brand:{subtitle:{en:'Next.js + Go',zh:'Next.js + Go'}}},getHomeContent:()=>({})};
   if(key==='components/site-shell')return{SiteShell:Frame};
   if(key.endsWith('.css')){const p='m_'+key.split('/').at(-1).replace('.module.css','').replaceAll('-','_')+'_';return{__esModule:true,default:new Proxy({},{get:(_,name)=>p+String(name)})}}
   if(cache[key])return cache[key];if(!modules[key])throw Error('Unexpected dependency '+key);
@@ -121,6 +123,7 @@ try {
     await check("!document.querySelector('main').textContent.includes('Feature page fixture')",tag+': no repeated feature pages');
     await screenshot(tag+'-guides');
     await evaluate("document.querySelector('.language-trigger').click()");await settle();
+    await check("JSON.stringify([...document.querySelectorAll('.language-options button')].map(e=>e.lang))===JSON.stringify(['en','zh-CN'])",tag+': English is always listed first');
     const other=locale==='zh'?'en':'zh-CN';
     const point=await evaluate(`(()=>{const box=document.querySelector('.language-options button[lang="${other}"]').getBoundingClientRect();return{x:box.x+box.width/2,y:box.y+box.height/2}})()`);
     await command("Input.dispatchMouseEvent",{type:"mouseMoved",...point});await settle();
@@ -158,7 +161,9 @@ try {
     await evaluate("window.scrollTo({top:document.body.scrollHeight,behavior:'instant'})");await settle();
     await check("(()=>{const links=[...document.querySelectorAll('footer a')].map(link=>link.getAttribute('href'));return links.length===new Set(links).size})()",tag+': footer links do not repeat');
     await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': footer fits viewport');
+    await check("(()=>{const bottom=document.querySelector('[data-site-footer] > div > div:last-child');const [copyright,legal,top]=[...bottom.children].map(e=>e.getBoundingClientRect());return innerWidth>800?Math.abs(copyright.y+copyright.height/2-legal.y-legal.height/2)<1&&Math.abs(top.y+top.height/2-legal.y-legal.height/2)<1:copyright.bottom<=legal.top&&legal.bottom<=top.top})()",tag+': footer legal row aligns on desktop and stacks clearly on mobile');
     await check("document.querySelector('footer').getBoundingClientRect().bottom<=innerHeight+1",tag+': footer bottom is visible');
+    await check("!document.querySelector('footer').textContent.includes('Next.js')",tag+': footer omits legacy architecture tagline');
     await screenshot(tag+'-footer');
     console.log(tag+': interaction and layout checks passed');
   }}

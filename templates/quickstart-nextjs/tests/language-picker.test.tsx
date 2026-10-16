@@ -33,3 +33,13 @@ test("both languages use a decorative vector chevron without a font-dependent ba
     assert.doesNotMatch(trigger, /⌄/u);
   }
 });
+
+test("English stays above Chinese regardless of the selected language", () => {
+  for (const locale of ["en", "zh"] as const) {
+    for (const destinations of [undefined, { en: "/features", zh: "/zh/features" }]) {
+      const html = renderToStaticMarkup(<LanguagePicker locale={locale} label="Language" destinations={destinations} onSelect={() => {}} />);
+      const options = html.match(/<nav\b[^>]*>([\s\S]*?)<\/nav>/)?.[1] || "";
+      assert.ok(options.indexOf('lang="en"') < options.indexOf('lang="zh-CN"'));
+    }
+  }
+});

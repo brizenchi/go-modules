@@ -11,7 +11,6 @@ import { appEnv } from "@/lib/env";
 import { siteLinkForPath } from "@/content/navigation";
 import { PublicNavigation } from "./public-navigation";
 import { useSitePresentation } from "./site-presentation";
-import { siteConfig } from "@/content/site";
 import { type AccountSummary } from "@/lib/account-summary";
 import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -20,6 +19,7 @@ import { CustomerPage } from "@/components/customer-shell";
 import { AccountMenu } from "@/components/account-menu";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { BrandMark } from "./brand-mark";
 import { SiteFooter } from "@/components/site-footer";
 import { publicPaths } from "@/lib/seo";
 import {
@@ -154,15 +154,9 @@ function PublicSiteShell(props: SiteShellProps) {
       <header className="topbar">
         <div className="topbar-inner">
           <Link className="brand-lockup" href="/" aria-label={`${brand} · ${t({ en: "Home", zh: "首页" })}`}>
-            <span className="brand-mark" aria-hidden="true">
-              <svg viewBox="0 0 28 28" role="img">
-                <path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" />
-                <path d="m9.5 10.5 4.5-2.6 4.5 2.6v5L14 18l-4.5-2.5v-5Z" />
-              </svg>
-            </span>
+            <BrandMark className="brand-mark" />
             <span className="brand-copy">
               <span className="brand-title">{brand}</span>
-              <span className="brand-subtitle">{t(siteConfig.brand.subtitle)}</span>
             </span>
           </Link>
 

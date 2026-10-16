@@ -5,8 +5,8 @@ import { useEffect, useRef } from "react";
 import type { Locale } from "../lib/locale";
 
 export const languageOptions: { locale: Locale; label: string; language: string }[] = [
-  { locale: "zh", label: "中文", language: "zh-CN" },
-  { locale: "en", label: "EN", language: "en" }
+  { locale: "en", label: "EN", language: "en" },
+  { locale: "zh", label: "中文", language: "zh-CN" }
 ];
 
 type Props = {

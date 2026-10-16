@@ -1,33 +1,75 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { listPurchases, type PurchaseItem } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { listInvoices, listPurchases, type InvoiceItem, type PurchaseItem } from "@/lib/api";
+import { readSession } from "@/lib/auth";
 import { formatBillingAmount } from "@/lib/billing-money";
-import { formatDate } from "@/lib/format";
+import { formatCurrencyUSD, formatDate } from "@/lib/format";
+import { invoiceDownloadURL, paymentRecords, type PaymentRecord } from "@/lib/payment-history";
 import { useI18n } from "@/lib/i18n";
-import { ConsoleError, useConsoleResource } from "./console-kit";
+import { ConsoleError } from "./console-kit";
 import { DataTable } from "./data-table";
 import { StatusBadge } from "./status-badge";
 import { Panel } from "./ui";
+import styles from "./billing-history.module.css";
 
-export function BillingHistory({ token, revision = 0 }: { token: string; revision?: number }) {
+type History = {
+ owner: string; purchases: PurchaseItem[]; invoices: InvoiceItem[];
+ nextPurchasePage: number | null; nextInvoicePage: number | null;
+ loading: boolean; errors: unknown[];
+};
+const initialHistory = (): History => ({ owner: "", purchases: [], invoices: [], nextPurchasePage: 1, nextInvoicePage: 1, loading: true, errors: [] });
+
+export function BillingHistory({ token, revision = 0, invoicesEnabled = true }: { token: string; revision?: number; invoicesEnabled?: boolean }) {
  const { t, locale } = useI18n();
- const [page, setPage] = useState(1);
- const loader = useCallback((current: string) => { void revision; return listPurchases(current, page); }, [page, revision]);
- const history = useConsoleResource(token, loader);
+ const [state, setState] = useState<History>(initialHistory);
+ const generation = useRef(0);
+ const busy = useRef(false);
+ const load = useCallback(async (owner: string, request: number, purchasePage: number | null, invoicePage: number | null, replace = false) => {
+  if (busy.current || readSession()?.token !== owner) return;
+  busy.current = true;
+  setState(previous => ({ ...(previous.owner === owner ? previous : initialHistory()), owner, loading: true, errors: [] }));
+  const [purchases, invoices] = await Promise.allSettled([
+   purchasePage ? listPurchases(owner, purchasePage) : Promise.resolve(null),
+   invoicePage ? listInvoices(owner, invoicePage) : Promise.resolve(null)
+  ]);
+  if (generation.current !== request || readSession()?.token !== owner) return;
+  busy.current = false;
+  setState(previous => ({
+   owner, loading: false,
+   purchases: [...(replace ? [] : previous.purchases), ...(purchases.status === "fulfilled" ? purchases.value?.items || [] : [])],
+   invoices: [...(replace ? [] : previous.invoices), ...(invoices.status === "fulfilled" ? invoices.value?.items || [] : [])],
+   nextPurchasePage: purchases.status === "rejected" ? purchasePage : purchases.value && purchases.value.page * purchases.value.limit < purchases.value.total ? purchases.value.page + 1 : null,
+   nextInvoicePage: invoices.status === "rejected" ? invoicePage : invoices.value && invoices.value.page * invoices.value.limit < invoices.value.total ? invoices.value.page + 1 : null,
+   errors: [...(purchases.status === "rejected" ? [purchases.reason] : []), ...(invoices.status === "rejected" ? [invoices.reason] : [])]
+  }));
+ }, []);
+ useEffect(() => {
+  const counter = generation;
+  const request = ++counter.current;
+  busy.current = false;
+  void load(token, request, 1, invoicesEnabled ? 1 : null, true);
+  return () => { counter.current++; };
+ }, [token, revision, invoicesEnabled, load]);
+ const history = state.owner === token ? state : initialHistory();
+ const rows = paymentRecords(history.purchases, history.invoices);
+ const loadMore = () => void load(token, generation.current, history.nextPurchasePage, history.nextInvoicePage);
  function paymentStatus(value: string) {
-  return t(value === "paid" ? { en: "Paid", zh: "已付款" } : value === "failed" ? { en: "Failed", zh: "付款失败" }
-   : value === "unpaid" ? { en: "Unpaid", zh: "待付款" } : value === "no_payment_required" ? { en: "No payment required", zh: "无需付款" }
-   : { en: "Pending", zh: "待确认" });
+  return t(value === "paid" ? { en: "Paid", zh: "已付款" } : value === "failed" || value === "uncollectible" ? { en: "Failed", zh: "付款失败" }
+   : value === "unpaid" || value === "open" ? { en: "Unpaid", zh: "待付款" } : value === "no_payment_required" ? { en: "No payment required", zh: "无需付款" }
+   : value === "void" || value === "canceled" ? { en: "Canceled", zh: "已取消" } : { en: "Pending", zh: "待确认" });
  }
+ const errors = history.errors.length ? <div className={styles.errors}>{history.errors.map((error, index) => <ConsoleError key={index} error={error} retry={loadMore} />)}</div> : undefined;
  return <Panel className="span-12" title={t({ en: "Payment history", zh: "支付记录" })}>
+  <div id="history" /><div id="invoices" />
   <DataTable caption={t({ en: "Payment history", zh: "支付记录" })} columns={[
-   { key: "purchase", heading: t({ en: "Purchase", zh: "订单" }), cell: (item: PurchaseItem) => <><strong>{t(item.product_type === "credits" ? { en: "Credits", zh: "积分包" } : item.product_type === "lifetime" ? { en: "Lifetime", zh: "终身会员" } : item.product_type === "subscription" ? { en: "Subscription", zh: "订阅" } : { en: "Payment", zh: "付款" })}</strong><br /><small>{item.id}</small></> },
-   { key: "amount", heading: t({ en: "Amount", zh: "金额" }), cell: item => formatBillingAmount(item.amount, item.currency, locale) },
-   { key: "status", heading: t({ en: "Status", zh: "状态" }), cell: item => <StatusBadge tone={item.status === "paid" || item.status === "no_payment_required" ? "success" : item.status === "failed" ? "danger" : "warning"}>{paymentStatus(item.status)}</StatusBadge> },
-   { key: "time", heading: t({ en: "Date", zh: "时间" }), cell: item => formatDate(item.created_at, locale) }
-  ]} rows={history.data?.items || []} rowKey={item => item.id} loading={history.loading} loadingLabel={t({ en: "Loading payments…", zh: "正在读取支付记录…" })}
-   empty={t({ en: "No payments yet.", zh: "暂无支付记录。" })} error={history.error ? <ConsoleError error={history.error} /> : undefined}
-   pagination={history.data && history.data.total > 10 ? { page, limit: 10, total: history.data.total, onPage: setPage, previousLabel: t({ en: "Previous", zh: "上一页" }), nextLabel: t({ en: "Next", zh: "下一页" }), label: (current, pages) => `${current} / ${pages}` } : undefined} />
+   { key: "purchase", heading: t({ en: "Purchase", zh: "订单" }), cell: (row: PaymentRecord) => <><strong>{t(row.purchase?.product_type === "credits" ? { en: "Credits", zh: "积分包" } : row.purchase?.product_type === "lifetime" ? { en: "Lifetime", zh: "终身会员" } : row.purchase?.product_type === "subscription" ? { en: "Subscription", zh: "订阅" } : { en: "Payment", zh: "付款" })}</strong><br /><small>{row.invoice?.id || row.id}</small></> },
+   { key: "amount", heading: t({ en: "Amount", zh: "金额" }), cell: row => row.purchase ? formatBillingAmount(row.purchase.amount, row.purchase.currency, locale) : row.invoice ? formatCurrencyUSD(row.invoice.amount_usd) : "—" },
+   { key: "status", heading: t({ en: "Status", zh: "状态" }), cell: row => { const status = row.invoice?.status || row.purchase?.status || ""; return <StatusBadge tone={status === "paid" || status === "no_payment_required" ? "success" : status === "failed" || status === "uncollectible" ? "danger" : status === "void" || status === "canceled" ? "neutral" : "warning"}>{paymentStatus(status)}</StatusBadge>; } },
+   { key: "time", heading: t({ en: "Date", zh: "时间" }), cell: row => formatDate(row.created_at, locale) },
+   { key: "invoice", heading: t({ en: "Invoice", zh: "发票" }), cell: row => { const url = invoiceDownloadURL(row.invoice); return url ? <a href={url} target="_blank" rel="noopener noreferrer">{t({ en: "Download", zh: "下载" })} ↗</a> : "—"; } }
+  ]} rows={rows} rowKey={row => row.id} loading={history.loading} loadingLabel={t({ en: "Loading payments…", zh: "正在读取支付记录…" })}
+   empty={<span className={styles.empty}>{t({ en: "No payments yet.", zh: "暂无支付记录。" })}</span>} error={errors} />
+  {history.nextPurchasePage || history.nextInvoicePage ? <div className={styles.more}><button className="button" type="button" disabled={history.loading} onClick={loadMore}>{history.loading ? t({ en: "Loading…", zh: "加载中…" }) : t({ en: "Load more", zh: "加载更多" })}</button></div> : null}
  </Panel>;
 }

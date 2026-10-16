@@ -9,6 +9,7 @@ import { InterfaceIcon } from "@/components/interface-icon";
 import { ResponsiveDialog } from "@/components/responsive-dialog";
 import { workspaceNavItems } from "@/lib/workspace";
 import { useI18n } from "@/lib/i18n";
+import { BrandMark } from "./brand-mark";
 import styles from "./customer-shell.module.css";
 
 type CustomerShellProps = {
@@ -47,7 +48,7 @@ export function CustomerShell({ brand, activeHref, accountMenu, localeControl, c
     <header className={styles.header}>
       <div className={styles.headerInner}>
         <Link className={styles.brand} href="/" aria-label={`${brand} · ${t({ en: "Home", zh: "首页" })}`}>
-          <span className={styles.brandMark}><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" /><path d="m10 11 4-2.3 4 2.3v4.5L14 18l-4-2.5z" /></svg></span>
+          <BrandMark className={styles.brandMark} />
           <strong>{brand}</strong>
         </Link>
         <div className={styles.tools}>{localeControl}{accountMenu}</div>

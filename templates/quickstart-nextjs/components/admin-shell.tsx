@@ -16,6 +16,7 @@ import { InterfaceIcon } from "./interface-icon";
 import { NavigationLabel } from "./navigation-label";
 import { PendingLabel } from "./pending-label";
 import { ResponsiveDialog } from "./responsive-dialog";
+import { BrandMark } from "./brand-mark";
 import styles from "./admin-shell.module.css";
 
 async function verifyAdminAccess(token: string) {
@@ -75,7 +76,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   function signOut() { void action.run(() => logout(token), () => {}); }
   const languageSwitch = <LanguagePicker locale={locale} label={t({ en: "Choose language", zh: "选择语言" })} onSelect={setLocale} />;
   const brand = <Link className={styles.brand} href="/" aria-label={`${siteName} · ${t({ en: "Home", zh: "首页" })}`}>
-    <span className={styles.brandMark}><svg viewBox="0 0 28 28" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6 8.5 14 4l8 4.5v9L14 22l-8-4.5v-9Z" /><path d="m10 11 4-2.3 4 2.3v4.5L14 18l-4-2.5z" /></svg></span>
+    <BrandMark className={styles.brandMark} />
     <strong>{siteName}</strong><span className={styles.tag}>{t({ en: "Admin", zh: "管理后台" })}</span>
   </Link>;
   const header = <header className={styles.topbar}><div className={styles.headerInner}>{brand}<div className={styles.account}>{languageSwitch}{ready && isAdmin && access.data ? <AdminIdentity email={session?.user.email || ""} name={session?.user.username || ""} busy={action.busy} onSignOut={signOut} /> : null}</div></div></header>;
@@ -95,7 +96,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   function navigation() {
     return <nav className={styles.navigation} aria-label={t({ en: "Administrator navigation", zh: "后台导航" })}>
-      {adminNavigationGroups.map(group => <div className={styles.navGroup} key={group.id}><h2 className={styles.navLabel}>{t(group.label)}</h2><ul>
+      {adminNavigationGroups.map(group => <div className={styles.navGroup} key={group.id}>{adminNavigationGroups.length > 1 ? <h2 className={styles.navLabel}>{t(group.label)}</h2> : null}<ul>
         {group.sections.map(section => <li key={section}><Link href={adminSectionHref(section)} aria-current={section === current ? "page" : undefined} onNavigate={() => { if (section === current) setNavOpen(false); }}>
           <InterfaceIcon name={adminSectionIcons[section]} /><NavigationLabel label={t(adminSectionNames[section])} className={styles.navLinkContent} statusClassName={styles.navigationStatus} />
         </Link></li>)}

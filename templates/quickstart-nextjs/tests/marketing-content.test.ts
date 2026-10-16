@@ -2,6 +2,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { marketingCategories, marketingPages, marketingRoutes, aboutPage, resourcesPage, customerExamples } from "../content/marketing";
 import { publicContentPaths } from "../lib/seo";
+import { siteConfig } from "../content/site";
+import { publicPageMetadata } from "../lib/seo";
+
+test("public marketing and sharing copy lead with product capabilities", () => {
+  const architecture = /Next\.js|\bGo (?:API|modules)\b|技术栈|技术架构/iu;
+  for (const copy of [siteConfig.description, siteConfig.homepageTitle, siteConfig.hero, siteConfig.footer, siteConfig.sharing]) {
+    assert.doesNotMatch(JSON.stringify(copy), architecture);
+  }
+  for (const page of [...marketingCategories, ...marketingPages, aboutPage, resourcesPage]) {
+    assert.doesNotMatch(JSON.stringify([page.title, page.description, page.intro]), architecture, page.path);
+    if ("facts" in page) assert.doesNotMatch(JSON.stringify(page.facts), architecture, page.path);
+    if ("sections" in page) assert.doesNotMatch(JSON.stringify(page.sections), architecture, page.path);
+  }
+  for (const locale of ["en", "zh"] as const) {
+    const metadata = publicPageMetadata("/", locale);
+    assert.doesNotMatch(JSON.stringify(metadata), architecture);
+  }
+});
 
 test("marketing pages have unique published paths and complete bilingual content", () => {
   const paths = new Set(publicContentPaths());

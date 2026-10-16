@@ -20,3 +20,13 @@ Its immutable ledger displays the recorded source, signed change, historical
 balance, timestamp and expiry. Distinguish inviter/invitee and signup/payment
 rewards; preserve actual subscription explanations without inferring past plans
 from the current membership. No grant rules or existing records are changed.
+
+Follow-up: Combine purchases and invoices into one payment table. Match only
+provider invoice IDs, retain invoice-only records and purchases without invoices,
+and load each source's next page independently. A failed source remains retryable
+without hiding the other history. Invoice downloads belong to their payment row.
+
+Follow-up: Trim referrals to the invite-link copy control, four actual metrics
+and invitation history. State the two reward stages once below the link; remove
+duplicated rules, panel subtitles and the test walkthrough. Keep language options
+in a fixed EN / 中文 order without changing the saved locale preference.

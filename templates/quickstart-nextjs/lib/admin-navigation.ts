@@ -18,12 +18,12 @@ export const adminSectionNames: Record<AdminSection, Copy> = {
 export const adminSectionDescriptions: Record<AdminSection, Copy> = {
   articles: {en:"Edit homepage, section introductions and articles. Publish each language separately.",zh:"管理首页、栏目介绍与文章，按语言分别发布。"},
   overview: { en: "Track daily acquisition, payments and customer conversion.", zh: "查看每日注册、邀请、支付和用户转化趋势。" },
-  users: { en: "Manage customer memberships and credits without leaving the list.", zh: "查询用户，在弹窗中调整会员级别和积分。" },
+  users: { en: "Manage customers, memberships, payments and invitations.", zh: "管理用户、会员级别、支付与邀请记录。" },
   orders: { en: "Review payments, amounts and their live or test environment.", zh: "查看支付结果、实际金额及所属的正式或测试环境。" },
   subscriptions: { en: "Review customer plans, subscription states and billing periods.", zh: "查看用户套餐、订阅状态与计费周期。" },
   referrals: { en: "Track invitations, activation and recorded referral rewards.", zh: "查看邀请归因、激活状态与已记录的推荐奖励。" },
   credits: { en: "Review credit transactions, grant credits or return a recorded consumption.", zh: "查询积分流水，按需发放积分或退回已记录的消费。" },
-  settings: { en: "Maintain service details, support channels and example business settings.", zh: "维护服务资料、支持渠道与示例业务参数。" },
+  settings: { en: "Manage your website name, logo, support contacts and email sender.", zh: "管理网站名称、Logo、支持渠道与发件资料。" },
   integrations: { en: "Connect email and payment services. Saved changes require an API restart to take effect.", zh: "管理邮件与支付服务。保存配置后，需要重启后端服务使其生效。" },
   audit: { en: "Review administrator actions, affected resources and recorded outcomes.", zh: "查询管理员操作、关联资源与处理结果。" }
 };

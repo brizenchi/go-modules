@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteShell } from "@/components/site-shell";
-import { EmptyState, Notice, Panel, DetailRows } from "@/components/ui";
+import { EmptyState, Notice, Panel } from "@/components/ui";
 import { ResourceFailure, SignInRequired } from "@/components/resource-feedback";
 import {
   getCapabilities,
@@ -15,7 +14,6 @@ import {
   type ReferralStats
 } from "@/lib/api";
 import { readSession, SESSION_EVENT } from "@/lib/auth";
-import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import styles from "./referrals.module.css";
@@ -41,48 +39,33 @@ export default function ReferralsPage() {
   const [signInOpen, setSignInOpen] = useState(false);
   const copy = t({
     en: {
-      eyebrow: "Invite friends", title: "Referral rewards",
-      description: "Invite new users and track each invitation from signup to activation. Rewards, when offered, follow the published site rules.",
-      rules: "How invitations work", signup: "New accounts only", signupDetail: "An invitation is linked once, at signup. You cannot invite yourself or reassign an existing account.",
-      qualify: "First paid subscription", qualifyDetail: "Signup creates a pending invitation. A free trial alone does not qualify; the subscription must become paid within the activation window.",
-      reward: "Reward policy", rewardDetail: "On invited signup, the inviter gets 20 credits and the friend gets 10. A qualifying first paid subscription grants another 20 / 10. Each stage is rewarded once.",
-      link: "My invite link", linkHelp: "Copy your personal link and share it with a friend who has not registered yet.", code: "Invite code", shareLink: "Invitation link",
-      copy: "Copy link", copied: "Invite link copied. Ready to share.", copyFailed: "Couldn't copy the link. Select the full link above and copy it manually.",
-      stats: "Invitation overview", statsHelp: "See registrations, qualifying subscriptions, and recorded reward credits.",
-      total: "Registered", activated: "Activated", pending: "Awaiting subscription", credits: "Paid activation rewards", expired: "Expired",
-      history: "Invitation history", historyHelp: "Signup records the invitation. Activation records a qualifying subscription.",
-      person: "Invited account", state: "Status", joined: "Registered", deadline: "Activation deadline", activatedAt: "Activated", noDeadline: "No time limit",
-      loadingLink: "Loading your invite link…", loadingStats: "Loading your invitation overview…", loadingList: "Loading invitations…",
-      emptyLink: "Your invite link will appear here.", emptyStats: "Your invitation overview will appear here.", emptyList: "No invitations yet. Share your link; a new registration will appear here.",
-      signIn: "Sign in to invite friends", signInHelp: "Create your own invitation link and follow your friends' progress.", signInButton: "Sign in",
+      eyebrow: "Invite friends", title: "Referral rewards", description: "Invite friends and earn credits.",
+      rewardDetail: "Signup: 20 credits for you, 10 for your friend. First qualifying payment: another 20 / 10. New accounts only; each stage once.",
+      link: "Your invite link", shareLink: "Invitation link", copy: "Copy link", copied: "Link copied.",
+      copyFailed: "Couldn't copy the link. Select the link and copy it manually.",
+      stats: "Overview", total: "Registered", activated: "Activated", pending: "Pending activation", credits: "Paid rewards", expired: "Expired",
+      history: "Invitation history", person: "Invited account", state: "Status", joined: "Registered", deadline: "Activation deadline", activatedAt: "Activated", noDeadline: "No time limit",
+      loadingLink: "Loading invite link…", loadingStats: "Loading overview…", loadingList: "Loading invitations…",
+      emptyLink: "Your invite link is not ready yet.", emptyStats: "No invitation data yet.", emptyList: "No invitations yet.",
+      signIn: "Sign in to invite friends", signInHelp: "Sign in to get your invite link.", signInButton: "Sign in",
       refresh: "Try again", previous: "Previous", next: "Next", page: "Page", of: "of", records: "invitations",
-      unavailable: "Invitations are currently unavailable", unavailableDetail: "You can still use your account. Check back when invitations are available.",
-      missingLink: "Your invitation link is not ready", missingLinkDetail: "Please contact support to have sharing enabled for this site.",
-      trialNote: "A free trial alone does not activate an invitation. After qualifying paid activation, both users can view their rewards in Credits.",
-      demoNote: "Demo: registrations and invitation records are real. Payments use Stripe test mode. Open your link in another browser or private window, register a new account, complete a qualifying test subscription, then return here to see the updated records.",
-      testHelp: "View test payment instructions", pendingHelp: "Registered; awaiting a qualifying paid subscription.", activatedHelp: "Qualifying subscription recorded.", expiredHelp: "The activation deadline passed without a qualifying subscription."
+      unavailable: "Invitations are currently unavailable", unavailableDetail: "Please check back later.",
+      missingLink: "Your invitation link is not ready", missingLinkDetail: "Please contact support.",
+      pendingHelp: "Awaiting a qualifying payment.", activatedHelp: "Qualifying payment recorded.", expiredHelp: "The activation deadline has passed."
     },
     zh: {
-      eyebrow: "邀请好友", title: "推荐奖励",
-      description: "邀请新用户注册，从注册到激活，每一笔邀请都有记录可查。好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。",
-      rules: "邀请如何生效", signup: "首次注册时绑定", signupDetail: "每个新账号只能绑定一次邀请。不能邀请自己，已有账号不能重新绑定。",
-      qualify: "首次符合条件的付费订阅", qualifyDetail: "好友注册后先进入待激活状态。仅开通免费试用不会激活邀请，需要在激活期限内完成付费订阅。",
-      reward: "奖励规则", rewardDetail: "好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。",
-      link: "我的邀请链接", linkHelp: "复制你的专属链接，分享给尚未注册的好友。", code: "邀请码", shareLink: "邀请链接",
-      copy: "复制邀请链接", copied: "邀请链接已复制，可以分享给好友了。", copyFailed: "复制失败，请选中上方完整链接并手动复制。",
-      stats: "邀请概况", statsHelp: "查看注册人数、订阅激活情况和记录的奖励积分。",
-      total: "已注册", activated: "已激活", pending: "待订阅激活", credits: "付费激活奖励", expired: "已过期",
-      history: "邀请记录", historyHelp: "好友注册后显示邀请记录；完成符合条件的订阅后更新激活状态。",
-      person: "受邀账号", state: "状态", joined: "注册时间", deadline: "激活截止时间", activatedAt: "激活时间", noDeadline: "不限时",
-      loadingLink: "正在生成邀请链接…", loadingStats: "正在加载邀请概况…", loadingList: "正在加载邀请记录…",
-      emptyLink: "你的专属邀请链接将在这里显示。", emptyStats: "邀请概况将在这里显示。", emptyList: "还没有邀请记录。把链接分享给好友，好友首次注册后会出现在这里。",
-      signIn: "登录后邀请好友", signInHelp: "获取你的专属邀请链接，查看好友的注册和激活进度。", signInButton: "登录",
+      eyebrow: "邀请好友", title: "推荐奖励", description: "邀请好友，获得积分。",
+      rewardDetail: "好友注册：你得 20 积分，好友得 10；首次有效付费后，再分别获得 20 / 10。仅限新用户，每阶段一次。",
+      link: "我的邀请链接", shareLink: "邀请链接", copy: "复制链接", copied: "链接已复制。", copyFailed: "复制失败，请选中链接后手动复制。",
+      stats: "邀请概况", total: "已注册", activated: "已激活", pending: "待激活", credits: "付费奖励", expired: "已过期",
+      history: "邀请记录", person: "受邀账号", state: "状态", joined: "注册时间", deadline: "激活截止", activatedAt: "激活时间", noDeadline: "不限时",
+      loadingLink: "正在读取邀请链接…", loadingStats: "正在读取邀请概况…", loadingList: "正在读取邀请记录…",
+      emptyLink: "邀请链接暂未就绪。", emptyStats: "暂无邀请数据。", emptyList: "暂无邀请记录。",
+      signIn: "登录后邀请好友", signInHelp: "登录后获取专属邀请链接。", signInButton: "登录",
       refresh: "重试", previous: "上一页", next: "下一页", page: "第", of: "/", records: "条邀请",
-      unavailable: "邀请功能暂未开放", unavailableDetail: "你可以继续使用账号，稍后再来查看邀请功能。",
-      missingLink: "邀请链接暂未就绪", missingLinkDetail: "请联系网站支持人员开通分享链接。",
-      trialNote: "注册奖励无需付费；免费试用不会触发额外付费奖励。双方在“我的积分”查看两类奖励。",
-      demoNote: "演示说明：注册和邀请记录都是真实的，支付使用 Stripe 测试环境。请在另一浏览器或无痕窗口打开链接，用新账号注册并完成符合条件的测试订阅，再回到这里查看更新后的记录。",
-      testHelp: "查看测试支付说明", pendingHelp: "好友已注册，等待符合条件的付费订阅。", activatedHelp: "已记录符合条件的订阅激活。", expiredHelp: "激活期限内未完成符合条件的订阅。"
+      unavailable: "邀请功能暂未开放", unavailableDetail: "请稍后再来查看。",
+      missingLink: "邀请链接暂未就绪", missingLinkDetail: "请联系网站支持人员。",
+      pendingHelp: "等待符合条件的首次付费。", activatedHelp: "已记录符合条件的付费。", expiredHelp: "已超过激活期限。"
     }
   });
   const [session, setSession] = useState<ReturnType<typeof readSession>>(null);
@@ -267,28 +250,16 @@ export default function ReferralsPage() {
       title={copy.title}
       description={copy.description}
       accountMenuData={{ capabilities: capabilitiesState, referralStats: statsState }}
-      sideTitle={copy.rules}
-      showEnvironment={false}
-      sideBody={<DetailRows rows={[
-        { label: copy.signup, value: t({ en: "One invitation per new account.", zh: "每个新账号仅绑定一次邀请。" }) },
-        { label: t({ en: "Paid subscription", zh: "好友订阅" }), value: t({ en: "Your friend subscribes within the activation window.", zh: "好友在奖励期限内首次完成付费订阅。" }) },
-        { label: copy.reward, value: t({ en: "On invited signup, the inviter gets 20 credits and the friend gets 10. A qualifying first paid subscription grants another 20 / 10. Each stage is rewarded once.", zh: "好友通过邀请注册后，邀请人获得 20 积分、好友获得 10 积分，无需购买。首次符合条件的付费订阅再分别奖励 20 / 10，每个阶段仅发一次。" }) }
-      ]} />}
-      toc={[
-        { id: "my-link", label: copy.link },
-        { id: "stats", label: copy.stats },
-        { id: "history", label: copy.history }
-      ]}
     >
-      <div className="page-grid">
+      <div className={styles.layout}>
         {sessionReady && !session ? (
-          <div className="span-12">
+          <div className={styles.full}>
             <SignInRequired title={copy.signIn} message={copy.signInHelp} actionLabel={copy.signInButton} onSignIn={() => setSignInOpen(true)} />
           </div>
         ) : null}
 
         {referralCapabilityFailure ? (
-          <div className="span-12">
+          <div className={styles.full}>
             <ResourceFailure
               failure={capabilitiesState.status === "error" ? displayFailure(referralCapabilityFailure) : referralCapabilityFailure}
               retryLabel={copy.refresh}
@@ -297,17 +268,15 @@ export default function ReferralsPage() {
           </div>
         ) : null}
 
-        <Panel className="span-5" title={copy.link} subtitle={copy.linkHelp}>
+        {session && !referralCapabilityFailure ? <>
+        <Panel className={styles.card} title={copy.link}>
           <div id="my-link" />
           {code ? (
-            <div className="details-list">
-              <div className="details-row">
-                <strong>{copy.code}</strong>
-                <span className="inline-code">{code.code}</span>
-              </div>
-              <div className="details-row">
-                <strong>{copy.shareLink}</strong>
-                <span className={`inline-code ${styles.shareLink}`}>{code.link || "—"}</span>
+            <div className={styles.linkField}>
+              <label className="sr-only" htmlFor="referral-link">{copy.shareLink}</label>
+              <div className={styles.copyRow}>
+                <input id="referral-link" type="text" readOnly value={code.link || ""} onFocus={event => event.currentTarget.select()} />
+                <button className="button primary" disabled={!code.link} onClick={() => void copyLink()}>{copy.copy}</button>
               </div>
               {!code.link ? (
                 <ResourceFailure
@@ -335,16 +304,12 @@ export default function ReferralsPage() {
                   : copy.signInHelp}
             </EmptyState>
           )}
-          <div className="button-row">
-            <button className="button primary" disabled={!code?.link} onClick={() => void copyLink()}>
-              {copy.copy}
-            </button>
-          </div>
+          <p className={styles.rule}>{copy.rewardDetail}</p>
           {status ? <div role="status"><Notice tone="success">{status}</Notice></div> : null}
           {actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
         </Panel>
 
-        <Panel className="span-7" title={copy.stats} subtitle={copy.statsHelp}>
+        <Panel className={styles.card} title={copy.stats}>
           <div id="stats" />
           {stats ? (
             <div className={`stats-grid ${styles.stats}`}>
@@ -376,7 +341,7 @@ export default function ReferralsPage() {
           )}
         </Panel>
 
-        <Panel className="span-12" title={copy.history} subtitle={copy.historyHelp}>
+        <Panel className={`${styles.card} ${styles.full}`} title={copy.history}>
           <div id="history" />
           {listState.status === "error" ? (
             <ResourceFailure failure={displayFailure(listState.failure)} retryLabel={copy.refresh} onRetry={session ? () => void loadListState(session.token, page) : undefined} />
@@ -402,22 +367,19 @@ export default function ReferralsPage() {
                   ))}</tbody>
                 </table>
               </div>
-              <nav className={styles.pagination} aria-label={copy.history}>
+              {totalPages > 1 ? <nav className={styles.pagination} aria-label={copy.history}>
                 <span aria-live="polite">{copy.page} {page} {copy.of} {totalPages} · {listState.data?.total} {copy.records}</span>
                 <div className="button-row">
                   <button className="button" type="button" disabled={!session || page <= 1 || listState.status === "loading"} onClick={() => session && void loadListState(session.token, page - 1)}>{copy.previous}</button>
                   <button className="button" type="button" disabled={!session || page >= totalPages || listState.status === "loading"} onClick={() => session && void loadListState(session.token, page + 1)}>{copy.next}</button>
                 </div>
-              </nav>
+              </nav> : null}
             </>
           ) : listState.status !== "error" ? (
             <EmptyState>{listState.status === "loading" ? copy.loadingList : session ? copy.emptyList : copy.signInHelp}</EmptyState>
           ) : null}
-          <p className="muted">{copy.signupDetail} {copy.trialNote} {copy.rewardDetail}</p>
         </Panel>
-        {appEnv.demoMode ? <div className="span-12"><Notice>
-          <p>{copy.demoNote}</p><Link className="button" href="/#test-payment">{copy.testHelp}</Link>
-        </Notice></div> : null}
+        </> : null}
       </div>
       <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
     </SiteShell>

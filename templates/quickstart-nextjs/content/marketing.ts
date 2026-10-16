@@ -45,7 +45,7 @@ export const marketingCategories: MarketingCategory[] = [
   {
     kind: "features", path: "/features",
     title: text("The foundations of your SaaS", "搭建 SaaS 所需的基础能力"),
-    description: text("Explore authentication, Stripe subscriptions, and credit accounting in the free Next.js + Go SaaS starter.", "了解免费 Next.js + Go SaaS 模板已有的登录、Stripe 订阅与积分账本。"),
+    description: text("Explore authentication, Stripe subscriptions, and credit accounting in the free SaaS starter.", "了解免费 SaaS 模板已有的登录、Stripe 订阅与积分账本。"),
     intro: text("See what is already connected, how customers use it, and which services you need to configure.", "查看哪些流程已经接通、用户如何使用，以及你需要配置哪些服务。")
   },
   {
@@ -57,8 +57,8 @@ export const marketingCategories: MarketingCategory[] = [
   {
     kind: "compare", path: "/compare",
     title: text("Choose your starting point", "选择适合你的开发起点"),
-    description: text("Compare adapting the Next.js + Go starter with building your SaaS foundations from scratch.", "比较基于 Next.js + Go 模板开发与自行搭建 SaaS 基础能力的适用条件。"),
-    intro: text("Choose based on your stack, your workflow, and the responsibilities you are ready to own.", "根据技术栈、业务流程和维护范围做选择。")
+    description: text("Compare adapting the SaaS starter with building your SaaS foundations from scratch.", "比较基于 SaaS 模板开发与自行搭建 SaaS 基础能力的适用条件。"),
+    intro: text("Choose based on your product needs, customer workflows and ongoing responsibilities.", "根据产品需求、用户流程和维护范围做选择。")
   },
   {
     kind: "examples", path: "/examples",
@@ -256,25 +256,25 @@ export const marketingPages: MarketingPage[] = [
   {
     kind: "compare", path: "/compare/starter-vs-from-scratch", updatedAt,
     title: text("Use the starter or build from scratch?", "使用模板，还是从头搭建？"),
-    description: text("Compare the included Next.js + Go foundations, customization work, and maintenance responsibilities before choosing how to build.", "从已有基础能力、定制工作与维护责任三个方面，比较使用 Next.js + Go 模板和从头开发。"),
-    intro: text("The starter is a practical fit when you want Next.js, Go, and its account and billing patterns. Building from scratch gives you a clean starting point when those choices do not fit your product.", "当 Next.js、Go 与模板已有的账户计费方式符合需求时，可以从模板开始。如果这些选择不适合业务，从头搭建能让你按自己的约束设计。"),
+    description: text("Compare the included account services, customization work and maintenance responsibilities before choosing how to build.", "从已有基础能力、定制工作与维护责任三个方面，比较使用 SaaS 模板和从头开发。"),
+    intro: text("Start with the template when its account, subscription and credit workflows fit your product. Build from scratch when you need a different customer journey or service model.", "当已有的账户、订阅和积分流程符合产品需求时，可以从模板开始。如果用户流程或服务模式差别较大，也可以从头搭建。"),
     primaryCta: link("/docs/features", "Inspect what is included", "查看已包含的能力"),
     facts: [
       { label: text("Source price", "源码价格"), value: text("Starter: free to obtain", "模板：免费获取") },
-      { label: text("Technology", "技术选择"), value: text("Starter: Next.js + Go", "模板：Next.js + Go") },
+      { label: text("Included workflows", "已有流程"), value: text("Accounts, subscriptions and credits", "账户、订阅与积分") },
       { label: text("Ownership", "维护责任"), value: text("Both: you operate your product", "两种方式都由你运营产品") }
     ],
     steps: [
       { title: text("Compare your real requirements", "先对照真实需求"), body: text("List the authentication, billing, data, and operational workflows you need. Match them to the supplied examples rather than to a feature count.", "列出所需的登录、计费、数据与运营流程，再与模板示例逐项对照。") },
       { title: text("Run one complete journey", "跑通一个完整流程"), body: text("Try account creation, subscription management and referral rewards. Read the source for the business rules you expect to change.", "体验注册、订阅管理与推荐奖励，阅读预计需要修改的业务规则源码。") },
-      { title: text("Choose what you can maintain", "选择能够持续维护的方案"), body: text("Consider familiarity with the stack, custom integrations, upgrades, and test coverage. There is no universal time or cost saving for every team.", "考虑技术栈熟悉度、定制集成、升级与测试覆盖。不同团队的开发时间和成本没有统一答案。") }
+      { title: text("Choose what you can maintain", "选择能够持续维护的方案"), body: text("Consider the maintenance work, custom integrations, upgrades and test coverage. There is no universal time or cost saving for every team.", "考虑维护工作、定制集成、升级与测试覆盖。不同团队的开发时间和成本没有统一答案。") }
     ],
     sections: [
       { title: text("Authentication and billing", "登录与计费"), body: text("With the starter, adapt connected email login, account pages, Stripe billing, and credit examples. From scratch, you select and implement those flows yourself. In either case, configure your service accounts and verify their behavior.", "使用模板时，可以调整已接通的邮箱登录、账户页、Stripe 计费和积分示例；从头搭建时，需要自行选择并实现这些流程。两种方式都需要配置服务账号并验收行为。") },
       { title: text("Product model and design", "产品模型与界面"), body: text("The starter provides a public site, customer workspace, and administrator console. You replace its content and add the core feature. From scratch, you control those boundaries from the first design decision and build their foundations too.", "模板提供公开网站、用户工作台与管理后台，你需要替换内容并增加核心业务。从头搭建时，可以从最初就决定这些边界，同时也需要实现它们的基础。") },
       { title: text("Ongoing costs and responsibility", "长期费用与责任"), body: text("Free source does not include hosting, a managed database, email delivery, payment fees, or an operations team. Both approaches leave service operation, dependency updates, customer support, and product rules with you.", "免费源码不包含托管、数据库、邮件发送、支付手续费或运营团队。两种方式都需要你负责服务运营、依赖更新、客户支持与业务规则。") }
     ],
-    limitations: [text("This comparison describes this repository and the choice to build your own foundations. It is not a benchmark of other starter kits.", "本页比较的是当前仓库与自行搭建基础能力两种方式，不是对其他模板的测试排名。"), text("If you require another stack, enterprise identity, or a different billing model, assess the adaptation work before choosing the starter.", "如果需要其他技术栈、企业身份系统或不同计费模型，应先评估改造工作再选择。")],
+    limitations: [text("This comparison describes this repository and the choice to build your own foundations. It is not a benchmark of other starter kits.", "本页比较的是当前仓库与自行搭建基础能力两种方式，不是对其他模板的测试排名。"), text("If you require enterprise identity or a different billing model, assess the adaptation work before choosing the starter.", "如果需要企业身份系统或不同计费模型，应先评估改造工作再选择。")],
     faq: [
       { question: text("Does the starter include hosting?", "模板包含托管服务吗？"), answer: text("No. You obtain the source and deploy your own frontend, API, and database with providers you choose.", "不包含。你获得源码，再自行选择服务商部署前端、API 与数据库。") },
       { question: text("Can I replace the example business?", "可以替换示例业务吗？"), answer: text("Yes. Notes and exports demonstrate how to connect a user action to ownership and charging. Your own business feature belongs in the product template.", "可以。笔记与导出演示了如何连接用户操作、资源归属和收费，你可以在产品模板中实现自己的业务。") }
@@ -287,11 +287,11 @@ export const marketingPages: MarketingPage[] = [
 
 export const aboutPage: MarketingUtilityPage = {
   path: "/about", updatedAt,
-  title: text("A free starting point for your Next.js + Go SaaS", "为 Next.js + Go SaaS 提供免费的开发起点"),
-  description: text("Learn what the go-modules starter includes, where its source lives, and what you own when you build a product with it.", "了解 go-modules 模板包含什么、源码在哪里，以及用它开发产品时由你负责哪些部分。"),
-  intro: text("This website demonstrates the SaaS templates in the go-modules repository. You can obtain the source for free, run it yourself, and build your own product on the supplied workflows.", "这个网站演示 go-modules 仓库中的 SaaS 模板。你可以免费获取源码，自行运行，并基于已有流程开发自己的产品。"),
+  title: text("A free starting point for your SaaS", "为你的 SaaS 提供免费的开发起点"),
+  description: text("Learn what the SaaS starter includes, where to find its source and what you build and operate yourself.", "了解 SaaS 模板包含什么、源码在哪里，以及哪些部分由你开发和运营。"),
+  intro: text("This website demonstrates the included SaaS workflows. You can obtain the source for free, run it yourself, and build your own product on the supplied workflows.", "这个网站展示 SaaS 模板中已经接通的用户流程。你可以免费获取源码，自行运行，并基于已有流程开发自己的产品。"),
   sections: [
-    { title: text("What is included", "模板已经提供什么"), body: text("A Next.js public website and account center connect to a Go API. Shared capabilities cover login, Stripe subscriptions, credits, referrals, AI integration and administrator operations. Product-specific screens and workflows are supplied by your own application.", "Next.js 公开网站与账户中心连接 Go API，公共能力包括登录、Stripe 订阅、积分、邀请、AI 接入与管理后台。具体业务的界面与流程由你的产品接入。") },
+    { title: text("What is included", "模板已经提供什么"), body: text("A public website, customer account center and administrator console connect the customer journey. Shared capabilities cover login, Stripe subscriptions, credits, referrals, AI integration and administrator operations. Product-specific screens and workflows are supplied by your own application.", "产品官网、账户中心与管理后台串联用户流程，公共能力包括登录、Stripe 订阅、积分、邀请、AI 接入与管理后台。具体业务的界面与流程由你的产品接入。") },
     { title: text("What you build and operate", "哪些部分由你开发与运营"), body: text("You add the core service, define customer entitlements, configure your providers, and operate the deployment. Sample prices describe a possible customer offer; they are not a charge for the starter source.", "你需要添加核心业务、定义客户权益、配置服务商并负责部署运营。示例价格展示面向客户的收费方式，不是获取模板源码的费用。") },
     { title: text("Where to verify details", "在哪里核对实现"), body: text("The public source repository and its setup documentation are the reference for these pages. Check the implementation before adopting a workflow, and use the project's GitHub issue tracker for reproducible code problems.", "这些介绍以公开源码仓库和配置文档为依据。采用某个流程前可以查看实现，能够复现的代码问题可以提交到项目的 GitHub issue。") }
   ],

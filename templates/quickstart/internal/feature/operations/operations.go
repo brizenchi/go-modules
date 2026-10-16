@@ -32,6 +32,7 @@ func New(deps hostapi.Deps) *Module { return &Module{deps: deps.WithServices()} 
 func (m *Module) Register(g hostapi.Groups) {
 	if g.Public != nil {
 		g.Public.GET("/site/settings", m.getSettings)
+		g.Public.GET("/site/logo/:id", m.siteLogo)
 		g.Public.GET("/site/articles", m.publicArticles)
 		g.Public.GET("/site/articles/resolve", m.resolveArticle)
 	}
@@ -95,6 +96,7 @@ func userID(c *gin.Context) string {
 type SiteSettings struct {
 	ID               uint      `gorm:"primaryKey" json:"-"`
 	BrandName        string    `gorm:"type:varchar(100);not null" json:"brand_name"`
+	LogoURL          string    `gorm:"type:varchar(1024);not null;default:''" json:"logo_url"`
 	Description      string    `gorm:"type:varchar(500);not null" json:"description"`
 	DescriptionZH    string    `gorm:"type:varchar(500);not null;default:''" json:"description_zh"`
 	HeadlineEN       string    `gorm:"type:varchar(160);not null;default:''" json:"headline_en"`

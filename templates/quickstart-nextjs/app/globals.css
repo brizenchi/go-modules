@@ -172,15 +172,6 @@ button {
   white-space: nowrap;
 }
 
-.brand-subtitle {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .brand-kicker,
 .panel-kicker,
@@ -2012,7 +2003,6 @@ button {
     grid-template-columns: auto 1fr auto;
   }
 
-  .brand-subtitle,
   .avatar-copy {
     display: none;
   }
@@ -3089,7 +3079,6 @@ html:lang(zh) :is(.eyebrow, .panel-kicker, .detail-label, .workspace-status) { l
 }
 @media (max-width: 640px) {
   .topbar .brand-copy { display: grid; }
-  .topbar .brand-subtitle { display: none; }
   .topbar .brand-title { font-size: 12px; }
   .topbar-inner { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 8px; }
   .brand-lockup { gap: 8px; }

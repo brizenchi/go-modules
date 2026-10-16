@@ -1,18 +1,16 @@
 /** Public presentation defaults. Edit here, then rebuild both language routes. */
 export const siteConfig = {
   brand: {
-    name: "SaaS Starter",
-    subtitle: { en: "Next.js + Go", zh: "Next.js + Go" },
-    attribution: { en: "Built with go-modules", zh: "基于 go-modules 构建" }
+    name: "SaaS Starter"
   },
   repositoryURL: "https://github.com/brizenchi/go-modules",
   description: {
-    en: "A free Next.js + Go SaaS starter with authentication, Stripe billing, credits, referrals, and server-side AI integration. Start with connected workflows and build your own product.",
-    zh: "免费的 Next.js + Go SaaS 模板，整合登录、Stripe 计费、积分、邀请和服务端 AI 接入。从已接通的流程开始，构建你自己的产品。"
+    en: "A free SaaS starter with authentication, subscriptions, credits, referrals and AI integration. Start with connected workflows and build your own product.",
+    zh: "免费的 SaaS 模板，整合登录、订阅、积分、邀请和 AI 接入。从已接通的流程开始，构建你自己的产品。"
   },
-  homepageTitle: { en: "Free Next.js + Go SaaS starter", zh: "免费的 Next.js + Go SaaS 模板" },
+  homepageTitle: { en: "Free SaaS starter", zh: "免费的 SaaS 模板" },
   hero: {
-    eyebrow: { en: "FREE SAAS STARTER · NEXT.JS + GO", zh: "免费 SaaS 模板 · Next.js + Go" },
+    eyebrow: { en: "SAAS STARTER", zh: "SaaS 启动模板" },
     title: { en: "Your next SaaS starts here.", zh: "从这里，开始你的 SaaS。" },
     description: {
       en: "Authentication, billing and integrations, already connected. Start with the free source and make room for the product only you can build.",
@@ -28,13 +26,12 @@ export const siteConfig = {
     caption: { en: "The included account center, with a demonstration account.", zh: "模板自带的账户中心 · 演示账号截图" }
   },
   footer: {
-    description: { en: "Less groundwork. More room for your next idea. A free Next.js + Go SaaS starter.", zh: "少一些重复搭建，多一些专注业务。免费的 Next.js + Go SaaS 模板。" }
+    description: { en: "Authentication, subscriptions, credits and referrals, ready for your product.", zh: "连接登录、订阅、积分与邀请，让你专注自己的产品。" }
   },
   sharing: {
     title: "Your next SaaS starts here.",
     description: "Authentication · Billing · Credits · AI Integration",
-    label: "Free SaaS starter",
-    stack: "Next.js + Go"
+    label: "Free SaaS starter"
   },
   faq: [
     { question: { en: "Is the template free?", zh: "模板免费吗？" }, answer: { en: "Yes. Get the source and deploy your own product. Hosting, email, payments and AI providers may charge for their services.", zh: "是的，可以获取源码并自行部署产品。服务器、邮件、支付和 AI 服务商可能收取各自的服务费用。" } },

@@ -98,7 +98,7 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
   return (
     <SiteShell
       variant="compact"
-      eyebrow={t({ en: "THE GO MODULES TEMPLATE", zh: "GO MODULES 模板" })}
+      eyebrow={t(category.title)}
       title={t(category.title)}
       description={t(category.description)}
       breadcrumbs={[
@@ -237,7 +237,7 @@ export function AboutPageContent() {
   return (
     <SiteShell
       variant="compact"
-      eyebrow={t({ en: "ABOUT GO MODULES", zh: "关于 GO MODULES" })}
+      eyebrow={t({ en: "ABOUT US", zh: "关于我们" })}
       title={t(aboutPage.title)}
       description={t(aboutPage.description)}
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { label: t(aboutPage.title) }]}

@@ -18,7 +18,7 @@ export default function OpenGraphImage() {
         <div style={{ display: "flex", fontSize: 26, color: "#4d554e" }}>{siteConfig.sharing.description}</div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 20, borderTop: "1px solid #c8cec5", paddingTop: 22 }}>
-        <span>{siteConfig.sharing.label}</span><span>{siteConfig.sharing.stack}</span>
+        <span>{siteConfig.sharing.label}</span>
       </div>
     </div>, size
   );

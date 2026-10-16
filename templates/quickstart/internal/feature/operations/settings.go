@@ -55,11 +55,12 @@ func (m *Module) getSettings(c *gin.Context) {
 	if queryFailed(c, err) {
 		return
 	}
-	httpresp.OK(c, gin.H{"brand_name": settings.BrandName, "description": settings.Description, "description_zh": settings.DescriptionZH, "headline_en": settings.HeadlineEN, "headline_zh": settings.HeadlineZH, "sender_email": settings.SenderEmail, "sender_name": settings.SenderName, "support_email": settings.SupportEmail, "support_url": settings.SupportURL, "export_credit_cost": settings.ExportCreditCost, "presentation_version": 1})
+	httpresp.OK(c, gin.H{"brand_name": settings.BrandName, "logo_url": settings.LogoURL, "description": settings.Description, "description_zh": settings.DescriptionZH, "headline_en": settings.HeadlineEN, "headline_zh": settings.HeadlineZH, "sender_email": settings.SenderEmail, "sender_name": settings.SenderName, "support_email": settings.SupportEmail, "support_url": settings.SupportURL, "export_credit_cost": settings.ExportCreditCost, "presentation_version": 1})
 }
 
 type settingsPatch struct {
 	BrandName        *string `json:"brand_name"`
+	LogoURL          *string `json:"logo_url"`
 	Description      *string `json:"description"`
 	SupportEmail     *string `json:"support_email"`
 	SupportURL       *string `json:"support_url"`
@@ -73,10 +74,10 @@ type settingsPatch struct {
 }
 
 func validSettingsPatch(p *settingsPatch) bool {
-	if p.BrandName == nil && p.Description == nil && p.SupportEmail == nil && p.SupportURL == nil && p.ExportCreditCost == nil && p.DescriptionZH == nil && p.HeadlineEN == nil && p.HeadlineZH == nil && p.SenderEmail == nil && p.SenderName == nil {
+	if p.LogoURL == nil && p.BrandName == nil && p.Description == nil && p.SupportEmail == nil && p.SupportURL == nil && p.ExportCreditCost == nil && p.DescriptionZH == nil && p.HeadlineEN == nil && p.HeadlineZH == nil && p.SenderEmail == nil && p.SenderName == nil {
 		return false
 	}
-	for value, max := range map[*string]int{p.BrandName: 100, p.Description: 500, p.SupportEmail: 255, p.SupportURL: 1024, p.DescriptionZH: 500, p.HeadlineEN: 160, p.HeadlineZH: 160, p.SenderEmail: 255, p.SenderName: 100} {
+	for value, max := range map[*string]int{p.LogoURL: 1024, p.BrandName: 100, p.Description: 500, p.SupportEmail: 255, p.SupportURL: 1024, p.DescriptionZH: 500, p.HeadlineEN: 160, p.HeadlineZH: 160, p.SenderEmail: 255, p.SenderName: 100} {
 		if value == nil {
 			continue
 		}
@@ -105,6 +106,9 @@ func validSettingsPatch(p *settingsPatch) bool {
 		if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
 			return false
 		}
+	}
+	if p.LogoURL != nil && !validLogoURL(*p.LogoURL) {
+		return false
 	}
 	return p.ExportCreditCost == nil || (*p.ExportCreditCost >= 1 && *p.ExportCreditCost <= 1000000)
 }
@@ -160,6 +164,16 @@ func (m *Module) patchSettings(c *gin.Context) {
 			return err
 		}
 		updates := map[string]any{}
+		if patch.LogoURL != nil {
+			if id := uploadedLogoID(*patch.LogoURL); id != "" && *patch.LogoURL != before.LogoURL {
+				// Only the administrator's own private upload can be made public.
+				var upload Upload
+				if err := tx.Where("id = ? AND user_id = ?", id, actor).Take(&upload).Error; err != nil {
+					return err
+				}
+			}
+			updates["logo_url"] = *patch.LogoURL
+		}
 		for value, column := range map[*string]string{patch.DescriptionZH: "description_zh", patch.HeadlineEN: "headline_en", patch.HeadlineZH: "headline_zh", patch.SenderEmail: "sender_email", patch.SenderName: "sender_name"} {
 			if value != nil {
 				updates[column] = *value
@@ -192,6 +206,10 @@ func (m *Module) patchSettings(c *gin.Context) {
 		}{Before: before, After: result})
 		return m.deps.Audit.Finish(c.Request.Context(), tx, &audit, "succeeded", string(raw))
 	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		httpresp.NotFound(c, "logo image not found")
+		return
+	}
 	if errors.Is(err, errKeyConflict) {
 		httpresp.Conflict(c, err.Error())
 		return

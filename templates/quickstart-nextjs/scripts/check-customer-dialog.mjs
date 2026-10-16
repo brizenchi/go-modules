@@ -21,6 +21,9 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
 }).outputText;
 const modules = Object.fromEntries(Object.entries({
   "./operator-user-dialog": "components/operator-user-dialog.tsx",
+  "./operator-list-filters": "components/operator-list-filters.tsx",
+  "./admin-page-header": "components/admin-page-header.tsx",
+  "@/lib/admin-navigation": "lib/admin-navigation.ts",
   "./operator-overview": "components/operator-overview.tsx",
   "./responsive-dialog": "components/responsive-dialog.tsx",
   "./select": "components/select.tsx",
@@ -36,7 +39,7 @@ const modules = Object.fromEntries(Object.entries({
 const umd = name => readFileSync(join(dirname(require.resolve(name)), "umd", `${name}.development.js`), "utf8");
 const fontFile = require.resolve("@fontsource-variable/manrope/index.css");
 const fonts = readFileSync(fontFile, "utf8").replace(/url\(([^)]+)\)/g, (_, asset) => `url(data:font/woff2;base64,${readFileSync(resolve(dirname(fontFile), asset.replaceAll(/["']/g, ""))).toString("base64")})`);
-const css = ["app/globals.css", "components/admin-shell.module.css", "components/responsive-dialog.module.css", "components/status-badge.module.css"]
+const css = ["app/globals.css", "components/admin-shell.module.css", "components/operator-list-filters.module.css", "components/responsive-dialog.module.css", "components/status-badge.module.css"]
   .map(file => readFileSync(join(root, file), "utf8").replace(/:global\(([^)]+)\)/g, "$1")).join("\n");
 
 function fixture(locale, mode) {
@@ -62,20 +65,23 @@ function load(name){
   if(name==='@/lib/operations-api')return api;
   if(name==='./console-kit')return kit;
   if(name==='./pending-label')return{PendingLabel:props=>React.createElement('span',null,props.children)};
-  if(name==='@/components/interface-icon')return{InterfaceIcon:()=>React.createElement('svg',{viewBox:'0 0 24 24','aria-hidden':true},React.createElement('path',{d:'m6 6 12 12M6 18 18 6',stroke:'currentColor',fill:'none'}))};
+  if(name==='@/components/interface-icon'||name==='./interface-icon')return{InterfaceIcon:()=>React.createElement('svg',{viewBox:'0 0 24 24','aria-hidden':true},React.createElement('path',{d:'m6 6 12 12M6 18 18 6',stroke:'currentColor',fill:'none'}))};
   if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
   if(!modules[name])throw Error('Unexpected dependency '+name);
   if(cache[name])return cache[name];const module={exports:{}};new Function('require','module','exports',modules[name])(load,module,module.exports);cache[name]=module.exports;return module.exports;
 }
-const content = mode==='filters'
+function ListFilters(){const [filters,setFilters]=React.useState({search:'',status:'',mode:'',from:'',to:''});const [submitted,setSubmitted]=React.useState(false);const change=key=>value=>setFilters(current=>({...current,[key]:value}));return React.createElement(React.Fragment,null,
+  React.createElement(load('./admin-page-header').AdminPageHeader,{section:'users'}),
+  React.createElement(load('./operator-list-filters').OperatorListFilters,{...filters,section:'orders',label:'Payment records',searchLabel:'Email or reference ID',total:34,loading:false,filtered:submitted||Object.values(filters).some(Boolean),onSearch:change('search'),onStatus:change('status'),onMode:change('mode'),onFrom:change('from'),onTo:change('to'),onSubmit:event=>{event.preventDefault();setSubmitted(true)},onReset:()=>{setSubmitted(false);setFilters({search:'',status:'',mode:'',from:'',to:''})}}));}
+const content = mode==='list-filters' ? React.createElement(ListFilters) : mode==='filters'
   ? React.createElement(load('./operator-overview').OperatorOverview,{data:null,filters:{days:30,timezone:'Asia/Shanghai',mode:'live'},onFilters:()=>{},loading:false})
   : React.createElement(load('./operator-user-dialog').OperatorUserDialog,{user,token:'fixture',tab:'overview',onClose:()=>{},onSaved:()=>{}});
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement('div',{className:'shell'},React.createElement('div',{className:'content',style:mode==='filters'?{padding:'24px'}:undefined},content)));
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement('div',{className:'shell'},React.createElement('div',{className:'content',style:['filters','list-filters'].includes(mode)?{padding:'24px'}:undefined},content)));
 const settle=()=>new Promise(resolve=>setTimeout(resolve,40));
 function check(ok,message){if(!ok)throw Error(message);checks.push(message)}
 function click(en,zh){const text=locale==='zh'?zh:en;const button=[...document.querySelectorAll('button')].find(element=>element.textContent.trim()===text);if(!button)throw Error('Missing button '+text);button.click()}
 async function run(){await document.fonts.ready;await settle();
-  if(mode!=='filters'){
+  if(!['filters','list-filters'].includes(mode)){
     check(document.querySelectorAll('[role=tab]').length===3,'Exactly three tabs');
     check(document.querySelector('.customerFacts').textContent.includes('2026'),'Registration date visible');
     for(let pass=0;pass<3;pass++){
@@ -92,6 +98,14 @@ async function run(){await document.fonts.ready;await settle();
     const ids=[...document.querySelectorAll('[id]')].map(element=>element.id);check(ids.length===new Set(ids).size,'Unique DOM IDs');
     const dialog=document.querySelector('dialog');check(dialog.open&&dialog.scrollWidth<=dialog.clientWidth+1,'Dialog opens without horizontal overflow');
   }
+  if(mode==='list-filters'){
+    check(!document.querySelector('.pageHeader').textContent.includes(locale==='zh'?'网站管理':'Administration'),'No repeated administration eyebrow');
+    for(const id of ['operator-search','payment-mode','payment-status','payment-from','payment-to']){const input=document.getElementById(id),label=document.querySelector('label[for="'+id+'"]');check(label&&getComputedStyle(label).position!=='absolute','Visible filter label: '+id);check(Math.abs(input.getBoundingClientRect().height-(innerWidth<=640?44:40))<1,'Consistent filter height: '+id);}
+    const from=document.getElementById('payment-from').getBoundingClientRect(),to=document.getElementById('payment-to').getBoundingClientRect();check(Math.abs(from.top-to.top)<1,'Date range fields align');
+    if(innerWidth>1100){const search=document.getElementById('operator-search').getBoundingClientRect(),environment=document.getElementById('payment-mode').getBoundingClientRect();check(Math.abs(search.top-environment.top)<1,'Search and selects align');}
+    const status=document.getElementById('payment-status');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(status,'paid');status.dispatchEvent(new Event('change',{bubbles:true}));await settle();check(status.value==='paid'&&document.querySelector('.meta button'),'Changing status exposes clear filters');document.querySelector('.meta button').click();await settle();check(document.getElementById('payment-status').value===''&&!document.querySelector('.meta button'),'Clear filters restores defaults');
+    check(document.querySelector('[role=status]').textContent.includes('34'),'Record count remains visible');
+  }
   for(const select of document.querySelectorAll('select')){const style=getComputedStyle(select);check(style.appearance==='none'&&parseFloat(style.paddingRight)>=32&&select.getBoundingClientRect().height>=40,'Shared native select height/padding/appearance');}
   check(document.documentElement.scrollWidth<=innerWidth+1,'No page overflow');
   return{ok:true,checks:checks.length,viewport:innerWidth,mode,locale};
@@ -103,7 +117,7 @@ run().then(result=>parent.postMessage({type:'customer-result',result},'*'),error
 
 for (const locale of ["en", "zh"]) {
   for (const width of [1440, 390]) {
-    for (const mode of ["overview", "editor", "payments", "credits", "filters"]) {
+    for (const mode of ["overview", "editor", "payments", "credits", "filters", "list-filters"]) {
       const name = `${locale}-${mode}-${width}`;
       const profile = mkdtempSync(join(tmpdir(), "saas-dialog-browser-"));
       try {
@@ -125,4 +139,4 @@ for (const locale of ["en", "zh"]) {
     }
   }
 }
-console.log(`Customer dialog browser checks passed: 20 fixtures. Screenshots: ${output}`);
+console.log(`Customer dialog browser checks passed: 24 fixtures. Screenshots: ${output}`);

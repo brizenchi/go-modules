@@ -16,11 +16,9 @@ import {
   getCapabilities,
   getMembership,
   getSubscription,
-  listInvoices,
   previewSubscriptionChange,
   reactivateSubscription,
   type CapabilitiesView,
-  type InvoiceItem,
   type SubscriptionChangeMode,
   type SubscriptionPreview,
   type SubscriptionView
@@ -37,7 +35,7 @@ import {
 } from "@/lib/billing-state";
 import { appEnv } from "@/lib/env";
 import { readBillingIntent, type BillingIntent } from "@/lib/billing-intent";
-import { billingPlaceholderState, billingSelectionPath, isBillingIntentAvailable } from "@/lib/billing-selection";
+import { billingSelectionPath, isBillingIntentAvailable } from "@/lib/billing-selection";
 import { formatCurrencyUSD, formatDate } from "@/lib/format";
 import { localizeHref } from "@/lib/locale";
 import { useI18n } from "@/lib/i18n";
@@ -55,7 +53,6 @@ import {
   isCurrentRequestGeneration
 } from "@/lib/request-generation";
 import { ResponsiveDialog } from "@/components/responsive-dialog";
-import { DataTable } from "@/components/data-table";
 import { ConsoleError, useConsoleResource } from "@/components/console-kit";
 import { usePageReturn } from "@/components/use-page-return";
 import { getCreditBalance } from "@/lib/operations-api";
@@ -94,7 +91,6 @@ export default function BillingPage() {
   const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<CapabilitiesView>>(idleResource());
   const [subscriptionState, setSubscriptionState] = useState<ResourceState<SubscriptionView>>(idleResource());
   const [previewState, setPreviewState] = useState<ResourceState<SubscriptionPreview>>(idleResource());
-  const [invoiceState, setInvoiceState] = useState<ResourceState<InvoiceItem[]>>(idleResource());
   const [plan, setPlan] = useState(defaultPlan);
   const [interval, setInterval] = useState(defaultInterval);
   const [checkoutReturn, setCheckoutReturn] = useState<"success" | "cancelled" | null>(null);
@@ -103,7 +99,6 @@ export default function BillingPage() {
   const capabilitiesGenerationRef = useRef(0);
   const capabilitiesMountedRef = useRef(false);
   const subscriptionGenerationRef = useRef(0);
-  const invoiceGenerationRef = useRef(0);
   const previewGenerationRef = useRef(0);
   const actionGenerationRef = useRef(0);
   const checkoutRefreshGenerationRef = useRef(0);
@@ -111,7 +106,6 @@ export default function BillingPage() {
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const subscription = subscriptionState.data;
   const preview = previewState.data;
-  const invoices = invoiceState.data || [];
   const billingCapability = capabilitiesState.data?.billing;
   const subscriptionOffers = billingCapability?.offers.subscriptions || [];
   const availablePlans = useMemo(() => (billingCapability?.offers.subscriptions || []).map(offer => offer.plan), [billingCapability]);
@@ -127,7 +121,6 @@ export default function BillingPage() {
     && (Boolean(subscription?.cancel_at_period_end || subscription?.effective_cancel_at) || subscription?.status.trim().toLowerCase() === "canceling");
   const selectedLifetime = plan === "lifetime";
   const billingReady = capabilitiesState.status === "ready" && capabilitiesState.data.billing.enabled;
-  const invoicePlaceholder = billingPlaceholderState({ sessionReady, signedIn: Boolean(session), capabilities: capabilitiesState.status, billingEnabled: billingReady, resource: invoiceState.status });
   const intentUnavailable = intentRequest !== null && (
     !intentRequest.intent || (capabilitiesState.status === "ready" && !isBillingIntentAvailable(intentRequest.intent, billingCapability))
   );
@@ -199,31 +192,14 @@ export default function BillingPage() {
     }
   }, []);
 
-  const loadInvoiceState = useCallback(async (token: string) => {
-    if (readSession()?.token !== token) return;
-    const generation = beginRequestGeneration(invoiceGenerationRef);
-    setInvoiceState((current) => loadingResource(current.data));
-    const nextState = await settleResource(
-      listInvoices(token).then((data) => data.items),
-      "Billing history"
-    );
-    if (
-      readSession()?.token === token
-      && isCurrentRequestGeneration(invoiceGenerationRef, generation)
-    ) {
-      setInvoiceState(nextState);
-    }
-  }, []);
-
   const loadBillingState = useCallback(async (token: string) => {
     await Promise.all([
       loadSubscriptionState(token),
-      loadInvoiceState(token),
       refreshMembership(),
       refreshCredits()
     ]);
     if (readSession()?.token === token) setHistoryRevision(value => value + 1);
-  }, [loadInvoiceState, loadSubscriptionState, refreshMembership, refreshCredits]);
+  }, [loadSubscriptionState, refreshMembership, refreshCredits]);
 
   const updateOnReturn = useCallback(() => {
     if (sessionToken && billingReady) void loadBillingState(sessionToken);
@@ -314,21 +290,17 @@ export default function BillingPage() {
     setCancelConfirmOpen(false);
     if (!sessionToken || capabilitiesState.status !== "ready" || !capabilitiesState.data.billing.enabled) {
       invalidateRequestGeneration(subscriptionGenerationRef);
-      invalidateRequestGeneration(invoiceGenerationRef);
       invalidateRequestGeneration(previewGenerationRef);
       setSubscriptionState(idleResource());
-      setInvoiceState(idleResource());
       setPreviewState(idleResource());
       return;
     }
     void loadSubscriptionState(sessionToken);
-    void loadInvoiceState(sessionToken);
     return () => {
       invalidateRequestGeneration(subscriptionGenerationRef);
-      invalidateRequestGeneration(invoiceGenerationRef);
       invalidateRequestGeneration(actionGenerationRef);
     };
-  }, [sessionToken, capabilitiesState, loadSubscriptionState, loadInvoiceState]);
+  }, [sessionToken, capabilitiesState, loadSubscriptionState]);
 
   useEffect(() => {
     const intent = intentRequest?.intent;
@@ -763,19 +735,7 @@ export default function BillingPage() {
         </div>
         </ResponsiveDialog>
 
-        {session ? <BillingHistory key={session.token} token={session.token} revision={historyRevision} /> : null}
-        {session ? <Panel className="span-12" title={t({ en: "Invoices", zh: "发票" })}>
-          <div id="invoices" className={styles.anchor} />
-          <DataTable caption={t({ en: "Invoices", zh: "发票" })} columns={[
-            { key: "period", heading: t({ en: "Period", zh: "账期" }), cell: (invoice: InvoiceItem) => invoice.period },
-            { key: "amount", heading: t({ en: "Amount", zh: "金额" }), cell: invoice => formatCurrencyUSD(invoice.amount_usd) },
-            { key: "status", heading: t({ en: "Status", zh: "状态" }), cell: invoice => invoice.status === "paid" ? t({ en: "Paid", zh: "已付款" }) : invoice.status === "open" ? t({ en: "Open", zh: "待付款" }) : invoice.status },
-            { key: "issued", heading: t({ en: "Issued", zh: "开票时间" }), cell: invoice => formatDate(invoice.created_at, dateLocale) },
-            { key: "receipt", heading: t({ en: "Invoice", zh: "发票" }), cell: invoice => { const pdf = invoice.pdf_url || invoice.pdfurl; return pdf ? <a href={pdf} target="_blank" rel="noopener noreferrer">{t({ en: "Download", zh: "下载" })} ↗</a> : "—"; } }
-          ]} rows={invoices} rowKey={invoice => invoice.id} loading={invoicePlaceholder === "loading"} loadingLabel={t({ en: "Loading invoices…", zh: "正在读取发票…" })}
-            error={invoiceState.status === "error" ? <ResourceFailure failure={invoiceState.failure} onRetry={() => session ? void loadInvoiceState(session.token) : undefined} /> : undefined}
-            empty={invoicePlaceholder === "unavailable" ? t({ en: "Invoice history is currently unavailable.", zh: "发票记录暂不可用。" }) : t({ en: "No invoices yet.", zh: "暂无发票。" })} />
-        </Panel> : null}
+        {session ? <BillingHistory key={session.token} token={session.token} revision={historyRevision} invoicesEnabled={billingReady} /> : null}
       </div>
       <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} onSuccess={nextSession => { setSession(nextSession); setSessionReady(true); }} />
     </SiteShell>
