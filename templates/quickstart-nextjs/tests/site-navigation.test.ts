@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activePublicNavigationHref, customerBreadcrumbs, customerFooterLinks, publicNavigation, publicNavigationGroups, siteLinks, siteFooterGroups, siteLegalLinks } from "../content/navigation";
+import { activePublicNavigationHref, customerBreadcrumbs, customerFooterLinks, publicNavigation, siteLinks, siteFooterGroups, siteLegalLinks } from "../content/navigation";
 import { publicContentPaths } from "../lib/seo";
 
 test("public navigation keeps one feature entry and an explicit home destination", () => {
@@ -15,9 +15,9 @@ test("public navigation keeps one feature entry and an explicit home destination
   for (const path of ["/account", "/admin", "/features-other", "/unknown"]) assert.equal(activePublicNavigationHref(path), "");
 });
 
-test("secondary destinations are reachable from a primary group and footer links do not repeat", () => {
-  const reachable = new Set([...publicNavigation, ...Object.values(publicNavigationGroups).flat()].map(item => item.href));
-  for (const item of siteFooterGroups.flatMap(group => group.links)) assert.ok(reachable.has(item.href), item.href);
+test("footer secondary destinations remain published without duplicate links", () => {
+  const published = new Set(publicContentPaths());
+  for (const item of siteFooterGroups.flatMap(group => group.links)) assert.ok(published.has(item.href), item.href);
   const links = [...siteFooterGroups.flatMap(group => group.links), ...siteLegalLinks];
   assert.equal(new Set(links.map(item => item.href)).size, links.length);
   for (const group of siteFooterGroups) {

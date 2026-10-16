@@ -21,7 +21,7 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
 const files = ["components/language-picker.tsx", "components/account-menu.tsx", "components/sign-out-button.tsx", "components/interface-icon.tsx", "components/localized-link.tsx", "components/public-navigation.tsx", "components/published-content.tsx", "components/site-footer.tsx", "lib/guide-index.ts", "lib/disclosure-focus.ts", "lib/locale.ts", "content/navigation.ts", "content/docs.ts", "content/articles.ts"];
 const modules = Object.fromEntries(files.map(file => [file.replace(/\.tsx?$/, ""), compile(file)]));
 const prefix = file => `m_${file.split("/").at(-1).replace(".module.css", "").replaceAll("-", "_")}_`;
-const stylesheets = ["components/account-menu.module.css", "components/public-navigation.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
+const stylesheets = ["components/account-menu.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
 // Apply module namespacing, leaving :global selectors intact.
 const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.map(file => {
   const globals = [];
@@ -126,15 +126,13 @@ try {
     await evaluate("fixture.reset()");await settle();await evaluate("document.querySelector('.account-menu > button').click()");await settle();
     await evaluate(`fixture.click('${signout}');fixture.session={...fixture.session,token:'newer-login'};dispatchEvent(new Event('fixture-session'));fixture.resolve()`);await settle();
     await check("fixture.session.token==='newer-login' && fixture.redirects.length===1",tag+': old logout preserves newer login');
-    const guideMenu=locale==='zh'?'指南菜单':'Guides menu';
-    await evaluate(`document.querySelector('button[aria-label="${guideMenu}"]').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}))`);await settle();
-    await check("document.activeElement.tagName==='A' && document.activeElement.closest('[id]')?.hidden===false",tag+': submenu keyboard entry');
-    await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))");await settle();
-    await check("document.activeElement.getAttribute('href').endsWith('/about')",tag+': submenu End reaches About');
-    await check("(()=>{const link=document.activeElement,panel=link.parentElement,nav=panel.closest('nav'),box=panel.getBoundingClientRect(),links=[...panel.querySelectorAll('a')];return box.top>=nav.getBoundingClientRect().bottom-1&&box.left>=0&&box.right<=innerWidth&&[links[0],links.at(-1)].every(item=>{const b=item.getBoundingClientRect();return panel.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2))})})()",tag+': complete submenu is visible and reachable');
+    await check("document.querySelectorAll('.main-nav > a').length===4",tag+': four direct navigation links');
+    await check("!document.querySelector('.main-nav button, .main-nav svg, .main-nav [aria-expanded]')",tag+': no navigation dropdowns or arrows');
+    await check(`parseFloat(getComputedStyle(document.querySelector('.main-nav')).columnGap)>=${width>640?12:8}`,tag+': navigation has breathing room');
+    await check("(()=>{const links=[...document.querySelectorAll('.main-nav > a')];return links.slice(1).every((link,index)=>link.getBoundingClientRect().left-links[index].getBoundingClientRect().right>=8)})()",tag+': full link targets remain separated');
+    const featurePoint=await evaluate("(()=>{const b=document.querySelector('.main-nav > a:nth-child(2)').getBoundingClientRect();return{x:b.x+b.width/2,y:b.y+b.height/2}})()");
+    await command("Input.dispatchMouseEvent",{type:"mouseMoved",...featurePoint});await settle();
     await screenshot(tag+'-navigation');
-    await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");await settle();
-    await check("document.activeElement.getAttribute('aria-expanded')==='false'",tag+': Escape closes and restores trigger focus');
     await evaluate(`fixture.click('${locale==='zh'?'使用文档':'Documentation'}')`);await settle();
     await check(`document.querySelectorAll('main article').length>0 && [...document.querySelectorAll('main article h2 a')].every(link=>link.getAttribute('href').includes('/docs/'))`,tag+': category filters results');
     await evaluate("fixture.search('not-a-guide-match')");await settle();

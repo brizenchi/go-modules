@@ -27,10 +27,6 @@ export const siteLinks = {
 };
 
 export const publicNavigation = [siteLinks.home, siteLinks.features, siteLinks.pricing, siteLinks.resources];
-export const publicNavigationGroups: Record<string, SiteLink[]> = {
-  "/features": [{ ...siteLinks.features, label: { en: "Feature overview", zh: "功能总览" } }, siteLinks.useCases, siteLinks.compare, siteLinks.examples],
-  "/resources": [{ ...siteLinks.resources, label: { en: "All guides", zh: "全部指南" } }, siteLinks.docs, siteLinks.blog, siteLinks.updates, siteLinks.help, siteLinks.about]
-};
 export const customerFooterLinks = [siteLinks.help, siteLinks.privacy, siteLinks.terms];
 export const siteLegalLinks = [siteLinks.privacy, siteLinks.terms];
 export const siteFooterGroups: Array<{ title: Copy; links: SiteLink[] }> = [

@@ -197,11 +197,11 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 12px;
 }
 
 .main-nav-link {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 14px;
   display: inline-flex;
   align-items: center;
@@ -2135,6 +2135,7 @@ button {
   .main-nav {
     overflow-x: auto;
     scrollbar-width: none;
+    gap: 8px;
   }
 
   .main-nav::-webkit-scrollbar {
@@ -2142,7 +2143,7 @@ button {
   }
 
   .main-nav-link {
-    min-height: 34px;
+    min-height: 44px;
     padding: 0 11px;
     font-size: 11px;
   }
