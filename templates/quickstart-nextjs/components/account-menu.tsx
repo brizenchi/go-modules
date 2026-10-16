@@ -11,6 +11,7 @@ import type { AuthSession } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { disclosureFocusIndex } from "@/lib/disclosure-focus";
 import { localizeHref } from "@/lib/locale";
+import { workspaceNavItems } from "@/lib/workspace";
 import accountStyles from "./account-menu.module.css";
 
 export function AccountMenu({ session, onSignInSuccess }: {
@@ -63,9 +64,7 @@ export function AccountMenu({ session, onSignInSuccess }: {
           if (index !== null) { event.preventDefault(); items[index]?.focus(); }
         }}>
         <div className={accountStyles.identity}><strong>{session.user.username || t({ en: "Personal account", zh: "个人账户" })}</strong><span>{session.user.email}</span></div>
-        <Link data-account-item className={accountStyles.item} href="/account" onClick={() => setOpen(false)}><InterfaceIcon name="account" />{t({ en: "My account", zh: "账户中心" })}</Link>
-        <Link data-account-item className={accountStyles.item} href="/billing" onClick={() => setOpen(false)}><InterfaceIcon name="billing" />{t({ en: "Subscription & billing", zh: "订阅与账单" })}</Link>
-        <Link data-account-item className={accountStyles.item} href="/referrals" onClick={() => setOpen(false)}><InterfaceIcon name="referrals" />{t({ en: "Referral rewards", zh: "推荐奖励" })}</Link>
+        {workspaceNavItems.map(item => <Link key={item.href} data-account-item className={accountStyles.item} href={item.href} onClick={() => setOpen(false)}><InterfaceIcon name={item.icon} />{t(item.label)}</Link>)}
         <div className={accountStyles.separator}><SignOutButton session={session} onSignedOut={() => { setOpen(false); router.replace(localizeHref("/", locale)); }} /></div>
       </div>
     </div>

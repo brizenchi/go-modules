@@ -1,0 +1,6 @@
+.source { display: grid; gap: 5px; min-width: 160px; line-height: 1.6; }
+.source strong { color: var(--text); font-weight: 600; }
+.source small { max-width: 32ch; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.amount[data-positive="true"] { color: var(--accent-ink); }
+@media (max-width: 420px) { .metrics > :last-child { grid-column: 1 / -1; } }

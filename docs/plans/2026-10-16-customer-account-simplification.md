@@ -14,3 +14,9 @@
   plan dialog, automatic updates, payment tables, invitation access and SSR SEO.
 
 No production writes, provider changes, deployment or pushes are part of this task.
+
+Follow-up: Credit history is a fourth peer in the shared sidebar/avatar menu.
+Its immutable ledger displays the recorded source, signed change, historical
+balance, timestamp and expiry. Distinguish inviter/invitee and signup/payment
+rewards; preserve actual subscription explanations without inferring past plans
+from the current membership. No grant rules or existing records are changed.

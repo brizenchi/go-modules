@@ -32,10 +32,11 @@ test("personal account routes do not capture public pages or administrator route
 test("workspace navigation is visible, ordered, and resolves one active destination", () => {
   assert.deepEqual(
     workspaceNavItems.map((item) => item.href),
-    ["/account", "/billing", "/referrals"]
+    ["/account", "/billing", "/credits", "/referrals"]
   );
   assert.equal(activeWorkspaceHref("/billing"), "/billing");
   assert.equal(activeWorkspaceHref("/billing/invoices"), "/billing");
+  assert.equal(activeWorkspaceHref("/credits?page=2"), "/credits");
   assert.equal(activeWorkspaceHref("/pricing"), "");
   assert.equal(activeWorkspaceHref("/admin/subscriptions"), "");
 });
@@ -49,7 +50,7 @@ test("auxiliary personal features keep route recognition without expanding accou
 });
 
 test("the account center does not advertise product-specific examples or a chat product", () => {
-  assert.deepEqual(auxiliaryWorkspaceItems.map(item => item.href), ["/credits"]);
+  assert.deepEqual(auxiliaryWorkspaceItems.map(item => item.href), []);
   assert.equal(isWorkspacePath("/ai"), false);
   assert.equal(isWorkspacePath("/notes"), false);
   assert.equal(isWorkspacePath("/files"), false);

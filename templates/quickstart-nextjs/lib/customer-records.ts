@@ -13,9 +13,16 @@ export const customerTabNames: Record<CustomerTab, Copy> = {
 /** Classification is presentation only; ledger source/idempotency keys stay intact. */
 export function creditSourceName(row: Pick<CreditTransaction, "source" | "kind" | "actor_id">): Copy {
   if (row.kind === "refund") return { en: "Credit return", zh: "积分退回" };
-  if (row.kind === "expire") return { en: "Expired credits", zh: "积分到期" };
+  if (row.kind === "expire" || row.kind === "expiry") return { en: "Expired credits", zh: "积分到期" };
   if (row.kind === "opening") return { en: "Opening balance", zh: "期初余额" };
   if (row.source.startsWith("admin_") || row.actor_id) return { en: "Administrator adjustment", zh: "管理员调整" };
+  const referralSources: Record<string, Copy> = {
+    referral_signup_inviter: { en: "Friend signup reward", zh: "邀请注册奖励" },
+    referral_signup_invitee: { en: "Invited signup bonus", zh: "受邀注册奖励" },
+    referral_inviter: { en: "Friend purchase reward", zh: "邀请付费奖励" },
+    referral_invitee: { en: "Invited purchase bonus", zh: "受邀付费奖励" }
+  };
+  if (Object.prototype.hasOwnProperty.call(referralSources, row.source)) return referralSources[row.source];
   if (row.source.startsWith("referral")) return { en: "Referral reward", zh: "邀请奖励" };
   const sources: Record<string, Copy> = {
     signup: { en: "Signup bonus", zh: "注册赠送" },
@@ -34,4 +41,12 @@ export function creditSourceName(row: Pick<CreditTransaction, "source" | "kind" 
 
 export function signedCredits(amount: number): string {
   return `${amount > 0 ? "+" : ""}${amount.toLocaleString("en-US")}`;
+}
+
+/** Keep product/operator explanations, omit generated storage labels and repeated titles. */
+export function creditDescription(row: Pick<CreditTransaction, "source" | "kind" | "actor_id" | "reason">): string {
+  const reason = row.reason.trim();
+  const label = creditSourceName(row);
+  if (!reason || reason === `${row.source} credit grant` || reason === label.en || reason === label.zh) return "";
+  return reason;
 }
