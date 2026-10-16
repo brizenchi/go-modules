@@ -58,6 +58,6 @@ export function siteLinkForPath(path: string): SiteLink | undefined {
 
 export function customerBreadcrumbs(path: string, locale: Locale): Array<{ href: string; label: string }> {
   const current = [siteLinks.account, siteLinks.billing, siteLinks.referrals, siteLinks.credits].find(item => item.href === path.split(/[?#]/, 1)[0]) || siteLinks.account;
-  const items = current === siteLinks.account ? [siteLinks.home, current] : [siteLinks.home, siteLinks.account, current];
+  const items = [siteLinks.home, current];
   return items.map(item => ({ href: localizeHref(item.href, locale), label: item.label[locale] }));
 }

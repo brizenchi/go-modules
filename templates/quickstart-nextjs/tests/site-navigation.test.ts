@@ -37,9 +37,17 @@ test("customer and public footers share the same published help destination", ()
   }
 });
 
-test("customer breadcrumbs follow the account hierarchy and preserve homepage language", () => {
+test("customer pages are peers and preserve homepage language", () => {
   assert.deepEqual(customerBreadcrumbs("/account", "zh").map(item => item.href), ["/zh", "/account"]);
-  assert.deepEqual(customerBreadcrumbs("/billing", "en").map(item => item.label), ["Home", "My account", "Subscription & billing"]);
-  assert.deepEqual(customerBreadcrumbs("/credits", "zh").map(item => item.label), ["首页", "账户中心", "积分明细"]);
+  assert.deepEqual(customerBreadcrumbs("/billing", "en").map(item => item.label), ["Home", "Subscription & billing"]);
+  assert.deepEqual(customerBreadcrumbs("/credits", "zh").map(item => item.label), ["首页", "积分明细"]);
   assert.equal(customerBreadcrumbs("/referrals", "zh").at(-1)?.label, "推荐奖励");
+  for (const locale of ["en", "zh"] as const) {
+    for (const path of ["/account", "/billing", "/referrals", "/credits"]) {
+      const items = customerBreadcrumbs(path, locale);
+      assert.equal(items.length, 2);
+      assert.equal(items[0].href, locale === "zh" ? "/zh" : "/");
+      assert.equal(items[1].href, path);
+    }
+  }
 });

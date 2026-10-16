@@ -14,7 +14,7 @@ export const workspaceNavItems: WorkspaceNavItem[] = [
     href: "/account",
     icon: "account",
     label: siteLinks.account.label,
-    description: { en: "Account and billing services", zh: "账户与计费服务" }
+    description: { en: "Identity and membership", zh: "身份与会员等级" }
   },
   {
     href: "/billing",
@@ -35,8 +35,6 @@ export const workspaceNavItems: WorkspaceNavItem[] = [
 export const auxiliaryWorkspaceItems: WorkspaceNavItem[] = [
   { href: "/credits", icon: "credits", label: siteLinks.credits.label, description: { en: "Balance and transaction history", zh: "余额、消费与奖励流水" } }
 ];
-
-export const accountServiceItems: WorkspaceNavItem[] = [workspaceNavItems[1], auxiliaryWorkspaceItems[0], workspaceNavItems[2]];
 
 export function activeWorkspaceHref(pathname: string): string {
   const normalized = pathname.split(/[?#]/, 1)[0] || "/";

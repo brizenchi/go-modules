@@ -60,7 +60,7 @@ export function CustomerShell({ brand, activeHref, accountMenu, localeControl, c
       </div>
       <div className={styles.grid}>
         <aside className={styles.sidebar}>
-          <p className={styles.navLabel}>{t({ en: "My account", zh: "账户中心" })}</p>
+          <p className={styles.navLabel}>{t({ en: "Account", zh: "个人账户" })}</p>
           {navigation()}
           <Link className={styles.support} href={siteLinks.help.href}>{t(siteLinks.help.label)}<span aria-hidden="true">↗</span></Link>
         </aside>

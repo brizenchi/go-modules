@@ -19,6 +19,7 @@ import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import styles from "./referrals.module.css";
+import { usePageReturn } from "@/components/use-page-return";
 import { formatDate } from "@/lib/format";
 import {
   describeRequestFailure,
@@ -54,11 +55,11 @@ export default function ReferralsPage() {
       loadingLink: "Loading your invite link…", loadingStats: "Loading your invitation overview…", loadingList: "Loading invitations…",
       emptyLink: "Your invite link will appear here.", emptyStats: "Your invitation overview will appear here.", emptyList: "No invitations yet. Share your link; a new registration will appear here.",
       signIn: "Sign in to invite friends", signInHelp: "Create your own invitation link and follow your friends' progress.", signInButton: "Sign in",
-      refresh: "Refresh", previous: "Previous", next: "Next", page: "Page", of: "of", records: "invitations",
+      refresh: "Try again", previous: "Previous", next: "Next", page: "Page", of: "of", records: "invitations",
       unavailable: "Invitations are currently unavailable", unavailableDetail: "You can still use your account. Check back when invitations are available.",
       missingLink: "Your invitation link is not ready", missingLinkDetail: "Please contact support to have sharing enabled for this site.",
       trialNote: "A free trial alone does not activate an invitation. After qualifying paid activation, both users can view their rewards in Credits.",
-      demoNote: "Demo: registrations and invitation records are real. Payments use Stripe test mode. Open your link in another browser or private window, register a new account, complete a qualifying test subscription, then refresh this page.",
+      demoNote: "Demo: registrations and invitation records are real. Payments use Stripe test mode. Open your link in another browser or private window, register a new account, complete a qualifying test subscription, then return here to see the updated records.",
       testHelp: "View test payment instructions", pendingHelp: "Registered; awaiting a qualifying paid subscription.", activatedHelp: "Qualifying subscription recorded.", expiredHelp: "The activation deadline passed without a qualifying subscription."
     },
     zh: {
@@ -76,11 +77,11 @@ export default function ReferralsPage() {
       loadingLink: "正在生成邀请链接…", loadingStats: "正在加载邀请概况…", loadingList: "正在加载邀请记录…",
       emptyLink: "你的专属邀请链接将在这里显示。", emptyStats: "邀请概况将在这里显示。", emptyList: "还没有邀请记录。把链接分享给好友，好友首次注册后会出现在这里。",
       signIn: "登录后邀请好友", signInHelp: "获取你的专属邀请链接，查看好友的注册和激活进度。", signInButton: "登录",
-      refresh: "刷新", previous: "上一页", next: "下一页", page: "第", of: "/", records: "条邀请",
+      refresh: "重试", previous: "上一页", next: "下一页", page: "第", of: "/", records: "条邀请",
       unavailable: "邀请功能暂未开放", unavailableDetail: "你可以继续使用账号，稍后再来查看邀请功能。",
       missingLink: "邀请链接暂未就绪", missingLinkDetail: "请联系网站支持人员开通分享链接。",
       trialNote: "注册奖励无需付费；免费试用不会触发额外付费奖励。双方在“我的积分”查看两类奖励。",
-      demoNote: "演示说明：注册和邀请记录都是真实的，支付使用 Stripe 测试环境。请在另一浏览器或无痕窗口打开链接，用新账号注册并完成符合条件的测试订阅，再回到这里刷新查看。",
+      demoNote: "演示说明：注册和邀请记录都是真实的，支付使用 Stripe 测试环境。请在另一浏览器或无痕窗口打开链接，用新账号注册并完成符合条件的测试订阅，再回到这里查看更新后的记录。",
       testHelp: "查看测试支付说明", pendingHelp: "好友已注册，等待符合条件的付费订阅。", activatedHelp: "已记录符合条件的订阅激活。", expiredHelp: "激活期限内未完成符合条件的订阅。"
     }
   });
@@ -173,6 +174,8 @@ export default function ReferralsPage() {
       loadListState(token)
     ]);
   }, [loadCodeState, loadListState, loadStatsState]);
+  const updateOnReturn = useCallback(() => { if (sessionToken && referralEnabled) void load(sessionToken); }, [sessionToken, referralEnabled, load]);
+  usePageReturn(updateOnReturn);
 
   useEffect(() => {
     const sync = () => {
@@ -276,7 +279,6 @@ export default function ReferralsPage() {
         { id: "stats", label: copy.stats },
         { id: "history", label: copy.history }
       ]}
-      actions={session && referralEnabled ? <button className="button" type="button" onClick={() => void load(sessionToken)}>{copy.refresh}</button> : undefined}
     >
       <div className="page-grid">
         {sessionReady && !session ? (

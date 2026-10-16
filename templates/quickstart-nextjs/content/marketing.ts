@@ -70,8 +70,8 @@ export const marketingCategories: MarketingCategory[] = [
 
 /** Direct product entries; no separate article is needed to try account services. */
 export const customerExamples = [
-  { ...link("/account", "My account", "账户中心"), description: text("Sign in, view account information and check your credit balance.", "登录、查看账户信息与积分余额。") },
-  { ...link("/billing", "Subscription & billing", "订阅与账单"), description: text("Review your subscription, payment methods and billing history.", "查看订阅状态、付款方式与账单记录。") },
+  { ...link("/account", "My account", "账户中心"), description: text("View your sign-in email and membership, or sign out.", "查看登录邮箱、会员等级，或退出账户。") },
+  { ...link("/billing", "Subscription & billing", "订阅与账单"), description: text("Manage your plan, check remaining credits and access payments and invoices.", "管理当前套餐，查看剩余积分、支付记录与发票。") },
   { ...link("/referrals", "Referral rewards", "推荐奖励"), description: text("Share your invitation link and review your referral records.", "分享邀请链接，查看推荐与奖励记录。") }
 ];
 

@@ -3006,7 +3006,7 @@ html:lang(zh) :is(.eyebrow, .panel-kicker, .detail-label, .workspace-status) { l
 }
 
 /* Pricing is a decision page: keep the catalog close to its introduction. */
-.compact-shell .hero-grid { grid-template-columns: minmax(0, 1fr); min-height: 0; padding-block: 24px 28px; margin-bottom: 0; }
+.compact-shell .page-shell .hero-grid { grid-template-columns: minmax(0, 1fr); min-height: 0; padding-block: 32px; margin-bottom: 0; }
 .compact-shell .hero-grid::before { display: none; }
 .compact-shell .hero-main-card { padding: 0; }
 .compact-shell .hero-grid .hero-main-card h1 { max-width: none; margin-top: 12px; font-size: clamp(32px, 4vw, 48px); line-height: 1.2; }

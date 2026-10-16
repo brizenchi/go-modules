@@ -182,7 +182,7 @@ function PublicSiteShell(props: SiteShellProps) {
             <div className="hero-main-card">
               <span className="eyebrow">{props.eyebrow}</span>
               <h1>{props.title}</h1>
-              <p>{props.description}</p>
+              {props.description.trim() ? <p>{props.description}</p> : null}
               {props.variant === "article" ? <div className="article-byline">{props.sideBody}</div> : null}
               {props.actions ? <div className="hero-actions">{props.actions}</div> : null}
               {props.heroFootnote ? <div className="hero-footnote">{props.heroFootnote}</div> : null}

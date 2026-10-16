@@ -1,42 +1,13 @@
-.layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
-.tools, .account, .guest { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.sectionHead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
-.sectionHead h2, .account h2, .guest h2 { margin: 0; font-size: 16px; font-weight: 650; }
-.sectionHead > span { color: var(--muted); font-size: 12px; }
-.row { display: flex; align-items: center; gap: 20px; padding: 22px 24px; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); transition: background 150ms ease; }
-.row:last-child { border-bottom: 0; border-radius: 0 0 14px 14px; }
-.row:hover { background: var(--surface-subtle); }
-.rowCopy { display: grid; gap: 5px; flex: 1; }
-.rowCopy strong { font-size: 14px; font-weight: 600; }
-.rowCopy small { color: var(--muted); font-size: 13px; line-height: 1.6; }
-.arrow { font-size: 20px; color: var(--muted); }
-.account { padding: 22px 24px; }
-.email { margin: 14px 0 12px; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
-.textButton { padding: 4px 0; border: 0; background: none; color: var(--accent-ink); cursor: pointer; font: inherit; font-size: 13px; }
-.accountLinks { margin: 20px 0 16px; border-top: 1px solid var(--line); }
-.accountLinks a { position: relative; display: grid; gap: 6px; padding: 16px 24px 16px 0; border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
-.accountLinks a:hover strong { color: var(--accent-ink); }
-.accountLinks strong { font-size: 14px; font-weight: 600; }
-.accountLinks small { font-size: 12px; color: var(--muted); line-height: 1.6; }
-.accountLinks span { position: absolute; right: 0; top: 24px; color: var(--muted); }
-.pricing { color: var(--muted); text-decoration: none; font-size: 13px; }
-.pricing:hover { color: var(--accent-ink); }
-.message { color: var(--muted); font-size: 14px; }
-.guest { padding: 32px; }
-.guest p { color: var(--muted); font-size: 14px; margin: 12px 0 24px; }
-@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
-@media (max-width: 480px) { .sectionHead { padding: 20px; } .sectionHead > span { display: none; } .row { padding: 22px 20px; gap: 14px; } .account, .guest { padding: 22px 20px; } }
-@media (prefers-reduced-motion: reduce) { .row { transition: none; } }
-
-.toolIcon, .accountIcon { flex-shrink: 0; width: 40px; height: 40px; display: grid; place-items: center; color: var(--muted-strong); background: var(--surface-subtle); border: 1px solid var(--line); border-radius: 10px; }
-.accountIcon { display: inline-grid; vertical-align: middle; margin-right: 12px; border-radius: 50%; }
-.account h2 { display: inline-block; vertical-align: middle; }
-.row { min-height: 100px; gap: 16px; }
-.rowCopy { min-width: 0; }
-.rowCopy small { font-size: 12px; }
-.arrow { width: 18px; height: 18px; transition: transform 150ms ease; }
-.row:hover .arrow { transform: translateX(3px); color: var(--text); }
-.row:focus-visible { outline-offset: -3px; background: var(--surface-subtle); }
-.textButton, .pricing { min-height: 36px; display: inline-flex; align-items: center; }
-.textButton:hover { text-decoration: underline; text-underline-offset: 4px; }
-@media (prefers-reduced-motion: reduce) { .arrow { transition: none; } }
+.account { width: min(100%, 720px); padding: 32px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.identityHeading { display: flex; align-items: center; gap: 12px; }
+.identityHeading h2 { margin: 0; font-size: 17px; font-weight: 650; }
+.icon { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-subtle); color: var(--muted-strong); }
+.icon svg { width: 20px; height: 20px; }
+.email { margin: 24px 0 8px; color: var(--text); font-size: 17px; font-weight: 500; overflow-wrap: anywhere; }
+.note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.membership { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px; padding-block: 20px; border-block: 1px solid var(--line); font-size: 13px; }
+.membership > span { color: var(--muted-strong); }
+.membership > div { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.membership small { color: var(--muted); font-size: 12px; }
+.actions { display: flex; align-items: center; margin-top: 24px; }
+@media (max-width: 640px) { .account { padding: 24px 20px; } .membership { align-items: flex-start; } }
