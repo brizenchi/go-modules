@@ -1,4 +1,5 @@
 import { ApiError } from "./api";
+import { retainEqualData } from "./resource-data";
 
 export type RequestFailureKind =
   | "auth"
@@ -37,6 +38,17 @@ export function readyResource<T>(data: T): ResourceState<T> {
 
 export function failedResource<T>(failure: RequestFailure, data: T | null = null): ResourceState<T> {
   return { status: "error", data, failure };
+}
+
+export function startResourceRefresh<T>(current: ResourceState<T>, background = false): ResourceState<T> {
+  return background && current.data !== null ? current : loadingResource(current.data);
+}
+
+export function reconcileResourceRefresh<T>(current: ResourceState<T>, next: ResourceState<T>, background = false): ResourceState<T> {
+  if (background && current.data !== null && next.status === "error" && next.failure.retryable) return current;
+  if (next.status !== "ready") return next;
+  const data = retainEqualData(current.data, next.data);
+  return current.status === "ready" && data === current.data ? current : readyResource(data);
 }
 
 function looksLikeConfigurationError(message: string): boolean {

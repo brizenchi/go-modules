@@ -23,6 +23,8 @@ import {
   describeRequestFailure,
   idleResource,
   loadingResource,
+  startResourceRefresh,
+  reconcileResourceRefresh,
   settleResource,
   type RequestFailure,
   type ResourceState
@@ -39,11 +41,11 @@ export default function ReferralsPage() {
   const [signInOpen, setSignInOpen] = useState(false);
   const copy = t({
     en: {
-      eyebrow: "Invite friends", title: "Referral rewards", description: "Invite friends and earn credits.",
-      rewardDetail: "Signup: 20 credits for you, 10 for your friend. First qualifying payment: another 20 / 10. New accounts only; each stage once.",
+      eyebrow: "Invite friends", title: "Referral rewards", description: "",
+      rewardUnit: "Credits", you: "You", friend: "Friend", signup: "Signup", payment: "First paid subscription",
       link: "Your invite link", shareLink: "Invitation link", copy: "Copy link", copied: "Link copied.",
       copyFailed: "Couldn't copy the link. Select the link and copy it manually.",
-      stats: "Overview", total: "Registered", activated: "Activated", pending: "Pending activation", credits: "Paid rewards", expired: "Expired",
+      stats: "Invitation overview", total: "Registered", activated: "Paid", pending: "Not paid", credits: "Reward credits", expired: "Expired",
       history: "Invitation history", person: "Invited account", state: "Status", joined: "Registered", deadline: "Activation deadline", activatedAt: "Activated", noDeadline: "No time limit",
       loadingLink: "Loading invite link…", loadingStats: "Loading overview…", loadingList: "Loading invitations…",
       emptyLink: "Your invite link is not ready yet.", emptyStats: "No invitation data yet.", emptyList: "No invitations yet.",
@@ -54,10 +56,10 @@ export default function ReferralsPage() {
       pendingHelp: "Awaiting a qualifying payment.", activatedHelp: "Qualifying payment recorded.", expiredHelp: "The activation deadline has passed."
     },
     zh: {
-      eyebrow: "邀请好友", title: "推荐奖励", description: "邀请好友，获得积分。",
-      rewardDetail: "好友注册：你得 20 积分，好友得 10；首次有效付费后，再分别获得 20 / 10。仅限新用户，每阶段一次。",
+      eyebrow: "邀请好友", title: "推荐奖励", description: "",
+      rewardUnit: "奖励积分", you: "你", friend: "好友", signup: "注册", payment: "首次付费订阅",
       link: "我的邀请链接", shareLink: "邀请链接", copy: "复制链接", copied: "链接已复制。", copyFailed: "复制失败，请选中链接后手动复制。",
-      stats: "邀请概况", total: "已注册", activated: "已激活", pending: "待激活", credits: "付费奖励", expired: "已过期",
+      stats: "邀请概况", total: "已注册", activated: "已付费", pending: "未付费", credits: "奖励积分", expired: "已过期",
       history: "邀请记录", person: "受邀账号", state: "状态", joined: "注册时间", deadline: "激活截止", activatedAt: "激活时间", noDeadline: "不限时",
       loadingLink: "正在读取邀请链接…", loadingStats: "正在读取邀请概况…", loadingList: "正在读取邀请记录…",
       emptyLink: "邀请链接暂未就绪。", emptyStats: "暂无邀请数据。", emptyList: "暂无邀请记录。",
@@ -108,36 +110,36 @@ export default function ReferralsPage() {
     };
   }
 
-  const loadCodeState = useCallback(async (token: string) => {
+  const loadCodeState = useCallback(async (token: string, background = false) => {
     if (readSession()?.token !== token) return;
     const generation = beginRequestGeneration(codeGenerationRef);
-    setCodeState(loadingResource());
+    setCodeState(current => startResourceRefresh(current, background));
     const nextState = await settleResource(getReferralCode(token), "Referral link");
     if (
       readSession()?.token === token
       && isCurrentRequestGeneration(codeGenerationRef, generation)
     ) {
-      setCodeState(nextState);
+      setCodeState(current => reconcileResourceRefresh(current, nextState, background));
     }
   }, []);
 
-  const loadStatsState = useCallback(async (token: string) => {
+  const loadStatsState = useCallback(async (token: string, background = false) => {
     if (readSession()?.token !== token) return;
     const generation = beginRequestGeneration(statsGenerationRef);
-    setStatsState(loadingResource());
+    setStatsState(current => startResourceRefresh(current, background));
     const nextState = await settleResource(getReferralStats(token), "Referral statistics");
     if (
       readSession()?.token === token
       && isCurrentRequestGeneration(statsGenerationRef, generation)
     ) {
-      setStatsState(nextState);
+      setStatsState(current => reconcileResourceRefresh(current, nextState, background));
     }
   }, []);
 
-  const loadListState = useCallback(async (token: string, requestedPage = 1) => {
+  const loadListState = useCallback(async (token: string, requestedPage = 1, background = false) => {
     if (readSession()?.token !== token) return;
     const generation = beginRequestGeneration(listGenerationRef);
-    setListState((current) => loadingResource(current.data));
+    setListState(current => startResourceRefresh(current, background));
     const nextState = await settleResource(
       listReferrals(token, requestedPage),
       "Referral history"
@@ -146,18 +148,18 @@ export default function ReferralsPage() {
       readSession()?.token === token
       && isCurrentRequestGeneration(listGenerationRef, generation)
     ) {
-      setListState(nextState);
+      setListState(current => reconcileResourceRefresh(current, nextState, background));
     }
   }, []);
 
-  const load = useCallback(async (token: string) => {
+  const load = useCallback(async (token: string, background = false, requestedPage = 1) => {
     await Promise.all([
-      loadCodeState(token),
-      loadStatsState(token),
-      loadListState(token)
+      loadCodeState(token, background),
+      loadStatsState(token, background),
+      loadListState(token, requestedPage, background)
     ]);
   }, [loadCodeState, loadListState, loadStatsState]);
-  const updateOnReturn = useCallback(() => { if (sessionToken && referralEnabled) void load(sessionToken); }, [sessionToken, referralEnabled, load]);
+  const updateOnReturn = useCallback(() => { if (sessionToken && referralEnabled) void load(sessionToken, true, page); }, [sessionToken, referralEnabled, load, page]);
   usePageReturn(updateOnReturn);
 
   useEffect(() => {
@@ -304,7 +306,13 @@ export default function ReferralsPage() {
                   : copy.signInHelp}
             </EmptyState>
           )}
-          <p className={styles.rule}>{copy.rewardDetail}</p>
+          <table className={styles.rewards}>
+            <thead><tr><th scope="col">{copy.rewardUnit}</th><th scope="col">{copy.you}</th><th scope="col">{copy.friend}</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">{copy.signup}</th><td>+20</td><td>+10</td></tr>
+              <tr><th scope="row">{copy.payment}</th><td>+20</td><td>+10</td></tr>
+            </tbody>
+          </table>
           {status ? <div role="status"><Notice tone="success">{status}</Notice></div> : null}
           {actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
         </Panel>
@@ -320,14 +328,6 @@ export default function ReferralsPage() {
               <div className="stat-card">
                 <span className="stat-label">{copy.activated}</span>
                 <span className="stat-value">{stats.activated}</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">{copy.pending}</span>
-                <span className="stat-value">{stats.pending}</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-label">{copy.credits}</span>
-                <span className="stat-value">{stats.total_reward_credits}</span>
               </div>
             </div>
           ) : statsState.status === "error" ? (

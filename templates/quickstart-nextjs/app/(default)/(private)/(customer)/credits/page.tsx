@@ -20,8 +20,8 @@ export default function CreditsPage() {
   const balance = useConsoleResource(token, getCreditBalance);
   const loader = useCallback((key: string) => listCreditTransactions(key, page), [page]);
   const history = useConsoleResource(token, loader);
-  const refreshHistory = history.refresh;
-  const refreshBalance = balance.refresh;
+  const refreshHistory = history.revalidate;
+  const refreshBalance = balance.revalidate;
   const update = useCallback(() => { void refreshHistory(); void refreshBalance(); }, [refreshHistory, refreshBalance]);
   usePageReturn(update);
   const numberFormat = new Intl.NumberFormat(locale === "zh" ? "zh-CN" : "en-US");

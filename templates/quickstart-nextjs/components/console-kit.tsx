@@ -6,6 +6,8 @@ import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { SignInDialog } from "./sign-in-dialog";
 import type { PageResult } from "@/lib/operations-api";
+import { retainEqualData } from "@/lib/resource-data";
+import { describeRequestFailure } from "@/lib/request-state";
 import styles from "./console-kit.module.css";
 
 export function useConsoleSession() {
@@ -22,19 +24,27 @@ export function useConsoleSession() {
 export function useConsoleResource<T>(token: string, loader: (token: string) => Promise<T>) {
   const [result, setResult] = useState<{ owner: string; data: T | null; loading: boolean; error: unknown }>({ owner: "", data: null, loading: false, error: null });
   const generation = useRef(0);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (background = false) => {
     if (!token || readSession()?.token !== token) return;
     const current = ++generation.current;
-    setResult((previous) => ({ owner: token, data: previous.owner === token ? previous.data : null, loading: true, error: null }));
+    setResult(previous => background && previous.owner === token && previous.data !== null ? previous
+      : { owner: token, data: previous.owner === token ? previous.data : null, loading: true, error: null });
     try {
       const data = await loader(token);
-      if (generation.current === current && readSession()?.token === token) setResult({ owner: token, data, loading: false, error: null });
+      if (generation.current === current && readSession()?.token === token) setResult(previous => {
+        const stableData = retainEqualData(previous.owner === token ? previous.data : null, data);
+        return previous.owner === token && previous.data === stableData && !previous.loading && previous.error === null ? previous
+          : { owner: token, data: stableData, loading: false, error: null };
+      });
     } catch (error) {
-      if (generation.current === current && readSession()?.token === token) setResult({ owner: token, data: null, loading: false, error });
+      if (generation.current === current && readSession()?.token === token) setResult(previous =>
+        background && previous.owner === token && previous.data !== null && describeRequestFailure(error, "Account").retryable ? previous
+          : { owner: token, data: null, loading: false, error });
     }
   }, [loader, token]);
+  const revalidate = useCallback(() => refresh(true), [refresh]);
   useEffect(() => { const counter = generation; void refresh(); return () => { counter.current++; }; }, [refresh]);
-  return { ...(result.owner === token ? result : { data: null, error: null, loading: Boolean(token) }), refresh };
+  return { ...(result.owner === token ? result : { data: null, error: null, loading: Boolean(token) }), refresh, revalidate };
 }
 
 export function useConsoleAction(token: string) {

@@ -1,4 +1,4 @@
-import { localizeHref, stripLocalePrefix, type Locale } from "../lib/locale";
+import { humanizeSegment, localizeHref, stripLocalePrefix, type Locale } from "../lib/locale";
 
 type Copy = { en: string; zh: string };
 export type SiteLink = { href: string; label: Copy };
@@ -33,11 +33,15 @@ export const guideDirectories = [
   { ...siteLinks.blog, description: { en: "Practical answers to product and account questions.", zh: "围绕产品与账户问题，查阅实用文章。" } },
   { ...siteLinks.updates, description: { en: "See what changed and where to use it.", zh: "了解最近改了什么，以及在哪里使用。" } }
 ];
+export const guideNavigation: readonly SiteLink[] = [
+  { ...siteLinks.resources, label: { en: "All guides", zh: "指南总览" } },
+  ...guideDirectories
+];
 export const customerFooterLinks = [siteLinks.help, siteLinks.privacy, siteLinks.terms];
 export const siteLegalLinks = [siteLinks.privacy, siteLinks.terms];
 export const siteFooterGroups: Array<{ title: Copy; links: SiteLink[] }> = [
   { title: { en: "Product", zh: "产品" }, links: [siteLinks.features, siteLinks.useCases, siteLinks.pricing, siteLinks.compare, siteLinks.examples] },
-  { title: { en: "Guides", zh: "指南" }, links: [{ ...siteLinks.resources, label: { en: "All guides", zh: "指南总览" } }, siteLinks.docs, siteLinks.blog, siteLinks.updates] },
+  { title: { en: "Guides", zh: "指南" }, links: [...guideNavigation] },
   { title: { en: "About & support", zh: "关于与支持" }, links: [siteLinks.about, siteLinks.help] }
 ];
 
@@ -47,13 +51,39 @@ export function activePublicNavigationHref(path: string): string {
   const within = (prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
   if (within("/features")) return "/features";
   if (within("/pricing")) return "/pricing";
-  if (["/resources", "/docs", "/blog", "/updates"].some(within)) return "/resources";
+  if (guideNavigation.some(item => within(item.href))) return siteLinks.resources.href;
   return "";
 }
 
 export function siteLinkForPath(path: string): SiteLink | undefined {
   if (!path) return undefined;
   return Object.values(siteLinks).find(item => item.href === stripLocalePrefix(path.split(/[?#]/, 1)[0]));
+}
+
+export type PublicBreadcrumb = { href?: string; label: string };
+
+/** The guide hub is the editorial parent, independent of the stable route URLs. */
+export function publicBreadcrumbs(path: string, locale: Locale, supplied?: readonly PublicBreadcrumb[]): PublicBreadcrumb[] {
+  const pathname = stripLocalePrefix(path.split(/[?#]/, 1)[0]).replace(/\/+$/, "") || "/";
+  let current = "";
+  const defaults: PublicBreadcrumb[] = pathname === "/" ? [{ label: siteLinks.home.label[locale] }] : [
+    { href: "/", label: siteLinks.home.label[locale] },
+    ...pathname.split("/").filter(Boolean).map(segment => {
+      current += `/${segment}`;
+      return { href: current, label: humanizeSegment(segment) };
+    })
+  ];
+  const items = (supplied?.length ? supplied : defaults).map((item, index, source) => {
+    const known = siteLinkForPath(item.href || (index === source.length - 1 ? pathname : ""));
+    return { label: known?.label[locale] || item.label, href: item.href ? localizeHref(item.href, locale) : undefined };
+  });
+  if (!guideDirectories.some(item => pathname === item.href || pathname.startsWith(`${item.href}/`))) return items;
+  const trail = items.filter(item => !item.href || !["/", siteLinks.resources.href].includes(stripLocalePrefix(item.href)));
+  return [
+    { href: localizeHref("/", locale), label: siteLinks.home.label[locale] },
+    { href: localizeHref(siteLinks.resources.href, locale), label: siteLinks.resources.label[locale] },
+    ...trail
+  ];
 }
 
 export function customerBreadcrumbs(path: string, locale: Locale): Array<{ href: string; label: string }> {

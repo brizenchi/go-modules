@@ -5,7 +5,9 @@ import { listInvoices, listPurchases, type InvoiceItem, type PurchaseItem } from
 import { readSession } from "@/lib/auth";
 import { formatBillingAmount } from "@/lib/billing-money";
 import { formatCurrencyUSD, formatDate } from "@/lib/format";
-import { invoiceDownloadURL, paymentRecords, type PaymentRecord } from "@/lib/payment-history";
+import { invoiceDownloadURL, paymentRecords, reloadLoadedPaymentPages, type PaymentRecord } from "@/lib/payment-history";
+import { retainEqualData } from "@/lib/resource-data";
+import { describeRequestFailure } from "@/lib/request-state";
 import { useI18n } from "@/lib/i18n";
 import { ConsoleError } from "./console-kit";
 import { DataTable } from "./data-table";
@@ -16,33 +18,46 @@ import styles from "./billing-history.module.css";
 type History = {
  owner: string; purchases: PurchaseItem[]; invoices: InvoiceItem[];
  nextPurchasePage: number | null; nextInvoicePage: number | null;
- loading: boolean; errors: unknown[];
+ loading: boolean; loaded: boolean; purchasePages: number; invoicePages: number; errors: unknown[];
 };
-const initialHistory = (): History => ({ owner: "", purchases: [], invoices: [], nextPurchasePage: 1, nextInvoicePage: 1, loading: true, errors: [] });
+const initialHistory = (): History => ({ owner: "", purchases: [], invoices: [], nextPurchasePage: 1, nextInvoicePage: 1, loading: true, loaded: false, purchasePages: 0, invoicePages: 0, errors: [] });
 
 export function BillingHistory({ token, revision = 0, invoicesEnabled = true }: { token: string; revision?: number; invoicesEnabled?: boolean }) {
  const { t, locale } = useI18n();
  const [state, setState] = useState<History>(initialHistory);
+ const snapshot = useRef(state);
+ useEffect(() => { snapshot.current = state; }, [state]);
  const generation = useRef(0);
  const busy = useRef(false);
  const load = useCallback(async (owner: string, request: number, purchasePage: number | null, invoicePage: number | null, replace = false) => {
   if (busy.current || readSession()?.token !== owner) return;
+  const current = snapshot.current.owner === owner ? snapshot.current : initialHistory();
+  const background = replace && current.loaded;
   busy.current = true;
-  setState(previous => ({ ...(previous.owner === owner ? previous : initialHistory()), owner, loading: true, errors: [] }));
+  if (!background) setState(previous => ({ ...(previous.owner === owner ? previous : initialHistory()), owner, loading: true, errors: [] }));
   const [purchases, invoices] = await Promise.allSettled([
-   purchasePage ? listPurchases(owner, purchasePage) : Promise.resolve(null),
-   invoicePage ? listInvoices(owner, invoicePage) : Promise.resolve(null)
+   purchasePage ? replace ? reloadLoadedPaymentPages(page => listPurchases(owner, page), current.purchasePages) : listPurchases(owner, purchasePage) : Promise.resolve(null),
+   invoicePage ? replace ? reloadLoadedPaymentPages(page => listInvoices(owner, page), current.invoicePages) : listInvoices(owner, invoicePage) : Promise.resolve(null)
   ]);
   if (generation.current !== request || readSession()?.token !== owner) return;
   busy.current = false;
-  setState(previous => ({
-   owner, loading: false,
-   purchases: [...(replace ? [] : previous.purchases), ...(purchases.status === "fulfilled" ? purchases.value?.items || [] : [])],
-   invoices: [...(replace ? [] : previous.invoices), ...(invoices.status === "fulfilled" ? invoices.value?.items || [] : [])],
-   nextPurchasePage: purchases.status === "rejected" ? purchasePage : purchases.value && purchases.value.page * purchases.value.limit < purchases.value.total ? purchases.value.page + 1 : null,
-   nextInvoicePage: invoices.status === "rejected" ? invoicePage : invoices.value && invoices.value.page * invoices.value.limit < invoices.value.total ? invoices.value.page + 1 : null,
-   errors: [...(purchases.status === "rejected" ? [purchases.reason] : []), ...(invoices.status === "rejected" ? [invoices.reason] : [])]
-  }));
+  setState(previous => {
+   const base = previous.owner === owner ? previous : initialHistory();
+   const showFailure = (error: unknown) => !background || !describeRequestFailure(error, "Payments").retryable;
+   const errors = [...(purchases.status === "rejected" && showFailure(purchases.reason) ? [purchases.reason] : []), ...(invoices.status === "rejected" && showFailure(invoices.reason) ? [invoices.reason] : [])];
+   const next: History = {
+    owner, loading: false,
+    loaded: base.loaded || (purchases.status === "fulfilled" && purchases.value !== null) || (invoices.status === "fulfilled" && invoices.value !== null),
+    purchases: purchases.status === "fulfilled" && purchases.value ? retainEqualData(base.purchases, [...(replace ? [] : base.purchases), ...purchases.value.items]) : purchases.status === "rejected" && showFailure(purchases.reason) && background ? [] : base.purchases,
+    invoices: invoices.status === "fulfilled" && invoices.value ? retainEqualData(base.invoices, [...(replace ? [] : base.invoices), ...invoices.value.items]) : invoices.status === "rejected" && showFailure(invoices.reason) && background ? [] : base.invoices,
+    purchasePages: purchases.status === "fulfilled" && purchases.value ? purchases.value.page : base.purchasePages,
+    invoicePages: invoices.status === "fulfilled" && invoices.value ? invoices.value.page : base.invoicePages,
+    nextPurchasePage: purchases.status === "rejected" ? base.nextPurchasePage : purchases.value && purchases.value.page * purchases.value.limit < purchases.value.total ? purchases.value.page + 1 : null,
+    nextInvoicePage: invoices.status === "rejected" ? base.nextInvoicePage : invoices.value && invoices.value.page * invoices.value.limit < invoices.value.total ? invoices.value.page + 1 : null,
+    errors: errors.length === 0 && base.errors.length === 0 ? base.errors : errors
+   };
+   return !base.loading && Object.keys(next).every(key => next[key as keyof History] === base[key as keyof History]) ? base : next;
+  });
  }, []);
  useEffect(() => {
   const counter = generation;

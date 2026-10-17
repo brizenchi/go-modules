@@ -142,3 +142,16 @@ for (const home of ["/", "/zh"]) {
 }
 
 console.log(`Public content checks passed: ${pages.length} pages, ${articlePages.length} articles, headings, anchors, canonical URLs, JSON-LD, sitemap and three-click discovery without the global footer.`);
+
+for (const path of new Set([...paths, ...shellPaths])) {
+  const base = path.replace(/^\/zh(?=\/|$)/, "") || "/";
+  if (!/^\/(docs|blog|updates)(?:\/|$)/.test(base)) continue;
+  const html = readFileSync(join(root, pageFile(path)), "utf8");
+  const schemas = [...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+  const breadcrumb = schemas.find(schema => schema["@type"] === "BreadcrumbList");
+  const guide = breadcrumb?.itemListElement[1];
+  assert.equal(new URL(guide?.item || "https://invalid.test").pathname, path.startsWith("/zh/") ? "/zh/resources" : "/resources", `${path}: belongs to Guides in breadcrumb structured data`);
+  assert.equal(guide.name, path.startsWith("/zh/") ? "指南" : "Guides", `${path}: localized Guides parent`);
+  if (["/docs", "/blog", "/updates"].includes(base)) assert.match(html, /data-guide-navigation/, `${path}: sibling guide navigation in initial HTML`);
+}
+console.log("Guide hierarchy checks passed: Documentation, Articles and Updates belong to Guides.");

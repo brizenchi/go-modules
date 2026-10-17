@@ -1,7 +1,7 @@
 "use client";
 
 import { LocalizedLink as Link } from "./localized-link";
-import { guideDirectories, productNavigation, siteLinks } from "@/content/navigation";
+import { guideDirectories, guideNavigation, productNavigation, siteLinks } from "@/content/navigation";
 import { relatedContent, type DiscoveryEntry } from "@/lib/content-discovery";
 import { useI18n } from "@/lib/i18n";
 import styles from "./content-discovery.module.css";
@@ -22,6 +22,13 @@ export function GuideDirectories() {
       <h2>{t(item.label)}</h2><p>{t(item.description)}</p>
       <span className={styles.destination}>{t({ en: "Browse", zh: "浏览目录" })}<span aria-hidden="true">→</span></span>
     </Link>)}
+  </nav>;
+}
+
+export function GuideNavigation({ currentPath }: { currentPath: string }) {
+  const { t } = useI18n();
+  return <nav className={styles.productNav} aria-label={t({ en: "Guide sections", zh: "指南栏目" })} data-guide-navigation>
+    {guideNavigation.map(item => <Link href={item.href} key={item.href} aria-current={currentPath === item.href ? "page" : undefined}>{t(item.label)}</Link>)}
   </nav>;
 }
 

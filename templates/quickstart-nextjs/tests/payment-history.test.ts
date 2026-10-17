@@ -1,10 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { paymentRecords, invoiceDownloadURL } from "../lib/payment-history";
+import { paymentRecords, invoiceDownloadURL, reloadLoadedPaymentPages } from "../lib/payment-history";
 import type { InvoiceItem, PurchaseItem } from "../lib/api";
 
 const purchase = (id: string, created_at = "2026-10-16T00:00:00Z"): PurchaseItem => ({ id, created_at, product_type: "subscription", status: "paid", amount: 1900, currency: "usd", processed: true });
 const invoice = (id: string, created_at = "2026-10-16T00:00:00Z"): InvoiceItem => ({ id, created_at, status: "paid", amount_usd: 19, period: "2026-10", pdf_url: "https://invoice.stripe.com/i/fixture-not-a-real-invoice" });
+
+test("refresh preserves every previously loaded payment page", async () => {
+  const calls: number[] = [];
+  const result = await reloadLoadedPaymentPages(async page => {
+    calls.push(page);
+    return { items: [page], page, limit: 1, total: 4 };
+  }, 3);
+  assert.deepEqual(calls, [1, 2, 3]);
+  assert.deepEqual(result.items, [1, 2, 3]);
+  assert.equal(result.page, 3);
+  assert.equal(result.total, 4);
+});
+
+test("refresh stops at the last available page and propagates partial failures", async () => {
+  const calls: number[] = [];
+  const result = await reloadLoadedPaymentPages(async page => {
+    calls.push(page);
+    return { items: [page], page, limit: 10, total: 1 };
+  }, 3);
+  assert.deepEqual(calls, [1]);
+  assert.deepEqual(result.items, [1]);
+  await assert.rejects(reloadLoadedPaymentPages(async page => {
+    if (page === 2) throw new TypeError("offline");
+    return { items: [1], page, limit: 1, total: 2 };
+  }, 2), TypeError);
+});
 
 test("one payment row keeps its corresponding invoice download", () => {
   const result = paymentRecords([purchase("stripe:in_one")], [invoice("in_one")]);

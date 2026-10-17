@@ -27,11 +27,15 @@
 .release ul { margin: 0 0 22px; padding-left: 20px; line-height: 1.9; color: var(--muted-strong); }
 .release li + li { margin-top: 8px; }
 .contacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.contacts > :only-child { grid-column: 1 / -1; }
 .contactCard { display: flex; flex-direction: column; align-items: flex-start; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); overflow-wrap: anywhere; }
 .contactCard h2 { margin: 14px 0 10px; font-size: 25px; }
 .contactCard p { color: var(--muted-strong); line-height: 1.85; margin: 0 0 22px; }
 .contactCard a { margin-top: auto; max-width: 100%; }
 .supportHint { margin: 26px 0; color: var(--muted); line-height: 1.8; }
+.supportNote { margin-top: 24px; padding: 20px 24px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); }
+.supportNote h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.supportNote p { margin: 0; max-width: 760px; color: var(--muted-strong); font-size: 13px; line-height: 1.8; }
 @media (max-width: 720px) {
   .toolbar, .contacts { grid-template-columns: 1fr; gap: 14px; }
   .resultCount { text-align: left; }
@@ -42,7 +46,7 @@
   .release .meta { flex-direction: row; flex-wrap: wrap; }
 }
 
-.accountHelp { margin-bottom: 48px; }
+.accountHelp { margin: 32px 0 40px; }
 .accountHelp > h2 { font-size: 24px; margin: 0 0 24px; }
 .helpLinks { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-bottom: 28px; }
 .helpLinks a { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 64px; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; }

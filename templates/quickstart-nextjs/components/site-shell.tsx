@@ -8,19 +8,20 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
-import { siteLinkForPath } from "@/content/navigation";
+import { guideDirectories, publicBreadcrumbs } from "@/content/navigation";
 import { PublicNavigation } from "./public-navigation";
 import { useSitePresentation } from "./site-presentation";
 import { type AccountSummary } from "@/lib/account-summary";
 import { readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
-import { humanizeSegment, stripLocalePrefix, localizeHref } from "@/lib/locale";
+import { stripLocalePrefix } from "@/lib/locale";
 import { CustomerPage } from "@/components/customer-shell";
 import { AccountMenu } from "@/components/account-menu";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { BrandMark } from "./brand-mark";
 import { SiteFooter } from "@/components/site-footer";
+import { GuideNavigation } from "./content-discovery";
 import { publicPaths } from "@/lib/seo";
 import {
   customerSignInDestination,
@@ -76,26 +77,6 @@ function TableOfContents({
   );
 }
 
-function buildBreadcrumbs(pathname: string): Array<{ href?: string; label: string }> {
-  if (pathname === "/") {
-    return [{ label: "Home" }];
-  }
-
-  const parts = pathname.split("/").filter(Boolean);
-  const breadcrumbs: Array<{ href?: string; label: string }> = [{ href: "/", label: "Home" }];
-
-  let current = "";
-  for (const part of parts) {
-    current += `/${part}`;
-    breadcrumbs.push({
-      href: current,
-      label: humanizeSegment(part)
-    });
-  }
-
-  return breadcrumbs;
-}
-
 export function SiteShell(props: SiteShellProps) {
   const pathname = stripLocalePrefix(usePathname());
   if (isWorkspacePath(pathname)) {
@@ -127,11 +108,8 @@ function PublicSiteShell(props: SiteShellProps) {
   }, []);
 
   const breadcrumbs = useMemo(
-    () => (props.breadcrumbs && props.breadcrumbs.length > 0 ? props.breadcrumbs : buildBreadcrumbs(pathname)).map((item, index, items) => {
-      const known = siteLinkForPath(item.href || (index === items.length - 1 ? pathname : ""));
-      return { ...item, label: known ? t(known.label) : item.label, href: item.href ? localizeHref(item.href, locale) : undefined };
-    }),
-    [pathname, props.breadcrumbs, locale, t]
+    () => publicBreadcrumbs(pathname, locale, props.breadcrumbs),
+    [pathname, props.breadcrumbs, locale]
   );
 
   const accountMenu = (
@@ -201,6 +179,7 @@ function PublicSiteShell(props: SiteShellProps) {
             </div> : null}
           </section>
 
+          {guideDirectories.some(item => item.href === pathname) ? <GuideNavigation currentPath={pathname} /> : null}
           {props.children}
         </Content>
       </main>

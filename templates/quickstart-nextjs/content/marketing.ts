@@ -63,7 +63,7 @@ export const marketingCategories: MarketingCategory[] = [
   {
     kind: "examples", path: "/examples",
     title: text("Explore the customer account", "体验账户服务"),
-    description: text("Try account access, subscription management and referral rewards.", "体验账户中心、订阅与账单，以及推荐奖励。"),
+    description: text("", ""),
     intro: text("Open one of the three common account services. Sign in when prompted to view your own records.", "选择以下三个通用账户服务，需要时登录后查看自己的记录。")
   }
 ];

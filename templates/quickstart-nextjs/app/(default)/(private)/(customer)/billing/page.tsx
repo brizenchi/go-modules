@@ -31,7 +31,8 @@ import {
   CHECKOUT_REFRESH_DELAYS_MS,
   stripeInvoiceURL,
   checkoutReturnStatus,
-  hasOngoingRecurringSubscription
+  hasOngoingRecurringSubscription,
+  subscriptionUpgradeAction
 } from "@/lib/billing-state";
 import { appEnv } from "@/lib/env";
 import { readBillingIntent, type BillingIntent } from "@/lib/billing-intent";
@@ -43,6 +44,8 @@ import {
   describeRequestFailure,
   idleResource,
   loadingResource,
+  startResourceRefresh,
+  reconcileResourceRefresh,
   settleResource,
   type RequestFailure,
   type ResourceState
@@ -114,8 +117,6 @@ export default function BillingPage() {
     () => selectedOffer?.intervals || [],
     [selectedOffer]
   );
-  const currentPlan = subscription?.plan || "";
-  const hasLifetime = currentPlan === "lifetime";
   const ongoingRecurringSubscription = hasOngoingRecurringSubscription(subscription);
   const cancellationPending = ongoingRecurringSubscription
     && (Boolean(subscription?.cancel_at_period_end || subscription?.effective_cancel_at) || subscription?.status.trim().toLowerCase() === "canceling");
@@ -150,6 +151,11 @@ export default function BillingPage() {
   const credits = useConsoleResource(sessionToken, getCreditBalance);
   const refreshMembership = membership.refresh;
   const refreshCredits = credits.refresh;
+  const revalidateMembership = membership.revalidate;
+  const revalidateCredits = credits.revalidate;
+  const upgradeAction = subscriptionUpgradeAction(membership.data?.plan, subscription);
+  const hasLifetime = upgradeAction === "lifetime";
+  const upgradeLoading = membership.loading || upgradeAction === "loading";
 
   function planName(value?: string): string {
     switch ((value || "").toLowerCase()) {
@@ -179,32 +185,32 @@ export default function BillingPage() {
     return value || t({ en: "Not active", zh: "未开通" });
   }
 
-  const loadSubscriptionState = useCallback(async (token: string) => {
+  const loadSubscriptionState = useCallback(async (token: string, background = false) => {
     if (readSession()?.token !== token) return;
     const generation = beginRequestGeneration(subscriptionGenerationRef);
-    setSubscriptionState((current) => loadingResource(current.data));
+    setSubscriptionState(current => startResourceRefresh(current, background));
     const nextState = await settleResource(getSubscription(token), "Subscription billing");
     if (
       readSession()?.token === token
       && isCurrentRequestGeneration(subscriptionGenerationRef, generation)
     ) {
-      setSubscriptionState(nextState);
+      setSubscriptionState(current => reconcileResourceRefresh(current, nextState, background));
     }
   }, []);
 
-  const loadBillingState = useCallback(async (token: string) => {
+  const loadBillingState = useCallback(async (token: string, background = false) => {
     await Promise.all([
-      loadSubscriptionState(token),
-      refreshMembership(),
-      refreshCredits()
+      loadSubscriptionState(token, background),
+      background ? revalidateMembership() : refreshMembership(),
+      background ? revalidateCredits() : refreshCredits()
     ]);
     if (readSession()?.token === token) setHistoryRevision(value => value + 1);
-  }, [loadSubscriptionState, refreshMembership, refreshCredits]);
+  }, [loadSubscriptionState, refreshMembership, refreshCredits, revalidateMembership, revalidateCredits]);
 
   const updateOnReturn = useCallback(() => {
-    if (sessionToken && billingReady) void loadBillingState(sessionToken);
-    else { void refreshMembership(); void refreshCredits(); setHistoryRevision(value => value + 1); }
-  }, [refreshMembership, refreshCredits, sessionToken, billingReady, loadBillingState]);
+    if (sessionToken && billingReady) void loadBillingState(sessionToken, true);
+    else { void revalidateMembership(); void revalidateCredits(); setHistoryRevision(value => value + 1); }
+  }, [revalidateMembership, revalidateCredits, sessionToken, billingReady, loadBillingState]);
   usePageReturn(updateOnReturn);
 
   const loadPreviewState = useCallback(async (
@@ -389,6 +395,7 @@ export default function BillingPage() {
       || !sessionToken
       || !billingReady
       || !ongoingRecurringSubscription
+      || hasLifetime
       || selectedLifetime
       || !availablePlans.includes(plan)
       || !availableIntervals.includes(interval)
@@ -403,7 +410,7 @@ export default function BillingPage() {
     return () => {
       invalidateRequestGeneration(previewGenerationRef);
     };
-  }, [plansOpen, sessionToken, billingReady, ongoingRecurringSubscription, plan, interval, selectedLifetime, availablePlans, availableIntervals, loadPreviewState]);
+  }, [plansOpen, sessionToken, billingReady, ongoingRecurringSubscription, hasLifetime, plan, interval, selectedLifetime, availablePlans, availableIntervals, loadPreviewState]);
 
   async function loadCapabilitiesState() {
     if (!capabilitiesMountedRef.current) return;
@@ -672,15 +679,19 @@ export default function BillingPage() {
                 </div>
               ) : null}
               {cancellationPending ? <p className={styles.stateNote}>{t({ en: "Renewal is canceled. You can keep using your plan through the access end date above.", zh: "已取消自动续费，上方权益截止日期前仍可继续使用。" })}</p> : null}
+          </> : null}
               <div className={`button-row ${styles.manageActions}`}>
-                {ongoingRecurringSubscription || hasLifetime ? <button className="button" disabled={baseActionDisabled} onClick={() => void handleOpenPortal()}>
+                {hasLifetime ? <button className="button" type="button" disabled>{t({ en: "Lifetime plan", zh: "终身会员" })}</button>
+                  : upgradeLoading ? <button className="button primary" type="button" disabled>{t({ en: "Upgrade", zh: "升级" })}</button>
+                    : upgradeAction === "change" && subscription ? <button type="button" className="button primary" disabled={baseActionDisabled} onClick={() => { setPlan(subscription.plan); setInterval(subscription.billing_cycle || defaultInterval); setStatus(""); setActionFailure(null); setPlansOpen(true); }}>{t({ en: "Upgrade", zh: "升级" })}</button>
+                      : <Link className="button primary" href={localizeHref("/pricing", locale)}>{t({ en: "Upgrade", zh: "升级" })}</Link>}
+                {subscription && (ongoingRecurringSubscription || hasLifetime) ? <button className="button" disabled={baseActionDisabled} onClick={() => void handleOpenPortal()}>
                   {busy === "portal" ? t({ en: "Opening…", zh: "正在打开…" }) : t({ en: "Billing settings", zh: "账单设置" })}
                 </button> : null}
-                {!hasLifetime ? ongoingRecurringSubscription ? <button type="button" className="button" disabled={baseActionDisabled} onClick={() => { setPlan(subscription.plan); setInterval(subscription.billing_cycle || defaultInterval); setStatus(""); setActionFailure(null); setPlansOpen(true); }}>{t({ en: "Change plan", zh: "更换套餐" })}</button> : <Link className="button primary" href={localizeHref("/pricing", locale)}>{t({ en: "View plans", zh: "查看套餐" })}</Link> : null}
-                {ongoingRecurringSubscription && cancellationPending ? <button className="button primary" disabled={baseActionDisabled} onClick={handleReactivate}>{busy === "reactivate" ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal", zh: "恢复续费" })}</button> : null}
-                {ongoingRecurringSubscription && !cancellationPending ? <button ref={cancelTriggerRef} className={`button ${styles.cancelTrigger}`} disabled={baseActionDisabled} aria-expanded={cancelConfirmOpen} aria-controls="cancel-renewal-confirmation" onClick={() => setCancelConfirmOpen(value => !value)}>{t({ en: "Cancel renewal", zh: "取消续费" })}</button> : null}
+                {!hasLifetime && ongoingRecurringSubscription && cancellationPending ? <button className="button" disabled={baseActionDisabled} onClick={handleReactivate}>{busy === "reactivate" ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal", zh: "恢复续费" })}</button> : null}
+                {!hasLifetime && ongoingRecurringSubscription && !cancellationPending ? <button ref={cancelTriggerRef} className={`button ${styles.cancelTrigger}`} disabled={baseActionDisabled} aria-expanded={cancelConfirmOpen} aria-controls="cancel-renewal-confirmation" onClick={() => setCancelConfirmOpen(value => !value)}>{t({ en: "Cancel renewal", zh: "取消续费" })}</button> : null}
               </div>
-              {cancelConfirmOpen && ongoingRecurringSubscription && !cancellationPending ? (
+              {subscription && !hasLifetime && cancelConfirmOpen && ongoingRecurringSubscription && !cancellationPending ? (
                 <div id="cancel-renewal-confirmation" className={styles.confirmation} role="group" aria-labelledby="cancel-renewal-title">
                   <h3 id="cancel-renewal-title">{t({ en: "Cancel your next renewal?", zh: "确认取消后续续费？" })}</h3>
                   <p>{subscription.current_period_end
@@ -692,12 +703,11 @@ export default function BillingPage() {
                   </div>
                 </div>
               ) : null}
-          </> : null}
           {subscriptionState.status === "error" ? <ResourceFailure failure={subscriptionState.failure} onRetry={() => session ? void loadSubscriptionState(session.token) : undefined} /> : null}
           {actionFeedback("current")}
         </Panel> : null}
 
-        <ResponsiveDialog open={plansOpen && ongoingRecurringSubscription} onClose={() => setPlansOpen(false)} dismissible={busy === ""} title={t({ en: "Change plan", zh: "更换套餐" })} closeLabel={t({ en: "Close", zh: "关闭" })}>
+        <ResponsiveDialog open={plansOpen && ongoingRecurringSubscription && !hasLifetime} onClose={() => setPlansOpen(false)} dismissible={busy === ""} title={t({ en: "Change plan", zh: "更换套餐" })} closeLabel={t({ en: "Close", zh: "关闭" })}>
         <div className={styles.purchasePanel}>
           <div id="subscription-checkout" />
           <div className="field-grid">

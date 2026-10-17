@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activePublicNavigationHref, customerBreadcrumbs, customerFooterLinks, publicNavigation, siteLinks, siteFooterGroups, siteLegalLinks } from "../content/navigation";
+import { activePublicNavigationHref, customerBreadcrumbs, customerFooterLinks, guideDirectories, guideNavigation, publicBreadcrumbs, publicNavigation, siteLinks, siteFooterGroups, siteLegalLinks } from "../content/navigation";
 import { publicContentPaths } from "../lib/seo";
+import { breadcrumbStructuredData } from "../lib/structured-data";
 
 test("public navigation keeps one feature entry and an explicit home destination", () => {
   assert.deepEqual(publicNavigation.map(item => item.href), ["/", "/features", "/pricing", "/resources"]);
@@ -50,4 +51,36 @@ test("customer pages are peers and preserve homepage language", () => {
       assert.equal(items[1].href, path);
     }
   }
+});
+
+test("Documentation, Articles and Updates share Guides as their editorial parent", () => {
+  assert.deepEqual(guideNavigation.map(item => item.href), ["/resources", "/docs", "/blog", "/updates"]);
+  for (const locale of ["en", "zh"] as const) {
+    const prefix = locale === "zh" ? "/zh" : "";
+    for (const directory of guideDirectories) {
+      const items = publicBreadcrumbs(`${prefix}${directory.href}`, locale);
+      assert.deepEqual(items.map(item => item.href), [prefix || "/", `${prefix}/resources`, `${prefix}${directory.href}`]);
+      assert.deepEqual(items.map(item => item.label), [siteLinks.home.label[locale], siteLinks.resources.label[locale], directory.label[locale]]);
+      assert.equal(activePublicNavigationHref(`${prefix}${directory.href}`), "/resources");
+      const schema = breadcrumbStructuredData(items, `${prefix}${directory.href}`);
+      assert.equal(new URL(schema.itemListElement[1].item).pathname, `${prefix}/resources`);
+    }
+  }
+});
+
+test("guide article breadcrumbs preserve the published title without duplicating the parent", () => {
+  for (const locale of ["en", "zh"] as const) {
+    for (const path of ["/docs/setup", "/blog/custom-title"]) {
+      const category = path.split("/")[1];
+      const supplied = [{ href: "/", label: "Home" }, { href: "/resources", label: "Guides" }, { href: `/${category}`, label: "Category" }, { label: "Published article title" }];
+      const items = publicBreadcrumbs(path, locale, supplied);
+      assert.equal(items.length, 4);
+      assert.equal(items[1].label, siteLinks.resources.label[locale]);
+      assert.equal(items[3].label, "Published article title");
+      assert.equal(items[3].href, undefined);
+      assert.deepEqual(publicBreadcrumbs(path, locale, items), items);
+    }
+  }
+  assert.equal(publicBreadcrumbs("/resources", "en").length, 2);
+  for (const path of ["/contact", "/features", "/about", "/docs-other"]) assert.equal(publicBreadcrumbs(path, "en").length, 2);
 });

@@ -5,8 +5,37 @@ import {
   CHECKOUT_REFRESH_DELAYS_MS,
   checkoutReturnStatus,
   hasOngoingRecurringSubscription,
+  subscriptionUpgradeAction,
   parseCreditsQuantity
 } from "../lib/billing-state";
+
+test("free and ended memberships upgrade through pricing", () => {
+  assert.equal(subscriptionUpgradeAction("free", { plan: "free", status: "inactive" }), "pricing");
+  for (const status of ["canceled", "expired", "ended", "inactive"]) {
+    assert.equal(subscriptionUpgradeAction("free", { plan: "pro", status }), "pricing", status);
+  }
+});
+
+test("recurring tiers upgrade through the existing subscription change flow", () => {
+  for (const plan of ["starter", "pro", "premium"]) {
+    for (const status of ["active", "trialing", "canceling", "past_due"]) {
+      assert.equal(subscriptionUpgradeAction(plan, { plan, status }), "change", `${plan}: ${status}`);
+    }
+  }
+});
+
+test("lifetime membership disables upgrades even without a billing subscription", () => {
+  assert.equal(subscriptionUpgradeAction("lifetime", null), "lifetime");
+  assert.equal(subscriptionUpgradeAction(" Lifetime ", { plan: "free", status: "inactive" }), "lifetime");
+  assert.equal(subscriptionUpgradeAction("lifetime", { plan: "pro", status: "active" }), "lifetime");
+  assert.equal(subscriptionUpgradeAction(undefined, { plan: "lifetime", status: "active" }), "lifetime");
+  assert.equal(subscriptionUpgradeAction("free", { plan: "lifetime", status: "ended" }), "pricing");
+});
+
+test("an unknown membership waits instead of presenting a purchase action", () => {
+  assert.equal(subscriptionUpgradeAction(undefined, null), "loading");
+  assert.equal(subscriptionUpgradeAction("", undefined), "loading");
+});
 
 test("ongoing recurring subscriptions block lifetime checkout", () => {
   for (const status of ["trialing", "active", "past_due", "canceling", "incomplete", "payment_failed", ""]) {

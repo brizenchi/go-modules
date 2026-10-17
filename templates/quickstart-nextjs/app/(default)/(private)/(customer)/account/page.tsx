@@ -16,7 +16,7 @@ export default function AccountPage() {
  const { session, ready } = useConsoleSession();
  const token = session?.token || "";
  const membership = useConsoleResource(token, getMembership);
- usePageReturn(membership.refresh);
+ usePageReturn(membership.revalidate);
  const plan = membership.data?.plan;
  const planLabel = plan === "free" ? t({ en: "Free", zh: "免费版" })
   : plan === "starter" ? t({ en: "Starter", zh: "入门版" })

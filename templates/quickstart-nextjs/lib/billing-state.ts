@@ -29,6 +29,17 @@ export function hasOngoingRecurringSubscription(
   return !ENDED_SUBSCRIPTION_STATUSES.has(status);
 }
 
+/** Membership also covers access granted by an administrator without a subscription. */
+export function subscriptionUpgradeAction(
+  membershipPlan: string | undefined,
+  subscription: Pick<SubscriptionView, "plan" | "status"> | null | undefined
+): "pricing" | "change" | "lifetime" | "loading" {
+  const plan = (membershipPlan || subscription?.plan || "").trim().toLowerCase();
+  if (!plan) return "loading";
+  if (plan === "lifetime") return "lifetime";
+  return hasOngoingRecurringSubscription(subscription) ? "change" : "pricing";
+}
+
 export function parseCreditsQuantity(value: string): number | null {
   const normalized = value.trim();
   if (!/^\d+$/.test(normalized)) return null;

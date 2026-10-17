@@ -6,7 +6,12 @@
 .copyRow { display: flex; align-items: center; gap: 10px; }
 .copyRow input { flex: 1; min-width: 0; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
 .copyRow button { flex-shrink: 0; }
-.rule { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.rewards { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+.rewards th, .rewards td { padding: 10px 0; text-align: right; }
+.rewards th:first-child { text-align: left; }
+.rewards thead th { border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 500; }
+.rewards tbody th { color: var(--muted); font-weight: 400; }
+.rewards td { width: 22%; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .history { max-width: 100%; overflow-x: auto; }
 .history table { min-width: 780px; }

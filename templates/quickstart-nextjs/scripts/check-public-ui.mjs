@@ -19,14 +19,14 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
   compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true }
 }).outputText;
 const files = ["components/language-picker.tsx", "components/account-menu.tsx", "components/sign-out-button.tsx", "components/interface-icon.tsx", "components/localized-link.tsx", "components/public-navigation.tsx", "components/published-content.tsx", "components/site-footer.tsx", "lib/guide-index.ts", "lib/disclosure-focus.ts", "lib/locale.ts", "content/navigation.ts", "content/docs.ts", "content/articles.ts"];
-files.push("components/sign-in-dialog.tsx", "components/sign-in-panel.tsx", "components/responsive-dialog.tsx", "components/ui.tsx", "components/resource-feedback.tsx", "lib/dialog-focus.ts", "lib/request-state.ts", "lib/request-generation.ts", "lib/auth-methods.ts", "lib/sign-in-methods-cache.ts");
-files.push("components/brand-mark.tsx", "lib/site-branding.ts");
+files.push("components/sign-in-dialog.tsx", "components/sign-in-panel.tsx", "components/responsive-dialog.tsx", "components/ui.tsx", "components/resource-feedback.tsx", "lib/dialog-focus.ts", "lib/request-state.ts", "lib/resource-data.ts", "lib/request-generation.ts", "lib/auth-methods.ts", "lib/sign-in-methods-cache.ts");
+files.push("components/brand-mark.tsx", "lib/site-branding.ts", "components/content/contact.tsx", "components/site-shell.tsx", "components/breadcrumbs.tsx");
 files.push("components/content-discovery.tsx", "lib/content-discovery.ts", "lib/markdown.ts", "lib/workspace.ts");
 const modules = Object.fromEntries(files.map(file => [file.replace(/\.tsx?$/, ""), compile(file)]));
 const prefix = file => `m_${file.split("/").at(-1).replace(".module.css", "").replaceAll("-", "_")}_`;
 const stylesheets = ["components/account-menu.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
 stylesheets.push("components/sign-in-dialog.module.css", "components/responsive-dialog.module.css");
-stylesheets.push("components/content-discovery.module.css", "components/brand-mark.module.css");
+stylesheets.push("components/content-discovery.module.css", "components/brand-mark.module.css", "components/content/content.module.css");
 // Apply module namespacing, leaving :global selectors intact.
 const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.map(file => {
   const globals = [];
@@ -38,9 +38,9 @@ const css = readFileSync(join(root, "app/globals.css"), "utf8") + stylesheets.ma
 const umd = name => readFileSync(join(dirname(require.resolve(name)), "umd", `${name}.development.js`), "utf8");
 const fontFile = require.resolve("@fontsource-variable/manrope/index.css");
 const fonts = readFileSync(fontFile, "utf8").replace(/url\(([^)]+)\)/g, (_, asset) => `url(data:font/woff2;base64,${readFileSync(resolve(dirname(fontFile), asset.replaceAll(/["']/g, ""))).toString("base64")})`);
-function page(locale, signIn = false) {
+function page(locale, signIn = false, support = false) {
   const js = String.raw`
-const modules=MODULES,cache={},locale=LOCALE,authFixture=AUTH_FIXTURE;
+const modules=MODULES,cache={},locale=LOCALE,authFixture=AUTH_FIXTURE,supportFixture=SUPPORT_FIXTURE;
 const fixture=window.fixture={session:{token:'fixture-token',expires_at:'2099-01-01T00:00:00Z',user:{id:'fixture',username:'Demo Customer',email:'customer@example.test',role:'user'}},calls:0,redirects:[],mode:'pending'};
 fixture.capabilityRequests=0;fixture.oauthRequests=0;fixture.now=100;fixture.advance=ms=>fixture.now+=ms;
 if(authFixture)Date.now=()=>fixture.now;
@@ -52,14 +52,19 @@ function load(name,parent=''){
   const key=resolveModule(name,parent);
   if(key==='react')return React;
   if(key==='next/link')return{__esModule:true,default:({href,onClick,onNavigate,...props})=>icon('a',{...props,href,onClick:event=>{event.preventDefault();onClick?.(event);onNavigate?.()}})};
-  if(key==='next/navigation')return{usePathname:()=>'/resources',useRouter:()=>({replace:path=>fixture.redirects.push(path)})};
+  if(key==='next/navigation')return{usePathname:()=>supportFixture?'/contact':'/resources',useRouter:()=>({replace:path=>fixture.redirects.push(path)})};
   if(key==='lib/i18n')return i18n;
   if(key==='components/site-presentation')return{useSitePresentation:()=>null};
+  if(supportFixture && key==='components/account-menu')return{AccountMenu:()=>null};
+  if(supportFixture && key==='components/locale-switch')return{LocaleSwitch:()=>null};
+  if(supportFixture && key==='components/customer-shell')return{CustomerPage:()=>null};
+  if(supportFixture && key==='lib/seo')return{publicPaths:['/contact']};
+  if(supportFixture && key==='lib/site-settings')return{publicSiteSettingsFallback:{support_email:'',support_url:''},SITE_SETTINGS_EVENT:'fixture-settings-change',getPublicSiteSettings:async()=>({support_email:'support@example.test',support_url:'https://support.example.test'})};
   if(authFixture && key==='lib/api')return{ApiError:class extends Error{},getCapabilities:()=>{fixture.capabilityRequests++;return new Promise((resolve,reject)=>{fixture.resolveMethods=auth=>resolve({auth,billing:{enabled:true}});fixture.rejectMethods=()=>reject(new TypeError('fixture offline'))})}};
   if(authFixture && key==='lib/auth')return{readSession:()=>null,readReferralCode:()=>'',REFERRAL_EVENT:'fixture-referral'};
   if(authFixture && key==='lib/env')return{appEnv:{authEmailConfigured:false,authEmailEnabled:true,authOAuthProvidersConfigured:false,authOAuthProviders:[]}};
   if(authFixture && key==='lib/oauth-flow')return{resolveSignInDestination:()=>'/account',getOAuthRedirectURL:async()=>{fixture.oauthRequests++;throw new TypeError('fixture prevents external navigation')}};
-  if(key==='lib/env')return{appEnv:{demoMode:true}};
+  if(key==='lib/env')return{appEnv:{demoMode:true,appName:'SaaS Starter',appUrl:'https://example.test'}};
   if(key==='lib/auth')return{readSession:()=>fixture.session};
   if(key==='lib/api')return{userLabel:user=>user.username||user.email,logout:token=>{fixture.calls++;return new Promise((resolve,reject)=>{fixture.resolve=()=>{if(fixture.session?.token===token){fixture.session=null;dispatchEvent(new Event('fixture-session'))}resolve({ok:true})};fixture.reject=()=>reject(new Error('private raw failure'))})}};
   if(key==='lib/account-actions')return{accountLogoutFailure:()=>locale==='zh'?'退出失败，请检查网络后重试。':'Sign-out failed. Check your connection and retry.'};
@@ -67,9 +72,9 @@ function load(name,parent=''){
   if(key==='components/markdown-content')return{MarkdownContent:()=>null};
   if(key==='components/article-language-context')return{ArticleLanguagesProvider:props=>props.children};
   if(key==='components/structured-data')return{StructuredData:()=>null};
-  if(key==='lib/structured-data')return{articleStructuredData:()=>({})};
+  if(key==='lib/structured-data')return{articleStructuredData:()=>({}),breadcrumbStructuredData:()=>({})};
   if(key==='content/site')return{siteConfig:{footer:{description:{en:'A connected starting point for your product.',zh:'从清楚的起点，构建你的产品。'}},brand:{subtitle:{en:'Next.js + Go',zh:'Next.js + Go'}}},getHomeContent:()=>({})};
-  if(key==='components/site-shell')return{SiteShell:Frame};
+  if(!supportFixture && key==='components/site-shell')return{SiteShell:Frame};
   if(key.endsWith('.css')){const p='m_'+key.split('/').at(-1).replace('.module.css','').replaceAll('-','_')+'_';return{__esModule:true,default:new Proxy({},{get:(_,name)=>p+String(name)})}}
   if(cache[key])return cache[key];if(!modules[key])throw Error('Unexpected dependency '+key);
   const m={exports:{}};new Function('require','module','exports',modules[key])(name=>load(name,key),m,m.exports);cache[key]=m.exports;return m.exports;
@@ -81,14 +86,14 @@ const docs=load('content/docs').documentation.map(row=>({id:'docs:'+row.id,path:
 const articles=load('content/articles').articles.map(row=>({id:'blog:'+row.slug,path:'/blog/'+row.slug,kind:'blog',translation:{title:row.title[locale],summary:row.summary[locale]}}));
 const entries=[...docs,...articles,{id:'feature-fixture',kind:'features',path:'/features/billing',translation:{title:'Feature page fixture',summary:'Not a guide'}}];
 function SignInFixture(){const[open,setOpen]=React.useState(false);return icon(React.Fragment,null,icon('button',{id:'open-sign-in',className:'button primary',onClick:()=>setOpen(true)},'Open sign-in'),icon(load('components/sign-in-dialog').SignInDialog,{open,onClose:()=>setOpen(false)}))}
-ReactDOM.createRoot(document.getElementById('root')).render(authFixture?icon(React.StrictMode,null,icon(SignInFixture)):icon(load('components/published-content').PublishedContentIndex,{kind:'resources',entries}));
+ReactDOM.createRoot(document.getElementById('root')).render(supportFixture?icon(load('components/content/contact').ContactContent):authFixture?icon(React.StrictMode,null,icon(SignInFixture)):icon(load('components/published-content').PublishedContentIndex,{kind:'resources',entries}));
 fixture.open=()=>document.getElementById('open-sign-in').click();
 fixture.close=()=>document.querySelector('dialog[open] button[aria-label]').click();
 fixture.watchLoading=()=>{fixture.loadingSeen=false;new MutationObserver(()=>{if(document.querySelector('dialog[open] .sign-in-stack')?.textContent.match(/Loading available|正在加载可用/))fixture.loadingSeen=true}).observe(document.getElementById('root'),{subtree:true,childList:true,characterData:true})};
 fixture.reset=()=>{fixture.session={...originalSession};dispatchEvent(new Event('fixture-session'))};
 fixture.click=text=>{const element=[...document.querySelectorAll('button')].find(node=>node.textContent.trim()===text);if(!element)throw Error('Missing button '+text);element.click()};
 fixture.search=value=>{const input=document.getElementById('published-search');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))};
-`.replace("LOCALE", () => JSON.stringify(locale)).replace("AUTH_FIXTURE", () => JSON.stringify(signIn)).replace("MODULES", () => JSON.stringify(modules));
+`.replace("LOCALE", () => JSON.stringify(locale)).replace("AUTH_FIXTURE", () => JSON.stringify(signIn)).replace("SUPPORT_FIXTURE", () => JSON.stringify(support)).replace("MODULES", () => JSON.stringify(modules));
   return `<!doctype html><html lang="${locale}"><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${fonts}\n${css}</style></head><body><div id="root"></div><script>${umd("react")}</script><script>${umd("react-dom")}</script><script>${js.replaceAll("</script", "<\\/script")}</script></body></html>`;
 }
 
@@ -162,10 +167,30 @@ try {
     await check("(()=>{const links=[...document.querySelectorAll('footer a')].map(link=>link.getAttribute('href'));return links.length===new Set(links).size})()",tag+': footer links do not repeat');
     await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': footer fits viewport');
     await check("(()=>{const bottom=document.querySelector('[data-site-footer] > div > div:last-child');const [copyright,legal,top]=[...bottom.children].map(e=>e.getBoundingClientRect());return innerWidth>800?Math.abs(copyright.y+copyright.height/2-legal.y-legal.height/2)<1&&Math.abs(top.y+top.height/2-legal.y-legal.height/2)<1:copyright.bottom<=legal.top&&legal.bottom<=top.top})()",tag+': footer legal row aligns on desktop and stacks clearly on mobile');
+    if(width>800)await check("(()=>{const bottom=document.querySelector('[data-site-footer] > div > div:last-child');const elements=[bottom.firstElementChild,...bottom.querySelectorAll('a')];const boxes=elements.map(element=>{const range=document.createRange();range.selectNodeContents(element);return range.getBoundingClientRect()});return Math.max(...boxes.map(b=>b.bottom))-Math.min(...boxes.map(b=>b.bottom))<1})()",tag+': footer text baselines align within one pixel');
+    if(width>800)await check("(()=>{const bottom=document.querySelector('[data-site-footer] > div > div:last-child');const elements=[bottom.firstElementChild,...bottom.querySelectorAll('a')];const heights=elements.map(e=>e.getBoundingClientRect().height);const fonts=elements.map(e=>{const c=getComputedStyle(e);return[c.fontSize,c.fontWeight,c.lineHeight].join('/')});return Math.max(...heights)-Math.min(...heights)<1&&new Set(fonts).size===1})()",tag+': footer copyright and links share text metrics and row height');
     await check("document.querySelector('footer').getBoundingClientRect().bottom<=innerHeight+1",tag+': footer bottom is visible');
     await check("!document.querySelector('footer').textContent.includes('Next.js')",tag+': footer omits legacy architecture tagline');
     await screenshot(tag+'-footer');
     console.log(tag+': interaction and layout checks passed');
+  }}
+  for(const locale of ["en","zh"]){for(const width of [1440,768,390]){
+    const tag=locale+'-'+width+'-support';
+    await command('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:false});
+    const file=join(output,tag+'.html');writeFileSync(file,page(locale,false,true));await command('Page.navigate',{url:pathToFileURL(file).href});
+    for(let attempt=0;attempt<30;attempt++){if(await evaluate("!!document.querySelector('#account-help')"))break;await new Promise(resolve=>setTimeout(resolve,40))}
+    await evaluate('document.fonts.ready');await settle();
+    await evaluate("document.querySelectorAll('.hero-main-card').forEach(e=>e.getAnimations().forEach(a=>a.finish()))");
+    await check("!!document.querySelector('#account-help')",tag+': support page mounted');
+    await check("parseFloat(getComputedStyle(document.querySelector('.hero-main-card h1')).fontSize)<=48",tag+': utility page title uses compact sizing');
+    await check("(()=>{const hero=document.querySelector('.hero-grid'),crumb=document.querySelector('.content-breadcrumbs'),title=document.querySelector('.hero-main-card');return title.getBoundingClientRect().top-crumb.getBoundingClientRect().bottom<=36&&hero.getBoundingClientRect().height<300})()",tag+': introduction stays close to breadcrumbs without a tall empty hero');
+    await check("!document.querySelector('.hero-side-stack, .toc-card')",tag+': no sidebar stretching the title area');
+    await check("(()=>{const hero=document.querySelector('.hero-grid').getBoundingClientRect(),body=document.querySelector('#account-help').getBoundingClientRect();return body.top-hero.bottom>=24&&body.top-hero.bottom<=40})()",tag+': help content follows the introduction');
+    await check("document.querySelector('#account-help').querySelectorAll('a').length===4",tag+': all four account help destinations remain available');
+    await check("!!document.querySelector('#support a[href=\"mailto:support@example.test\"]')",tag+': configured support email remains available');
+    await check(`document.querySelector('#support').textContent.includes('${locale==='zh'?'登录验证码':'login codes'}')`,tag+': reporting guidance stays beside support channels');
+    await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': support page fits viewport');
+    await screenshot(tag);
   }}
   for(const locale of ["en","zh"]){for(const width of [1440,390]){
     const tag=locale+'-'+width+'-sign-in';
