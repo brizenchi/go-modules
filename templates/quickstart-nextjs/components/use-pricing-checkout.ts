@@ -8,6 +8,8 @@ import { type BillingIntent } from "@/lib/billing-intent";
 import { appUrl } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import { localizeHref } from "@/lib/locale";
+import { subscriptionRestrictionText } from "@/lib/billing-presentation";
+import { subscriptionChangeBlocker } from "@/lib/subscription-change";
 import { preparePricingCheckout, pricingCheckoutFailure, pricingCheckoutURLs, pricingPurchaseHref, readPricingPurchase, type PricingCheckoutResult } from "@/lib/pricing-checkout";
 import { useConsoleResource, useConsoleSession } from "./console-kit";
 import { usePageReturn } from "./use-page-return";
@@ -49,7 +51,10 @@ export function usePricingCheckout() {
       if (result.kind === "checkout") window.location.assign(result.url);
       else if (result.kind === "change") setChangeRequest(result);
       else if (result.kind === "current") void revalidate();
-      else if (result.kind === "manage") setFailure({ messages: { en: "Review your existing subscription, pending payment or scheduled change in billing first.", zh: "请先在订阅与账单中查看现有订阅、待付款或预约变更。" }, requestId: "", manage: true });
+      else if (result.kind === "manage") setFailure({ messages: result.subscription.plan === "lifetime"
+        ? { en: "Lifetime access is already active on your account.", zh: "你的账户已享有终身权益。" }
+        : intent.product === "lifetime" ? { en: "Your current subscription must end before you can buy Lifetime.", zh: "当前订阅结束后，可购买终身方案。" }
+          : subscriptionRestrictionText(subscriptionChangeBlocker(result.subscription)) || { en: "Review your subscription in billing before continuing.", zh: "请先在订阅与账单中查看当前订阅。" }, requestId: "", manage: true });
       else if (result.kind === "unavailable") setFailure({ messages: { en: "This offer is not currently available for purchase.", zh: "此商品暂未开放购买，请稍后再试。" }, requestId: "", manage: false });
     } catch (error) { if (current()) setFailure(pricingCheckoutFailure(error)); }
     finally { inFlight.current = false; if (mounted.current) setBusy(false); }

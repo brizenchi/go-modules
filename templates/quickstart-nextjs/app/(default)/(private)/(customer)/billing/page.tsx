@@ -7,7 +7,9 @@ import { SignInDialog } from "@/components/sign-in-dialog";
 import { SubscriptionChangeDialog } from "@/components/subscription-change-dialog";
 import { SiteShell } from "@/components/site-shell";
 import { Notice, Panel } from "@/components/ui";
-import { ResourceFailure, SignInRequired } from "@/components/resource-feedback";
+import { SignInRequired } from "@/components/resource-feedback";
+import { BillingFailure } from "@/components/billing-failure";
+import { billingPrimaryAction, billingPrimaryText, billingText, subscriptionStatusText, type BillingRequestFailure } from "@/lib/billing-presentation";
 import {
   ApiError,
   cancelSubscription,
@@ -28,8 +30,7 @@ import {
   CHECKOUT_REFRESH_DELAYS_MS,
   stripeInvoiceURL,
   checkoutReturnStatus,
-  hasOngoingRecurringSubscription,
-  subscriptionUpgradeAction
+  hasOngoingRecurringSubscription
 } from "@/lib/billing-state";
 import { appEnv } from "@/lib/env";
 import { readBillingIntent, type BillingIntent } from "@/lib/billing-intent";
@@ -86,7 +87,7 @@ export default function BillingPage() {
   const [historyRevision, setHistoryRevision] = useState(0);
   const [busy, setBusy] = useState<"" | "change" | "portal" | "cancel" | "reactivate">("");
   const [status, setStatus] = useState("");
-  const [actionFailure, setActionFailure] = useState<RequestFailure | null>(null);
+  const [actionFailure, setActionFailure] = useState<BillingRequestFailure | null>(null);
   const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<CapabilitiesView>>(idleResource());
   const [subscriptionState, setSubscriptionState] = useState<ResourceState<SubscriptionView>>(idleResource());
   const [plan, setPlan] = useState(defaultPlan);
@@ -139,9 +140,9 @@ export default function BillingPage() {
   const refreshCredits = credits.refresh;
   const revalidateMembership = membership.revalidate;
   const revalidateCredits = credits.revalidate;
-  const upgradeAction = subscriptionUpgradeAction(membership.data?.plan, subscription);
+  const upgradeAction = billingPrimaryAction(membership.data?.plan, subscription);
   const hasLifetime = upgradeAction === "lifetime";
-  const upgradeLoading = membership.loading || upgradeAction === "loading";
+  const upgradeLoading = membership.loading || upgradeAction === "loading" || (!subscription && subscriptionState.status !== "error");
 
   function planName(value?: string): string {
     switch ((value || "").toLowerCase()) {
@@ -161,14 +162,7 @@ export default function BillingPage() {
   }
 
   function statusName(value?: string): string {
-    if (value === "active") return t({ en: "Active", zh: "生效中" });
-    if (value === "trialing") return t({ en: "Trial", zh: "试用中" });
-    if (value === "canceling") return t({ en: "Ending", zh: "即将结束" });
-    if (value === "past_due") return t({ en: "Past due", zh: "待付款" });
-    if (value === "canceled") return t({ en: "Canceled", zh: "已取消" });
-    if (value === "incomplete" || value === "payment_failed") return t({ en: "Payment needed", zh: "需要付款" });
-    if (value === "expired" || value === "ended" || value === "incomplete_expired") return t({ en: "Ended", zh: "已结束" });
-    return value || t({ en: "Not active", zh: "未开通" });
+    return t(subscriptionStatusText(value || ""));
   }
 
   const loadSubscriptionState = useCallback(async (token: string, background = false) => {
@@ -367,7 +361,7 @@ export default function BillingPage() {
 
   function handleActionError(error: unknown, capability: string) {
     if (error instanceof ApiError && error.reason === "subscription_change_pending") {
-      setActionFailure({ kind: "unknown", title: t({ en: "Resolve the pending change first", zh: "请先处理已有变更" }), message: t({ en: "Complete the pending payment, remove the scheduled change, or reactivate your subscription before trying again.", zh: "请先完成待付款、撤销预约变更，或恢复续费后再操作。" }), retryable: false });
+      setActionFailure({ kind: "unknown", title: "", message: "", reason: "subscription_change_pending", retryable: true });
       return;
     }
     setActionFailure(describeRequestFailure(error, capability));
@@ -420,7 +414,7 @@ export default function BillingPage() {
         ? t({ en: `Renewal canceled. Access continues until ${formatDate(subscription.current_period_end, dateLocale)}.`, zh: `已取消续费，权益保留至 ${formatDate(subscription.current_period_end, dateLocale)}。` })
         : t({ en: "Renewal canceled. Your current paid period remains available.", zh: "已取消续费，当前已付费周期内仍可使用。" }));
       setCancelConfirmOpen(false);
-      await loadBillingState(requestToken);
+      await loadBillingState(requestToken, true);
     } catch (err) {
       if (canCommitAction(requestToken, actionGeneration)) handleActionError(err, "Subscription cancellation");
     } finally {
@@ -444,7 +438,7 @@ export default function BillingPage() {
       await reactivateSubscription(requestToken);
       if (!canCommitAction(requestToken, actionGeneration)) return;
       setStatus(t({ en: "Your subscription will renew again.", zh: "已恢复订阅续费。" }));
-      await loadBillingState(requestToken);
+      await loadBillingState(requestToken, true);
     } catch (err) {
       if (canCommitAction(requestToken, actionGeneration)) handleActionError(err, "Subscription reactivation");
     } finally {
@@ -456,7 +450,7 @@ export default function BillingPage() {
     if (feedbackTarget !== target) return null;
     return <div className={styles.feedback}>
       {status ? <div role="status"><Notice tone="success">{status}</Notice></div> : null}
-      {actionFailure ? <ResourceFailure failure={actionFailure} /> : null}
+      {actionFailure ? <BillingFailure failure={actionFailure} onRetry={() => session ? void loadBillingState(session.token, true) : undefined} /> : null}
     </div>;
   }
 
@@ -482,6 +476,22 @@ export default function BillingPage() {
     if (path) window.history.replaceState(window.history.state, "", path);
   }
 
+  function primaryPlanControl() {
+    if (hasLifetime) return <button className="button" disabled>{t(billingText.lifetime)}</button>;
+    if (upgradeLoading) return <button className="button primary" disabled>{t(billingText.loading)}</button>;
+    if (subscriptionState.status === "error" || billingDisabled) return <button className="button" disabled>{t({ en: "Plan unavailable", zh: "暂时无法读取套餐" })}</button>;
+    if (upgradeAction === "scheduled" || (upgradeAction === "payment" && subscription?.pending_payment)) return null;
+    const label = t(billingPrimaryText(upgradeAction));
+    if (upgradeAction === "change" && subscription) return <button className="button primary" disabled={baseActionDisabled} onClick={() => {
+      setPlan(subscription.plan); setInterval(subscription.billing_cycle || defaultInterval);
+      setStatus(""); setActionFailure(null); setPlansOpen(true);
+    }}>{label}</button>;
+    if (upgradeAction === "resume") return <button className="button primary" disabled={baseActionDisabled} onClick={handleReactivate}>{busy === "reactivate" ? t({ en: "Restoring…", zh: "恢复中…" }) : label}</button>;
+    if (upgradeAction === "payment" || upgradeAction === "review") return <button className="button primary" disabled={baseActionDisabled} onClick={() => void handleOpenPortal()}>{busy === "portal" ? t({ en: "Opening…", zh: "正在打开…" }) : label}</button>;
+    if (baseActionDisabled) return <button className="button primary" disabled>{label}</button>;
+    return <Link className="button primary" href={localizeHref("/pricing", locale)}>{label}</Link>;
+  }
+
   return (
     <SiteShell
       eyebrow={t({ en: "Account", zh: "账户" })}
@@ -501,7 +511,7 @@ export default function BillingPage() {
           </div>
         ) : null}
         {billingCapabilityFailure ? (
-          <div className="span-12"><ResourceFailure failure={billingCapabilityFailure} onRetry={capabilitiesState.status === "error" ? () => void loadCapabilitiesState() : undefined} /></div>
+          <div className="span-12"><BillingFailure failure={billingCapabilityFailure} onRetry={capabilitiesState.status === "error" ? () => void loadCapabilitiesState() : undefined} /></div>
         ) : null}
         {intentUnavailable ? (
           <div className="span-12" role="status">
@@ -516,16 +526,16 @@ export default function BillingPage() {
           <div className="span-12" role="status">
             <Notice>
               {checkoutRefreshActive
-                ? t({ en: "Checkout completed. We are waiting for payment confirmation and refreshing your billing.", zh: "结账已完成，正在等待付款确认并刷新账单。" })
+                ? t(billingText.checkoutChecking)
                 : checkoutRefreshComplete
-                  ? t({ en: "Check your plan and payment history below. If your purchase is missing, contact support before paying again.", zh: "请查看下方套餐和支付记录。如果购买结果仍未显示，请联系支持，先不要重复付款。" })
+                  ? t(billingText.checkoutWaiting)
                   : session
-                    ? t({ en: "Checkout completed. Your billing will refresh shortly.", zh: "结账已完成，账单状态即将自动刷新。" })
+                    ? t(billingText.checkoutChecking)
                     : t({ en: "You have returned from checkout. Sign in to view the payment result.", zh: "你已返回网站，请登录查看付款结果。" })}
             </Notice>
           </div>
         ) : checkoutReturn === "cancelled" ? (
-          <div className="span-12"><Notice>{t({ en: "Checkout was canceled. No new purchase was confirmed.", zh: "结账已取消，没有确认新的购买。" })}</Notice></div>
+          <div className="span-12"><Notice>{t(billingText.checkoutCanceled)}</Notice></div>
         ) : null}
 
         {session ? <Panel className={`span-12 ${styles.overview}`} title={t({ en: "Plan & credits", zh: "套餐与积分" })}>
@@ -534,7 +544,7 @@ export default function BillingPage() {
             <div className={styles.planIdentity}>
               <span className={styles.label}>{t({ en: "Current plan", zh: "当前套餐" })}</span>
               <div className={styles.planHeading}><strong>{membership.data || subscription ? planName(membership.data?.plan || subscription?.plan) : "—"}</strong>{subscription && ongoingRecurringSubscription ? <span className={styles.status}>{statusName(subscription.status)}</span> : null}</div>
-              {subscription && ongoingRecurringSubscription ? <p>{intervalName(subscription.billing_cycle)} · {cancellationPending ? t({ en: "Access until", zh: "权益保留至" }) : t({ en: "Next renewal", zh: "下次续费" })} {formatDate(subscription.effective_cancel_at || subscription.current_period_end, dateLocale)}</p> : null}
+              {subscription && ongoingRecurringSubscription ? <p>{intervalName(subscription.billing_cycle)} · {cancellationPending ? t({ en: "Access until", zh: "权益保留至" }) : upgradeAction === "payment" || subscription.status === "trialing" ? t({ en: "Current period ends", zh: "本期结束" }) : t({ en: "Next renewal", zh: "下次续费" })} {formatDate(subscription.effective_cancel_at || subscription.current_period_end, dateLocale)}</p> : null}
               {hasLifetime ? <p>{t({ en: "Lifetime access", zh: "永久有效" })}</p> : null}
             </div>
             <div className={styles.creditBalance}>
@@ -548,7 +558,7 @@ export default function BillingPage() {
               {subscription.pending_payment ? (
                 <div className={styles.stateCard} role="status">
                   <strong>{t({ en: "Complete payment to change your plan", zh: "完成付款后变更套餐" })}</strong>
-                  <p>{t({ en: "Your current plan remains active until payment is confirmed.", zh: "付款确认前，当前套餐仍然有效。" })}</p>
+                  <p>{t({ en: "The new plan takes effect after payment is confirmed.", zh: "付款确认后，新套餐才会生效。" })}</p>
                   {stripeInvoiceURL(subscription.pending_payment.invoice_url)
                     ? <a className="button primary" href={stripeInvoiceURL(subscription.pending_payment.invoice_url)!} target="_blank" rel="noopener noreferrer">{t({ en: "Complete payment", zh: "完成付款" })}</a>
                     : <button className="button primary" disabled={baseActionDisabled} onClick={() => void handleOpenPortal()}>{t({ en: "Review payment", zh: "处理付款" })}</button>}
@@ -567,24 +577,20 @@ export default function BillingPage() {
                       await cancelScheduledChange(token);
                       if (canCommitAction(token, generation)) {
                         setStatus(t({ en: "Scheduled change removed. Your current plan is unchanged.", zh: "已撤销预约变更，当前套餐保持不变。" }));
-                        await loadBillingState(token);
+                        await loadBillingState(token, true);
                       }
                     } catch (err) { if (canCommitAction(token, generation)) handleActionError(err, "Cancel scheduled change"); }
                     finally { if (canCommitAction(token, generation)) setBusy(""); }
-                  }}>{t({ en: "Remove scheduled change", zh: "撤销预约变更" })}</button>
+                  }}>{busy === "change" ? t({ en: "Canceling change…", zh: "正在撤销…" }) : t({ en: "Cancel scheduled change", zh: "撤销预约变更" })}</button>
                 </div>
               ) : null}
-              {cancellationPending ? <p className={styles.stateNote}>{t({ en: "Renewal is canceled. You can keep using your plan through the access end date above.", zh: "已取消自动续费，上方权益截止日期前仍可继续使用。" })}</p> : null}
+              {cancellationPending ? <p className={styles.stateNote}>{t(billingText.canceledRenewal)}</p> : null}
           </> : null}
               <div className={`button-row ${styles.manageActions}`}>
-                {hasLifetime ? <button className="button" type="button" disabled>{t({ en: "Lifetime plan", zh: "终身会员" })}</button>
-                  : upgradeLoading ? <button className="button primary" type="button" disabled>{t({ en: "Upgrade", zh: "升级" })}</button>
-                    : upgradeAction === "change" && subscription ? <button type="button" className="button primary" disabled={baseActionDisabled} onClick={() => { setPlan(subscription.plan); setInterval(subscription.billing_cycle || defaultInterval); setStatus(""); setActionFailure(null); setPlansOpen(true); }}>{t({ en: "Upgrade", zh: "升级" })}</button>
-                      : <Link className="button primary" href={localizeHref("/pricing", locale)}>{t({ en: "Upgrade", zh: "升级" })}</Link>}
+                {primaryPlanControl()}
                 {subscription && (ongoingRecurringSubscription || hasLifetime) ? <button className="button" disabled={baseActionDisabled} onClick={() => void handleOpenPortal()}>
                   {busy === "portal" ? t({ en: "Opening…", zh: "正在打开…" }) : t({ en: "Billing settings", zh: "账单设置" })}
                 </button> : null}
-                {!hasLifetime && ongoingRecurringSubscription && cancellationPending ? <button className="button" disabled={baseActionDisabled} onClick={handleReactivate}>{busy === "reactivate" ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal", zh: "恢复续费" })}</button> : null}
                 {!hasLifetime && ongoingRecurringSubscription && !cancellationPending ? <button ref={cancelTriggerRef} className={`button ${styles.cancelTrigger}`} disabled={baseActionDisabled} aria-expanded={cancelConfirmOpen} aria-controls="cancel-renewal-confirmation" onClick={() => setCancelConfirmOpen(value => !value)}>{t({ en: "Cancel renewal", zh: "取消续费" })}</button> : null}
               </div>
               {subscription && !hasLifetime && cancelConfirmOpen && ongoingRecurringSubscription && !cancellationPending ? (
@@ -593,13 +599,14 @@ export default function BillingPage() {
                   <p>{subscription.current_period_end
                     ? t({ en: `Your plan remains available until ${formatDate(subscription.current_period_end, dateLocale)}. It will not renew after that date.`, zh: `当前套餐可继续使用至 ${formatDate(subscription.current_period_end, dateLocale)}，此后不再自动续费。` })
                     : t({ en: "Your plan remains available until the end of the current paid period and will not renew. The exact end date will appear once billing is refreshed.", zh: "当前已付费周期内仍可使用，周期结束后不再续费。刷新账单后可查看具体结束日期。" })}</p>
+                  <p>{t({ en: "Existing credits are kept under their original expiry rules.", zh: "已有积分保留，原有效期照常。" })}</p>
                   <div className="button-row">
                     <button className="button" disabled={busy !== ""} onClick={() => { setCancelConfirmOpen(false); cancelTriggerRef.current?.focus(); }}>{t({ en: "Keep renewal", zh: "保留续费" })}</button>
                     <button className="button danger" disabled={baseActionDisabled} onClick={() => void handleCancel("end_of_period")}>{busy === "cancel" ? t({ en: "Canceling…", zh: "取消中…" }) : t({ en: "Confirm cancellation", zh: "确认取消续费" })}</button>
                   </div>
                 </div>
               ) : null}
-          {subscriptionState.status === "error" ? <ResourceFailure failure={subscriptionState.failure} onRetry={() => session ? void loadSubscriptionState(session.token) : undefined} /> : null}
+          {subscriptionState.status === "error" ? <BillingFailure failure={subscriptionState.failure} onRetry={() => session ? void loadSubscriptionState(session.token) : undefined} /> : null}
           {actionFeedback("current")}
         </Panel> : null}
 

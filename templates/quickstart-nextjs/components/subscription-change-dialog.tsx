@@ -7,10 +7,11 @@ import { readSession } from "@/lib/auth";
 import { stripeInvoiceURL } from "@/lib/billing-state";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { idleResource, loadingResource, settleResource, type RequestFailure } from "@/lib/request-state";
-import { canConfirmSubscriptionChange, subscriptionPlanAction, subscriptionPreviewAmount, type SubscriptionSelection } from "@/lib/subscription-change";
+import { idleResource, loadingResource, settleResource } from "@/lib/request-state";
+import { canConfirmSubscriptionChange, isValidSubscriptionPreview, subscriptionPlanAction, subscriptionPlanIntent, subscriptionChangeBlocker, subscriptionPreviewAmount, type SubscriptionSelection } from "@/lib/subscription-change";
+import { billingText, changeDialogTitle, changeSubmitText, changeTimingText, changeResultText, subscriptionRestrictionText } from "@/lib/billing-presentation";
 import { useConsoleAction, ConsoleError } from "./console-kit";
-import { ResourceFailure } from "./resource-feedback";
+import { BillingFailure } from "./billing-failure";
 import { ResponsiveDialog } from "./responsive-dialog";
 import { Select } from "./select";
 import { DetailRows, Notice } from "./ui";
@@ -37,6 +38,8 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
   const intervals = offers.find(offer => offer.plan === plan)?.intervals || [];
   const configured = intervals.includes(interval);
   const choice = subscriptionPlanAction(selection, subscription);
+  const restriction = subscriptionRestrictionText(subscriptionChangeBlocker(subscription));
+  const intent = subscriptionPlanIntent(selection, subscription);
   const changeable = ["upgrade", "downgrade", "interval"].includes(choice);
   const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
   const planName = (value: string) => t(({ starter: { en: "Starter", zh: "入门版" }, pro: { en: "Pro", zh: "专业版" }, premium: { en: "Premium", zh: "高级版" } })[value as "starter" | "pro" | "premium"] || { en: value, zh: value });
@@ -58,11 +61,11 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
 
   useEffect(() => { setResult(null); }, [token, plan, interval]);
 
-  const ready = configured && preview.status === "ready" && !result;
+  const validPreview = preview.status === "ready" && isValidSubscriptionPreview(preview.data) && preview.data.target_plan === plan && preview.data.target_interval === interval ? preview.data : null;
+  const ready = configured && Boolean(validPreview) && !result;
+  const resultCopy = result ? changeResultText(result) : null;
   const confirmable = canConfirmSubscriptionChange({ selection, subscription, preview: preview.data, ready, busy: action.busy });
-  const pendingError: RequestFailure | null = action.error instanceof ApiError && action.error.reason === "subscription_change_pending"
-    ? { kind: "unknown", title: t({ en: "Resolve the pending change first", zh: "请先处理已有变更" }), message: t({ en: "Review the pending payment or scheduled change in billing before trying again.", zh: "请先在订阅与账单中处理待付款或预约变更，再重新选择。" }), retryable: false }
-    : null;
+  const pendingError = action.error instanceof ApiError && action.error.reason === "subscription_change_pending";
 
   function confirm() {
     if (!confirmable || readSession()?.token !== token) return;
@@ -72,7 +75,7 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
     });
   }
 
-  return <ResponsiveDialog open onClose={onClose} dismissible={!action.busy} title={t({ en: "Change plan", zh: "更换套餐" })} closeLabel={t({ en: "Close", zh: "关闭" })}>
+  return <ResponsiveDialog open onClose={onClose} dismissible={!action.busy} title={t(resultCopy?.title || changeDialogTitle(intent))} closeLabel={t({ en: "Close", zh: "关闭" })}>
     <div className="field-grid">
       <div className="field"><label htmlFor={`${id}-plan`}>{t({ en: "Plan", zh: "套餐" })}</label>
         <Select id={`${id}-plan`} value={plan} disabled={action.busy || Boolean(result)} onChange={event => {
@@ -86,28 +89,29 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
         </Select>
       </div>
     </div>
-    {result ? <div className={styles.feedback} role="status"><Notice tone="success">{t(result.pending_payment
-      ? { en: "Complete payment before the new plan takes effect.", zh: "完成付款后，新套餐才会生效。" }
-      : result.scheduled_change ? { en: "Your plan change is scheduled for the next billing cycle.", zh: "套餐将在下个计费周期变更。" }
-        : { en: "Your plan has been updated.", zh: "套餐已更新。" })}</Notice>
+    {result && resultCopy ? <div className={styles.feedback} role="status"><Notice tone={resultCopy.state === "payment" ? "default" : "success"}>{t(resultCopy.body)}</Notice>
+      {result.scheduled_change ? <p className={styles.note}>{planName(result.scheduled_change.plan)} · {intervalName(result.scheduled_change.billing_cycle)} · {formatDate(result.scheduled_change.effective_at, dateLocale)}</p> : null}
       {result.pending_payment ? stripeInvoiceURL(result.pending_payment.invoice_url)
         ? <a className="button primary" href={stripeInvoiceURL(result.pending_payment.invoice_url)!} target="_blank" rel="noopener noreferrer">{t({ en: "Complete payment", zh: "完成付款" })}</a>
         : <Link className="button" href="/billing">{t({ en: "Review payment", zh: "查看付款" })}</Link> : null}
     </div> : choice === "current" ? <p className={styles.note} role="status">{t({ en: "This is your current plan and billing interval.", zh: "这是你当前的套餐与计费周期。" })}</p>
       : !configured ? <p className={styles.note}>{t({ en: "Choose an available plan and billing interval.", zh: "请选择可用套餐与计费周期。" })}</p>
-        : !changeable ? <p className={styles.note}>{t({ en: "Review your existing payment or scheduled change in billing first.", zh: "请先在订阅与账单中处理已有付款或预约变更。" })} <Link href="/billing">{t({ en: "Manage subscription", zh: "管理订阅" })}</Link></p>
-          : preview.status === "ready" && preview.data.target_plan === plan && preview.data.target_interval === interval ? <div className={styles.summary} aria-live="polite">
-            <div className={styles.total}><span>{t({ en: "Due now", zh: "当前应付" })}</span><strong>{subscriptionPreviewAmount(preview.data, dateLocale)}</strong></div>
+        : !changeable ? <p className={styles.note}>{t(restriction || { en: "Review your subscription in billing before choosing another plan.", zh: "请先在订阅与账单中查看当前订阅，再选择其他套餐。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p>
+          : validPreview ? <div className={styles.summary} aria-live="polite">
+            <div className={styles.total}><span>{t({ en: "Due now", zh: "当前应付" })}</span><strong>{subscriptionPreviewAmount(validPreview, dateLocale)}</strong></div>
             <DetailRows rows={[
               { label: t({ en: "Selected plan", zh: "目标套餐" }), value: `${planName(plan)} · ${intervalName(interval)}` },
-              { label: t({ en: "Change timing", zh: "变更方式" }), value: t(preview.data.change_mode === "period_end" ? { en: "Next billing cycle", zh: "下个计费周期生效" } : preview.data.change_mode === "immediate_reset_cycle" ? { en: "Immediately, new billing cycle", zh: "立即生效，重新开始计费周期" } : { en: "Immediately, with proration", zh: "立即生效，按比例结算" }) },
-              { label: t({ en: "Current period ends", zh: "本期结束" }), value: formatDate(preview.data.current_period_end, dateLocale) },
-              { label: t({ en: "Next billing date", zh: "下次计费" }), value: formatDate(preview.data.next_billing_at, dateLocale) }
+              { label: t({ en: "Change timing", zh: "生效时间" }), value: t(changeTimingText(validPreview).label) },
+              { label: t({ en: "Current period ends", zh: "本期结束" }), value: formatDate(validPreview.current_period_end, dateLocale) },
+              { label: t({ en: "Next billing date", zh: "下次计费" }), value: formatDate(validPreview.next_billing_at, dateLocale) }
             ]} />
-          </div> : preview.status === "error" ? <ResourceFailure failure={preview.failure} onRetry={() => void loadPreview()} /> : <p className={styles.note} role="status">{t({ en: "Loading the price preview…", zh: "正在获取费用预览…" })}</p>}
-    {pendingError ? <ResourceFailure failure={pendingError} /> : <ConsoleError error={action.error} />}
+            <p className={styles.note}>{t(changeTimingText(validPreview).detail)}</p>
+          </div> : preview.status === "error" ? <BillingFailure failure={preview.failure} onRetry={() => void loadPreview()} />
+            : preview.status === "ready" ? <BillingFailure failure={{ kind: "unavailable", title: "", message: "", retryable: true }} onRetry={() => void loadPreview()} />
+              : <p className={styles.note} role="status">{t({ en: "Loading the price preview…", zh: "正在获取费用预览…" })}</p>}
+    {pendingError ? <p className={styles.note} role="alert">{t({ en: "Your billing status has changed. Review billing before trying again.", zh: "订阅状态已变更，请先查看账单后重试。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p> : <ConsoleError error={action.error} />}
     <div className={styles.actions}>
-      {!result ? <button className="button primary" type="button" disabled={!confirmable} onClick={confirm}>{action.busy ? t({ en: "Updating…", zh: "更新中…" }) : t({ en: "Confirm plan change", zh: "确认变更套餐" })}</button> : null}
+      {!result ? <button className="button primary" type="button" disabled={!confirmable} onClick={confirm}>{action.busy ? t({ en: "Submitting…", zh: "正在提交…" }) : t(changeSubmitText({ choice, configured, phase: preview.status, preview: validPreview, amount: validPreview ? subscriptionPreviewAmount(validPreview, dateLocale) : "" }))}</button> : null}
       <button className="button" type="button" disabled={action.busy} onClick={onClose}>{t(result ? { en: "Done", zh: "完成" } : { en: "Cancel", zh: "取消" })}</button>
     </div>
   </ResponsiveDialog>;

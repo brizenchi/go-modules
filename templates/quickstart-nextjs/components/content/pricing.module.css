@@ -83,6 +83,38 @@
   gap: 16px;
 }
 
+.subscriptionNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.subscriptionNotice p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.subscriptionNotice :global(.button) {
+  min-height: 36px;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.returnNotice { margin: 20px 0; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); font-size: 13px; line-height: 1.7; }
+.returnNotice p { margin: 0; }
+.returnNotice :global(.button) { margin-top: 12px; }
+.oneTimeCard > .lifetimeNote { margin: 0 0 16px; font-size: 12px; }
+.lifetimeNote a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 3px; }
+
 .planCard {
   min-width: 0;
   display: flex;

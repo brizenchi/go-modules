@@ -45,7 +45,8 @@ type CheckoutDependencies = {
 };
 export type PricingCheckoutResult = { kind: "checkout"; url: string }
   | { kind: "change"; selection: SubscriptionSelection; subscription: SubscriptionView; offers: CapabilitiesView["billing"]["offers"]["subscriptions"] }
-  | { kind: "unavailable" | "manage" | "stale" | "current" };
+  | { kind: "manage"; subscription: SubscriptionView }
+  | { kind: "unavailable" | "stale" | "current" };
 
 export async function preparePricingCheckout(intent: BillingIntent, quantity: number, urls: { success: string; cancel: string }, referralCode: string, deps: CheckoutDependencies): Promise<PricingCheckoutResult> {
   const capabilities = await deps.capabilities();
@@ -59,9 +60,9 @@ export async function preparePricingCheckout(intent: BillingIntent, quantity: nu
       const action = subscriptionPlanAction(selection, subscription);
       if (action === "current") return { kind: "current" };
       if (["upgrade", "downgrade", "interval"].includes(action)) return { kind: "change", selection, subscription, offers: capabilities.billing.offers.subscriptions };
-      return { kind: "manage" };
+      return { kind: "manage", subscription };
     }
-    if (subscription.plan === "lifetime" || hasOngoingRecurringSubscription(subscription)) return { kind: "manage" };
+    if (subscription.plan === "lifetime" || hasOngoingRecurringSubscription(subscription)) return { kind: "manage", subscription };
   }
   if (intent.product === "credits" && parseCreditsQuantity(String(quantity)) === null) return { kind: "unavailable" };
   const payload: CheckoutPayload = {
@@ -81,7 +82,7 @@ export async function preparePricingCheckout(intent: BillingIntent, quantity: nu
 export function pricingCheckoutFailure(error: unknown) {
   const status = error instanceof ApiError ? error.status : 0;
   const messages = status === 401 ? { en: "Please sign in again, then retry your purchase.", zh: "登录已失效，请重新登录后再购买。" }
-    : status === 409 ? { en: "An existing subscription or checkout needs attention. Manage your subscription, or retry your previous selection.", zh: "当前订阅或结账存在冲突，请管理已有订阅，或重试之前的选择。" }
+    : status === 409 ? { en: "Your billing status has changed. Review billing before trying again.", zh: "订阅状态已变更，请先查看账单后重试。" }
     : status === 503 || status === 404 ? { en: "Payments are currently unavailable. Please try again later.", zh: "付款暂时不可用，请稍后再试。" }
     : { en: "We couldn't open checkout. Please try again.", zh: "暂时无法打开结账，请重试。" };
   return { messages, requestId: status >= 500 && error instanceof ApiError ? error.requestId : "", manage: status === 409 };

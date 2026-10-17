@@ -49,7 +49,13 @@ test("existing paid subscriptions review a plan change without creating another 
  assert.equal(payloads.length, 0);
 });
 test("blocked subscriptions and lifetime access use management without creating another checkout",async()=>{
- for(const subscription of [{plan:"pro",status:"incomplete"},{plan:"lifetime",status:"active"}]) {
+ for(const subscription of [
+  {plan:"pro",status:"incomplete"},
+  {plan:"lifetime",status:"active"},
+  {plan:"pro",status:"canceling",billing_cycle:"monthly",cancel_at_period_end:true},
+  {plan:"pro",status:"active",billing_cycle:"monthly",pending_payment:{amount_due:100,currency:"usd"}},
+  {plan:"pro",status:"active",billing_cycle:"monthly",scheduled_change:{plan:"starter",billing_cycle:"monthly"}}
+ ]) {
   const {deps,payloads}=fixture(subscription);
   assert.equal((await preparePricingCheckout(intent,1,urls,"",deps)).kind,"manage");
   assert.equal(payloads.length,0);
