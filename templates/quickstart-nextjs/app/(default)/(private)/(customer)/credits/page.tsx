@@ -3,6 +3,7 @@ import { LocalizedLink as Link } from "@/components/localized-link";
 import { useCallback, useEffect, useState } from "react";
 import { SiteShell } from "@/components/site-shell";
 import { DataTable } from "@/components/data-table";
+import { CreditCheckoutNotice } from "@/components/credit-checkout-notice";
 import { Panel } from "@/components/ui";
 import { ConsoleError, ConsoleGate, consoleStyles as styles, useConsoleResource, useConsoleSession } from "@/components/console-kit";
 import { getCreditBalance, listCreditTransactions } from "@/lib/operations-api";
@@ -22,11 +23,12 @@ export default function CreditsPage() {
   const history = useConsoleResource(token, loader);
   const refreshHistory = history.revalidate;
   const refreshBalance = balance.revalidate;
-  const update = useCallback(() => { void refreshHistory(); void refreshBalance(); }, [refreshHistory, refreshBalance]);
+  const update = useCallback(async () => { await Promise.all([refreshHistory(), refreshBalance()]); }, [refreshHistory, refreshBalance]);
   usePageReturn(update);
   const numberFormat = new Intl.NumberFormat(locale === "zh" ? "zh-CN" : "en-US");
   return <SiteShell eyebrow={t({ en: "Your credits", zh: "我的积分" })} title={t({ en: "Credit history", zh: "积分明细" })} description={t({ en: "See where your credits came from and how they were used.", zh: "查看积分来源、每笔收支和变更后的余额。" })} actions={<div className="button-row"><Link className="button primary" href="/pricing#one-time">{t({ en: "Get more credits", zh: "购买积分" })}</Link></div>}>
     <ConsoleGate session={session} ready={ready}><div className={styles.stack}>
+      <CreditCheckoutNotice token={token} onConfirmed={update} />
       <ConsoleError error={balance.error} retry={() => void balance.refresh()} />
       <div className={`${styles.metrics} ${creditStyles.metrics}`}><div className={styles.metric}><span>{t({ en: "Available credits", zh: "可用积分" })}</span><strong>{balance.data ? numberFormat.format(balance.data.balance) : "—"}</strong></div><div className={styles.metric}><span>{t({ en: "Expiring within 30 days", zh: "30 天内到期" })}</span><strong>{balance.data ? numberFormat.format(balance.data.expiring_credits) : "—"}</strong></div><div className={styles.metric}><span>{t({ en: "Next expiry", zh: "最近到期时间" })}</span><p>{balance.data?.next_expiry_at ? formatDate(balance.data.next_expiry_at, locale === "zh" ? "zh-CN" : "en-US") : balance.data ? t({ en: "No upcoming expiry", zh: "暂无到期计划" }) : "—"}</p></div></div>
       <Panel title={t({ en: "Credit history", zh: "积分明细" })} subtitle={t({ en: "Referral rewards, signup bonuses, subscription allowances and purchases appear here when issued.", zh: "邀请、受邀、注册赠送、订阅发放和充值购买，按实际到账记录展示。" })}>

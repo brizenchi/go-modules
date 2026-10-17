@@ -223,10 +223,11 @@ func (p *Provider) onCheckoutCompletedContext(ctx context.Context, data map[stri
 			return nil, fmt.Errorf("%w: invalid credits_per_unit", domain.ErrInvalidInput)
 		}
 		return []event.Envelope{mk(event.KindCreditsPurchased, event.CreditsPurchased{
-			Quantity:       quantity,
-			CreditsPerUnit: creditsPerUnit,
-			TotalCredits:   quantity * creditsPerUnit,
-			PriceID:        priceID,
+			CheckoutSessionID: getString(data, "id"),
+			Quantity:          quantity,
+			CreditsPerUnit:    creditsPerUnit,
+			TotalCredits:      quantity * creditsPerUnit,
+			PriceID:           priceID,
 		})}, nil
 	case domain.ProductSubscription:
 		if mode != "subscription" {

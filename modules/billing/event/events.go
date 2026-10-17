@@ -86,10 +86,11 @@ type TrialConverted struct {
 
 // CreditsPurchased is emitted on a one-time credits checkout success.
 type CreditsPurchased struct {
-	Quantity       int64
-	CreditsPerUnit int64
-	TotalCredits   int64
-	PriceID        string
+	CheckoutSessionID string
+	Quantity          int64
+	CreditsPerUnit    int64
+	TotalCredits      int64
+	PriceID           string
 }
 
 // LifetimePurchased is emitted on a successful one-time lifetime buyout.

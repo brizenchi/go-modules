@@ -83,6 +83,7 @@ export type SubscriptionChangeMode =
 
 export type SubscriptionPreview = {
   currency: string;
+  /** Major currency units from the existing preview API, unlike payment-record amounts. */
   amount_due_now: number;
   current_period_end?: string;
   next_billing_at?: string;
@@ -324,6 +325,21 @@ export async function createCheckoutSession(token: string, payload: CheckoutPayl
     method: "POST",
     authToken: token,
     json: payload
+  });
+}
+
+export type CreditCheckoutResult = {
+  state: "pending" | "processing" | "fulfilled" | "failed" | "expired";
+  credits_granted: number;
+};
+
+export async function getCreditCheckoutResult(token: string, sessionID: string): Promise<CreditCheckoutResult> {
+  return apiRequest(`/billing/credit-checkouts/${encodeURIComponent(sessionID)}`, { authToken: token });
+}
+
+export async function confirmCreditCheckout(token: string, sessionID: string): Promise<CreditCheckoutResult> {
+  return apiRequest(`/billing/credit-checkouts/${encodeURIComponent(sessionID)}/confirmation`, {
+    method: "POST", authToken: token, headers: { "Idempotency-Key": sessionID }
   });
 }
 

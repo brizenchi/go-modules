@@ -16,6 +16,30 @@ const ENV_KEYS = [
 
 const originalFetch = globalThis.fetch;
 
+test("credit purchase confirmation reads an authenticated result without triggering fulfillment", async () => {
+  const api = loadApiModule();
+  let url = "";
+  let options: RequestInit | undefined;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    url = String(input); options = init;
+    return jsonResponse(200, { code: 200, data: { state: "processing", credits_granted: 0 } });
+  }) as typeof fetch;
+  assert.deepEqual(await api.getCreditCheckoutResult("fake-token", "cs_example"), { state: "processing", credits_granted: 0 });
+  assert.equal(url, "https://api.example.com/api/v1/billing/credit-checkouts/cs_example");
+  assert.equal(options?.method || "GET", "GET");
+  assert.equal(new Headers(options?.headers).get("Authorization"), "Bearer fake-token");
+});
+
+test("explicit credit confirmation is an authenticated idempotent POST", async () => {
+ const api=loadApiModule();let url="";let options:RequestInit|undefined;
+ globalThis.fetch=(async(input:string|URL|Request,init?:RequestInit)=>{url=String(input);options=init;return jsonResponse(200,{code:200,data:{state:"fulfilled",credits_granted:100}});}) as typeof fetch;
+ assert.equal((await api.confirmCreditCheckout("fake-token","cs_example")).credits_granted,100);
+ assert.equal(url,"https://api.example.com/api/v1/billing/credit-checkouts/cs_example/confirmation");
+ assert.equal(options?.method,"POST");
+ assert.equal(new Headers(options?.headers).get("Idempotency-Key"),"cs_example");
+ assert.equal(new Headers(options?.headers).get("Authorization"),"Bearer fake-token");
+});
+
 function loadApiModule(overrides: Partial<Record<(typeof ENV_KEYS)[number], string>> = {}) {
   for (const key of ENV_KEYS) {
     delete process.env[key];

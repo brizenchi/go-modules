@@ -137,3 +137,15 @@ type ContextWebhookParser interface {
 type CheckoutSessionExpirer interface {
 	ExpireCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error)
 }
+
+// CreditsCheckoutReader verifies a credit checkout through the authenticated provider API.
+// It does not grant credits; hosts must check ownership and fulfill idempotently.
+type CreditsCheckoutReader interface {
+	GetCreditsCheckout(context.Context, string) (*CreditsCheckout, error)
+}
+
+// CreditsCheckout carries provider-confirmed state and a purchase only after payment.
+type CreditsCheckout struct {
+	SessionID, UserID, State, PaymentStatus string
+	Purchase                                *event.CreditsPurchased
+}

@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ApiError, type CapabilitiesView, type CheckoutPayload, type SubscriptionView } from "../lib/api";
-import { preparePricingCheckout, pricingPurchaseHref, readPricingPurchase, pricingCheckoutFailure, pricingCheckoutResultHref } from "../lib/pricing-checkout";
+import { preparePricingCheckout, pricingPurchaseHref, readPricingPurchase, pricingCheckoutFailure, pricingCheckoutResultHref, pricingCheckoutURLs } from "../lib/pricing-checkout";
 import { checkoutReturnStatus } from "../lib/billing-state";
 
 const capabilities: CapabilitiesView = { account: { enabled: true }, referral: { enabled: true }, billing: { enabled: true, provider: "stripe", offers: { subscriptions: [{ plan: "pro", intervals: ["monthly", "yearly"] }], lifetime: true, credits: true } } };
 const intent = { product: "subscription", plan: "pro", interval: "yearly" } as const;
 const urls = { success: "https://example.test/zh/pricing?checkout=success", cancel: "https://example.test/zh/pricing?checkout=cancelled" };
+
+test("credit purchases use the private credit route and keep the language on pricing cancellation", () => {
+ assert.deepEqual(pricingCheckoutURLs({product:"credits"}, "zh", 3), {
+  success:"/credits?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+  cancel:"/zh/pricing?checkout=cancelled&product=credits&quantity=3#one-time"
+ });
+ assert.equal(pricingCheckoutURLs(intent,"en").success,"/billing?checkout=success");
+ assert.equal(pricingCheckoutResultHref("success", "credits", "cs_example"), "/credits?checkout=success&session_id=cs_example");
+});
 
 test("the pricing purchase-result link starts billing confirmation after checkout", () => {
  const destination = new URL(pricingCheckoutResultHref("success"), "https://example.test");
@@ -27,8 +36,20 @@ test("pricing starts the selected checkout directly and returns to the localized
  assert.equal(result.kind, "checkout");
  assert.deepEqual(payloads, [{product_type:"subscription",plan:"pro",interval:"yearly",success_url:urls.success,cancel_url:urls.cancel,metadata:{referral_code:"invite-example"}}]);
 });
-test("existing subscriptions and lifetime access use management without creating another checkout",async()=>{
- for(const subscription of [{plan:"pro",status:"active"},{plan:"pro",status:"trialing"},{plan:"pro",status:"incomplete"},{plan:"lifetime",status:"active"}]) {
+test("existing paid subscriptions review a plan change without creating another checkout",async()=>{
+ for (const status of ["active", "trialing"]) {
+  const { deps, payloads } = fixture({ plan: "pro", status, billing_cycle: "monthly" });
+  const result = await preparePricingCheckout(intent, 1, urls, "", deps);
+  assert.equal(result.kind, "change");
+  if (result.kind === "change") assert.deepEqual(result.selection, { plan: "pro", interval: "yearly" });
+  assert.equal(payloads.length, 0);
+ }
+ const { deps, payloads } = fixture({ plan: "pro", status: "active", billing_cycle: "yearly" });
+ assert.equal((await preparePricingCheckout(intent, 1, urls, "", deps)).kind, "current");
+ assert.equal(payloads.length, 0);
+});
+test("blocked subscriptions and lifetime access use management without creating another checkout",async()=>{
+ for(const subscription of [{plan:"pro",status:"incomplete"},{plan:"lifetime",status:"active"}]) {
   const {deps,payloads}=fixture(subscription);
   assert.equal((await preparePricingCheckout(intent,1,urls,"",deps)).kind,"manage");
   assert.equal(payloads.length,0);

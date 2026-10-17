@@ -68,6 +68,8 @@ type CreditGrantInput struct {
 	UserID, Source, SourceID, Reason, ActorID string
 	Amount                                    int64
 	ExpiresAt                                 *time.Time
+	// IdempotencyAliases recognize older integration keys inside the same account lock.
+	IdempotencyAliases []string
 }
 type CreditConsumption struct {
 	UserID, Source, SourceID, Reason string

@@ -31,6 +31,7 @@ SQL 位于 `internal/feature/credits/export_repository.go`。
 | ListCreditTransactions | 指定用户分页流水；空用户 ID 被拒绝 |
 | GrantCredits | 简单发放；重复的来源和业务编号不重复加分 |
 | GrantCreditsWithExpiry | 发放并指定说明、有效期、操作人 |
+| FindGrant | 只读查询指定用户的历史发放，可兼容旧事件键；不结算到期、不改余额 |
 | ConsumeCredits | 扣分，余额不足拒绝，返回扣分流水 |
 | ConsumeCreditsAndDo | 扣分和本地业务写入同一数据库事务 |
 | RefundCredits | 按原消费流水全额退回一次，检查归属 |
@@ -106,6 +107,10 @@ return err
 没有修改邀请奖励数额、发放时机或支付规则。
 积分账本方法继续在 user.Repository 内兼容旧项目和账户余额投影。
 `RefundCredits` 是消费积分退回，不等于 Stripe 现金退款。
+
+购买积分统一经过 `internal/creditpurchase`：已验证的 Webhook 与付款返回确认共用同一个发放方法，以 Checkout Session 为幂等键。`Grant.IdempotencyAliases` 在账户锁内兼容旧版事件 ID 发放，不重写原流水，也不重复入账。来源、金额或归属冲突会拒绝，不自动修改历史余额。
+
+取消续费只停止下一期扣款，当前付费期权益保留至到期，已有积分不退款、不清空。积分自身原有到期规则仍然适用；本次不新增现金退款或退款后自动回收积分的策略。
 
 测试覆盖：余额不足、用户隔离、稳定键重试、管理员退回、取消上下文、扣分与业务写入共同回滚。
 原有 Repository、积分 HTTP、邀请/支付组合测试继续验证账本和接口行为。

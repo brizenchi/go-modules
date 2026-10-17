@@ -34,6 +34,7 @@ type Store interface {
 	GetCreditSummary(context.Context, string) (Summary, error)
 	ListCreditTransactions(context.Context, string, int, int) (Page, error)
 	FindCreditTransaction(context.Context, uint64) (*Transaction, error)
+	FindCreditGrant(context.Context, string, string, []string) (*Transaction, error)
 	GrantCreditsWithExpiry(context.Context, Grant) (*Transaction, error)
 	ConsumeCreditsAndDo(context.Context, Consumption, func(*gorm.DB, *Transaction) error) (*Transaction, error)
 	RefundCredits(context.Context, Refund) (*Transaction, error)
@@ -77,6 +78,11 @@ func (s *Service) GrantCredits(ctx context.Context, userID, source, sourceID str
 }
 func (s *Service) GrantCreditsWithExpiry(ctx context.Context, in Grant) (*Transaction, error) {
 	return s.store.GrantCreditsWithExpiry(ctx, in)
+}
+
+// FindGrant returns only this owner's immutable purchase grant, including legacy keys.
+func (s *Service) FindGrant(ctx context.Context, userID, source string, ids []string) (*Transaction, error) {
+	return s.store.FindCreditGrant(ctx, userID, source, ids)
 }
 func (s *Service) ConsumeCredits(ctx context.Context, in Consumption) (*Transaction, error) {
 	return s.ConsumeCreditsAndDo(ctx, in, nil)

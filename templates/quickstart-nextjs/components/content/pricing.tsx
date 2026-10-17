@@ -7,6 +7,9 @@ import { DetailRows, PageSection } from "@/components/ui";
 import { PendingLabel } from "@/components/pending-label";
 import { pricingIntentMatches, pricingCheckoutFailure, pricingCheckoutResultHref } from "@/lib/pricing-checkout";
 import { SignInDialog } from "@/components/sign-in-dialog";
+import { SubscriptionChangeDialog } from "@/components/subscription-change-dialog";
+import { ConsoleError } from "@/components/console-kit";
+import { subscriptionPlanAction, type SubscriptionPlanAction } from "@/lib/subscription-change";
 import { usePricingCheckout } from "@/components/use-pricing-checkout";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
@@ -38,9 +41,21 @@ export function ProductPricing() {
     if (checkout.restored?.intent.product === "credits") setQuantity(checkout.restored.quantity);
   }, [checkout.restored]);
   const yearly = interval === "yearly";
+  const subscriptionDisabled = checkout.busy || checkout.accountLoading || Boolean(checkout.accountError);
+  function planActionLabel(action: SubscriptionPlanAction, name: string) {
+    switch (action) {
+      case "current": return t({ en: "Current plan", zh: "当前套餐" });
+      case "upgrade": return t({ en: `Upgrade to ${name}`, zh: `升级至 ${name}` });
+      case "downgrade": return t({ en: `Downgrade to ${name}`, zh: `降级至 ${name}` });
+      case "interval": return t(yearly ? { en: "Switch to yearly", zh: "改为年付" } : { en: "Switch to monthly", zh: "改为月付" });
+      case "manage": return t({ en: "Manage subscription", zh: "管理订阅" });
+      case "lifetime": return t({ en: "Lifetime access", zh: "已享终身权益" });
+      default: return t({ en: `Subscribe to ${name}`, zh: `订阅 ${name}` });
+    }
+  }
   const notes = [
     { title: { en: "Is the template free?", zh: "模板本身收费吗？" }, body: { en: "Yes. The starter template is free to use. The prices here demonstrate a product catalog for the SaaS you build with it, and can be adapted to your own product.", zh: "模板免费使用。本页价格用于演示你所构建 SaaS 的商品结构，可以根据自己的产品调整。" } },
-    { title: { en: "What happens after I choose a plan?", zh: "选择套餐后会发生什么？" }, body: { en: "Choose monthly or yearly billing, then select a plan. If needed, sign in here; you will continue directly to Stripe to review and confirm payment.", zh: "选择月付或年付后，点击对应套餐的购买按钮。需要登录时会在当前页弹出登录窗口，随后直接进入 Stripe 核对并确认付款。" } },
+    { title: { en: "What happens after I choose a plan?", zh: "选择套餐后会发生什么？" }, body: { en: "New subscriptions continue to Stripe Checkout after sign-in. Existing subscribers review the amount and effective date before confirming a plan or billing interval change.", zh: "新订阅在登录后进入 Stripe 结账。已有订阅则先核对变更金额与生效时间，再确认升级、降级或切换计费周期。" } },
     { title: { en: "Which price will I pay?", zh: "实际支付金额以哪里为准？" }, body: { en: "These are example prices in USD. The configured payment catalog determines the final amount. Review the price, trial terms, and renewal date in Checkout before confirming.", zh: "本页展示美元示例价格，实际金额由已配置的支付商品决定。请在结账时核对价格、试用条件和续费日期，再确认购买。" } },
     { title: { en: "How do lifetime access and credits work?", zh: "终身权益和积分有什么区别？" }, body: { en: "Lifetime is a one-time access purchase. Credits are used inside the product and can be purchased separately. Each follows its own entitlement rules, separate from recurring subscriptions.", zh: "Lifetime 是一次性购买的使用权益；积分用于产品内消费，可以单独购买。两者各有对应的权益规则，与周期订阅分开管理。" } }
   ];
@@ -61,20 +76,23 @@ export function ProductPricing() {
           </fieldset>
         </div>
         <div className={styles.planGrid}>
-          {plans.map((plan) => (
-            <article key={plan.slug} className={`${styles.planCard}${plan.slug === "pro" ? ` ${styles.emphasized}` : ""}`} aria-labelledby={`plan-${plan.slug}`}>
-              <div className={styles.planHeading}><h3 id={`plan-${plan.slug}`}>{plan.name}</h3><span className={styles.planLabel}>{t(plan.label)}</span></div>
+          {plans.map((plan) => {
+            const action = subscriptionPlanAction({ plan: plan.slug, interval }, checkout.subscription);
+            const current = action === "current";
+            return <article key={plan.slug} className={`${styles.planCard}${plan.slug === "pro" ? ` ${styles.emphasized}` : ""}${current ? ` ${styles.currentPlan}` : ""}`} aria-labelledby={`plan-${plan.slug}`}>
+              <div className={styles.planHeading}><h3 id={`plan-${plan.slug}`}>{plan.name}</h3><span className={styles.planLabel}>{current ? t({ en: "Current plan", zh: "当前套餐" }) : t(plan.label)}</span></div>
               <p className={styles.planDescription}>{t(plan.description)}</p>
               <div className={styles.priceBlock}>
                 <p className={styles.price}><span className={styles.currency}>US$</span><strong>{yearly ? plan.yearly : plan.monthly}</strong><span className={styles.period}>{yearly ? t({ en: "/ year", zh: "/ 年" }) : t({ en: "/ month", zh: "/ 月" })}</span></p>
                 <p className={styles.priceNote}>{yearly ? t({ en: "One payment, billed every year.", zh: "每年一次付清，按年续费。" }) : t({ en: "Billed monthly. Yearly billing also available.", zh: "按月续费，也可以选择年付。" })}</p>
               </div>
-              <button className={`button${plan.slug === "pro" ? " primary" : ""} ${styles.planButton}`} disabled={checkout.busy} aria-busy={checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval })} onClick={() => checkout.purchase({ product: "subscription", plan: plan.slug, interval })} type="button">{checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <PendingLabel>{t({ en: "Opening checkout…", zh: "正在打开结账…" })}</PendingLabel> : t({ en: `Subscribe to ${plan.name}`, zh: `订阅 ${plan.name}` })}<span aria-hidden="true">→</span></button>
-              <p className={styles.planFootnote}>{t({ en: "Secure payment via Stripe. Review the total before confirming.", zh: "通过 Stripe 安全付款，确认前可核对总金额。" })}</p>
+              <button className={`button${plan.slug === "pro" && !current ? " primary" : ""} ${styles.planButton}`} disabled={subscriptionDisabled || current || action === "lifetime"} aria-busy={checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval })} onClick={() => checkout.purchase({ product: "subscription", plan: plan.slug, interval })} type="button">{checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <PendingLabel>{t(action === "subscribe" ? { en: "Opening checkout…", zh: "正在打开结账…" } : { en: "Loading preview…", zh: "正在获取预览…" })}</PendingLabel> : planActionLabel(action, plan.name)}{!current && action !== "lifetime" ? <span aria-hidden="true">→</span> : null}</button>
+              <p className={styles.planFootnote}>{t(current ? { en: "Your current subscription and billing interval.", zh: "你当前使用的订阅套餐与计费周期。" } : action === "subscribe" ? { en: "Secure payment via Stripe. Review the total before confirming.", zh: "通过 Stripe 安全付款，确认前可核对总金额。" } : { en: "Review the amount and effective date before confirming.", zh: "确认前可核对变更金额与生效时间。" })}</p>
               {pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <CheckoutFeedback failure={checkout.failure} /> : null}
-            </article>
-          ))}
+            </article>;
+          })}
         </div>
+        <ConsoleError error={checkout.accountError} retry={() => void checkout.revalidate()} />
         <div className={styles.sharedTools}>
           <strong>{t({ en: "Your billing workspace", zh: "统一的计费中心" })}</strong>
           <ul>{t({ en: ["Manage your plan", "View invoices", "Manage payment methods"], zh: ["管理订阅套餐", "查看发票记录", "管理付款方式"] }).map((feature) => <li key={feature}><span aria-hidden="true">✓</span>{feature}</li>)}</ul>
@@ -88,7 +106,7 @@ export function ProductPricing() {
               <p className={styles.oneTimePrice}><span>US$</span><strong>999</strong><small>{t({ en: "one time", zh: "一次付清" })}</small></p>
             </div>
             <p>{t({ en: "One purchase for the product’s lifetime access offer, with no recurring billing cycle.", zh: "一次购买，获得产品提供的终身使用权益，无周期性扣费。" })}</p>
-            <button className={`button ${styles.oneTimeButton}`} type="button" disabled={checkout.busy} aria-busy={checkout.busy && checkout.lastIntent?.product === "lifetime"} onClick={() => checkout.purchase({ product: "lifetime" })}>{checkout.busy && checkout.lastIntent?.product === "lifetime" ? <PendingLabel>{t({ en: "Opening checkout…", zh: "正在打开结账…" })}</PendingLabel> : t({ en: "Buy Lifetime", zh: "购买终身方案" })}<span aria-hidden="true">→</span></button>
+            <button className={`button ${styles.oneTimeButton}`} type="button" disabled={checkout.busy || checkout.subscription?.plan === "lifetime"} aria-busy={checkout.busy && checkout.lastIntent?.product === "lifetime"} onClick={() => checkout.purchase({ product: "lifetime" })}>{checkout.busy && checkout.lastIntent?.product === "lifetime" ? <PendingLabel>{t({ en: "Opening checkout…", zh: "正在打开结账…" })}</PendingLabel> : t(checkout.subscription?.plan === "lifetime" ? { en: "Current plan", zh: "当前套餐" } : { en: "Buy Lifetime", zh: "购买终身方案" })}{checkout.subscription?.plan !== "lifetime" ? <span aria-hidden="true">→</span> : null}</button>
             {checkout.lastIntent?.product === "lifetime" ? <CheckoutFeedback failure={checkout.failure} /> : null}
           </article>
           <article className={styles.oneTimeCard}>
@@ -115,6 +133,8 @@ export function ProductPricing() {
         <p><Link href="/terms">{t({ en: "Terms of service", zh: "服务条款" })}</Link><span aria-hidden="true"> · </span><Link href="/contact">{t({ en: "Payment questions? Contact us", zh: "付款有疑问？联系支持" })}</Link></p>
       </section>
       <SignInDialog open={Boolean(checkout.pending)} onClose={checkout.close} onSuccess={checkout.signedIn} returnTo={checkout.returnTo} />
+      {checkout.changeRequest && checkout.token ? <SubscriptionChangeDialog token={checkout.token} subscription={checkout.changeRequest.subscription} offers={checkout.changeRequest.offers} selection={checkout.changeRequest.selection}
+        onSelection={selection => checkout.setChangeRequest(current => current ? { ...current, selection } : null)} onClose={() => checkout.setChangeRequest(null)} onChanged={checkout.revalidate} /> : null}
       <PageSection id="faq" title={t({ en: "A few things to know", zh: "选择前，了解这些" })}>
         <div className={styles.faqGrid}>{notes.map((note) => <article className={styles.faqItem} key={note.title.en}><h3>{t(note.title)}</h3><p>{t(note.body)}</p></article>)}</div>
       </PageSection>

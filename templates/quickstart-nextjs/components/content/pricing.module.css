@@ -375,3 +375,6 @@
 .checkoutFeedback p { margin: 0; }
 .checkoutFeedback :global(.button) { margin-top: 12px; min-height: 36px; background: var(--surface); color: var(--text); font-size: 12px; }
 .checkoutFeedback small { font-size: 11px; }
+.currentPlan { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.currentPlan .planLabel { background: var(--surface-subtle); color: var(--muted-strong); }
+.currentPlan .planButton:disabled { background: var(--surface-subtle); border-color: var(--line); color: var(--muted); opacity: 1; cursor: default; }

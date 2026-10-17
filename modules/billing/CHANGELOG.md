@@ -9,10 +9,17 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Fixed
 
+- Include the Checkout Session ID in paid credit events so hosts can deduplicate
+  one purchase across return confirmation, webhook retries and async events.
+
 - Qualify PostgreSQL subscription snapshot conflict columns so successful Stripe
   webhooks can persist subscription state without an ambiguous-column error.
 
 ### Added
+
+- Optional `CreditsCheckoutReader` capability and Stripe implementation for
+  authenticated payment-return confirmation. Checks settled payment, server-owned
+  product metadata, configured price and actual line-item quantity without charging.
 
 - Optional `CheckoutService.WithObserver` and read-only checkout result facts for
   host-owned checkout history. Observation does not verify payment or change

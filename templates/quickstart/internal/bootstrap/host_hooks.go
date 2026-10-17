@@ -12,6 +12,7 @@ import (
 	referraldomain "github.com/brizenchi/go-modules/modules/referral/domain"
 	referralevent "github.com/brizenchi/go-modules/modules/referral/event"
 	"github.com/brizenchi/quickstart-template/internal/credit"
+	"github.com/brizenchi/quickstart-template/internal/creditpurchase"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 )
 
@@ -99,10 +100,7 @@ func onDisputeUpdated(_ context.Context, _ hostapi.Deps, _ billingevent.Envelope
 }
 
 func onCreditsPurchased(ctx context.Context, deps hostapi.Deps, envelope billingevent.Envelope, event billingevent.CreditsPurchased) error {
-	if event.TotalCredits == 0 {
-		return nil
-	}
-	if err := deps.Credits.GrantCredits(ctx, envelope.UserID, "stripe", envelope.ProviderEventID, event.TotalCredits); err != nil {
+	if err := creditpurchase.New(deps.DB, deps.Credits).Grant(ctx, envelope, event); err != nil {
 		return fmt.Errorf("apply purchased credits: %w", err)
 	}
 	return nil

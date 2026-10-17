@@ -1,0 +1,10 @@
+.summary { margin: 20px 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); }
+.total { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.total > span { color: var(--muted); font-size: 13px; }
+.total > strong { font-size: 28px; font-weight: 650; letter-spacing: -.04em; }
+.note { margin: 20px 0; color: var(--muted-strong); font-size: 13px; line-height: 1.7; }
+.note a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 3px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.feedback { display: grid; gap: 16px; margin-top: 20px; }
+.feedback > a { justify-self: start; }
+@media (max-width: 640px) { .summary { padding: 16px; } }

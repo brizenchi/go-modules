@@ -1,7 +1,7 @@
 # 支付生命周期与验收指南
 
-核对日期：2026-10-12。本文记录已实现的默认规则和上线前需要执行的 Stripe Sandbox 验收。
-本次已执行本地自动化测试和 Stripe Test Clock 的真实订阅 API 验收。
+核对日期：2026-10-17。本文记录已实现的默认规则和上线前需要执行的 Stripe Sandbox 验收。
+本次执行了本地自动化测试；Stripe Test Clock 的真实订阅 API 历史验收记录见第 5.B 节。
 浏览器 Checkout → 本站 Webhook → 用户页面的完整链路，以及 credits / Lifetime 的实际购买仍需按清单验收。
 
 ## 1. 买完在哪里看
@@ -19,6 +19,8 @@
 “已处理”表示事件监听器已成功处理，并不代表所有退款或自定义业务都自动完成。
 
 购买积分不会升级会员；购买订阅或 Lifetime 也不会默认按月赠送积分。
+积分 Checkout 成功后直接返回 `/credits?checkout=success&session_id={CHECKOUT_SESSION_ID}`；页面读取该用户这笔订单的支付事件与积分流水，确认到账后才显示成功并无闪烁地更新余额。未确认时显示待处理，不把“已返回”或“轮询结束”当作到账。取消则返回原语言的价格页并保留积分包数量。订阅和 Lifetime 成功后返回 `/billing`。
+返回时先调用 `POST /api/v1/billing/credit-checkouts/:id/confirmation`，由后端向 Stripe 核对付款状态、归属、SKU 与实际购买数量，再通过公共积分服务幂等发放；后续 `GET /api/v1/billing/credit-checkouts/:id` 只读查询。两者都要求登录和订单归属。已有发放直接返回，不重复查询 Stripe。Webhook、补偿和页面确认以同一 Session 防重，兼容旧事件 ID 流水；页面关闭后仍由 Webhook／补偿完成发放。
 模板已提供后端会员策略与中间件，产品配额和哪些接口收费由宿主接入；见下方接入示例。
 
 ## 2. 当前变更规则
@@ -54,6 +56,7 @@
   或在创建周期订阅后显式安排周期末取消；当前没有默认的“不续费月卡”商品。
 - Lifetime：没有正常到期；退款或拒付后是否撤销权益，需要实现业务策略。
 - 取消续费不会自动退款，也不应顺手清空用户单独购买的 credits。
+- 默认用户操作统一为“取消续费”：本期可继续用，到期后停止后续扣款；不新增现金退款或积分退回入口。
 
 Stripe 的 [取消生命周期](https://docs.stripe.com/billing/subscriptions/cancel) 和
 [订阅 Webhook](https://docs.stripe.com/billing/subscriptions/webhooks) 是联调依据。
@@ -135,10 +138,14 @@ npm run verify
 变更冲突、会员到期边界、欠费与 Lifetime、购买记录越权、补偿租约和分页幂等。
 本地通过不等同于 Stripe 端到端验收。
 
-本次最终模块覆盖率：app 80.5%、Stripe adapter 76.0%、HTTP 52.9%、repo 63.5%、
+2026-10-12 模块覆盖率记录：app 80.5%、Stripe adapter 76.0%、HTTP 52.9%、repo 63.5%、
 eventbus 100%、domain 35.3%，装配包 0%。HTTP、repo、domain 等历史包仍低于
-仓库 70% 要求，本次没有宣称消除了这些原有覆盖缺口。全量 race / vet 和前端 verify 已通过；
+仓库 70% 要求，本次未重新测量覆盖率。全量 race / vet 和前端 verify 已通过；
 macOS 的 SQLite 链接过程有 LC_DYSYMTAB 警告，未导致测试失败。
+
+2026-10-17 新增回归覆盖付款返回的服务器确认、未付款与订单归属校验、
+Webhook／返回确认／补偿及旧版流水之间的重复和并发防重，以及取消续费保留本期权益和已有积分。
+浏览器使用隔离的模拟 API 验证立即到账、待确认和延迟到账；没有创建新的真实付款或 Test Clock。
 
 ### B. 可重复运行的 Stripe 订阅 API 验收
 
@@ -165,6 +172,7 @@ Test Clock、Customer、Subscription。测试通过或失败都会尝试删除�
    一个 credits 一次性 Price、一个 Lifetime 一次性 Price，以及 Customer Portal。
 2. 在后台 `/admin/integrations` 核对实际生效配置。数据库覆盖可能优先于环境变量；
    更换配置后按模板要求重启，不能只改 `.env` 就假定切换成功。
+   **Stripe Webhook 端点必须是 Enabled**；仅创建 URL 或配置 secret 不代表通知已启用。Disabled 时只能依赖定时补偿，可能延迟数分钟。确认端点指向 `/api/v1/stripe/webhook`，并启用本节列出的事件。启用或修改线上端点是独立运维操作，不由测试或构建自动执行。
 3. 本地使用 CLI 转发真实测试事件：
 
 ```bash

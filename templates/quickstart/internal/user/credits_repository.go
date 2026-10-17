@@ -151,6 +151,58 @@ func sameExpiry(a, b *time.Time) bool {
 	return (a == nil && b == nil) || (a != nil && b != nil && a.Equal(*b))
 }
 
+func creditSourceIDs(primary string, aliases []string) ([]string, error) {
+	if len(aliases) > 100 {
+		return nil, ErrInvalidCreditOperation
+	}
+	ids := []string{}
+	seen := map[string]bool{}
+	for _, id := range append([]string{primary}, aliases...) {
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > 255 {
+			return nil, ErrInvalidCreditOperation
+		}
+		if !seen[id] {
+			ids = append(ids, id)
+			seen[id] = true
+		}
+	}
+	return ids, nil
+}
+
+// FindCreditGrant reads immutable grants without expiring lots or changing balances.
+func (r *Repository) FindCreditGrant(ctx context.Context, userID, source string, ids []string) (*CreditTransaction, error) {
+	userID, source = strings.TrimSpace(userID), strings.ToLower(strings.TrimSpace(source))
+	if userID == "" || source == "" || len(ids) == 0 {
+		return nil, ErrInvalidCreditOperation
+	}
+	keys, err := creditSourceIDs(ids[0], ids[1:])
+	if err != nil {
+		return nil, err
+	}
+	var entries []CreditTransaction
+	if err := r.db.WithContext(ctx).Where("user_id = ? AND source = ? AND source_id IN ? AND kind = ? AND amount > ?", userID, source, keys, CreditKindGrant, 0).Order("id ASC").Limit(2).Find(&entries).Error; err != nil {
+		return nil, err
+	}
+	if len(entries) > 1 {
+		return nil, ErrCreditConflict
+	}
+	if len(entries) == 1 {
+		return &entries[0], nil
+	}
+	var archived []CreditGrant
+	if err := r.db.WithContext(ctx).Where("user_id = ? AND source = ? AND source_id IN ? AND amount > ?", userID, source, keys, 0).Order("id ASC").Limit(2).Find(&archived).Error; err != nil {
+		return nil, err
+	}
+	if len(archived) > 1 {
+		return nil, ErrCreditConflict
+	}
+	if len(archived) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &CreditTransaction{UserID: userID, Kind: CreditKindGrant, Amount: archived[0].Amount, Source: source, SourceID: archived[0].SourceID, CreatedAt: archived[0].CreatedAt}, nil
+}
+
 // GrantCredits preserves external webhook idempotency, including records in the
 // pre-ledger user_credit_grants table retained by the explicit migration.
 func (r *Repository) GrantCredits(ctx context.Context, userID, source, sourceID string, delta int64) error {
@@ -182,34 +234,45 @@ func (r *Repository) GrantCreditsWithExpiry(ctx context.Context, in CreditGrantI
 	if !validCreditKey(in.UserID, in.Source, in.SourceID, in.Reason) || len(in.ActorID) > 36 || in.Amount <= 0 || in.Amount > MaxCreditAmount {
 		return nil, ErrInvalidCreditOperation
 	}
+	keys, err := creditSourceIDs(in.SourceID, in.IdempotencyAliases)
+	if err != nil {
+		return nil, err
+	}
 	if in.ExpiresAt != nil {
 		at := in.ExpiresAt.UTC().Truncate(time.Microsecond)
 		in.ExpiresAt = &at
 	}
 	var entry CreditTransaction
-	err := r.withCreditAccount(ctx, in.UserID, func(tx *gorm.DB, account *User) error {
-		err := tx.Where("source = ? AND source_id = ?", in.Source, in.SourceID).Take(&entry).Error
-		if err == nil {
+	err = r.withCreditAccount(ctx, in.UserID, func(tx *gorm.DB, account *User) error {
+		var matches []CreditTransaction
+		if err := tx.Where("source = ? AND source_id IN ?", in.Source, keys).Order("id ASC").Limit(2).Find(&matches).Error; err != nil {
+			return err
+		}
+		if len(matches) > 1 {
+			return ErrCreditConflict
+		}
+		if len(matches) == 1 {
+			entry = matches[0]
 			if entry.UserID != in.UserID || entry.Kind != CreditKindGrant || entry.Amount != in.Amount || entry.Reason != in.Reason || entry.ActorID != in.ActorID || !sameExpiry(entry.ExpiresAt, in.ExpiresAt) {
 				return ErrCreditConflict
 			}
 			return nil
 		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+		var previous []CreditGrant
+		if err := tx.Where("source = ? AND source_id IN ?", in.Source, keys).Order("id ASC").Limit(2).Find(&previous).Error; err != nil {
 			return err
 		}
-		var archived CreditGrant
-		err = tx.Where("source = ? AND source_id = ?", in.Source, in.SourceID).Take(&archived).Error
-		if err == nil {
+		if len(previous) > 1 {
+			return ErrCreditConflict
+		}
+		if len(previous) == 1 {
+			archived := previous[0]
 			if archived.UserID != in.UserID || archived.Amount != in.Amount || in.ExpiresAt != nil || in.ActorID != "" {
 				return ErrCreditConflict
 			}
 			// The old event is already represented in the migrated opening balance.
 			entry = CreditTransaction{UserID: in.UserID, Kind: CreditKindGrant, Amount: archived.Amount, Source: archived.Source, SourceID: archived.SourceID, Reason: "Archived grant included in migrated balance", CreatedAt: archived.CreatedAt, BalanceAfter: account.Credits}
 			return nil
-		}
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
 		}
 		if in.ExpiresAt != nil && !in.ExpiresAt.After(r.creditNow()) {
 			return ErrInvalidCreditOperation

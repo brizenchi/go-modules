@@ -8,7 +8,9 @@ import { type BillingIntent } from "@/lib/billing-intent";
 import { appUrl } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import { localizeHref } from "@/lib/locale";
-import { preparePricingCheckout, pricingCheckoutFailure, pricingPurchaseHref, readPricingPurchase } from "@/lib/pricing-checkout";
+import { preparePricingCheckout, pricingCheckoutFailure, pricingCheckoutURLs, pricingPurchaseHref, readPricingPurchase, type PricingCheckoutResult } from "@/lib/pricing-checkout";
+import { useConsoleResource, useConsoleSession } from "./console-kit";
+import { usePageReturn } from "./use-page-return";
 
 const RESUME_KEY = "go-modules.pricing-purchase";
 export function usePricingCheckout() {
@@ -19,17 +21,24 @@ export function usePricingCheckout() {
   const [returnStatus, setReturnStatus] = useState<CheckoutReturnStatus>(null);
   const [failure, setFailure] = useState<ReturnType<typeof pricingCheckoutFailure> | null>(null);
   const [restored, setRestored] = useState<ReturnType<typeof readPricingPurchase>>(null);
+  const [changeRequest, setChangeRequest] = useState<Extract<PricingCheckoutResult, { kind: "change" }> | null>(null);
+  const { session, ready: sessionReady } = useConsoleSession();
+  const account = useConsoleResource(session?.token || "", getSubscription);
+  const revalidate = account.revalidate;
+  usePageReturn(revalidate);
+  useEffect(() => { setChangeRequest(null); }, [session?.token]);
   const mounted = useRef(false);
   const inFlight = useRef(false);
   const route = localizeHref("/pricing", locale);
 
   const run = useCallback(async function run(intent: BillingIntent, quantity: number, session: AuthSession) {
     if (inFlight.current) return;
-    inFlight.current = true; setBusy(true); setLastIntent(intent); setFailure(null);
+    inFlight.current = true; setBusy(true); setLastIntent(intent); setFailure(null); setPending(null);
     const current = () => mounted.current && readSession()?.token === session.token;
     try {
+      const returnURLs = pricingCheckoutURLs(intent, locale, quantity);
       const result = await preparePricingCheckout(intent, quantity, {
-        success: appUrl(`${route}?checkout=success`), cancel: appUrl(`${route}?checkout=cancelled`)
+        success: appUrl(returnURLs.success), cancel: appUrl(returnURLs.cancel)
       }, readReferralCode(), {
         capabilities: getCapabilities,
         subscription: () => getSubscription(session.token),
@@ -38,11 +47,13 @@ export function usePricingCheckout() {
       });
       if (!current()) return;
       if (result.kind === "checkout") window.location.assign(result.url);
-      else if (result.kind === "manage") setFailure({ messages: { en: "You already have a subscription. Manage or change your plan from your billing page.", zh: "你已有订阅，请在订阅管理中变更套餐或查看待付款状态。" }, requestId: "", manage: true });
+      else if (result.kind === "change") setChangeRequest(result);
+      else if (result.kind === "current") void revalidate();
+      else if (result.kind === "manage") setFailure({ messages: { en: "Review your existing subscription, pending payment or scheduled change in billing first.", zh: "请先在订阅与账单中查看现有订阅、待付款或预约变更。" }, requestId: "", manage: true });
       else if (result.kind === "unavailable") setFailure({ messages: { en: "This offer is not currently available for purchase.", zh: "此商品暂未开放购买，请稍后再试。" }, requestId: "", manage: false });
     } catch (error) { if (current()) setFailure(pricingCheckoutFailure(error)); }
     finally { inFlight.current = false; if (mounted.current) setBusy(false); }
-  }, [route]);
+  }, [locale, revalidate]);
 
   useEffect(() => {
     mounted.current = true;
@@ -76,5 +87,8 @@ export function usePricingCheckout() {
   function signedIn(session: AuthSession) {
     if (pending) void run(pending.intent, pending.quantity, session);
   }
-  return { purchase, close, signedIn, busy, lastIntent, failure, restored, pending, returnStatus, returnTo: pending ? pricingPurchaseHref(pending.intent, locale, pending.quantity) : route };
+  return { purchase, close, signedIn, busy, lastIntent, failure, restored, pending, returnStatus,
+    subscription: account.data, accountError: account.error, accountLoading: !sessionReady || Boolean(session && !account.data && !account.error),
+    revalidate, token: session?.token || "", changeRequest, setChangeRequest,
+    returnTo: pending ? pricingPurchaseHref(pending.intent, locale, pending.quantity) : route };
 }

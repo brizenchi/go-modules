@@ -4,23 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BillingHistory } from "@/components/billing-history";
 import { SignInDialog } from "@/components/sign-in-dialog";
+import { SubscriptionChangeDialog } from "@/components/subscription-change-dialog";
 import { SiteShell } from "@/components/site-shell";
-import { Notice, Panel, DetailRows } from "@/components/ui";
+import { Notice, Panel } from "@/components/ui";
 import { ResourceFailure, SignInRequired } from "@/components/resource-feedback";
 import {
   ApiError,
   cancelSubscription,
   cancelScheduledChange,
-  changeSubscription,
   createBillingPortalSession,
   getCapabilities,
   getMembership,
   getSubscription,
-  previewSubscriptionChange,
   reactivateSubscription,
   type CapabilitiesView,
-  type SubscriptionChangeMode,
-  type SubscriptionPreview,
   type SubscriptionView
 } from "@/lib/api";
 import {
@@ -37,7 +34,7 @@ import {
 import { appEnv } from "@/lib/env";
 import { readBillingIntent, type BillingIntent } from "@/lib/billing-intent";
 import { billingSelectionPath, isBillingIntentAvailable } from "@/lib/billing-selection";
-import { formatCurrencyUSD, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 import { localizeHref } from "@/lib/locale";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -55,7 +52,6 @@ import {
   invalidateRequestGeneration,
   isCurrentRequestGeneration
 } from "@/lib/request-generation";
-import { ResponsiveDialog } from "@/components/responsive-dialog";
 import { ConsoleError, useConsoleResource } from "@/components/console-kit";
 import { usePageReturn } from "@/components/use-page-return";
 import { getCreditBalance } from "@/lib/operations-api";
@@ -93,7 +89,6 @@ export default function BillingPage() {
   const [actionFailure, setActionFailure] = useState<RequestFailure | null>(null);
   const [capabilitiesState, setCapabilitiesState] = useState<ResourceState<CapabilitiesView>>(idleResource());
   const [subscriptionState, setSubscriptionState] = useState<ResourceState<SubscriptionView>>(idleResource());
-  const [previewState, setPreviewState] = useState<ResourceState<SubscriptionPreview>>(idleResource());
   const [plan, setPlan] = useState(defaultPlan);
   const [interval, setInterval] = useState(defaultInterval);
   const [checkoutReturn, setCheckoutReturn] = useState<"success" | "cancelled" | null>(null);
@@ -102,13 +97,11 @@ export default function BillingPage() {
   const capabilitiesGenerationRef = useRef(0);
   const capabilitiesMountedRef = useRef(false);
   const subscriptionGenerationRef = useRef(0);
-  const previewGenerationRef = useRef(0);
   const actionGenerationRef = useRef(0);
   const checkoutRefreshGenerationRef = useRef(0);
   const checkoutRefreshTimerRef = useRef<number | null>(null);
   const cancelTriggerRef = useRef<HTMLButtonElement | null>(null);
   const subscription = subscriptionState.data;
-  const preview = previewState.data;
   const billingCapability = capabilitiesState.data?.billing;
   const subscriptionOffers = billingCapability?.offers.subscriptions || [];
   const availablePlans = useMemo(() => (billingCapability?.offers.subscriptions || []).map(offer => offer.plan), [billingCapability]);
@@ -129,13 +122,6 @@ export default function BillingPage() {
     || (subscriptionState.status === "error"
       && (subscriptionState.failure.kind === "disabled" || subscriptionState.failure.kind === "configuration"));
   const baseActionDisabled = !session || !billingReady || billingDisabled || busy !== "";
-  const selectedOfferConfigured = selectedLifetime
-    ? Boolean(billingCapability?.offers.lifetime)
-    : availableIntervals.includes(interval);
-  const selectionConfigured = billingReady && availablePlans.includes(plan) && selectedOfferConfigured;
-  const previewMatchesSelection = previewState.status === "ready"
-    && previewState.data.target_plan === plan
-    && previewState.data.target_interval === interval;
   const billingCapabilityFailure: RequestFailure | null = capabilitiesState.status === "error"
     ? capabilitiesState.failure
     : capabilitiesState.status === "ready" && !capabilitiesState.data.billing.enabled
@@ -213,26 +199,6 @@ export default function BillingPage() {
   }, [revalidateMembership, revalidateCredits, sessionToken, billingReady, loadBillingState]);
   usePageReturn(updateOnReturn);
 
-  const loadPreviewState = useCallback(async (
-    token: string,
-    targetPlan: string,
-    targetInterval: string
-  ) => {
-    if (readSession()?.token !== token) return;
-    const generation = beginRequestGeneration(previewGenerationRef);
-    setPreviewState(loadingResource());
-    const nextState = await settleResource(
-      previewSubscriptionChange(token, { plan: targetPlan, interval: targetInterval }),
-      "Subscription change preview"
-    );
-    if (
-      readSession()?.token === token
-      && isCurrentRequestGeneration(previewGenerationRef, generation)
-    ) {
-      setPreviewState(nextState);
-    }
-  }, []);
-
   useEffect(() => {
     const syncSession = () => {
       setSession(readSession());
@@ -284,7 +250,6 @@ export default function BillingPage() {
     return () => {
       capabilitiesMountedRef.current = false;
       invalidateRequestGeneration(capabilitiesGenerationRef);
-      invalidateRequestGeneration(previewGenerationRef);
     };
   }, []);
 
@@ -296,9 +261,7 @@ export default function BillingPage() {
     setCancelConfirmOpen(false);
     if (!sessionToken || capabilitiesState.status !== "ready" || !capabilitiesState.data.billing.enabled) {
       invalidateRequestGeneration(subscriptionGenerationRef);
-      invalidateRequestGeneration(previewGenerationRef);
       setSubscriptionState(idleResource());
-      setPreviewState(idleResource());
       return;
     }
     void loadSubscriptionState(sessionToken);
@@ -389,29 +352,6 @@ export default function BillingPage() {
     setInterval(availableIntervals[0]);
   }, [availableIntervals, interval, selectedLifetime, intentRequest]);
 
-  useEffect(() => {
-    if (
-      !plansOpen
-      || !sessionToken
-      || !billingReady
-      || !ongoingRecurringSubscription
-      || hasLifetime
-      || selectedLifetime
-      || !availablePlans.includes(plan)
-      || !availableIntervals.includes(interval)
-    ) {
-      invalidateRequestGeneration(previewGenerationRef);
-      setPreviewState(idleResource());
-      return;
-    }
-
-    void loadPreviewState(sessionToken, plan, interval);
-
-    return () => {
-      invalidateRequestGeneration(previewGenerationRef);
-    };
-  }, [plansOpen, sessionToken, billingReady, ongoingRecurringSubscription, hasLifetime, plan, interval, selectedLifetime, availablePlans, availableIntervals, loadPreviewState]);
-
   async function loadCapabilitiesState() {
     if (!capabilitiesMountedRef.current) return;
     const generation = beginRequestGeneration(capabilitiesGenerationRef);
@@ -436,50 +376,6 @@ export default function BillingPage() {
   function canCommitAction(token: string, generation: number): boolean {
     return readSession()?.token === token
       && isCurrentRequestGeneration(actionGenerationRef, generation);
-  }
-
-  async function handleChangeSubscription() {
-    setFeedbackTarget("plans");
-    if (!session) {
-      setActionFailure(signedOutFailure);
-      return;
-    }
-    const requestToken = session.token;
-    const actionGeneration = beginRequestGeneration(actionGenerationRef);
-    setBusy("change");
-    setActionFailure(null);
-    setStatus("");
-
-    try {
-      const res = await changeSubscription(requestToken, {
-        plan,
-        interval
-      });
-      if (!canCommitAction(requestToken, actionGeneration)) return;
-      setStatus(res.pending_payment
-        ? t({en:"Payment is required before the plan change takes effect.",zh:"套餐尚未变更，请先完成付款。"})
-        : res.scheduled_change
-          ? t({en:"Plan change scheduled for the next period.",zh:"已预约下周期变更套餐。"})
-          : t({en:"Plan updated.",zh:"套餐已更新。"}));
-      await loadBillingState(requestToken);
-    } catch (err) {
-      if (canCommitAction(requestToken, actionGeneration)) handleActionError(err, "Plan change");
-    } finally {
-      if (canCommitAction(requestToken, actionGeneration)) setBusy("");
-    }
-  }
-
-  function changeModeLabel(mode?: SubscriptionChangeMode): string {
-    switch (mode) {
-      case "immediate_reset_cycle":
-        return t({ en: "Immediate switch, restart billing cycle", zh: "立即切换并重新开始计费周期" });
-      case "period_end":
-        return t({ en: "Takes effect next billing cycle", zh: "下个计费周期生效" });
-      case "immediate_prorated":
-        return t({ en: "Immediate switch with proration", zh: "立即切换并按比例结算" });
-      default:
-        return "-";
-    }
   }
 
   async function handleOpenPortal(target: FeedbackTarget = "current") {
@@ -618,11 +514,11 @@ export default function BillingPage() {
         ) : null}
         {checkoutReturn === "success" ? (
           <div className="span-12" role="status">
-            <Notice tone={checkoutRefreshComplete ? "success" : "default"}>
+            <Notice>
               {checkoutRefreshActive
                 ? t({ en: "Checkout completed. We are waiting for payment confirmation and refreshing your billing.", zh: "结账已完成，正在等待付款确认并刷新账单。" })
                 : checkoutRefreshComplete
-                  ? t({ en: "Payment details are up to date. Pending payments will appear after confirmation.", zh: "账单信息已更新，待处理的付款将在确认后显示。" })
+                  ? t({ en: "Check your plan and payment history below. If your purchase is missing, contact support before paying again.", zh: "请查看下方套餐和支付记录。如果购买结果仍未显示，请联系支持，先不要重复付款。" })
                   : session
                     ? t({ en: "Checkout completed. Your billing will refresh shortly.", zh: "结账已完成，账单状态即将自动刷新。" })
                     : t({ en: "You have returned from checkout. Sign in to view the payment result.", zh: "你已返回网站，请登录查看付款结果。" })}
@@ -707,43 +603,10 @@ export default function BillingPage() {
           {actionFeedback("current")}
         </Panel> : null}
 
-        <ResponsiveDialog open={plansOpen && ongoingRecurringSubscription && !hasLifetime} onClose={() => setPlansOpen(false)} dismissible={busy === ""} title={t({ en: "Change plan", zh: "更换套餐" })} closeLabel={t({ en: "Close", zh: "关闭" })}>
-        <div className={styles.purchasePanel}>
-          <div id="subscription-checkout" />
-          <div className="field-grid">
-            <div className="field">
-              <label htmlFor="plan">{t({ en: "Plan", zh: "套餐" })}</label>
-              <select id="plan" value={availablePlans.includes(plan) ? plan : ""} disabled={!billingReady || availablePlans.length === 0 || busy !== ""} onChange={event => changeSelection(event.target.value)}>
-                {!availablePlans.includes(plan) ? <option value="">{availablePlans.length === 0 ? t({ en: "No available plans", zh: "暂无可购买套餐" }) : t({ en: "Choose an available plan", zh: "请选择可用套餐" })}</option> : null}
-                {availablePlans.map(availablePlan => <option value={availablePlan} key={availablePlan}>{planName(availablePlan)}</option>)}
-              </select>
-            </div>
-            {!selectedLifetime ? <div className="field">
-              <label htmlFor="interval">{t({ en: "Billing interval", zh: "计费周期" })}</label>
-              <select id="interval" value={availableIntervals.includes(interval) ? interval : ""} disabled={!billingReady || availableIntervals.length === 0 || busy !== ""} onChange={event => changeSelection(plan, event.target.value)}>
-                {!availableIntervals.includes(interval) ? <option value="">{t({ en: "Choose an available interval", zh: "请选择可用周期" })}</option> : null}
-                {availableIntervals.map(availableInterval => <option value={availableInterval} key={availableInterval}>{intervalName(availableInterval)}</option>)}
-              </select>
-            </div> : null}
-          </div>
-          {!selectionConfigured ? <Notice>{t({ en: "Select an available plan and billing interval to continue.", zh: "请选择可用的套餐与计费周期。" })}</Notice>
-            : previewMatchesSelection && preview ? <div className={styles.orderSummary} aria-live="polite">
-              <div className={styles.orderHeading}><span>{t({ en: "Due now", zh: "当前应付" })}</span><strong>{formatCurrencyUSD(preview.amount_due_now)}</strong></div>
-              <DetailRows rows={[
-                { label: t({ en: "Selected plan", zh: "目标套餐" }), value: `${planName(plan)} · ${intervalName(interval)}` },
-                { label: t({ en: "Change timing", zh: "变更方式" }), value: changeModeLabel(preview.change_mode) },
-                { label: t({ en: "Current period ends", zh: "本期结束" }), value: formatDate(preview.current_period_end, dateLocale) },
-                { label: t({ en: "Next billing date", zh: "下次计费" }), value: formatDate(preview.next_billing_at, dateLocale) }
-              ]} />
-            </div> : previewState.status === "error" ? <ResourceFailure failure={previewState.failure} onRetry={() => void loadPreviewState(sessionToken, plan, interval)} retryLabel={t({ en: "Retry price preview", zh: "重新获取费用预览" })} />
-              : <p className={styles.stateNote} role="status">{t({ en: "Loading the price preview…", zh: "正在获取费用预览…" })}</p>}
-          <div className="button-row">
-            <button className="button primary" disabled={baseActionDisabled || !selectionConfigured || !previewMatchesSelection} onClick={handleChangeSubscription}>{busy === "change" ? t({ en: "Updating…", zh: "更新中…" }) : t({ en: "Confirm plan change", zh: "确认变更套餐" })}</button>
-            <button className="button" type="button" disabled={busy !== ""} onClick={() => setPlansOpen(false)}>{t({ en: "Close", zh: "关闭" })}</button>
-          </div>
-          {actionFeedback("plans")}
-        </div>
-        </ResponsiveDialog>
+        {plansOpen && ongoingRecurringSubscription && !hasLifetime && subscription ? <SubscriptionChangeDialog
+          token={sessionToken} subscription={subscription} offers={subscriptionOffers} selection={{ plan, interval }}
+          onSelection={selection => changeSelection(selection.plan, selection.interval)}
+          onClose={() => setPlansOpen(false)} onChanged={() => loadBillingState(sessionToken, true)} /> : null}
 
         {session ? <BillingHistory key={session.token} token={session.token} revision={historyRevision} invoicesEnabled={billingReady} /> : null}
       </div>

@@ -95,6 +95,43 @@ func TestConcurrentConsumptionCannotOverspend(t *testing.T) {
 	requireBalance(t, repo, account, 0)
 }
 
+func TestCreditGrantAliasesPreserveLegacyKeysAndRejectConflicts(t *testing.T) {
+	r, account := creditTestRepo(t, 0)
+	ctx := t.Context()
+	first, err := r.GrantCreditsWithExpiry(ctx, CreditGrantInput{UserID: account.ID, Source: "stripe", SourceID: "evt_legacy", Amount: 100, Reason: "stripe credit grant"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := CreditGrantInput{UserID: account.ID, Source: "stripe", SourceID: "cs_purchase", IdempotencyAliases: []string{"evt_legacy", "evt_async"}, Amount: 100, Reason: "stripe credit grant"}
+	for range 2 {
+		grant, err := r.GrantCreditsWithExpiry(ctx, in)
+		if err != nil || grant.ID != first.ID {
+			t.Fatalf("legacy replay=%+v error=%v", grant, err)
+		}
+	}
+	requireBalance(t, r, account, 100)
+	if _, err := r.FindCreditGrant(ctx, "other", "stripe", []string{"evt_legacy"}); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("ownership=%v", err)
+	}
+	in.Amount = 200
+	if _, err := r.GrantCreditsWithExpiry(ctx, in); !errors.Is(err, ErrCreditConflict) {
+		t.Fatalf("changed amount=%v", err)
+	}
+	in.Amount = 100
+	in.UserID = "other"
+	if err := r.Create(ctx, &User{ID: "other", Email: "other@example.test"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.GrantCreditsWithExpiry(ctx, in); !errors.Is(err, ErrCreditConflict) {
+		t.Fatalf("cross-owner alias=%v", err)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := r.FindCreditGrant(ctx, account.ID, "stripe", []string{"evt_legacy"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation=%v", err)
+	}
+}
+
 func TestConcurrentSameConsumptionChargesOnce(t *testing.T) {
 	repo, account := creditTestRepo(t, 20)
 	var workers sync.WaitGroup

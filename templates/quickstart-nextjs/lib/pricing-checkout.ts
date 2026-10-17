@@ -3,10 +3,23 @@ import { billingIntentHref, readBillingIntent, type BillingIntent } from "./bill
 import { hasOngoingRecurringSubscription, parseCreditsQuantity, type CheckoutReturnStatus } from "./billing-state";
 import { isBillingIntentAvailable } from "./billing-selection";
 import { localizeHref, type Locale } from "./locale";
+import { subscriptionPlanAction, type SubscriptionSelection } from "./subscription-change";
 
 /** Keep the return marker so billing can quietly wait for server-side fulfillment. */
-export function pricingCheckoutResultHref(status: CheckoutReturnStatus): string {
+export function pricingCheckoutResultHref(status: CheckoutReturnStatus, product?: string, sessionID?: string): string {
+  if (product === "credits") return status === "success"
+    ? `/credits?checkout=success${sessionID ? `&session_id=${encodeURIComponent(sessionID)}` : ""}` : "/credits";
   return status === "success" ? "/billing?checkout=success" : "/billing";
+}
+
+export function pricingCheckoutURLs(intent: BillingIntent, locale: Locale, quantity = 1): { success: string; cancel: string } {
+  const cancel = pricingPurchaseHref(intent, locale, quantity);
+  return {
+    success: intent.product === "credits"
+      ? `${localizeHref("/credits", locale)}?checkout=success&session_id={CHECKOUT_SESSION_ID}`
+      : `${localizeHref("/billing", locale)}?checkout=success`,
+    cancel: cancel.replace("?", "?checkout=cancelled&")
+  };
 }
 
 export function pricingPurchaseHref(intent: BillingIntent, locale: Locale, quantity = 1): string {
@@ -30,7 +43,9 @@ type CheckoutDependencies = {
   create: (payload: CheckoutPayload) => Promise<{ checkout_url: string }>;
   current: () => boolean;
 };
-export type PricingCheckoutResult = { kind: "checkout"; url: string } | { kind: "unavailable" | "manage" | "stale" };
+export type PricingCheckoutResult = { kind: "checkout"; url: string }
+  | { kind: "change"; selection: SubscriptionSelection; subscription: SubscriptionView; offers: CapabilitiesView["billing"]["offers"]["subscriptions"] }
+  | { kind: "unavailable" | "manage" | "stale" | "current" };
 
 export async function preparePricingCheckout(intent: BillingIntent, quantity: number, urls: { success: string; cancel: string }, referralCode: string, deps: CheckoutDependencies): Promise<PricingCheckoutResult> {
   const capabilities = await deps.capabilities();
@@ -39,6 +54,13 @@ export async function preparePricingCheckout(intent: BillingIntent, quantity: nu
   if (intent.product !== "credits") {
     const subscription = await deps.subscription();
     if (!deps.current()) return { kind: "stale" };
+    if (intent.product === "subscription" && hasOngoingRecurringSubscription(subscription)) {
+      const selection = { plan: intent.plan, interval: intent.interval };
+      const action = subscriptionPlanAction(selection, subscription);
+      if (action === "current") return { kind: "current" };
+      if (["upgrade", "downgrade", "interval"].includes(action)) return { kind: "change", selection, subscription, offers: capabilities.billing.offers.subscriptions };
+      return { kind: "manage" };
+    }
     if (subscription.plan === "lifetime" || hasOngoingRecurringSubscription(subscription)) return { kind: "manage" };
   }
   if (intent.product === "credits" && parseCreditsQuantity(String(quantity)) === null) return { kind: "unavailable" };
