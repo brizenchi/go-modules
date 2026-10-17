@@ -3,7 +3,7 @@ import { billingIntentHref, readBillingIntent, type BillingIntent } from "./bill
 import { hasOngoingRecurringSubscription, parseCreditsQuantity, type CheckoutReturnStatus } from "./billing-state";
 import { isBillingIntentAvailable } from "./billing-selection";
 import { localizeHref, type Locale } from "./locale";
-import { subscriptionPlanAction, type SubscriptionSelection } from "./subscription-change";
+import { subscriptionPlanIntent, type SubscriptionSelection } from "./subscription-change";
 
 /** Keep the return marker so billing can quietly wait for server-side fulfillment. */
 export function pricingCheckoutResultHref(status: CheckoutReturnStatus, product?: string, sessionID?: string): string {
@@ -57,7 +57,7 @@ export async function preparePricingCheckout(intent: BillingIntent, quantity: nu
     if (!deps.current()) return { kind: "stale" };
     if (intent.product === "subscription" && hasOngoingRecurringSubscription(subscription)) {
       const selection = { plan: intent.plan, interval: intent.interval };
-      const action = subscriptionPlanAction(selection, subscription);
+      const action = subscriptionPlanIntent(selection, subscription);
       if (action === "current") return { kind: "current" };
       if (["upgrade", "downgrade", "interval"].includes(action)) return { kind: "change", selection, subscription, offers: capabilities.billing.offers.subscriptions };
       return { kind: "manage", subscription };

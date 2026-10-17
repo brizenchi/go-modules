@@ -20,7 +20,7 @@ export function subscriptionRestrictionText(blocker: ReturnType<typeof subscript
   return blocker ? {
     payment: { en: "Complete the pending payment before changing plans.", zh: "完成待付款后，才可更改套餐。" },
     scheduled: { en: "A plan change is already scheduled. Review or cancel it in billing before choosing another plan.", zh: "已有预约变更，请先在账单页查看或撤销，再选择其他套餐。" },
-    cancellation: { en: "Renewal is canceled. Resume renewal in billing before changing plans.", zh: "你已取消续费，恢复续费后可更改套餐。" },
+    cancellation: { en: "Renewal is canceled. Resume renewal before confirming a plan change.", zh: "已取消续费，请先恢复续费，再确认套餐变更。" },
     unavailable: { en: "Your subscription needs attention. Review it in billing before changing plans.", zh: "当前订阅需要处理，请先前往订阅与账单查看。" }
   }[blocker] : null;
 }
@@ -122,6 +122,14 @@ export function changeTimingText(preview: SubscriptionPreview): { label: Text; d
   return {
     label: preview.amount_due_now > 0 ? { en: "After payment confirmation", zh: "付款确认后生效" } : { en: "On confirmation", zh: "确认后生效" },
     detail: { en: "The amount shown includes the adjustment for the remaining time in your current billing period.", zh: "当前应付已包含本期剩余时间的费用调整。" }
+  };
+}
+
+export function changePaymentText(preview: SubscriptionPreview): Text | null {
+  if (preview.change_mode === "period_end" || preview.amount_due_now <= 0) return null;
+  return {
+    en: "Confirming authorizes Stripe to charge your saved payment method. Additional verification may be required.",
+    zh: "确认后，Stripe 将从已保存的付款方式扣款；如需验证，会提示继续付款。"
   };
 }
 

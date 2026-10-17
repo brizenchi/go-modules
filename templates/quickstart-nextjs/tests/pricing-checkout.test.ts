@@ -48,18 +48,22 @@ test("existing paid subscriptions review a plan change without creating another 
  assert.equal((await preparePricingCheckout(intent, 1, urls, "", deps)).kind, "current");
  assert.equal(payloads.length, 0);
 });
-test("blocked subscriptions and lifetime access use management without creating another checkout",async()=>{
+test("existing subscription restrictions do not prevent choosing a target in the change dialog",async()=>{
  for(const subscription of [
   {plan:"pro",status:"incomplete"},
-  {plan:"lifetime",status:"active"},
   {plan:"pro",status:"canceling",billing_cycle:"monthly",cancel_at_period_end:true},
   {plan:"pro",status:"active",billing_cycle:"monthly",pending_payment:{amount_due:100,currency:"usd"}},
   {plan:"pro",status:"active",billing_cycle:"monthly",scheduled_change:{plan:"starter",billing_cycle:"monthly"}}
  ]) {
   const {deps,payloads}=fixture(subscription);
-  assert.equal((await preparePricingCheckout(intent,1,urls,"",deps)).kind,"manage");
+  const result = await preparePricingCheckout(intent,1,urls,"",deps);
+  assert.equal(result.kind,"change");
+  if (result.kind === "change") assert.deepEqual(result.subscription, subscription);
   assert.equal(payloads.length,0);
  }
+ const lifetime=fixture({plan:"lifetime",status:"active"});
+ assert.equal((await preparePricingCheckout(intent,1,urls,"",lifetime.deps)).kind,"manage");
+ assert.equal(lifetime.payloads.length,0);
 });
 test("disabled offers, stale sessions and failed account reads never start checkout",async()=>{
  const {deps,payloads}=fixture();

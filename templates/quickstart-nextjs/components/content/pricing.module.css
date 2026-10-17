@@ -196,8 +196,7 @@
 }
 
 .period,
-.priceNote,
-.planFootnote {
+.priceNote {
   color: var(--muted-strong);
   font-size: 13px;
   line-height: 1.6;
@@ -212,11 +211,6 @@
   width: 100%;
   justify-content: space-between;
   margin-top: auto;
-}
-
-.planFootnote {
-  margin: 12px 0 0;
-  min-height: 21px;
 }
 
 .sharedTools {
@@ -356,7 +350,7 @@
   .planGrid, .oneTimeGrid, .faqGrid { grid-template-columns: minmax(0, 1fr); }
   .planCard, .oneTimeCard { padding: 24px; }
   .planHeading, .oneTimeHeading { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-  .planDescription, .priceNote, .planFootnote { min-height: 0; }
+  .planDescription, .priceNote { min-height: 0; }
   .priceBlock { margin: 22px 0; }
   .sharedTools { padding: 20px 0 0; }
   .sharedTools ul { gap: 12px 16px; }
@@ -398,7 +392,6 @@
 .planDescription { margin-top: 12px; font-size: 13px; }
 .priceBlock { margin: 20px 0; }
 .priceNote { min-height: 0; margin-top: 10px; font-size: 12px; }
-.planFootnote { font-size: 12px; }
 .intervalControl input:disabled + span { opacity: .65; cursor: wait; }
 @media (max-width: 700px) { .page:global(.compact-shell) :global(.hero-grid) { padding-top: 16px; padding-bottom: 24px; } .planDescription { min-height: 0; } .planToolbar { gap: 12px; } }
 

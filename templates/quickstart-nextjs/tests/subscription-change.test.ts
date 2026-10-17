@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SubscriptionPreview, SubscriptionView } from "../lib/api";
-import { subscriptionPlanAction, subscriptionPlanIntent, subscriptionChangeBlocker, canConfirmSubscriptionChange, subscriptionPreviewAmount } from "../lib/subscription-change";
+import { canSelectSubscriptionPlan, resumeRenewalForChange, subscriptionPlanAction, subscriptionPlanIntent, subscriptionChangeBlocker, canConfirmSubscriptionChange, subscriptionPreviewAmount } from "../lib/subscription-change";
 
 const pro: SubscriptionView = { plan: "pro", status: "active", billing_cycle: "monthly" };
 const selection = { plan: "premium", interval: "monthly" };
@@ -107,4 +107,56 @@ test("an invalid price preview cannot enable a payment confirmation", () => {
   assert.equal(canConfirmSubscriptionChange({ ...state, preview: { ...scheduled, amount_due_now: 10 } }), false);
   assert.equal(canConfirmSubscriptionChange({ ...state, preview: { ...scheduled, immediate_charge: true } }), false);
   assert.equal(canConfirmSubscriptionChange({ ...state, preview: { ...preview, effective_at_period_end: true } }), false);
+});
+
+test("a Pro user can select other plans even when a later billing action is restricted", () => {
+  const ready = { busy: false, loading: false, failed: false };
+  for (const current of [pro, { ...pro, status: "canceling", cancel_at_period_end: true },
+    { ...pro, pending_payment: { amount_due: 100, currency: "usd" } },
+    { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }]) {
+    assert.equal(canSelectSubscriptionPlan({ plan: "starter", interval: "monthly" }, current, ready), true);
+    assert.equal(canSelectSubscriptionPlan(selection, current, ready), true);
+    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), true);
+    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "monthly" }, current, ready), false);
+  }
+  assert.equal(canSelectSubscriptionPlan(selection, { plan: "lifetime", status: "active" }, ready), false);
+  for (const state of [{ ...ready, busy: true }, { ...ready, loading: true }, { ...ready, failed: true }]) {
+    assert.equal(canSelectSubscriptionPlan(selection, pro, state), false);
+  }
+});
+
+test("explicit renewal recovery refreshes state without submitting any plan change", async () => {
+  let current = { ...pro, status: "canceling", cancel_at_period_end: true };
+  const calls: string[] = [];
+  const latest = await resumeRenewalForChange({
+    load: async () => { calls.push("read"); return current; },
+    resume: async () => { calls.push("resume"); current = { ...pro, cancel_at_period_end: false }; },
+    current: () => true
+  });
+  assert.deepEqual(calls, ["read", "resume", "read"]);
+  assert.equal(latest?.plan, "pro");
+  assert.equal(latest?.billing_cycle, "monthly");
+  assert.equal(subscriptionChangeBlocker(latest), null);
+});
+
+test("retrying a lost renewal response reads the latest state instead of resubmitting", async () => {
+  let current: SubscriptionView = { ...pro, status: "canceling", cancel_at_period_end: true };
+  let writes = 0;
+  const deps = {
+    load: async () => current,
+    resume: async () => { writes++; current = pro; throw new TypeError("response lost"); },
+    current: () => true
+  };
+  await assert.rejects(resumeRenewalForChange(deps), TypeError);
+  assert.deepEqual(await resumeRenewalForChange(deps), pro);
+  assert.equal(writes, 1);
+});
+
+test("renewal recovery never mutates a stale session or a newer pending payment", async () => {
+  let writes = 0;
+  const pending = { ...pro, pending_payment: { amount_due: 100, currency: "usd" } };
+  const resume = async () => { writes++; };
+  assert.equal(await resumeRenewalForChange({ load: async () => pro, resume, current: () => false }), null);
+  assert.deepEqual(await resumeRenewalForChange({ load: async () => pending, resume, current: () => true }), pending);
+  assert.equal(writes, 0);
 });

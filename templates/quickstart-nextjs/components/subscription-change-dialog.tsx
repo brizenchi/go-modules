@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ApiError, changeSubscription, previewSubscriptionChange, type CapabilitiesView, type SubscriptionView } from "@/lib/api";
+import { ApiError, changeSubscription, getSubscription, reactivateSubscription, previewSubscriptionChange, type CapabilitiesView, type SubscriptionView } from "@/lib/api";
 import { readSession } from "@/lib/auth";
 import { stripeInvoiceURL } from "@/lib/billing-state";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { idleResource, loadingResource, settleResource } from "@/lib/request-state";
-import { canConfirmSubscriptionChange, isValidSubscriptionPreview, subscriptionPlanAction, subscriptionPlanIntent, subscriptionChangeBlocker, subscriptionPreviewAmount, type SubscriptionSelection } from "@/lib/subscription-change";
-import { billingText, changeDialogTitle, changeSubmitText, changeTimingText, changeResultText, subscriptionRestrictionText } from "@/lib/billing-presentation";
+import { canConfirmSubscriptionChange, isValidSubscriptionPreview, resumeRenewalForChange, subscriptionPlanAction, subscriptionPlanIntent, subscriptionChangeBlocker, subscriptionPreviewAmount, type SubscriptionSelection } from "@/lib/subscription-change";
+import { billingText, changeDialogTitle, changeSubmitText, changeTimingText, changePaymentText, changeResultText, subscriptionRestrictionText } from "@/lib/billing-presentation";
 import { useConsoleAction, ConsoleError } from "./console-kit";
 import { BillingFailure } from "./billing-failure";
 import { ResponsiveDialog } from "./responsive-dialog";
@@ -33,14 +33,18 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
   const action = useConsoleAction(token);
   const [preview, setPreview] = useState(idleResource<Awaited<ReturnType<typeof previewSubscriptionChange>>>());
   const [result, setResult] = useState<Awaited<ReturnType<typeof changeSubscription>> | null>(null);
+  const [restored, setRestored] = useState<{ owner: string; base: SubscriptionView; value: SubscriptionView } | null>(null);
+  const [revision, setRevision] = useState(0);
+  const currentSubscription = restored?.owner === token && restored.base === subscription ? restored.value : subscription;
   const generation = useRef(0);
   const { plan, interval } = selection;
   const intervals = offers.find(offer => offer.plan === plan)?.intervals || [];
   const configured = intervals.includes(interval);
-  const choice = subscriptionPlanAction(selection, subscription);
-  const restriction = subscriptionRestrictionText(subscriptionChangeBlocker(subscription));
-  const intent = subscriptionPlanIntent(selection, subscription);
-  const changeable = ["upgrade", "downgrade", "interval"].includes(choice);
+  const choice = subscriptionPlanAction(selection, currentSubscription);
+  const blocker = subscriptionChangeBlocker(currentSubscription);
+  const restriction = subscriptionRestrictionText(blocker);
+  const intent = subscriptionPlanIntent(selection, currentSubscription);
+  const previewable = ["upgrade", "downgrade", "interval"].includes(intent) && (!blocker || blocker === "cancellation");
   const dateLocale = locale === "zh" ? "zh-CN" : "en-US";
   const planName = (value: string) => t(({ starter: { en: "Starter", zh: "入门版" }, pro: { en: "Pro", zh: "专业版" }, premium: { en: "Premium", zh: "高级版" } })[value as "starter" | "pro" | "premium"] || { en: value, zh: value });
   const intervalName = (value: string) => t(value === "yearly" ? { en: "Yearly", zh: "按年" } : { en: "Monthly", zh: "按月" });
@@ -53,24 +57,39 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
   }, [token, plan, interval]);
 
   useEffect(() => {
-    if (configured && changeable) void loadPreview();
+    if (configured && previewable) void loadPreview();
     else setPreview(idleResource());
     const counter = generation;
     return () => { counter.current++; };
-  }, [configured, changeable, loadPreview]);
+  }, [configured, previewable, loadPreview, revision]);
 
   useEffect(() => { setResult(null); }, [token, plan, interval]);
 
   const validPreview = preview.status === "ready" && isValidSubscriptionPreview(preview.data) && preview.data.target_plan === plan && preview.data.target_interval === interval ? preview.data : null;
+  const paymentCopy = validPreview ? changePaymentText(validPreview) : null;
   const ready = configured && Boolean(validPreview) && !result;
   const resultCopy = result ? changeResultText(result) : null;
-  const confirmable = canConfirmSubscriptionChange({ selection, subscription, preview: preview.data, ready, busy: action.busy });
+  const confirmable = canConfirmSubscriptionChange({ selection, subscription: currentSubscription, preview: preview.data, ready, busy: action.busy });
   const pendingError = action.error instanceof ApiError && action.error.reason === "subscription_change_pending";
 
   function confirm() {
     if (!confirmable || readSession()?.token !== token) return;
     void action.run(() => changeSubscription(token, { plan, interval }), saved => {
       setResult(saved);
+      void onChanged();
+    });
+  }
+
+  function resume() {
+    void action.run(() => resumeRenewalForChange({
+      load: () => getSubscription(token), resume: () => reactivateSubscription(token),
+      current: () => readSession()?.token === token
+    }), latest => {
+      if (!latest) return;
+      generation.current++;
+      setRestored({ owner: token, base: subscription, value: latest });
+      setPreview(idleResource());
+      setRevision(value => value + 1);
       void onChanged();
     });
   }
@@ -94,9 +113,10 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
       {result.pending_payment ? stripeInvoiceURL(result.pending_payment.invoice_url)
         ? <a className="button primary" href={stripeInvoiceURL(result.pending_payment.invoice_url)!} target="_blank" rel="noopener noreferrer">{t({ en: "Complete payment", zh: "完成付款" })}</a>
         : <Link className="button" href="/billing">{t({ en: "Review payment", zh: "查看付款" })}</Link> : null}
-    </div> : choice === "current" ? <p className={styles.note} role="status">{t({ en: "This is your current plan and billing interval.", zh: "这是你当前的套餐与计费周期。" })}</p>
+      {resultCopy.state === "updated" ? <Link className="button" href="/billing#history" onClick={onClose}>{t({ en: "View payment history", zh: "查看支付记录" })}</Link> : null}
+    </div> : choice === "current" ? <p className={styles.note} role="status">{t({ en: "Choose another plan or billing interval.", zh: "请选择其他套餐或计费周期。" })}</p>
       : !configured ? <p className={styles.note}>{t({ en: "Choose an available plan and billing interval.", zh: "请选择可用套餐与计费周期。" })}</p>
-        : !changeable ? <p className={styles.note}>{t(restriction || { en: "Review your subscription in billing before choosing another plan.", zh: "请先在订阅与账单中查看当前订阅，再选择其他套餐。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p>
+        : !previewable ? <p className={styles.note}>{t(restriction || { en: "Review your subscription in billing before choosing another plan.", zh: "请先在订阅与账单中查看当前订阅，再选择其他套餐。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p>
           : validPreview ? <div className={styles.summary} aria-live="polite">
             <div className={styles.total}><span>{t({ en: "Due now", zh: "当前应付" })}</span><strong>{subscriptionPreviewAmount(validPreview, dateLocale)}</strong></div>
             <DetailRows rows={[
@@ -106,12 +126,16 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
               { label: t({ en: "Next billing date", zh: "下次计费" }), value: formatDate(validPreview.next_billing_at, dateLocale) }
             ]} />
             <p className={styles.note}>{t(changeTimingText(validPreview).detail)}</p>
+            {paymentCopy ? <p className={styles.note}>{t(paymentCopy)}</p> : null}
           </div> : preview.status === "error" ? <BillingFailure failure={preview.failure} onRetry={() => void loadPreview()} />
             : preview.status === "ready" ? <BillingFailure failure={{ kind: "unavailable", title: "", message: "", retryable: true }} onRetry={() => void loadPreview()} />
               : <p className={styles.note} role="status">{t({ en: "Loading the price preview…", zh: "正在获取费用预览…" })}</p>}
+    {!result && blocker === "cancellation" ? <p className={styles.note} role="status">{t({ en: "Renewal is canceled. Resume renewal for your current plan to continue, then review and confirm this change separately.", zh: "已取消续费。先恢复当前套餐续费，再核对费用并确认变更。" })}</p> : null}
     {pendingError ? <p className={styles.note} role="alert">{t({ en: "Your billing status has changed. Review billing before trying again.", zh: "订阅状态已变更，请先查看账单后重试。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p> : <ConsoleError error={action.error} />}
     <div className={styles.actions}>
-      {!result ? <button className="button primary" type="button" disabled={!confirmable} onClick={confirm}>{action.busy ? t({ en: "Submitting…", zh: "正在提交…" }) : t(changeSubmitText({ choice, configured, phase: preview.status, preview: validPreview, amount: validPreview ? subscriptionPreviewAmount(validPreview, dateLocale) : "" }))}</button> : null}
+      {!result ? blocker === "cancellation"
+        ? <button className="button primary" type="button" disabled={action.busy || !configured} onClick={resume}>{action.busy ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal to continue", zh: "恢复续费并继续" })}</button>
+        : <button className="button primary" type="button" disabled={!confirmable} onClick={confirm}>{action.busy ? t({ en: "Submitting…", zh: "正在提交…" }) : t(changeSubmitText({ choice, configured, phase: preview.status, preview: validPreview, amount: validPreview ? subscriptionPreviewAmount(validPreview, dateLocale) : "" }))}</button> : null}
       <button className="button" type="button" disabled={action.busy} onClick={onClose}>{t(result ? { en: "Done", zh: "完成" } : { en: "Cancel", zh: "取消" })}</button>
     </div>
   </ResponsiveDialog>;

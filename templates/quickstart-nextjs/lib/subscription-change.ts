@@ -32,6 +32,28 @@ export function subscriptionPlanIntent(selection: SubscriptionSelection, current
   return "interval";
 }
 
+/** Selecting a target does not submit a change or override billing restrictions. */
+export function canSelectSubscriptionPlan(selection: SubscriptionSelection, current: SubscriptionView | null, state: { busy: boolean; loading: boolean; failed: boolean }): boolean {
+  return !state.busy && !state.loading && !state.failed
+    && !["current", "lifetime", "manage"].includes(subscriptionPlanIntent(selection, current));
+}
+
+/** Explicitly restore renewal only; a separate reviewed action changes the plan. */
+export async function resumeRenewalForChange(deps: {
+  load: () => Promise<SubscriptionView>;
+  resume: () => Promise<unknown>;
+  current: () => boolean;
+}): Promise<SubscriptionView | null> {
+  const latest = await deps.load();
+  if (!deps.current()) return null;
+  // A retry may follow a lost response after renewal was already restored.
+  if (subscriptionChangeBlocker(latest) !== "cancellation") return latest;
+  await deps.resume();
+  if (!deps.current()) return null;
+  const refreshed = await deps.load();
+  return deps.current() ? refreshed : null;
+}
+
 /** Execution still requires an unrestricted subscription, even when showing a target. */
 export function subscriptionPlanAction(selection: SubscriptionSelection, current: SubscriptionView | null): SubscriptionPlanAction {
   const intent = subscriptionPlanIntent(selection, current);

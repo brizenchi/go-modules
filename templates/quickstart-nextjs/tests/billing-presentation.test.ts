@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SubscriptionPreview, SubscriptionView } from "../lib/api";
-import { billingPrimaryAction, billingPrimaryText, billingText, lifetimePurchaseAction, planActionText, subscriptionRestrictionText, subscriptionStatusText, changeDialogTitle, changeConfirmationText, changeSubmitText, changeTimingText, changeResultText, billingFailureText } from "../lib/billing-presentation";
+import { billingPrimaryAction, billingPrimaryText, billingText, lifetimePurchaseAction, planActionText, subscriptionRestrictionText, subscriptionStatusText, changeDialogTitle, changeConfirmationText, changeSubmitText, changeTimingText, changePaymentText, changeResultText, billingFailureText } from "../lib/billing-presentation";
 import { subscriptionChangeBlocker, subscriptionPlanIntent } from "../lib/subscription-change";
 
 const pro: SubscriptionView = { plan: "pro", status: "active", billing_cycle: "monthly" };
@@ -75,6 +75,18 @@ test("disabled dialog actions explain current selection, billing restrictions, l
   assert.equal(changeSubmitText({ ...state, phase: "error" }).en, "Price unavailable");
   assert.equal(changeSubmitText({ ...state, phase: "ready" }).en, "Price unavailable");
   assert.equal(changeSubmitText({ ...state, phase: "ready", preview, amount: "$45.00" }).en, "Confirm and pay $45.00");
+});
+
+test("immediate paid changes disclose saved-method collection without claiming payment success", () => {
+  for (const change_mode of ["immediate_prorated", "immediate_reset_cycle"] as const) {
+    const copy = changePaymentText({ ...preview, change_mode });
+    assert.match(copy?.en || "", /saved payment method/);
+    assert.match(copy?.zh || "", /已保存的付款方式/);
+    assert.match(copy?.en || "", /verification/);
+    assert.doesNotMatch(copy?.en || "", /paid|successful|completed/i);
+  }
+  assert.equal(changePaymentText({ ...preview, change_mode: "period_end" }), null);
+  assert.equal(changePaymentText({ ...preview, amount_due_now: 0 }), null);
 });
 
 test("billing failures explain user actions instead of infrastructure details", () => {

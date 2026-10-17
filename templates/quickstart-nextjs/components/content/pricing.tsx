@@ -9,7 +9,7 @@ import { pricingIntentMatches, pricingCheckoutFailure, pricingCheckoutResultHref
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { SubscriptionChangeDialog } from "@/components/subscription-change-dialog";
 import { ConsoleError } from "@/components/console-kit";
-import { subscriptionPlanIntent, subscriptionChangeBlocker } from "@/lib/subscription-change";
+import { canSelectSubscriptionPlan, subscriptionPlanIntent, subscriptionChangeBlocker } from "@/lib/subscription-change";
 import { billingText, isEndedSubscription, lifetimePurchaseAction, planActionText, subscriptionRestrictionText } from "@/lib/billing-presentation";
 import { hasOngoingRecurringSubscription } from "@/lib/billing-state";
 import { usePricingCheckout } from "@/components/use-pricing-checkout";
@@ -48,7 +48,9 @@ export function ProductPricing() {
   const lifetimeAction = lifetimePurchaseAction(checkout.subscription);
   const hasLifetime = lifetimeAction === "owned";
   const ongoingSubscription = hasOngoingRecurringSubscription(checkout.subscription);
-  const changeNotice = subscriptionRestrictionText(changeBlocker) || (hasLifetime ? { en: "Lifetime access is active. No recurring subscription is needed.", zh: "终身权益已生效，无需再购买周期订阅。" } : null);
+  const changeNotice = changeBlocker === "cancellation"
+    ? { en: "Renewal is canceled. You can choose a plan and resume renewal in the confirmation dialog.", zh: "已取消续费，仍可选择套餐，并在确认弹窗中恢复续费。" }
+    : subscriptionRestrictionText(changeBlocker) || (hasLifetime ? { en: "Lifetime access is active. No recurring subscription is needed.", zh: "终身权益已生效，无需再购买周期订阅。" } : null);
   const notes = [
     { title: { en: "Is the template free?", zh: "模板本身收费吗？" }, body: { en: "Yes. The starter template is free to use. The prices here demonstrate a product catalog for the SaaS you build with it, and can be adapted to your own product.", zh: "模板免费使用。本页价格用于演示你所构建 SaaS 的商品结构，可以根据自己的产品调整。" } },
     { title: { en: "What happens after I choose a plan?", zh: "选择套餐后会发生什么？" }, body: { en: "New subscriptions continue to Stripe Checkout after sign-in. Existing subscribers review the amount and effective date before confirming a plan or billing interval change.", zh: "新订阅在登录后进入 Stripe 结账。已有订阅则先核对变更金额与生效时间，再确认升级、降级或切换计费周期。" } },
@@ -81,6 +83,9 @@ export function ProductPricing() {
             const current = action === "current";
             const currentTier = ongoingSubscription && checkout.subscription?.plan === plan.slug;
             const currentCycle = checkout.subscription?.billing_cycle;
+            const selectable = canSelectSubscriptionPlan({ plan: plan.slug, interval }, checkout.subscription, {
+              busy: checkout.busy, loading: checkout.accountLoading, failed: Boolean(checkout.accountError)
+            });
             return <article key={plan.slug} className={`${styles.planCard}${plan.slug === "pro" ? ` ${styles.emphasized}` : ""}${current ? ` ${styles.currentPlan}` : ""}`} aria-labelledby={`plan-${plan.slug}`}>
               <div className={styles.planHeading}><h3 id={`plan-${plan.slug}`}>{plan.name}</h3><span className={styles.planLabel}>{current ? t(billingText.current) : currentTier && (currentCycle === "monthly" || currentCycle === "yearly") ? t(currentCycle === "monthly" ? { en: "Current · Monthly", zh: "当前为月付" } : { en: "Current · Yearly", zh: "当前为年付" }) : t(plan.label)}</span></div>
               <p className={styles.planDescription}>{t(plan.description)}</p>
@@ -88,8 +93,7 @@ export function ProductPricing() {
                 <p className={styles.price}><span className={styles.currency}>US$</span><strong>{yearly ? plan.yearly : plan.monthly}</strong><span className={styles.period}>{yearly ? t({ en: "/ year", zh: "/ 年" }) : t({ en: "/ month", zh: "/ 月" })}</span></p>
                 <p className={styles.priceNote}>{yearly ? t({ en: "One payment, billed every year.", zh: "每年一次付清，按年续费。" }) : t({ en: "Billed monthly. Yearly billing also available.", zh: "按月续费，也可以选择年付。" })}</p>
               </div>
-              <button className={`button${plan.slug === "pro" && !current && !changeBlocker && !hasLifetime ? " primary" : ""} ${styles.planButton}`} disabled={subscriptionDisabled || current || action === "lifetime" || Boolean(changeBlocker)} aria-describedby={changeNotice ? "pricing-change-restriction" : undefined} aria-busy={checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval })} onClick={() => checkout.purchase({ product: "subscription", plan: plan.slug, interval })} type="button">{checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <PendingLabel>{t(action === "subscribe" ? { en: "Opening checkout…", zh: "正在打开结账…" } : { en: "Loading preview…", zh: "正在获取预览…" })}</PendingLabel> : checkout.accountLoading ? t(billingText.loading) : t(planActionText(action, plan.name, interval, isEndedSubscription(checkout.subscription)))}{!current && action !== "lifetime" && !changeBlocker && !checkout.accountLoading ? <span aria-hidden="true">→</span> : null}</button>
-              {!checkout.accountLoading && !hasLifetime && (!changeBlocker || current) ? <p className={styles.planFootnote}>{t(current ? { en: "Your current subscription and billing interval.", zh: "你当前使用的订阅套餐与计费周期。" } : action === "subscribe" ? { en: "Secure payment via Stripe. Review the total before confirming.", zh: "通过 Stripe 安全付款，确认前可核对总金额。" } : { en: "Review the amount and effective date before confirming.", zh: "确认前可核对变更金额与生效时间。" })}</p> : null}
+              <button className={`button${plan.slug === "pro" && !current && !hasLifetime ? " primary" : ""} ${styles.planButton}`} disabled={!selectable} aria-describedby={changeNotice ? "pricing-change-restriction" : undefined} aria-busy={checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval })} onClick={() => checkout.purchase({ product: "subscription", plan: plan.slug, interval })} type="button">{checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <PendingLabel>{t(action === "subscribe" ? { en: "Opening checkout…", zh: "正在打开结账…" } : { en: "Loading preview…", zh: "正在获取预览…" })}</PendingLabel> : checkout.accountLoading ? t(billingText.loading) : t(planActionText(action, plan.name, interval, isEndedSubscription(checkout.subscription)))}{!current && action !== "lifetime" && !checkout.accountLoading ? <span aria-hidden="true">→</span> : null}</button>
               {pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <CheckoutFeedback failure={checkout.failure} /> : null}
             </article>;
           })}

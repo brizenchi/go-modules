@@ -37,7 +37,7 @@ export default function CreditsPage() {
             {key:"source",heading:t({en:"Source",zh:"积分来源"}),cell:item=><div className={creditStyles.source}><strong>{t(creditSourceName(item))}</strong>{creditDescription(item) ? <small>{creditDescription(item)}</small> : null}{item.related_transaction_id ? <small>{t({en:`Return of transaction #${item.related_transaction_id}`,zh:`原消费流水 #${item.related_transaction_id}`})}</small> : null}</div>},
             {key:"amount",heading:t({en:"Change",zh:"积分变动"}),align:"end",cell:item=><span className={creditStyles.amount} data-positive={item.amount>0}>{signedCredits(item.amount)}</span>},
             {key:"balance",heading:t({en:"Balance after",zh:"变更后余额"}),align:"end",cell:item=>numberFormat.format(item.balance_after)},
-            {key:"date",heading:t({en:"Date",zh:"时间"}),cell:item=><div className={creditStyles.source}><span>{formatDate(item.created_at,locale==="zh"?"zh-CN":"en-US")}</span><small>#{item.id}</small></div>},
+            {key:"date",heading:t({en:"Date",zh:"时间"}),cell:item=>formatDate(item.created_at,locale==="zh"?"zh-CN":"en-US")},
             {key:"expires",heading:t({en:"Expires",zh:"到期时间"}),cell:item=>item.expires_at ? formatDate(item.expires_at,locale==="zh"?"zh-CN":"en-US") : "—"}
           ]} rows={history.data?.items||[]} rowKey={item=>item.id} loading={history.loading}
           loadingLabel={t({en:"Loading history…",zh:"正在加载明细…"})}
