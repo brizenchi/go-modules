@@ -119,7 +119,7 @@ func TestCheckout_ReusesExistingCustomerID(t *testing.T) {
 }
 
 func TestCheckout_RejectsNewPaidCheckoutWhileSubscriptionIsOngoing(t *testing.T) {
-	for _, productType := range []domain.ProductType{domain.ProductSubscription, domain.ProductLifetime} {
+	for _, productType := range []domain.ProductType{domain.ProductSubscription} {
 		t.Run(string(productType), func(t *testing.T) {
 			prov := newMockProvider()
 			store := newMockCustomerStore(port.Customer{

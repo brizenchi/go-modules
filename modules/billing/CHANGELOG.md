@@ -17,6 +17,11 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Added
 
+- Additive `LifetimeSubscriptionRetirer` provider capability and
+  `WebhookService.WithCustomers` wiring. Verified Lifetime payments stop the
+  superseded recurring contract without refund/proration, preserving retryability
+  before replacing its canonical entitlement.
+
 - Optional `CreditsCheckoutReader` capability and Stripe implementation for
   authenticated payment-return confirmation. Checks settled payment, server-owned
   product metadata, configured price and actual line-item quantity without charging.
@@ -39,6 +44,12 @@ top-level [VERSIONING.md](../../VERSIONING.md).
   when set.
 
 ### Changed
+
+- Allow a full-price Lifetime Checkout alongside a recurring subscription and
+  safely replace that subscription's settled Checkout reservation. Unpaid
+  completed sessions and existing Lifetime ownership remain protected.
+- Apply higher-tier upgrades immediately even when switching from yearly to
+  monthly billing; preview and confirmation use the same prorated/reset policy.
 
 - Fix Stripe schedule creation's incompatible `from_subscription` / `end_behavior`
   parameters and mutually exclusive reactivation parameters. Release completed

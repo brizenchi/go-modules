@@ -53,8 +53,7 @@ export function usePricingCheckout() {
       else if (result.kind === "current") void revalidate();
       else if (result.kind === "manage") setFailure({ messages: result.subscription.plan === "lifetime"
         ? { en: "Lifetime access is already active on your account.", zh: "你的账户已享有终身权益。" }
-        : intent.product === "lifetime" ? { en: "Your current subscription must end before you can buy Lifetime.", zh: "当前订阅结束后，可购买终身方案。" }
-          : subscriptionRestrictionText(subscriptionChangeBlocker(result.subscription)) || { en: "Review your subscription in billing before continuing.", zh: "请先在订阅与账单中查看当前订阅。" }, requestId: "", manage: true });
+        : subscriptionRestrictionText(subscriptionChangeBlocker(result.subscription)) || { en: "Review your subscription in billing before continuing.", zh: "请先在订阅与账单中查看当前订阅。" }, requestId: "", manage: true });
       else if (result.kind === "unavailable") setFailure({ messages: { en: "This offer is not currently available for purchase.", zh: "此商品暂未开放购买，请稍后再试。" }, requestId: "", manage: false });
     } catch (error) { if (current()) setFailure(pricingCheckoutFailure(error)); }
     finally { inFlight.current = false; if (mounted.current) setBusy(false); }

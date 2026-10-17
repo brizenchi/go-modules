@@ -35,6 +35,7 @@ export function subscriptionPlanIntent(selection: SubscriptionSelection, current
 /** Selecting a target does not submit a change or override billing restrictions. */
 export function canSelectSubscriptionPlan(selection: SubscriptionSelection, current: SubscriptionView | null, state: { busy: boolean; loading: boolean; failed: boolean }): boolean {
   return !state.busy && !state.loading && !state.failed
+    && !(hasOngoingRecurringSubscription(current) && current?.plan === selection.plan)
     && !["current", "lifetime", "manage"].includes(subscriptionPlanIntent(selection, current));
 }
 

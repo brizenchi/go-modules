@@ -295,19 +295,18 @@ func resolveChangeMode(current *domain.SubscriptionSnapshot, in domain.Subscript
 	if rankPlan(in.Plan) < rankPlan(current.Plan) {
 		return domain.ChangeModePeriodEnd
 	}
+	if rankPlan(in.Plan) > rankPlan(current.Plan) {
+		if in.Interval != current.Interval {
+			return domain.ChangeModeImmediateResetCycle
+		}
+		return domain.ChangeModeImmediateProrated
+	}
 	// Monthly -> yearly should apply the annual commitment immediately.
 	if current.Interval == domain.IntervalMonthly && in.Interval == domain.IntervalYearly {
 		return domain.ChangeModeImmediateResetCycle
 	}
 	// Yearly -> monthly should not create partial-year refunds by default.
 	if current.Interval == domain.IntervalYearly && in.Interval == domain.IntervalMonthly {
-		return domain.ChangeModePeriodEnd
-	}
-	// Same interval: upgrades are immediate, downgrades wait until period end.
-	if rankPlan(in.Plan) > rankPlan(current.Plan) {
-		return domain.ChangeModeImmediateProrated
-	}
-	if rankPlan(in.Plan) < rankPlan(current.Plan) {
 		return domain.ChangeModePeriodEnd
 	}
 	return domain.ChangeModeImmediateProrated

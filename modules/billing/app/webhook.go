@@ -40,6 +40,14 @@ type WebhookService struct {
 	resolver     port.UserResolver
 	bus          port.EventBus
 	reservations port.CheckoutReservationRepository
+	customers    port.CustomerStore
+}
+
+// WithCustomers enables retirement of an existing recurring subscription after
+// a verified Lifetime purchase. Configure before serving webhook requests.
+func (s *WebhookService) WithCustomers(customers port.CustomerStore) *WebhookService {
+	s.customers = customers
+	return s
 }
 
 func NewWebhookService(p port.Provider, r port.BillingEventRepository, sr port.SubscriptionRepository, ur port.UserResolver, b port.EventBus, reservationRepos ...port.CheckoutReservationRepository) *WebhookService {
@@ -157,6 +165,9 @@ func (s *WebhookService) processParsed(ctx context.Context, parsed *port.Webhook
 		if env.ProviderEventID == "" {
 			env.ProviderEventID = parsed.ProviderEventID
 		}
+		if err := s.retireRecurringForLifetime(ctx, env); err != nil {
+			return nil, err
+		}
 		snapshotApplied, err := s.persistSubscriptionSnapshot(ctx, env)
 		if err != nil {
 			return nil, err
@@ -189,6 +200,32 @@ func (s *WebhookService) processParsed(ctx context.Context, parsed *port.Webhook
 		ProviderEventID: parsed.ProviderEventID,
 		Type:            parsed.Type,
 	}, nil
+}
+
+func (s *WebhookService) retireRecurringForLifetime(ctx context.Context, env event.Envelope) error {
+	activation, ok := env.Payload.(event.SubscriptionActivated)
+	if !ok || env.Kind != event.KindSubscriptionActivated || activation.Snapshot.ProductType != domain.ProductLifetime ||
+		activation.Snapshot.Plan != domain.PlanLifetime || activation.Snapshot.Status != domain.StatusActive || s.customers == nil {
+		return nil
+	}
+	customer, err := s.customers.LoadCustomer(ctx, env.UserID)
+	if err != nil {
+		return fmt.Errorf("billing: load customer for lifetime replacement: %w", err)
+	}
+	if customerLifetimePlan(customer) || customer.ProviderSubscriptionID == "" || subscriptionStatusEnded(customer.SubscriptionStatus) {
+		return nil
+	}
+	if customer.UserID != env.UserID || customer.ProviderCustomerID == "" || customer.ProviderCustomerID != activation.Snapshot.ProviderCustomerID {
+		return fmt.Errorf("%w: lifetime customer mismatch", domain.ErrInvalidInput)
+	}
+	provider, ok := s.provider.(port.LifetimeSubscriptionRetirer)
+	if !ok {
+		return fmt.Errorf("billing: provider cannot retire recurring subscription for lifetime")
+	}
+	if err := provider.RetireSubscriptionForLifetime(ctx, customer.ProviderSubscriptionID, customer.ProviderCustomerID); err != nil {
+		return fmt.Errorf("billing: retire recurring subscription for lifetime: %w", err)
+	}
+	return nil
 }
 
 func terminalSubscriptionID(env event.Envelope) string {

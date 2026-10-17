@@ -97,8 +97,14 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (result 
 	if in.Email == "" {
 		return nil, fmt.Errorf("%w: email required", domain.ErrInvalidInput)
 	}
-	if (in.ProductType == domain.ProductSubscription || in.ProductType == domain.ProductLifetime) && hasConflictingPaidEntitlement(cust) {
+	if (in.ProductType == domain.ProductSubscription && hasConflictingPaidEntitlement(cust)) ||
+		(in.ProductType == domain.ProductLifetime && customerLifetimePlan(cust)) {
 		return nil, domain.ErrSubscriptionCheckoutConflict
+	}
+	if in.ProductType == domain.ProductLifetime && hasConflictingPaidEntitlement(cust) {
+		if _, ok := s.provider.(port.LifetimeSubscriptionRetirer); !ok {
+			return nil, domain.ErrSubscriptionCheckoutConflict
+		}
 	}
 
 	// Prevent duplicate free trials: if the user has ever had a subscription,
@@ -192,7 +198,7 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (result 
 					}
 				}
 				canReplace := recovered == nil || recovered.State == domain.CheckoutSessionExpired || recovered.State == domain.CheckoutSessionFailed
-				if recovered != nil && recovered.State == domain.CheckoutSessionComplete && terminalEntitlementMatchesReservation(cust, reservation) {
+				if recovered != nil && recovered.State == domain.CheckoutSessionComplete && (terminalEntitlementMatchesReservation(cust, reservation) || lifetimeReplacesSettledSubscription(in, cust, reservation, recovered)) {
 					canReplace = true
 				}
 				if !canReplace {
@@ -232,7 +238,7 @@ func (s *CheckoutService) Create(ctx context.Context, in CheckoutInput) (result 
 				}
 			}
 			canReplace := providerSession != nil && (providerSession.State == domain.CheckoutSessionExpired || providerSession.State == domain.CheckoutSessionFailed)
-			if providerSession != nil && providerSession.State == domain.CheckoutSessionComplete && terminalEntitlementMatchesReservation(cust, reservation) {
+			if providerSession != nil && providerSession.State == domain.CheckoutSessionComplete && (terminalEntitlementMatchesReservation(cust, reservation) || lifetimeReplacesSettledSubscription(in, cust, reservation, providerSession)) {
 				canReplace = true
 			}
 			if !canReplace {
@@ -296,6 +302,17 @@ func terminalEntitlementMatchesReservation(customer port.Customer, reservation *
 	default:
 		return false
 	}
+}
+
+// A settled subscription Checkout cannot charge again. Its resulting recurring
+// subscription stays untouched until the separate Lifetime payment succeeds.
+func lifetimeReplacesSettledSubscription(in CheckoutInput, customer port.Customer, reservation *domain.BillingCheckoutReservation, session *domain.CheckoutSessionSnapshot) bool {
+	return in.ProductType == domain.ProductLifetime && !customerLifetimePlan(customer) &&
+		reservation != nil && session != nil && session.State == domain.CheckoutSessionComplete &&
+		(session.PaymentStatus == "paid" || session.PaymentStatus == "no_payment_required") &&
+		customer.ProviderSubscriptionID != "" &&
+		reservation.ProviderSubscriptionID == customer.ProviderSubscriptionID &&
+		session.ProviderSubscriptionID == customer.ProviderSubscriptionID
 }
 
 func checkoutIntentKey(in CheckoutInput) string {

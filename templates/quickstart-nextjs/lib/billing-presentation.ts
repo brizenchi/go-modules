@@ -19,7 +19,7 @@ export const billingText = {
 export function subscriptionRestrictionText(blocker: ReturnType<typeof subscriptionChangeBlocker>): Text | null {
   return blocker ? {
     payment: { en: "Complete the pending payment before changing plans.", zh: "完成待付款后，才可更改套餐。" },
-    scheduled: { en: "A plan change is already scheduled. Review or cancel it in billing before choosing another plan.", zh: "已有预约变更，请先在账单页查看或撤销，再选择其他套餐。" },
+    scheduled: { en: "Cancel the scheduled change before confirming another plan.", zh: "确认其他套餐前，请先撤销当前预约变更。" },
     cancellation: { en: "Renewal is canceled. Resume renewal before confirming a plan change.", zh: "已取消续费，请先恢复续费，再确认套餐变更。" },
     unavailable: { en: "Your subscription needs attention. Review it in billing before changing plans.", zh: "当前订阅需要处理，请先前往订阅与账单查看。" }
   }[blocker] : null;
@@ -29,16 +29,16 @@ export function isEndedSubscription(subscription: SubscriptionView | null): bool
   return Boolean(subscription && !["free", "lifetime", ""].includes(subscription.plan) && !hasOngoingRecurringSubscription(subscription));
 }
 
-export function lifetimePurchaseAction(subscription: SubscriptionView | null): "owned" | "blocked" | "buy" {
-  return subscription?.plan === "lifetime" ? "owned" : hasOngoingRecurringSubscription(subscription) ? "blocked" : "buy";
+export function lifetimePurchaseAction(subscription: SubscriptionView | null): "owned" | "buy" {
+  return subscription?.plan === "lifetime" ? "owned" : "buy";
 }
 
-export function planActionText(action: SubscriptionPlanAction, name: string, interval: string, ended = false): Text {
+export function planActionText(action: SubscriptionPlanAction, name: string, _interval: string, ended = false): Text {
   switch (action) {
     case "current": return billingText.current;
-    case "upgrade": return { en: `Upgrade to ${name}`, zh: `升级至 ${name}` };
-    case "downgrade": return { en: `Downgrade to ${name}`, zh: `降级至 ${name}` };
-    case "interval": return interval === "yearly" ? { en: "Switch to yearly", zh: "改为年付" } : { en: "Switch to monthly", zh: "改为月付" };
+    case "upgrade":
+    case "downgrade":
+    case "interval": return { en: "Change plan", zh: "更改套餐" };
     case "lifetime": return billingText.lifetime;
     case "manage": return billingText.viewBilling;
     default: return ended ? { en: `Resubscribe to ${name}`, zh: `重新订阅 ${name}` } : { en: `Subscribe to ${name}`, zh: `订阅 ${name}` };
@@ -48,10 +48,7 @@ export function planActionText(action: SubscriptionPlanAction, name: string, int
 export function billingPrimaryAction(membershipPlan: string | undefined, subscription: SubscriptionView | null) {
   const action = subscriptionUpgradeAction(membershipPlan, subscription);
   if (action === "loading" || action === "lifetime") return action;
-  if (action === "change") {
-    const blocker = subscriptionChangeBlocker(subscription);
-    return blocker === "cancellation" ? "resume" : blocker === "unavailable" ? "review" : blocker || "change";
-  }
+  if (action === "change") return "change";
   return isEndedSubscription(subscription) ? "resubscribe" : "upgrade";
 }
 
@@ -62,10 +59,6 @@ export function billingPrimaryText(action: ReturnType<typeof billingPrimaryActio
     upgrade: { en: "Upgrade", zh: "升级套餐" },
     resubscribe: { en: "Subscribe again", zh: "重新订阅" },
     change: { en: "Change plan", zh: "更改套餐" },
-    resume: { en: "Resume renewal", zh: "恢复续费" },
-    payment: { en: "Review payment", zh: "处理付款" },
-    scheduled: { en: "Change scheduled", zh: "已有预约变更" },
-    review: { en: "Review subscription", zh: "查看订阅" }
   }[action];
 }
 

@@ -120,6 +120,12 @@ type ScheduledChangeCanceler interface {
 	CancelScheduledChange(ctx context.Context, subscriptionID string) error
 }
 
+// LifetimeSubscriptionRetirer replaces a recurring subscription only after a
+// verified Lifetime payment. It must not refund, prorate or invoice the old plan.
+type LifetimeSubscriptionRetirer interface {
+	RetireSubscriptionForLifetime(ctx context.Context, subscriptionID, customerID string) error
+}
+
 // EventRetriever permits authenticated recovery without bypassing webhook verification.
 type EventRetriever interface {
 	RetrieveEvent(ctx context.Context, id string) (*WebhookParseResult, error)

@@ -62,7 +62,7 @@ export async function preparePricingCheckout(intent: BillingIntent, quantity: nu
       if (["upgrade", "downgrade", "interval"].includes(action)) return { kind: "change", selection, subscription, offers: capabilities.billing.offers.subscriptions };
       return { kind: "manage", subscription };
     }
-    if (subscription.plan === "lifetime" || hasOngoingRecurringSubscription(subscription)) return { kind: "manage", subscription };
+    if (subscription.plan === "lifetime") return { kind: "manage", subscription };
   }
   if (intent.product === "credits" && parseCreditsQuantity(String(quantity)) === null) return { kind: "unavailable" };
   const payload: CheckoutPayload = {

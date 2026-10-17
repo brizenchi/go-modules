@@ -15,13 +15,13 @@ test("billing primary actions match free, ended, active, restricted and lifetime
     ["free", { ...pro, status: "incomplete_expired" }, "resubscribe"],
     ["pro", pro, "change"],
     ["premium", { ...pro, plan: "premium", status: "trialing" }, "change"],
-    ["pro", { ...pro, status: "canceling" }, "resume"],
-    ["pro", { ...pro, cancel_at_period_end: true }, "resume"],
-    ["pro", { ...pro, effective_cancel_at: "2026-11-01T00:00:00Z" }, "resume"],
-    ["pro", { ...pro, status: "past_due" }, "payment"],
-    ["pro", { ...pro, pending_payment: { amount_due: 100, currency: "usd" } }, "payment"],
-    ["pro", { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }, "scheduled"],
-    ["pro", { ...pro, status: "paused" }, "review"],
+    ["pro", { ...pro, status: "canceling" }, "change"],
+    ["pro", { ...pro, cancel_at_period_end: true }, "change"],
+    ["pro", { ...pro, effective_cancel_at: "2026-11-01T00:00:00Z" }, "change"],
+    ["pro", { ...pro, status: "past_due" }, "change"],
+    ["pro", { ...pro, pending_payment: { amount_due: 100, currency: "usd" } }, "change"],
+    ["pro", { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }, "change"],
+    ["pro", { ...pro, status: "paused" }, "change"],
     ["lifetime", null, "lifetime"],
     ["lifetime", { plan: "free", status: "inactive" }, "lifetime"]
   ];
@@ -36,9 +36,9 @@ test("pricing distinguishes resubscription from renewal recovery and exact billi
   assert.equal(planActionText("subscribe", "Pro", "monthly", true).en, "Resubscribe to Pro");
   assert.equal(planActionText("subscribe", "Pro", "monthly").zh, "订阅 Pro");
   assert.equal(subscriptionPlanIntent({ plan: "pro", interval: "monthly" }, pro), "current");
-  assert.equal(planActionText(subscriptionPlanIntent({ plan: "pro", interval: "yearly" }, pro), "Pro", "yearly").en, "Switch to yearly");
+  assert.equal(planActionText(subscriptionPlanIntent({ plan: "pro", interval: "yearly" }, pro), "Pro", "yearly").en, "Change plan");
   for (const current of [pro, { ...pro, status: "canceling" }, { ...pro, pending_payment: { amount_due: 100, currency: "usd" } }]) {
-    assert.equal(planActionText(subscriptionPlanIntent({ plan: "starter", interval: "monthly" }, current), "Starter", "monthly").en, "Downgrade to Starter");
+    assert.equal(planActionText(subscriptionPlanIntent({ plan: "starter", interval: "monthly" }, current), "Starter", "monthly").en, "Change plan");
   }
 });
 
@@ -99,10 +99,10 @@ test("billing failures explain user actions instead of infrastructure details", 
   }
 });
 
-test("Lifetime protects existing access and prevents a conflicting recurring purchase", () => {
+test("Lifetime is available at full price alongside a recurring subscription", () => {
   assert.equal(lifetimePurchaseAction({ plan: "lifetime", status: "active" }), "owned");
   for (const status of ["active", "trialing", "canceling", "past_due", "incomplete"]) {
-    assert.equal(lifetimePurchaseAction({ ...pro, status }), "blocked", status);
+    assert.equal(lifetimePurchaseAction({ ...pro, status }), "buy", status);
   }
   for (const status of ["canceled", "expired", "ended", "incomplete_expired"]) {
     assert.equal(lifetimePurchaseAction({ ...pro, status }), "buy", status);

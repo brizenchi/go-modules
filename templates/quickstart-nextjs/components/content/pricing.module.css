@@ -1,13 +1,12 @@
 .planToolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
 }
 
-.catalogNote,
 .purchaseNote {
   margin: 0;
   color: var(--muted-strong);
@@ -81,32 +80,6 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-}
-
-.subscriptionNotice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px 24px;
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-
-.subscriptionNotice p {
-  margin: 0;
-  color: var(--muted-strong);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.subscriptionNotice :global(.button) {
-  min-height: 36px;
-  flex-shrink: 0;
-  font-size: 13px;
 }
 
 .returnNotice { margin: 20px 0; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); font-size: 13px; line-height: 1.7; }

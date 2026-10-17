@@ -374,6 +374,32 @@ func TestCrossIntervalDowngradePreservesPaidTier(t *testing.T) {
 	}
 }
 
+func TestTierUpgradesTakeEffectImmediatelyAcrossBillingIntervals(t *testing.T) {
+	for _, currentInterval := range []domain.BillingInterval{domain.IntervalMonthly, domain.IntervalYearly} {
+		for _, interval := range []domain.BillingInterval{domain.IntervalMonthly, domain.IntervalYearly} {
+			provider := newMockProvider()
+			provider.subSnapshot = &domain.SubscriptionSnapshot{Plan: domain.PlanPro, Interval: currentInterval, Status: domain.StatusActive}
+			service := NewSubscriptionService(provider, newMockCustomerStore(port.Customer{UserID: "u1", ProviderCustomerID: "cus_x", ProviderSubscriptionID: "sub_x"}), newMockBus())
+			selection := domain.SubscriptionChangeInput{Plan: domain.PlanPremium, Interval: interval}
+			result, err := service.Change(t.Context(), "u1", selection)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := domain.ChangeModeImmediateProrated
+			if currentInterval != interval {
+				want = domain.ChangeModeImmediateResetCycle
+			}
+			if result.Mode != want || provider.changeCalls != 1 || provider.scheduleCalls != 0 {
+				t.Fatalf("upgrade %s -> %s mode=%s, want %s", currentInterval, interval, result.Mode, want)
+			}
+			preview, err := service.PreviewChange(t.Context(), "u1", domain.SubscriptionPreviewInput(selection))
+			if err != nil || preview.Mode != want {
+				t.Fatalf("preview mode disagrees with confirmation: %+v, %v", preview, err)
+			}
+		}
+	}
+}
+
 type cancelScheduleTestProvider struct {
 	*mockProvider
 	id string

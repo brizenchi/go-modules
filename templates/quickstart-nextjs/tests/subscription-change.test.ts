@@ -116,7 +116,7 @@ test("a Pro user can select other plans even when a later billing action is rest
     { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }]) {
     assert.equal(canSelectSubscriptionPlan({ plan: "starter", interval: "monthly" }, current, ready), true);
     assert.equal(canSelectSubscriptionPlan(selection, current, ready), true);
-    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), true);
+    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), false);
     assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "monthly" }, current, ready), false);
   }
   assert.equal(canSelectSubscriptionPlan(selection, { plan: "lifetime", status: "active" }, ready), false);

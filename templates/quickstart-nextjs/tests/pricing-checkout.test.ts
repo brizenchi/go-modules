@@ -79,6 +79,14 @@ test("credit checkout validates quantity and does not require an absent recurrin
  assert.equal((await preparePricingCheckout({product:"credits"},0,urls,"",deps)).kind,"unavailable");
  assert.equal(payloads.length,1);
 });
+test("Pro can buy Lifetime through a full one-time Checkout without changing its current subscription", async () => {
+ const {deps,payloads}=fixture({plan:"pro",status:"active",billing_cycle:"monthly"});
+ assert.equal((await preparePricingCheckout({product:"lifetime"},1,urls,"",deps)).kind,"checkout");
+ assert.deepEqual(payloads,[{product_type:"lifetime",success_url:urls.success,cancel_url:urls.cancel}]);
+ const owned=fixture({plan:"lifetime",status:"active"});
+ assert.equal((await preparePricingCheckout({product:"lifetime"},1,urls,"",owned.deps)).kind,"manage");
+ assert.equal(owned.payloads.length,0);
+});
 test("OAuth destinations retain the selected plan and language and reject invalid quantities",()=>{
  assert.equal(pricingPurchaseHref(intent,"zh"),"/zh/pricing?product=subscription&plan=pro&interval=yearly#plans");
  assert.deepEqual(readPricingPurchase("?product=credits&quantity=3"),{intent:{product:"credits"},quantity:3});

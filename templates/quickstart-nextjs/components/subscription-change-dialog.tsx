@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { ApiError, changeSubscription, getSubscription, reactivateSubscription, previewSubscriptionChange, type CapabilitiesView, type SubscriptionView } from "@/lib/api";
+import { ApiError, cancelScheduledChange, changeSubscription, createBillingPortalSession, getSubscription, reactivateSubscription, previewSubscriptionChange, type CapabilitiesView, type SubscriptionView } from "@/lib/api";
 import { readSession } from "@/lib/auth";
 import { stripeInvoiceURL } from "@/lib/billing-state";
 import { formatDate } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { appEnv } from "@/lib/env";
+import { removeScheduledChangeForSelection } from "@/lib/subscription-management";
 import { idleResource, loadingResource, settleResource } from "@/lib/request-state";
 import { canConfirmSubscriptionChange, isValidSubscriptionPreview, resumeRenewalForChange, subscriptionPlanAction, subscriptionPlanIntent, subscriptionChangeBlocker, subscriptionPreviewAmount, type SubscriptionSelection } from "@/lib/subscription-change";
 import { billingText, changeDialogTitle, changeSubmitText, changeTimingText, changePaymentText, changeResultText, subscriptionRestrictionText } from "@/lib/billing-presentation";
@@ -33,9 +35,9 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
   const action = useConsoleAction(token);
   const [preview, setPreview] = useState(idleResource<Awaited<ReturnType<typeof previewSubscriptionChange>>>());
   const [result, setResult] = useState<Awaited<ReturnType<typeof changeSubscription>> | null>(null);
-  const [restored, setRestored] = useState<{ owner: string; base: SubscriptionView; value: SubscriptionView } | null>(null);
+  const [refreshed, setRefreshed] = useState<{ owner: string; base: SubscriptionView; value: SubscriptionView } | null>(null);
   const [revision, setRevision] = useState(0);
-  const currentSubscription = restored?.owner === token && restored.base === subscription ? restored.value : subscription;
+  const currentSubscription = refreshed?.owner === token && refreshed.base === subscription ? refreshed.value : subscription;
   const generation = useRef(0);
   const { plan, interval } = selection;
   const intervals = offers.find(offer => offer.plan === plan)?.intervals || [];
@@ -71,6 +73,7 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
   const resultCopy = result ? changeResultText(result) : null;
   const confirmable = canConfirmSubscriptionChange({ selection, subscription: currentSubscription, preview: preview.data, ready, busy: action.busy });
   const pendingError = action.error instanceof ApiError && action.error.reason === "subscription_change_pending";
+  const paymentURL = stripeInvoiceURL(currentSubscription.pending_payment?.invoice_url);
 
   function confirm() {
     if (!confirmable || readSession()?.token !== token) return;
@@ -80,17 +83,32 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
     });
   }
 
+  function acceptSnapshot(latest: SubscriptionView | null) {
+    if (!latest) return;
+    generation.current++;
+    setRefreshed({ owner: token, base: subscription, value: latest });
+    setPreview(idleResource());
+    setRevision(value => value + 1);
+    void onChanged();
+  }
+
   function resume() {
     void action.run(() => resumeRenewalForChange({
       load: () => getSubscription(token), resume: () => reactivateSubscription(token),
       current: () => readSession()?.token === token
-    }), latest => {
-      if (!latest) return;
-      generation.current++;
-      setRestored({ owner: token, base: subscription, value: latest });
-      setPreview(idleResource());
-      setRevision(value => value + 1);
-      void onChanged();
+    }), acceptSnapshot);
+  }
+
+  function removeSchedule() {
+    void action.run(() => removeScheduledChangeForSelection({
+      load: () => getSubscription(token), removeSchedule: () => cancelScheduledChange(token),
+      current: () => readSession()?.token === token
+    }), acceptSnapshot);
+  }
+
+  function openPaymentSettings() {
+    void action.run(() => createBillingPortalSession(token, `${appEnv.appUrl}/billing`), saved => {
+      window.location.href = saved.url;
     });
   }
 
@@ -114,6 +132,13 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
         ? <a className="button primary" href={stripeInvoiceURL(result.pending_payment.invoice_url)!} target="_blank" rel="noopener noreferrer">{t({ en: "Complete payment", zh: "完成付款" })}</a>
         : <Link className="button" href="/billing">{t({ en: "Review payment", zh: "查看付款" })}</Link> : null}
       {resultCopy.state === "updated" ? <Link className="button" href="/billing#history" onClick={onClose}>{t({ en: "View payment history", zh: "查看支付记录" })}</Link> : null}
+    </div> : blocker === "scheduled" && currentSubscription.scheduled_change ? <div className={styles.feedback}>
+      <p className={styles.note}>{planName(currentSubscription.scheduled_change.plan)} · {intervalName(currentSubscription.scheduled_change.billing_cycle)} · {formatDate(currentSubscription.scheduled_change.effective_at, dateLocale)}</p>
+      <p className={styles.note}>{t(restriction!)}</p>
+    </div> : blocker === "payment" || blocker === "unavailable" ? <div className={styles.feedback}>
+      <p className={styles.note}>{t(restriction!)}</p>
+      {paymentURL ? <a className="button primary" href={paymentURL} target="_blank" rel="noopener noreferrer">{t({ en: "Complete payment", zh: "完成付款" })}</a>
+        : <button className="button primary" disabled={action.busy} onClick={openPaymentSettings}>{action.busy ? t({ en: "Opening…", zh: "正在打开…" }) : t({ en: "Review billing", zh: "处理账单" })}</button>}
     </div> : choice === "current" ? <p className={styles.note} role="status">{t({ en: "Choose another plan or billing interval.", zh: "请选择其他套餐或计费周期。" })}</p>
       : !configured ? <p className={styles.note}>{t({ en: "Choose an available plan and billing interval.", zh: "请选择可用套餐与计费周期。" })}</p>
         : !previewable ? <p className={styles.note}>{t(restriction || { en: "Review your subscription in billing before choosing another plan.", zh: "请先在订阅与账单中查看当前订阅，再选择其他套餐。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p>
@@ -133,7 +158,9 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
     {!result && blocker === "cancellation" ? <p className={styles.note} role="status">{t({ en: "Renewal is canceled. Resume renewal for your current plan to continue, then review and confirm this change separately.", zh: "已取消续费。先恢复当前套餐续费，再核对费用并确认变更。" })}</p> : null}
     {pendingError ? <p className={styles.note} role="alert">{t({ en: "Your billing status has changed. Review billing before trying again.", zh: "订阅状态已变更，请先查看账单后重试。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p> : <ConsoleError error={action.error} />}
     <div className={styles.actions}>
-      {!result ? blocker === "cancellation"
+      {!result && blocker !== "payment" && blocker !== "unavailable" ? blocker === "scheduled"
+        ? <button className="button primary" type="button" disabled={action.busy} onClick={removeSchedule}>{action.busy ? t({ en: "Removing…", zh: "撤销中…" }) : t({ en: "Cancel scheduled change", zh: "撤销预约变更" })}</button>
+        : blocker === "cancellation"
         ? <button className="button primary" type="button" disabled={action.busy || !configured} onClick={resume}>{action.busy ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal to continue", zh: "恢复续费并继续" })}</button>
         : <button className="button primary" type="button" disabled={!confirmable} onClick={confirm}>{action.busy ? t({ en: "Submitting…", zh: "正在提交…" }) : t(changeSubmitText({ choice, configured, phase: preview.status, preview: validPreview, amount: validPreview ? subscriptionPreviewAmount(validPreview, dateLocale) : "" }))}</button> : null}
       <button className="button" type="button" disabled={action.busy} onClick={onClose}>{t(result ? { en: "Done", zh: "完成" } : { en: "Cancel", zh: "取消" })}</button>

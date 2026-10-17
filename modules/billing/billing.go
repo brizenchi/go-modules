@@ -70,7 +70,7 @@ func New(d Deps) *Module {
 	reservations, _ := d.Customers.(port.CheckoutReservationRepository)
 	checkout := app.NewCheckoutService(d.Provider, d.Customers, d.ReturnURLValidator)
 	subs := app.NewSubscriptionService(d.Provider, d.Customers, d.Bus, d.ReturnURLValidator)
-	webhook := app.NewWebhookService(d.Provider, d.EventRepo, d.Subscriptions, d.UserResolver, d.Bus, reservations)
+	webhook := app.NewWebhookService(d.Provider, d.EventRepo, d.Subscriptions, d.UserResolver, d.Bus, reservations).WithCustomers(d.Customers)
 	query := app.NewQueryService(d.Provider, d.Customers)
 
 	handler := httpapi.NewHandler(httpapi.Deps{
