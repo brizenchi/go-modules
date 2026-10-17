@@ -344,7 +344,7 @@ export default function BillingPage() {
         }
 
         setCheckoutRefreshActive(true);
-        await loadBillingState(sessionToken);
+        await loadBillingState(sessionToken, true);
         if (
           readSession()?.token !== sessionToken
           || !isCurrentRequestGeneration(checkoutRefreshGenerationRef, generation)

@@ -5,7 +5,7 @@ import { LocalizedLink as Link } from "@/components/localized-link";
 import { SiteShell } from "@/components/site-shell";
 import { DetailRows, PageSection } from "@/components/ui";
 import { PendingLabel } from "@/components/pending-label";
-import { pricingIntentMatches, pricingCheckoutFailure } from "@/lib/pricing-checkout";
+import { pricingIntentMatches, pricingCheckoutFailure, pricingCheckoutResultHref } from "@/lib/pricing-checkout";
 import { SignInDialog } from "@/components/sign-in-dialog";
 import { usePricingCheckout } from "@/components/use-pricing-checkout";
 import { appEnv } from "@/lib/env";
@@ -50,7 +50,7 @@ export function ProductPricing() {
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { label: t({ en: "Pricing", zh: "价格" }) }]}
       toc={[{ id: "plans", label: t({ en: "Subscriptions", zh: "订阅套餐" }) }, { id: "one-time", label: t({ en: "One-time purchases", zh: "一次性购买" }) }, { id: "faq", label: t({ en: "Common questions", zh: "常见问题" }) }]}>
       {appEnv.demoMode ? <div className="notice info"><strong>{t({ en: "Payment demo", zh: "支付演示" })}</strong><p>{t({ en: "This demo is intended for Stripe test payments. Registration and invitation records are real. Follow the overview’s test walkthrough before trying Checkout.", zh: "此演示用于体验 Stripe 测试支付，注册与邀请记录是真实的。进入 Checkout 前，可以先查看总览中的测试说明。" })} <Link href="/#test-payment">{t({ en: "Open the walkthrough →", zh: "查看体验说明 →" })}</Link></p></div> : null}
-      {checkout.returnStatus ? <div className={styles.checkoutFeedback} role="status"><p>{checkout.returnStatus === "success" ? t({ en: "You have returned from Checkout. Check your subscription and order history to confirm the payment result.", zh: "你已从结账页返回，请查看订阅与订单记录确认付款结果。" }) : t({ en: "You have returned to pricing. You can choose another plan or retry checkout.", zh: "你已返回价格页，可以重新选择套餐或再次打开结账。" })}</p>{checkout.returnStatus === "success" ? <Link className="button" href="/billing">{t({ en: "View purchase result", zh: "查看购买结果" })}</Link> : null}</div> : null}
+      {checkout.returnStatus ? <div className={styles.checkoutFeedback} role="status"><p>{checkout.returnStatus === "success" ? t({ en: "You have returned from Checkout. Check your subscription and order history to confirm the payment result.", zh: "你已从结账页返回，请查看订阅与订单记录确认付款结果。" }) : t({ en: "You have returned to pricing. You can choose another plan or retry checkout.", zh: "你已返回价格页，可以重新选择套餐或再次打开结账。" })}</p>{checkout.returnStatus === "success" ? <Link className="button" href={pricingCheckoutResultHref(checkout.returnStatus)}>{t({ en: "View purchase result", zh: "查看购买结果" })}</Link> : null}</div> : null}
       <PageSection id="plans" title={t({ en: "Choose your subscription", zh: "选择你的订阅" })} description={t({ en: "Three tiers. One place to manage your subscription.", zh: "三种订阅等级，都可以在计费中心统一管理。" })}>
         <div className={styles.planToolbar}>
           <p className={styles.catalogNote}>{t({ en: "Example prices · USD", zh: "示例价格 · 美元计价" })}</p>

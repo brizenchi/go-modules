@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ApiError, type CapabilitiesView, type CheckoutPayload, type SubscriptionView } from "../lib/api";
-import { preparePricingCheckout, pricingPurchaseHref, readPricingPurchase, pricingCheckoutFailure } from "../lib/pricing-checkout";
+import { preparePricingCheckout, pricingPurchaseHref, readPricingPurchase, pricingCheckoutFailure, pricingCheckoutResultHref } from "../lib/pricing-checkout";
+import { checkoutReturnStatus } from "../lib/billing-state";
 
 const capabilities: CapabilitiesView = { account: { enabled: true }, referral: { enabled: true }, billing: { enabled: true, provider: "stripe", offers: { subscriptions: [{ plan: "pro", intervals: ["monthly", "yearly"] }], lifetime: true, credits: true } } };
 const intent = { product: "subscription", plan: "pro", interval: "yearly" } as const;
 const urls = { success: "https://example.test/zh/pricing?checkout=success", cancel: "https://example.test/zh/pricing?checkout=cancelled" };
+
+test("the pricing purchase-result link starts billing confirmation after checkout", () => {
+ const destination = new URL(pricingCheckoutResultHref("success"), "https://example.test");
+ assert.equal(destination.pathname, "/billing");
+ assert.equal(checkoutReturnStatus(destination.search), "success");
+ for (const status of [null, "cancelled"] as const) {
+  assert.equal(checkoutReturnStatus(new URL(pricingCheckoutResultHref(status), "https://example.test").search), null);
+ }
+});
 function fixture(subscription: SubscriptionView = {plan:"free",status:"inactive"}) {
   const payloads: CheckoutPayload[] = [];
   const deps = { capabilities: async () => capabilities, subscription: async () => subscription, create: async (payload: CheckoutPayload) => { payloads.push(payload); return { checkout_url: "https://checkout.stripe.com/c/pay/cs_test_not-a-real-session" }; }, current: () => true };

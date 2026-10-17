@@ -1,8 +1,13 @@
 import { ApiError, type CapabilitiesView, type CheckoutPayload, type SubscriptionView } from "./api";
 import { billingIntentHref, readBillingIntent, type BillingIntent } from "./billing-intent";
-import { hasOngoingRecurringSubscription, parseCreditsQuantity } from "./billing-state";
+import { hasOngoingRecurringSubscription, parseCreditsQuantity, type CheckoutReturnStatus } from "./billing-state";
 import { isBillingIntentAvailable } from "./billing-selection";
 import { localizeHref, type Locale } from "./locale";
+
+/** Keep the return marker so billing can quietly wait for server-side fulfillment. */
+export function pricingCheckoutResultHref(status: CheckoutReturnStatus): string {
+  return status === "success" ? "/billing?checkout=success" : "/billing";
+}
 
 export function pricingPurchaseHref(intent: BillingIntent, locale: Locale, quantity = 1): string {
   const selection = new URL(billingIntentHref(intent), "https://example.test");
