@@ -16,23 +16,16 @@ host.welcome_email.enabled → APP_HOST_WELCOME_EMAIL_ENABLED
 
 密钥只放环境变量或未提交的 `.env`；非敏感默认值放 YAML。
 
-历史版本可能在 `service_provider_settings` 保存了服务配置，此时整个服务的数据库快照
-会覆盖上述部署配置。Stripe 可以显式迁回部署配置：
+Stripe 固定使用部署配置，遵循上述优先级，不提供配置来源开关。历史保存在
+`service_provider_settings` 中的 Stripe 配置不再参与运行时配置，也不会被自动删除或修改。
 
-```dotenv
-APP_BILLING_STRIPE_CONFIG_SOURCE=environment
-```
+升级旧实例前，在部署环境补齐同一 Stripe 账号及 test/live 模式的 secret key、Webhook
+secret、所有 Price ID、试用和积分包配置。启用支付但缺少必要配置会阻止启动，不会回退到
+数据库中的凭据。Lifetime 的 Price 必须为启用的一次性价格。部署后重启全部后端实例。
 
-此开关必须随支持它的后端版本部署，并重启全部后端实例。先在部署环境补齐同一 Stripe
-账号及 test/live 模式的 secret key、Webhook secret、所有 Price ID、试用和积分包配置。
-它统一切换 Stripe 的凭据、价格与支付开关，不混用数据库密钥和环境价格；启用支付但缺少
-必要配置会阻止启动。Lifetime 的 Price 必须为启用的一次性价格。
-
-未设置或留空时保留旧数据库覆盖行为，避免升级代码时自动切换生产凭据。数据库记录不会
-删除或修改，Resend 的来源不受这个 Stripe 开关影响。移除开关并重启会恢复旧的来源规则，
-包括旧 Price ID。启动日志 `Stripe configuration loaded` 的 `source` 显示实际来源；
-管理员读取接口 `GET /api/v1/admin/integrations` 的 `active_source` 与其一致，不返回密钥。
-旧 YAML 没有 `config_source` 字段时，环境变量开关仍能生效。
+启动日志 `Stripe configuration loaded` 的 `source` 固定为 `environment`；管理员读取接口
+`GET /api/v1/admin/integrations` 的 `active_source` 与其一致，不返回密钥。
+Resend 仍兼容历史数据库覆盖，此次变更不改变邮件配置来源。
 
 ## 模块开关
 
@@ -120,7 +113,7 @@ referral:
 
 ### 后台网站设置的边界
 
-`/admin/settings` 管理品牌、双语首页介绍、支持渠道及不含密钥的发件名称/邮箱。公开呈现由 Next.js 服务端读取并短期缓存；发件资料在后端启动时覆盖对应默认值，需要重启生效。Stripe、Webhook、邮件 API 密钥由部署配置管理；后台凭证写入接口返回 403。旧数据库服务覆盖配置保持启动读取兼容，Stripe 通过上述 `config_source=environment` 显式迁回部署配置，不会自动删除记录或切换其他服务。语言仍由前端代码定义为 EN/中文。
+`/admin/settings` 管理品牌、双语首页介绍、支持渠道及不含密钥的发件名称/邮箱。公开呈现由 Next.js 服务端读取并短期缓存；发件资料在后端启动时覆盖对应默认值，需要重启生效。Stripe、Webhook、邮件 API 密钥由部署配置管理；后台凭证写入接口返回 403。Stripe 固定使用部署配置，忽略旧数据库覆盖；Resend 保留历史兼容。旧记录不会自动删除。语言仍由前端代码定义为 EN/中文。
 
 ## 校验原则
 

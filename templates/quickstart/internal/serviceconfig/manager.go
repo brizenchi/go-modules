@@ -97,9 +97,6 @@ func (m *Manager) Snapshot(ctx context.Context) (Snapshot, error) {
 }
 
 func (m *Manager) readStates(ctx context.Context) (map[string]state, bool, error) {
-	if source := m.environment.Billing.Stripe.ConfigSource; source != "" && source != "environment" {
-		return nil, false, invalid("billing.stripe.config_source must be empty or environment")
-	}
 	states := make(map[string]state, len(providerNames))
 	for _, provider := range providerNames {
 		states[provider] = state{source: "environment", config: environmentConfiguration(m.environment, provider)}
@@ -115,8 +112,8 @@ func (m *Manager) readStates(ctx context.Context) (map[string]state, bool, error
 		return nil, true, ErrStorage
 	}
 	for _, row := range rows {
-		if row.Provider == "stripe" && m.environment.Billing.Stripe.ConfigSource == "environment" {
-			// The deployment explicitly owns the entire Stripe configuration,
+		if row.Provider == "stripe" {
+			// The deployment owns the entire Stripe configuration,
 			// including its credentials, mode, prices and enablement. Do not mix
 			// sources or mutate the legacy row while starting the application.
 			current := states[row.Provider]
@@ -263,7 +260,7 @@ func (m *Manager) validateCandidate(db *gorm.DB, provider, source string, next c
 		return ErrStorage
 	}
 	for _, row := range rows {
-		if row.Provider == provider || row.Source == "environment" {
+		if row.Provider == provider || row.Provider == "stripe" || row.Source == "environment" {
 			continue
 		}
 		current, err := m.decode(row)

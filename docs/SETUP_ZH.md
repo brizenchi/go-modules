@@ -60,7 +60,6 @@ APP_AUTH_GOOGLE_ENABLED=false
 APP_AUTH_GITHUB_ENABLED=false
 APP_EMAIL_PROVIDER=none
 APP_BILLING_ENABLED=false
-APP_BILLING_STRIPE_CONFIG_SOURCE=environment
 ```
 
 这些开关是首次启动的补充，不是完整 `.env`。数据库 TLS、JWT、管理员账号和 HTTPS/CORS
@@ -73,11 +72,10 @@ APP_BILLING_STRIPE_CONFIG_SOURCE=environment
    或重启前端不会应用新配置。
 
 历史版本可能已将服务配置以**明文**保存在 `service_provider_settings` 中，备份也包含
-这些值。旧配置入口已经移除，但数据库覆盖仍保留启动兼容：未设置迁移开关时，单改
-Price 环境变量并重启不会替换数据库快照。迁移 Stripe 时，先补齐整套部署配置，再设置
-`APP_BILLING_STRIPE_CONFIG_SOURCE=environment` 并部署支持该开关的后端版本。启动日志
-`Stripe configuration loaded` 应显示 `source=environment`。这不会修改或删除旧数据库
-记录，也不会改变 Resend 的配置来源。详细步骤及回滚行为见 [配置优先级](CONFIG_STANDARD.md#配置优先级)。
+这些值。Stripe 现在固定从部署配置加载，旧数据库快照不再覆盖环境变量，无需额外开关。
+升级旧实例前，先补齐整套 Stripe 部署配置，再部署后端并重启全部实例。启动日志
+`Stripe configuration loaded` 应显示 `source=environment`。旧数据库记录不会自动修改或
+删除，Resend 的配置来源保持不变。详见 [配置优先级](CONFIG_STANDARD.md#配置优先级)。
 
 Resend 关闭时也会关闭邮箱验证码登录；管理员密码登录不受影响。启用 Resend 会关闭调试
 验证码。Google/GitHub、管理员密码、JWT、数据库连接和域名仍通过后端环境变量配置。
@@ -91,7 +89,7 @@ Resend 关闭时也会关闭邮箱验证码登录；管理员密码登录不受�
 
 下面是使用环境变量配置“邮箱 + Google + Pro 月付/年付 + 固定积分包”的示例。
 也可以按上一节先启动后台，再配置 Resend 与 Stripe。未使用的套餐、GitHub、邀请奖励
-和 tracing 可以不配置；历史数据库覆盖与 Stripe 迁移开关按上一节处理。
+和 tracing 可以不配置；旧实例的 Stripe 部署配置补齐方式见上一节。
 
 ```dotenv
 # process / HTTP
@@ -151,7 +149,6 @@ APP_AUTH_GOOGLE_SCOPE=openid email profile
 # Stripe test/live 必须整套匹配；不接支付就设 APP_BILLING_ENABLED=false
 APP_BILLING_ENABLED=true
 APP_BILLING_PROVIDER=stripe
-APP_BILLING_STRIPE_CONFIG_SOURCE=environment
 APP_BILLING_STRIPE_SECRET_KEY=sk_live_...
 APP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...
 APP_BILLING_STRIPE_PRICES_PRO_MONTHLY=price_...
@@ -326,7 +323,7 @@ APP_EMAIL_PROVIDER=none
 添加其显示的 SPF 和 DKIM 等 DNS 记录，域名状态变成 verified 后创建 API Key。
 
 配置下面的环境变量，重启所有后端实例后验收发信。它们仅在没有历史 Resend 数据库覆盖时生效；
-已有 Resend 覆盖须单独迁移，不能用 Stripe 的配置来源开关切换邮件服务。
+已有 Resend 覆盖须单独迁移；Stripe 固定使用部署配置，不改变邮件来源。
 
 ```dotenv
 APP_EMAIL_PROVIDER=resend
@@ -372,13 +369,12 @@ secret key，并根据官方 [Webhook 指南](https://docs.stripe.com/webhooks)
 https://api.example.com/api/v1/stripe/webhook
 ```
 
-在后端部署环境填写以下配置。`config_source=environment` 显式采用整套部署配置，
-使历史数据库 Price 快照不再覆盖新值；部署后重启所有后端实例。
+在后端部署环境填写以下配置。Stripe 固定采用部署配置，历史数据库 Price 快照不会覆盖
+新值；部署后重启所有后端实例。
 
 ```dotenv
 APP_BILLING_ENABLED=true
 APP_BILLING_PROVIDER=stripe
-APP_BILLING_STRIPE_CONFIG_SOURCE=environment
 APP_BILLING_STRIPE_SECRET_KEY=sk_test_...
 APP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...
 
@@ -687,7 +683,7 @@ stripe listen \
 | `redirect_uri_mismatch` | 代码配置与服务商控制台回调地址是否一致 |
 | 支付接口 503 `billing is not configured` | 配置 Stripe secret、webhook secret、至少一个 price，并启用或省略 `billing.enabled` 让凭据自动推断 |
 | Stripe Webhook 失败 | webhook secret、公开 URL、事件模式是否匹配 |
-| 修改 Stripe Price 后仍使用旧值 | 检查启动日志实际来源；补齐部署配置，设置 `APP_BILLING_STRIPE_CONFIG_SOURCE=environment`，部署支持该开关的后端并重启全部实例 |
-| 修改邮件环境变量后服务未变化 | 检查是否有历史 Resend 数据库覆盖；Stripe 迁移开关不会更改邮件来源 |
+| 修改 Stripe Price 后仍使用旧值 | 部署当前后端并重启全部实例，确认运行进程的环境变量已更新；启动日志应显示 `source=environment`，旧数据库配置不再生效 |
+| 修改邮件环境变量后服务未变化 | 检查是否有历史 Resend 数据库覆盖；Stripe 配置来源的变更不影响邮件来源 |
 | 本地 preview 保存后仍无法发送邮件或支付 | 预览只验证表单与权限，不激活外部服务；使用实际开发或部署环境验收 |
 | 邀请码没归因 | 注册请求是否把 `referral_code` 传给最终登录接口 |

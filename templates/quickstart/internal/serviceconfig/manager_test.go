@@ -40,7 +40,6 @@ func boolean(v bool) *bool { return &v }
 func TestDeploymentStripeSourcePreservesOtherProvidersAndExplicitDisable(t *testing.T) {
 	db := testDB(t, true)
 	env := baseConfig()
-	env.Billing.Stripe.ConfigSource = "environment"
 	env.Billing.Stripe.SecretKey = "sk_test_not-a-real-key"
 	env.Billing.Stripe.WebhookSecret = "whsec_not-a-real-secret"
 	env.Billing.Stripe.Prices.Lifetime = "price_newLifetime"
@@ -76,6 +75,15 @@ func TestDeploymentStripeSourcePreservesOtherProvidersAndExplicitDisable(t *test
 	resend := providerSnapshot(t, m, "resend")
 	if stripe.Source != "environment" || stripe.ActiveSource != "environment" || stripe.Enabled || stripe.ActiveEnabled || stripe.RestartRequired || resend.ActiveSource != "database" {
 		t.Fatal("configuration status did not reflect provider-specific source selection")
+	}
+	m.SetValidator(func(candidate platform.Config) error {
+		if candidate.BillingEnabled() || candidate.Billing.Stripe.Prices.Lifetime != "price_newLifetime" {
+			return errors.New("legacy Stripe configuration used to validate another provider")
+		}
+		return nil
+	})
+	if _, err := update(t, m, db, "resend", Patch{Version: 1, Source: "database", Fields: map[string]string{"sender_name": "Updated sender"}}); err != nil {
+		t.Fatalf("updating another provider used the legacy Stripe settings: %v", err)
 	}
 }
 
@@ -165,33 +173,33 @@ func TestPlaintextWriteOnlyPreservationAndRestartIsolation(t *testing.T) {
 	}
 }
 
-func TestDatabaseSnapshotCopiesOmittedEnvironmentSecretAndResetRestoresEnvironment(t *testing.T) {
+func TestResendSnapshotCopiesOmittedEnvironmentSecretAndResetRestoresEnvironment(t *testing.T) {
 	db := testDB(t, true)
 	env := baseConfig()
 	m := NewManager(db, env, false)
 	if _, err := m.Load(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	_, err := update(t, m, db, "stripe", Patch{Source: "database", Enabled: boolean(true), Fields: map[string]string{"pro_monthly": "price_Database"}})
+	_, err := update(t, m, db, "resend", Patch{Source: "database", Enabled: boolean(true), Fields: map[string]string{"sender_name": "Database"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	restarted := NewManager(db, env, false)
 	loaded, err := restarted.Load(context.Background())
-	if err != nil || loaded.Billing.Stripe.SecretKey != env.Billing.Stripe.SecretKey || loaded.Billing.Stripe.Prices.ProMonthly != "price_Database" || !loaded.BillingEnabled() {
+	if err != nil || loaded.Email.Resend.APIKey != env.Email.Resend.APIKey || loaded.Email.Resend.SenderName != "Database" || loaded.Email.Provider != "resend" {
 		t.Fatal("omitted environment credential was not retained")
 	}
-	result, err := update(t, restarted, db, "stripe", Patch{Version: 1, Source: "environment"})
+	result, err := update(t, restarted, db, "resend", Patch{Version: 1, Source: "environment"})
 	if err != nil || result.Enabled || !result.ActiveEnabled || !result.RestartRequired || result.Source != "environment" {
 		t.Fatalf("reset response %+v %v", result, err)
 	}
 	var row Record
-	db.Where("provider = ?", "stripe").Take(&row)
+	db.Where("provider = ?", "resend").Take(&row)
 	if row.Payload != "" || row.Version != 2 {
 		t.Fatal("reset retained the database credential payload")
 	}
 	loaded, err = NewManager(db, env, false).Load(context.Background())
-	if err != nil || loaded.BillingEnabled() || loaded.Billing.Stripe.Prices.ProMonthly != "price_Environment" {
+	if err != nil || loaded.Email.Provider != "log" || loaded.Email.Resend.SenderName != env.Email.Resend.SenderName {
 		t.Fatal("reset did not restore original environment")
 	}
 }
@@ -215,7 +223,8 @@ func TestPreviewNeverActivatesSavedExternalProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, provider := range result.Providers {
-		if provider.ActiveEnabled || !provider.Enabled || !provider.RestartRequired {
+		wantPending := provider.Provider != "stripe"
+		if provider.ActiveEnabled || provider.Enabled != wantPending || provider.RestartRequired != wantPending {
 			t.Fatalf("preview status misrepresented: %+v", provider)
 		}
 	}

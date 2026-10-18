@@ -93,12 +93,13 @@ must enforce the boundary. Existing database provider overrides require an
 explicit compatibility/migration plan before closing those writes; never delete
 or switch production credentials automatically.
 
-Compatibility path (2026-10-18): deployments can explicitly set
-`APP_BILLING_STRIPE_CONFIG_SOURCE=environment` to use their complete Stripe
-configuration after a backend restart. An unset switch preserves legacy database
-precedence. The switch does not write/delete the legacy row or change Resend's
-source. Provision the Stripe keys, mode, prices and enablement together before
-opting in; see [configuration migration](../CONFIG_STANDARD.md#配置优先级).
+Stripe decision (2026-10-18, revised by product request): always use deployment
+configuration, without a source selector. Legacy Stripe rows are ignored but not
+modified or deleted. Provision the complete Stripe keys, mode, prices and
+enablement before deploying this revision; missing required credentials fail
+startup rather than falling back to database secrets. Resend retains its existing
+source behavior. This supersedes the temporary opt-in migration switch; see
+[configuration migration](../CONFIG_STANDARD.md#配置优先级).
 
 ### One application audit service
 
