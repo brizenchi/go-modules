@@ -6,6 +6,7 @@ import { ApiError, cancelScheduledChange, changeSubscription, createBillingPorta
 import { readSession } from "@/lib/auth";
 import { stripeInvoiceURL } from "@/lib/billing-state";
 import { formatDate } from "@/lib/format";
+import { formatBillingAmount } from "@/lib/billing-money";
 import { useI18n } from "@/lib/i18n";
 import { appEnv } from "@/lib/env";
 import { confirmPlanSelection, isScheduledSelection, keepCurrentSubscription } from "@/lib/subscription-management";
@@ -170,6 +171,7 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
           : validPreview ? <div className={styles.summary} aria-live="polite">
             <div className={styles.total}><span>{t({ en: "Due now", zh: "当前应付" })}</span><strong>{subscriptionPreviewAmount(validPreview, dateLocale)}</strong></div>
             <DetailRows rows={[
+              ...(Number.isSafeInteger(validPreview.unused_credit_amount) && validPreview.unused_credit_amount! > 0 ? [{ label: t({ en: "Unused time credit", zh: "未使用费用抵扣" }), value: `−${formatBillingAmount(validPreview.unused_credit_amount!, validPreview.currency, dateLocale)}` }] : []),
               { label: t({ en: "Change timing", zh: "生效时间" }), value: validPreview.effective_at_period_end ? `${t(changeTimingText(validPreview).label)} · ${formatDate(validPreview.current_period_end || validPreview.next_billing_at, dateLocale)}` : t(changeTimingText(validPreview).label) },
               ...(!validPreview.effective_at_period_end ? [{ label: t({ en: "Next billing date", zh: "下次计费" }), value: formatDate(validPreview.next_billing_at, dateLocale) }] : [])
             ]} />

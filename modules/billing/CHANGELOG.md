@@ -9,6 +9,9 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Fixed
 
+- Subscription previews distinguish invoice collection from the next renewal
+  date and expose unused-time credits in integer minor units when available.
+
 - Verify Lifetime uses an active one-time Stripe price before opening Checkout.
   Invalid catalog prices return 503 with reason `billing_price_configuration`
   instead of an unexplained internal error; existing recurring access is untouched.

@@ -814,10 +814,26 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 
 	preview.AmountDueNow = float64(upcoming.AmountDue) / 100.0
 	preview.ImmediateCharge = true
-	if upcoming.NextPaymentAttempt > 0 {
-		preview.NextBillingAt = unixToTimePtr(upcoming.NextPaymentAttempt)
+	if upcoming.Lines != nil {
+		var unusedCredit int64
+		for _, line := range upcoming.Lines.Data {
+			if line == nil || line.SubscriptionItem == nil || line.SubscriptionItem.ID != item.ID {
+				continue
+			}
+			if line.Proration && line.Amount < 0 {
+				unusedCredit -= line.Amount
+			}
+			// NextPaymentAttempt is collection of this invoice, not renewal.
+			// The new recurring line supplies the end of the new billing cycle.
+			if !line.Proration && line.Price != nil && line.Price.ID == targetPriceID && line.Period != nil {
+				preview.NextBillingAt = unixToTimePtr(line.Period.End)
+			}
+		}
+		if !upcoming.Lines.HasMore {
+			preview.UnusedCreditAmount = &unusedCredit
+		}
 	}
-	if preview.NextBillingAt == nil {
+	if preview.NextBillingAt == nil && in.Mode != domain.ChangeModeImmediateResetCycle {
 		preview.NextBillingAt = unixToTimePtr(current.CurrentPeriodEnd)
 	}
 	if in.Mode == domain.ChangeModeImmediateResetCycle {

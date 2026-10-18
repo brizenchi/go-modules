@@ -39,6 +39,7 @@ Automated checks: `tests/billing-presentation.test.ts`, `tests/subscription-chan
 `tests/pricing-checkout.test.ts`, and `tests/credit-checkout.test.ts`.
 Run `npm run verify` in an isolated checkout when a local Next.js development server is already running.
 No real payment or subscription mutation is needed for UI verification.
+Pricing retains one login's subscription snapshot in browser memory for one minute across route visits, merges concurrent reads, and keeps existing content during background updates. Session changes discard the snapshot; successful subscription changes invalidate it immediately. Purchase and change confirmations still re-read the API directly. Covered by `tests/pricing-subscription-cache.test.ts`.
 The recurring-plan overview has only Change plan and Cancel subscription/Renew controls.
 Change plan in the overview opens pricing for selection. Its confirmation dialog never asks users to select a target again.
 Pending payments are resolved inside the confirmation dialog. Confirmed subscription cancellation clears any future plan before stopping renewal.

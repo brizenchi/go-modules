@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createCheckoutSession, getCapabilities, getSubscription } from "@/lib/api";
-import { readReferralCode, readSession, type AuthSession } from "@/lib/auth";
+import { readReferralCode, readSession, SESSION_EVENT, type AuthSession } from "@/lib/auth";
+import { createPricingSubscriptionCache } from "@/lib/pricing-subscription-cache";
 import { checkoutReturnStatus, type CheckoutReturnStatus } from "@/lib/billing-state";
 import { type BillingIntent } from "@/lib/billing-intent";
 import { appUrl } from "@/lib/env";
@@ -11,10 +12,29 @@ import { localizeHref } from "@/lib/locale";
 import { subscriptionRestrictionText } from "@/lib/billing-presentation";
 import { subscriptionChangeBlocker } from "@/lib/subscription-change";
 import { preparePricingCheckout, pricingCheckoutFailure, pricingCheckoutURLs, pricingPurchaseHref, readPricingPurchase, type PricingCheckoutResult } from "@/lib/pricing-checkout";
-import { useConsoleResource, useConsoleSession } from "./console-kit";
+import { useConsoleResource } from "./console-kit";
 import { usePageReturn } from "./use-page-return";
 
 const RESUME_KEY = "go-modules.pricing-purchase";
+const subscriptionCache = createPricingSubscriptionCache(getSubscription);
+const cachedSubscription = (token: string) => subscriptionCache.load(token);
+const initialSubscription = (token: string) => subscriptionCache.peek(token);
+const pricingSessionToken = () => readSession()?.token || "";
+const serverSessionToken = () => null;
+function subscribePricingSession(update: () => void) {
+  window.addEventListener(SESSION_EVENT, update);
+  window.addEventListener("storage", update);
+  return () => {
+    window.removeEventListener(SESSION_EVENT, update);
+    window.removeEventListener("storage", update);
+  };
+}
+// This cache exists only in browser memory and is discarded on session changes,
+// including when pricing is unmounted. Never retain one login across sign-out.
+if (typeof window !== "undefined") {
+  window.addEventListener(SESSION_EVENT, subscriptionCache.clear);
+  window.addEventListener("storage", subscriptionCache.clear);
+}
 export function usePricingCheckout() {
   const { locale } = useI18n();
   const [pending, setPending] = useState<{ intent: BillingIntent; quantity: number } | null>(null);
@@ -24,11 +44,16 @@ export function usePricingCheckout() {
   const [failure, setFailure] = useState<ReturnType<typeof pricingCheckoutFailure> | null>(null);
   const [restored, setRestored] = useState<ReturnType<typeof readPricingPurchase>>(null);
   const [changeRequest, setChangeRequest] = useState<Extract<PricingCheckoutResult, { kind: "change" }> | null>(null);
-  const { session, ready: sessionReady } = useConsoleSession();
-  const account = useConsoleResource(session?.token || "", getSubscription);
-  const revalidate = account.revalidate;
-  usePageReturn(revalidate);
-  useEffect(() => { setChangeRequest(null); }, [session?.token]);
+  const sessionToken = useSyncExternalStore(subscribePricingSession, pricingSessionToken, serverSessionToken);
+  const token = sessionToken || "";
+  const account = useConsoleResource(token, cachedSubscription, initialSubscription);
+  const refreshAccount = account.revalidate;
+  const revalidate = useCallback(async () => {
+    subscriptionCache.invalidate();
+    await refreshAccount();
+  }, [refreshAccount]);
+  usePageReturn(refreshAccount);
+  useEffect(() => { setChangeRequest(null); }, [token]);
   const mounted = useRef(false);
   const inFlight = useRef(false);
   const route = localizeHref("/pricing", locale);
@@ -92,7 +117,7 @@ export function usePricingCheckout() {
     if (pending) void run(pending.intent, pending.quantity, session);
   }
   return { purchase, close, signedIn, busy, lastIntent, failure, restored, pending, returnStatus,
-    subscription: account.data, accountError: account.error, accountLoading: !sessionReady || Boolean(session && !account.data && !account.error),
-    revalidate, token: session?.token || "", changeRequest, setChangeRequest,
+    subscription: account.data, accountError: account.error, accountLoading: sessionToken === null || Boolean(token && !account.data && !account.error),
+    revalidate, token, changeRequest, setChangeRequest,
     returnTo: pending ? pricingPurchaseHref(pending.intent, locale, pending.quantity) : route };
 }

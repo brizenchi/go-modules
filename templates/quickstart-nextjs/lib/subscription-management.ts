@@ -16,7 +16,7 @@ function subscriptionIdentity(subscription: SubscriptionView, includeSchedule = 
 }
 
 function priceIdentity(preview: SubscriptionPreview): string {
-  return JSON.stringify([preview.target_plan, preview.target_interval, preview.currency.toLowerCase(), preview.amount_due_now,
+  return JSON.stringify([preview.target_plan, preview.target_interval, preview.currency.toLowerCase(), preview.amount_due_now, preview.unused_credit_amount,
     preview.change_mode, preview.immediate_charge, preview.effective_at_period_end, preview.current_period_end, preview.next_billing_at]);
 }
 

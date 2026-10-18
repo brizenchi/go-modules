@@ -85,6 +85,8 @@ export type SubscriptionPreview = {
   currency: string;
   /** Major currency units from the existing preview API, unlike payment-record amounts. */
   amount_due_now: number;
+  /** Unused-time credit in minor currency units; null/absent when unavailable. */
+  unused_credit_amount?: number | null;
   current_period_end?: string;
   next_billing_at?: string;
   target_plan: string;

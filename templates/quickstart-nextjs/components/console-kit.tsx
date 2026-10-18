@@ -21,14 +21,17 @@ export function useConsoleSession() {
   return { session, ready };
 }
 
-export function useConsoleResource<T>(token: string, loader: (token: string) => Promise<T>) {
+export function useConsoleResource<T>(token: string, loader: (token: string) => Promise<T>, initialData?: (token: string) => T | null) {
   const [result, setResult] = useState<{ owner: string; data: T | null; loading: boolean; error: unknown }>({ owner: "", data: null, loading: false, error: null });
   const generation = useRef(0);
   const refresh = useCallback(async (background = false) => {
     if (!token || readSession()?.token !== token) return;
     const current = ++generation.current;
-    setResult(previous => background && previous.owner === token && previous.data !== null ? previous
-      : { owner: token, data: previous.owner === token ? previous.data : null, loading: true, error: null });
+    setResult(previous => {
+      if (background && previous.owner === token && previous.data !== null) return previous;
+      const data = previous.owner === token ? previous.data : initialData?.(token) ?? null;
+      return { owner: token, data, loading: initialData ? data === null : true, error: null };
+    });
     try {
       const data = await loader(token);
       if (generation.current === current && readSession()?.token === token) setResult(previous => {
@@ -41,10 +44,10 @@ export function useConsoleResource<T>(token: string, loader: (token: string) => 
         background && previous.owner === token && previous.data !== null && describeRequestFailure(error, "Account").retryable ? previous
           : { owner: token, data: null, loading: false, error });
     }
-  }, [loader, token]);
+  }, [loader, token, initialData]);
   const revalidate = useCallback(() => refresh(true), [refresh]);
   useEffect(() => { const counter = generation; void refresh(); return () => { counter.current++; }; }, [refresh]);
-  return { ...(result.owner === token ? result : { data: null, error: null, loading: Boolean(token) }), refresh, revalidate };
+  return { ...(result.owner === token ? result : { data: initialData?.(token) ?? null, error: null, loading: Boolean(token) }), refresh, revalidate };
 }
 
 export function useConsoleAction(token: string) {

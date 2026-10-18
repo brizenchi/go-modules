@@ -386,6 +386,7 @@ func (h *Handler) PreviewSubscriptionChange(c *gin.Context) {
 	httpresp.OK(c, gin.H{
 		"currency":                res.Currency,
 		"amount_due_now":          res.AmountDueNow,
+		"unused_credit_amount":    res.UnusedCreditAmount,
 		"current_period_end":      formatTimePtr(res.CurrentPeriodEnd),
 		"next_billing_at":         formatTimePtr(res.NextBillingAt),
 		"target_plan":             res.TargetPlan,

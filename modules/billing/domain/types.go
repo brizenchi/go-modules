@@ -76,8 +76,11 @@ type SubscriptionPreviewInput struct {
 
 // SubscriptionPreview summarizes the expected commercial effect.
 type SubscriptionPreview struct {
-	Currency             string
-	AmountDueNow         float64
+	Currency     string
+	AmountDueNow float64
+	// UnusedCreditAmount is the unused-time credit in currency minor units.
+	// Nil means the provider did not supply a complete credit breakdown.
+	UnusedCreditAmount   *int64
 	CurrentPeriodEnd     *time.Time
 	NextBillingAt        *time.Time
 	TargetPlan           PlanType

@@ -96,7 +96,7 @@ test("a newer schedule, payment or current plan is never silently overwritten", 
 });
 
 test("a changed amount or effective date requires another review before payment", async () => {
-  for (const next of [{ ...price, amount_due_now: 46 }, { ...price, next_billing_at: "2026-12-01T00:00:00Z" }, { ...price, currency: "eur" }]) {
+  for (const next of [{ ...price, amount_due_now: 46 }, { ...price, unused_credit_amount: 700 }, { ...price, next_billing_at: "2026-12-01T00:00:00Z" }, { ...price, currency: "eur" }]) {
     let submits = 0;
     const result = await confirmPlanSelection({ selection: premium, subscription: pro, preview: price }, {
       load: async () => pro, current: () => true, preview: async () => next,
