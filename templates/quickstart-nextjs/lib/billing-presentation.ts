@@ -64,10 +64,11 @@ export function pricingPlanPresentation(selection: SubscriptionSelection, name: 
   const schedule = subscriptionChangeBlocker(subscription) === "scheduled" ? subscription?.scheduled_change : null;
   const upcoming = Boolean(schedule && schedule.plan === selection.plan);
   const scheduled = upcoming && schedule?.billing_cycle === selection.interval;
-  const cycle = current ? subscription?.billing_cycle : upcoming ? schedule?.billing_cycle : null;
-  let badge: Text | null = current ? billingText.current : upcoming ? { en: "Upcoming plan", zh: "下期套餐" } : null;
+  const currentOffer = current && !scheduled;
+  const cycle = scheduled ? schedule?.billing_cycle : current ? subscription?.billing_cycle : upcoming ? schedule?.billing_cycle : null;
+  let badge: Text | null = currentOffer ? billingText.current : upcoming ? { en: "Upcoming plan", zh: "下期套餐" } : null;
   if (badge && cycle !== selection.interval && (cycle === "monthly" || cycle === "yearly")) {
-    badge = current
+    badge = currentOffer
       ? { en: `Current · ${cycle === "monthly" ? "Monthly" : "Yearly"}`, zh: `当前为${cycle === "monthly" ? "月付" : "年付"}` }
       : { en: `Upcoming · ${cycle === "monthly" ? "Monthly" : "Yearly"}`, zh: `下期为${cycle === "monthly" ? "月付" : "年付"}` };
   }
@@ -78,15 +79,14 @@ export function pricingPlanPresentation(selection: SubscriptionSelection, name: 
       const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
       const en = new Intl.DateTimeFormat("en-US", options).format(date);
       const zh = new Intl.DateTimeFormat("zh-CN", options).format(date);
-      note = current ? { en: `Active until ${en}`, zh: `当前套餐保留至 ${zh}` } : { en: `Starts ${en}`, zh: `${zh} 生效` };
+      note = currentOffer ? { en: `Active until ${en}`, zh: `当前套餐保留至 ${zh}` } : { en: `Starts ${en}`, zh: `${zh} 生效` };
     } else {
-      note = current ? { en: "Active until next billing cycle", zh: "当前套餐保留至本期结束" } : { en: "Starts next billing cycle", zh: "下个计费周期生效" };
+      note = currentOffer ? { en: "Active until next billing cycle", zh: "当前套餐保留至本期结束" } : { en: "Starts next billing cycle", zh: "下个计费周期生效" };
     }
   }
   const action = subscriptionPlanIntent(selection, subscription);
   const button: Text = scheduled ? { en: "Scheduled", zh: "已预约" }
-    : current && action !== "keep" ? billingText.current
-      : planActionText(action, name, selection.interval, isEndedSubscription(subscription));
+    : planActionText(action, name, selection.interval, isEndedSubscription(subscription));
   return { current, scheduled, badge, note, button };
 }
 

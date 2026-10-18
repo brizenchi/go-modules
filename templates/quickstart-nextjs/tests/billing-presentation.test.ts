@@ -105,7 +105,7 @@ test("browsing another interval does not relabel it as the scheduled purchase", 
   assert.equal(otherInterval.note?.en, "Starts next billing cycle");
   const current = pricingPlanPresentation({ plan: "premium", interval: "yearly" }, "Premium", subscription);
   assert.equal(current.badge?.en, "Current · Monthly");
-  assert.equal(current.button.en, "Keep Premium");
+  assert.equal(current.button.en, "Change plan");
   const scheduledYearly: SubscriptionView = { ...subscription, scheduled_change: { plan: "starter", billing_cycle: "yearly", effective_at: "not-a-date" } };
   assert.equal(pricingPlanPresentation({ plan: "starter", interval: "monthly" }, "Starter", scheduledYearly).badge?.en, "Upcoming · Yearly");
   assert.equal(pricingPlanPresentation({ plan: "starter", interval: "yearly" }, "Starter", scheduledYearly).note?.zh, "下个计费周期生效");
@@ -179,4 +179,13 @@ test("pending payment, scheduled changes and an applied change have distinct out
   assert.equal(scheduled.state, "scheduled");
   assert.ok(scheduled.body.en.includes("current plan continues"));
   assert.equal(changeResultText({}).state, "updated");
+});
+
+test("Premium annual card offers a change when the current subscription is monthly", () => {
+  const current = { plan: "premium", status: "active", billing_cycle: "monthly" };
+  assert.equal(pricingPlanPresentation({ plan: "premium", interval: "yearly" }, "Premium", current).button.en, "Change plan");
+  const upcoming = pricingPlanPresentation({ plan: "premium", interval: "yearly" }, "Premium", { ...current, scheduled_change: { plan: "premium", billing_cycle: "yearly", effective_at: "2026-11-17T04:25:00Z" } });
+  assert.equal(upcoming.badge?.en, "Upcoming plan");
+  assert.equal(upcoming.button.en, "Scheduled");
+  assert.equal(upcoming.note?.en, "Starts Nov 17, 2026");
 });

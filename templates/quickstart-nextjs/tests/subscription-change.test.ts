@@ -116,7 +116,7 @@ test("a Pro user can select other plans even when a later billing action is rest
     { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }]) {
     assert.equal(canSelectSubscriptionPlan({ plan: "starter", interval: "monthly" }, current, ready), true);
     assert.equal(canSelectSubscriptionPlan(selection, current, ready), true);
-    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), Boolean(current.scheduled_change));
+    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), true);
     assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "monthly" }, current, ready), Boolean(current.scheduled_change));
   }
   assert.equal(canSelectSubscriptionPlan(selection, { plan: "lifetime", status: "active" }, ready), false);
@@ -130,11 +130,11 @@ test("the current Premium card can keep Premium when a Pro downgrade is schedule
   const ready = { busy: false, loading: false, failed: false };
   for (const interval of ["monthly", "yearly"]) {
     const target = { plan: "premium", interval };
-    assert.equal(subscriptionPlanIntent(target, premium), "keep");
+    assert.equal(subscriptionPlanIntent(target, premium), interval === "monthly" ? "keep" : "interval");
     assert.equal(canSelectSubscriptionPlan(target, premium, ready), true);
-    assert.equal(canSelectSubscriptionPlan(target, { ...premium, pending_payment: { amount_due: 100, currency: "usd" } }, ready), false);
-    assert.equal(canSelectSubscriptionPlan(target, { ...premium, cancel_at_period_end: true }, ready), false);
-    assert.equal(canSelectSubscriptionPlan(target, { ...premium, status: "paused" }, ready), false);
+    assert.equal(canSelectSubscriptionPlan(target, { ...premium, pending_payment: { amount_due: 100, currency: "usd" } }, ready), interval === "yearly");
+    assert.equal(canSelectSubscriptionPlan(target, { ...premium, cancel_at_period_end: true }, ready), interval === "yearly");
+    assert.equal(canSelectSubscriptionPlan(target, { ...premium, status: "paused" }, ready), interval === "yearly");
     for (const state of [{ ...ready, busy: true }, { ...ready, loading: true }, { ...ready, failed: true }]) {
       assert.equal(canSelectSubscriptionPlan(target, premium, state), false);
     }
@@ -175,4 +175,12 @@ test("renewal recovery never mutates a stale session or a newer pending payment"
   assert.equal(await resumeRenewalForChange({ load: async () => pro, resume, current: () => false }), null);
   assert.deepEqual(await resumeRenewalForChange({ load: async () => pending, resume, current: () => true }), pending);
   assert.equal(writes, 0);
+});
+
+test("Premium monthly can select annual billing without treating it as the current offer", () => {
+  const current = { plan: "premium", status: "active", billing_cycle: "monthly" };
+  const ready = { busy: false, loading: false, failed: false };
+  assert.equal(canSelectSubscriptionPlan({ plan: "premium", interval: "yearly" }, current, ready), true);
+  assert.equal(canSelectSubscriptionPlan({ plan: "premium", interval: "monthly" }, current, ready), false);
+  assert.equal(subscriptionPlanIntent({ plan: "premium", interval: "yearly" }, { ...current, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }), "interval");
 });

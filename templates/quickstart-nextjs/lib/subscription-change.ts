@@ -32,7 +32,7 @@ export function subscriptionPlanIntent(selection: SubscriptionSelection, current
   if (current?.plan === "lifetime") return "lifetime";
   if (!hasOngoingRecurringSubscription(current)) return "subscribe";
   if (!current) return "subscribe";
-  if (selection.plan === current.plan && canKeepCurrentPlan(current)) return "keep";
+  if (selection.plan === current.plan && selection.interval === current.billing_cycle && canKeepCurrentPlan(current)) return "keep";
   if (current.plan === selection.plan && current.billing_cycle === selection.interval) return "current";
   if (!ranks[current.plan] || !ranks[selection.plan]) return "manage";
   if (ranks[selection.plan] > ranks[current.plan]) return "upgrade";
@@ -44,7 +44,6 @@ export function subscriptionPlanIntent(selection: SubscriptionSelection, current
 export function canSelectSubscriptionPlan(selection: SubscriptionSelection, current: SubscriptionView | null, state: { busy: boolean; loading: boolean; failed: boolean }): boolean {
   const intent = subscriptionPlanIntent(selection, current);
   return !state.busy && !state.loading && !state.failed
-    && (!(hasOngoingRecurringSubscription(current) && current?.plan === selection.plan) || intent === "keep")
     && !["current", "lifetime", "manage"].includes(intent);
 }
 

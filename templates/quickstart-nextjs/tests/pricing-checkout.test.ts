@@ -48,13 +48,13 @@ test("existing paid subscriptions review a plan change without creating another 
  assert.equal((await preparePricingCheckout(intent, 1, urls, "", deps)).kind, "current");
  assert.equal(payloads.length, 0);
 });
-test("keeping the current tier opens confirmation with its actual interval and never creates Checkout", async () => {
+test("same tier interval changes preserve the selected interval even with a scheduled downgrade", async () => {
  for (const billing_cycle of ["monthly", "yearly"]) {
   const subscription = {plan:"pro",status:"active",billing_cycle,scheduled_change:{plan:"starter",billing_cycle:"monthly"}};
   const {deps,payloads}=fixture(subscription);
   const result = await preparePricingCheckout({...intent,interval:billing_cycle==="monthly"?"yearly":"monthly"},1,urls,"",deps);
   assert.equal(result.kind,"change");
-  if (result.kind === "change") assert.deepEqual(result.selection,{plan:"pro",interval:billing_cycle});
+  if (result.kind === "change") assert.deepEqual(result.selection,{plan:"pro",interval:billing_cycle==="monthly"?"yearly":"monthly"});
   assert.equal(payloads.length,0);
  }
 });
@@ -130,4 +130,15 @@ test("checkout progress belongs only to the selected product and billing interva
  assert.equal(pricingIntentMatches(intent, {product:"lifetime"}), false);
  assert.equal(pricingIntentMatches({product:"credits"}, {product:"credits"}), true);
  assert.equal(pricingIntentMatches({product:"lifetime"}, {product:"lifetime"}), true);
+});
+
+test("Premium monthly opens the Premium annual confirmation without a new subscription", async () => {
+ for (const scheduled_change of [undefined, {plan:"starter",billing_cycle:"monthly"}]) {
+  const {deps,payloads}=fixture({plan:"premium",status:"active",billing_cycle:"monthly",scheduled_change});
+  deps.capabilities=async()=>({...capabilities,billing:{...capabilities.billing,offers:{...capabilities.billing.offers,subscriptions:[{plan:"premium",intervals:["monthly","yearly"]}]}}});
+  const result=await preparePricingCheckout({product:"subscription",plan:"premium",interval:"yearly"},1,urls,"",deps);
+  assert.equal(result.kind,"change");
+  if(result.kind==="change") assert.deepEqual(result.selection,{plan:"premium",interval:"yearly"});
+  assert.equal(payloads.length,0);
+ }
 });
