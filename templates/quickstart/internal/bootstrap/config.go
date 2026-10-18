@@ -112,6 +112,11 @@ func loadConfig(validateProviders bool) (AppConfig, error) {
 		return AppConfig{}, err
 	}
 	applyAdminPasswordEnvironment(&cfg)
+	// Copied config files may predate this migration switch. Viper does not
+	// discover environment-only keys absent from those files during Unmarshal.
+	if value, ok := os.LookupEnv("APP_BILLING_STRIPE_CONFIG_SOURCE"); ok {
+		cfg.Billing.Stripe.ConfigSource = value
+	}
 
 	applyDefaults(&cfg)
 	validate := cfg.Validate
@@ -209,6 +214,9 @@ func applyDefaults(cfg *AppConfig) {
 }
 
 func (c AppConfig) Validate() error {
+	if source := c.Billing.Stripe.ConfigSource; source != "" && source != "environment" {
+		return fmt.Errorf("billing.stripe.config_source must be empty or environment")
+	}
 	if err := c.Host.AI.Validate(); err != nil {
 		return err
 	}

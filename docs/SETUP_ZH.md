@@ -49,7 +49,7 @@ APP_AUTH_ADMIN_PASSWORD=请替换成独立随机密码
 
 ### 先启动后台，再接服务
 
-Resend 和 Stripe 可以在管理员后台配置。先准备数据库、前后端域名、JWT 以及上面的
+Resend 和 Stripe 的凭据由后端部署配置管理，后台服务凭据写入接口已经关闭。先准备数据库、前后端域名、JWT 以及上面的
 管理员邮箱和密码。若首次启动时还没有邮件或支付凭据，在后端环境配置中关闭这些服务：
 
 ```dotenv
@@ -60,36 +60,38 @@ APP_AUTH_GOOGLE_ENABLED=false
 APP_AUTH_GITHUB_ENABLED=false
 APP_EMAIL_PROVIDER=none
 APP_BILLING_ENABLED=false
+APP_BILLING_STRIPE_CONFIG_SOURCE=environment
 ```
 
 这些开关是首次启动的补充，不是完整 `.env`。数据库 TLS、JWT、管理员账号和 HTTPS/CORS
-仍需按部署环境填写。启动后端并登录前端 `/admin`，进入 `/admin/integrations`：
+仍需按部署环境填写。随后按本文邮件和 Stripe 小节填写部署环境变量：
 
-1. 在 Resend 中填写 API Key、已验证的发件邮箱和发件名称，启用 Resend 并按需开启邮箱登录。
-2. 在 Stripe 中选择测试或正式模式，填写同一环境的 secret key、Webhook 签名密钥、价格 ID，
-   配置试用和积分包数额，再启用支付。Customer Portal 和 Webhook 事件仍需在 Stripe 配置。
-3. 保存后重启**全部后端实例**，再检查收码、注册、Stripe 测试购买和 Webhook。只刷新页面
+1. 配置邮件 API Key、已验证的发件邮箱和发件名称，并按需开启邮箱登录。
+2. 配置同一 Stripe 账号及测试/正式模式的 secret key、Webhook 签名密钥、全部价格 ID、
+   试用和积分包数额，再启用支付。Customer Portal 和 Webhook 事件仍需在 Stripe 配置。
+3. 部署后重启**全部后端实例**，再检查收码、注册、Stripe 测试购买和 Webhook。只刷新页面
    或重启前端不会应用新配置。
 
-保存的服务配置以**明文**存在当前 SaaS 数据库中，备份也包含这些值。密钥不通过读取接口
-回显；修改时填写新值，留空保留已有值。首次保存会以当前有效配置为基础，保存该服务的
-完整配置快照；之后该服务从数据库读取，优先于原环境变量。另一项未保存的服务仍使用
-环境配置。页面显示来源和待重启状态；选择恢复环境配置会清除该服务的数据库覆盖，也需
-重启所有后端实例。已有覆盖时，单改 `.env` 不会替换该服务的数据库配置。
+历史版本可能已将服务配置以**明文**保存在 `service_provider_settings` 中，备份也包含
+这些值。旧配置入口已经移除，但数据库覆盖仍保留启动兼容：未设置迁移开关时，单改
+Price 环境变量并重启不会替换数据库快照。迁移 Stripe 时，先补齐整套部署配置，再设置
+`APP_BILLING_STRIPE_CONFIG_SOURCE=environment` 并部署支持该开关的后端版本。启动日志
+`Stripe configuration loaded` 应显示 `source=environment`。这不会修改或删除旧数据库
+记录，也不会改变 Resend 的配置来源。详细步骤及回滚行为见 [配置优先级](CONFIG_STANDARD.md#配置优先级)。
 
 Resend 关闭时也会关闭邮箱验证码登录；管理员密码登录不受影响。启用 Resend 会关闭调试
 验证码。Google/GitHub、管理员密码、JWT、数据库连接和域名仍通过后端环境变量配置。
 
-保存仅检查格式与完整性，不调用服务商验证权限、发信或扣款。请从
+启动检查格式与完整性，不代表已完成实际发信或支付验收。请从
 [Resend API Keys](https://resend.com/docs/dashboard/api-keys/introduction) 和
 [Stripe API keys](https://docs.stripe.com/keys) 获取自己的凭据，并在重启后完成实际验收。
-`cmd/preview` 只演示保存流程，配置写入临时数据库，始终不启用外部邮件或支付。
+`cmd/preview` 使用临时数据库，始终不启用外部邮件或支付。
 
 ### 最小生产环境变量
 
 下面是使用环境变量配置“邮箱 + Google + Pro 月付/年付 + 固定积分包”的示例。
 也可以按上一节先启动后台，再配置 Resend 与 Stripe。未使用的套餐、GitHub、邀请奖励
-和 tracing 可以不配置；已有后台覆盖时，相应服务以数据库配置为准。
+和 tracing 可以不配置；历史数据库覆盖与 Stripe 迁移开关按上一节处理。
 
 ```dotenv
 # process / HTTP
@@ -149,6 +151,7 @@ APP_AUTH_GOOGLE_SCOPE=openid email profile
 # Stripe test/live 必须整套匹配；不接支付就设 APP_BILLING_ENABLED=false
 APP_BILLING_ENABLED=true
 APP_BILLING_PROVIDER=stripe
+APP_BILLING_STRIPE_CONFIG_SOURCE=environment
 APP_BILLING_STRIPE_SECRET_KEY=sk_live_...
 APP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...
 APP_BILLING_STRIPE_PRICES_PRO_MONTHLY=price_...
@@ -322,8 +325,8 @@ APP_EMAIL_PROVIDER=none
 [域名验证说明](https://resend.com/docs/dashboard/domains/introduction)
 添加其显示的 SPF 和 DKIM 等 DNS 记录，域名状态变成 verified 后创建 API Key。
 
-在 `/admin/integrations` 的 Resend 表单填写并保存，重启所有后端实例后验收发信。
-也可使用下面的环境变量；它们仅在没有 Resend 数据库覆盖时生效。
+配置下面的环境变量，重启所有后端实例后验收发信。它们仅在没有历史 Resend 数据库覆盖时生效；
+已有 Resend 覆盖须单独迁移，不能用 Stripe 的配置来源开关切换邮件服务。
 
 ```dotenv
 APP_EMAIL_PROVIDER=resend
@@ -369,12 +372,13 @@ secret key，并根据官方 [Webhook 指南](https://docs.stripe.com/webhooks)
 https://api.example.com/api/v1/stripe/webhook
 ```
 
-在 `/admin/integrations` 的 Stripe 表单中选择测试模式并填写这些值，保存后重启所有后端
-实例。也可用下面的环境变量；已保存后台 Stripe 配置时，以数据库快照为准。
+在后端部署环境填写以下配置。`config_source=environment` 显式采用整套部署配置，
+使历史数据库 Price 快照不再覆盖新值；部署后重启所有后端实例。
 
 ```dotenv
 APP_BILLING_ENABLED=true
 APP_BILLING_PROVIDER=stripe
+APP_BILLING_STRIPE_CONFIG_SOURCE=environment
 APP_BILLING_STRIPE_SECRET_KEY=sk_test_...
 APP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_...
 
@@ -683,7 +687,7 @@ stripe listen \
 | `redirect_uri_mismatch` | 代码配置与服务商控制台回调地址是否一致 |
 | 支付接口 503 `billing is not configured` | 配置 Stripe secret、webhook secret、至少一个 price，并启用或省略 `billing.enabled` 让凭据自动推断 |
 | Stripe Webhook 失败 | webhook secret、公开 URL、事件模式是否匹配 |
-| 后台保存后服务未变化 | 保存仅写入数据库，需重启所有后端实例；刷新页面或重启前端无效 |
-| 修改环境变量后服务未变化 | `/admin/integrations` 是否仍使用数据库配置；恢复环境配置后再重启后端 |
+| 修改 Stripe Price 后仍使用旧值 | 检查启动日志实际来源；补齐部署配置，设置 `APP_BILLING_STRIPE_CONFIG_SOURCE=environment`，部署支持该开关的后端并重启全部实例 |
+| 修改邮件环境变量后服务未变化 | 检查是否有历史 Resend 数据库覆盖；Stripe 迁移开关不会更改邮件来源 |
 | 本地 preview 保存后仍无法发送邮件或支付 | 预览只验证表单与权限，不激活外部服务；使用实际开发或部署环境验收 |
 | 邀请码没归因 | 注册请求是否把 `referral_code` 传给最终登录接口 |

@@ -103,6 +103,7 @@ billing:
   enabled:                         # 留空时检测 Stripe 凭据；也可显式设为 true/false
   provider: stripe                 # 换供应商时改 internal/platform/buildBilling
   stripe:
+    config_source: ""              # environment: 显式采用部署配置；空值兼容历史数据库覆盖
     secret_key: ""
     publishable_key: ""
     webhook_secret: ""

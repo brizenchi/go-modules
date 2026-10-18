@@ -111,6 +111,9 @@ type BillingConfig struct {
 }
 
 type StripeConfig struct {
+	// ConfigSource="environment" opts out of legacy database provider overrides.
+	// Empty preserves existing installations until the operator explicitly migrates.
+	ConfigSource   string              `mapstructure:"config_source"`
 	SecretKey      string              `mapstructure:"secret_key"`
 	PublishableKey string              `mapstructure:"publishable_key"`
 	WebhookSecret  string              `mapstructure:"webhook_secret"`

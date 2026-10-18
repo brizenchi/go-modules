@@ -37,6 +37,48 @@ func testDB(t *testing.T, migrate bool) *gorm.DB {
 
 func boolean(v bool) *bool { return &v }
 
+func TestDeploymentStripeSourcePreservesOtherProvidersAndExplicitDisable(t *testing.T) {
+	db := testDB(t, true)
+	env := baseConfig()
+	env.Billing.Stripe.ConfigSource = "environment"
+	env.Billing.Stripe.SecretKey = "sk_test_not-a-real-key"
+	env.Billing.Stripe.WebhookSecret = "whsec_not-a-real-secret"
+	env.Billing.Stripe.Prices.Lifetime = "price_newLifetime"
+	for _, provider := range providerNames {
+		stored := environmentConfiguration(env, provider)
+		stored.Enabled = true
+		if provider == "stripe" {
+			stored.Fields["lifetime"] = "price_oldLifetime"
+		} else {
+			stored.Fields["sender_name"] = "Stored sender"
+			stored.Secrets["api_key"] = "re_not-a-real-key"
+		}
+		payload, err := json.Marshal(stored)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Create(&Record{Provider: provider, Source: "database", Version: 1, Payload: string(payload)}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := NewManager(db, env, false)
+	loaded, err := m.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.BillingEnabled() || loaded.Billing.Stripe.Prices.Lifetime != "price_newLifetime" {
+		t.Fatal("legacy billing enabled flag or price overrode the explicit deployment configuration")
+	}
+	if loaded.Email.Provider != "resend" || loaded.Email.Resend.SenderName != "Stored sender" {
+		t.Fatal("migrating Stripe changed the mail provider")
+	}
+	stripe := providerSnapshot(t, m, "stripe")
+	resend := providerSnapshot(t, m, "resend")
+	if stripe.Source != "environment" || stripe.ActiveSource != "environment" || stripe.Enabled || stripe.ActiveEnabled || stripe.RestartRequired || resend.ActiveSource != "database" {
+		t.Fatal("configuration status did not reflect provider-specific source selection")
+	}
+}
+
 func baseConfig() platform.Config {
 	return platform.Config{
 		Auth:  platform.AuthConfig{Enabled: boolean(true), AdminPassword: "deployment-admin-secret", Email: platform.AuthEmailConfig{Enabled: boolean(true), Debug: true}},

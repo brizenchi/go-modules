@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"reflect"
 	"sync"
 	"time"
@@ -77,6 +78,9 @@ func (m *Manager) Load(ctx context.Context) (platform.Config, error) {
 	m.mu.Lock()
 	m.active = states
 	m.mu.Unlock()
+	if !m.localPreview {
+		slog.InfoContext(ctx, "Stripe configuration loaded", "source", states["stripe"].source)
+	}
 	return cfg, nil
 }
 
@@ -93,6 +97,9 @@ func (m *Manager) Snapshot(ctx context.Context) (Snapshot, error) {
 }
 
 func (m *Manager) readStates(ctx context.Context) (map[string]state, bool, error) {
+	if source := m.environment.Billing.Stripe.ConfigSource; source != "" && source != "environment" {
+		return nil, false, invalid("billing.stripe.config_source must be empty or environment")
+	}
 	states := make(map[string]state, len(providerNames))
 	for _, provider := range providerNames {
 		states[provider] = state{source: "environment", config: environmentConfiguration(m.environment, provider)}
@@ -108,6 +115,15 @@ func (m *Manager) readStates(ctx context.Context) (map[string]state, bool, error
 		return nil, true, ErrStorage
 	}
 	for _, row := range rows {
+		if row.Provider == "stripe" && m.environment.Billing.Stripe.ConfigSource == "environment" {
+			// The deployment explicitly owns the entire Stripe configuration,
+			// including its credentials, mode, prices and enablement. Do not mix
+			// sources or mutate the legacy row while starting the application.
+			current := states[row.Provider]
+			current.version = row.Version
+			states[row.Provider] = current
+			continue
+		}
 		current, err := m.decode(row)
 		if err != nil {
 			return nil, true, err
