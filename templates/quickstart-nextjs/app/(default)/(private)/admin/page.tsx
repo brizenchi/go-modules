@@ -1,2 +1,2 @@
-import { OperatorConsole } from "@/components/operator-console";
-export default function AdminPage() { return <OperatorConsole section="overview" />; }
+import AdminConsoleEntry from "@/components/admin-console-entry";
+export default function AdminPage() { return <AdminConsoleEntry section="overview" />; }
