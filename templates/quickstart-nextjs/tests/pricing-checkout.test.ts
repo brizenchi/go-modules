@@ -48,6 +48,16 @@ test("existing paid subscriptions review a plan change without creating another 
  assert.equal((await preparePricingCheckout(intent, 1, urls, "", deps)).kind, "current");
  assert.equal(payloads.length, 0);
 });
+test("keeping the current tier opens confirmation with its actual interval and never creates Checkout", async () => {
+ for (const billing_cycle of ["monthly", "yearly"]) {
+  const subscription = {plan:"pro",status:"active",billing_cycle,scheduled_change:{plan:"starter",billing_cycle:"monthly"}};
+  const {deps,payloads}=fixture(subscription);
+  const result = await preparePricingCheckout({...intent,interval:billing_cycle==="monthly"?"yearly":"monthly"},1,urls,"",deps);
+  assert.equal(result.kind,"change");
+  if (result.kind === "change") assert.deepEqual(result.selection,{plan:"pro",interval:billing_cycle});
+  assert.equal(payloads.length,0);
+ }
+});
 test("existing subscription restrictions do not prevent choosing a target in the change dialog",async()=>{
  for(const subscription of [
   {plan:"pro",status:"incomplete"},

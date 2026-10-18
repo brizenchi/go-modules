@@ -116,12 +116,28 @@ test("a Pro user can select other plans even when a later billing action is rest
     { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } }]) {
     assert.equal(canSelectSubscriptionPlan({ plan: "starter", interval: "monthly" }, current, ready), true);
     assert.equal(canSelectSubscriptionPlan(selection, current, ready), true);
-    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), false);
-    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "monthly" }, current, ready), false);
+    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "yearly" }, current, ready), Boolean(current.scheduled_change));
+    assert.equal(canSelectSubscriptionPlan({ plan: "pro", interval: "monthly" }, current, ready), Boolean(current.scheduled_change));
   }
   assert.equal(canSelectSubscriptionPlan(selection, { plan: "lifetime", status: "active" }, ready), false);
   for (const state of [{ ...ready, busy: true }, { ...ready, loading: true }, { ...ready, failed: true }]) {
     assert.equal(canSelectSubscriptionPlan(selection, pro, state), false);
+  }
+});
+
+test("the current Premium card can keep Premium when a Pro downgrade is scheduled", () => {
+  const premium = { plan: "premium", status: "active", billing_cycle: "monthly", scheduled_change: { plan: "pro", billing_cycle: "monthly" } };
+  const ready = { busy: false, loading: false, failed: false };
+  for (const interval of ["monthly", "yearly"]) {
+    const target = { plan: "premium", interval };
+    assert.equal(subscriptionPlanIntent(target, premium), "keep");
+    assert.equal(canSelectSubscriptionPlan(target, premium, ready), true);
+    assert.equal(canSelectSubscriptionPlan(target, { ...premium, pending_payment: { amount_due: 100, currency: "usd" } }, ready), false);
+    assert.equal(canSelectSubscriptionPlan(target, { ...premium, cancel_at_period_end: true }, ready), false);
+    assert.equal(canSelectSubscriptionPlan(target, { ...premium, status: "paused" }, ready), false);
+    for (const state of [{ ...ready, busy: true }, { ...ready, loading: true }, { ...ready, failed: true }]) {
+      assert.equal(canSelectSubscriptionPlan(target, premium, state), false);
+    }
   }
 });
 

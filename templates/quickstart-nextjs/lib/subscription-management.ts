@@ -1,6 +1,6 @@
 import type { SubscriptionPreview, SubscriptionView } from "./api";
 import { hasOngoingRecurringSubscription } from "./billing-state";
-import { canConfirmSubscriptionChange, subscriptionChangeBlocker, type SubscriptionSelection } from "./subscription-change";
+import { canConfirmSubscriptionChange, canKeepCurrentPlan, subscriptionChangeBlocker, type SubscriptionSelection } from "./subscription-change";
 
 export function isScheduledSelection(selection: SubscriptionSelection, subscription: SubscriptionView): boolean {
   return subscriptionChangeBlocker(subscription) === "scheduled"
@@ -64,6 +64,24 @@ type ScheduleDependencies = {
   removeSchedule: () => Promise<unknown>;
   current: () => boolean;
 };
+
+/** Keeping the current plan only removes the reviewed future change; it never purchases a plan. */
+export async function keepCurrentSubscription(reviewed: SubscriptionView, deps: ScheduleDependencies): Promise<{ state: "kept" | "review"; subscription: SubscriptionView } | null> {
+  let latest = await deps.load();
+  if (!deps.current()) return null;
+  const unchanged = () => subscriptionIdentity(latest, false) === subscriptionIdentity(reviewed, false)
+    && subscriptionChangeBlocker({ ...latest, scheduled_change: null }) === null;
+  const outcome = (state: "kept" | "review") => ({ state, subscription: latest });
+  if (!canKeepCurrentPlan(reviewed) || !unchanged()) return outcome("review");
+  // An exact retry may follow a lost response after the schedule was removed.
+  if (!latest.scheduled_change) return outcome("kept");
+  if (subscriptionIdentity(latest) !== subscriptionIdentity(reviewed)) return outcome("review");
+  await deps.removeSchedule();
+  if (!deps.current()) return null;
+  latest = await deps.load();
+  if (!deps.current()) return null;
+  return outcome(unchanged() && !latest.scheduled_change ? "kept" : "review");
+}
 
 /** Removing a future change is explicit and never submits a replacement plan. */
 export async function removeScheduledChangeForSelection(deps: ScheduleDependencies): Promise<SubscriptionView | null> {

@@ -4,11 +4,22 @@ Shared labels and outcomes live in `lib/billing-presentation.ts`. Eligibility st
 `lib/subscription-change.ts`; wording must not bypass pending payments or other restrictions.
 Every label has English and Chinese text. Public pricing and private billing preserve the selected language.
 
+## Copy references
+
+Checked against official product help on 2026-10-18:
+
+- [SendPulse: View your subscriptions](https://web.sendpulse.com/knowledge-base/account-settings/billing/service-subscriptions) uses **Cancel plan change** followed by confirmation to remove a future change and continue the current plan. It also documents replacing a scheduled downgrade by selecting a different plan.
+- [ElevenLabs: How can I downgrade my subscription?](https://elevenlabs.io/docs/help-center/account/cancellation-refunds/how-can-i-downgrade-my-subscription) uses **Cancel downgrade** to undo a pending downgrade before the current billing cycle ends.
+
+Use **Cancel plan change / 取消套餐变更** here because future changes can affect either the tier or the billing interval. The card action, confirmation and result name the same operation. The secondary confirmation action is **Go back / 返回**, avoiding two different cancellation meanings in one dialog. This operation is separate from **Cancel subscription / 取消订阅**, which stops renewal.
+
+English action labels follow the references; Chinese translations and explanatory text describe this project's actual behavior. Do not copy another product's credit expiry, refund or proration policy. Confirmation must preserve the selected plan, show the effective date or amount due, and disclose any charge from a saved payment method.
+
 | Scenario | Pricing | Billing / confirmation |
 | --- | --- | --- |
 | Signed out | Subscribe, then sign in with the selection preserved | Sign in |
 | Free | Subscribe to the chosen tier | Upgrade |
-| Current tier | Current plan, disabled, including when browsing the other interval | Change plan + Cancel subscription |
+| Current tier | Current plan, disabled, including when browsing the other interval; when a future change exists, Cancel plan change is enabled | Cancel plan change? shows the scheduled target/date and confirms removal without a purchase, charge or interval change; Plan change canceled confirms the result |
 | Selected target | The card and monthly/yearly toggle choose the exact target | Read-only confirmation of plan, amount and timing; no second selection |
 | Higher/lower tier | Change plan, clickable | Higher tiers apply immediately after reviewed payment; lower tiers start at the next billing cycle |
 | Amount due now | Confirm and pay the previewed amount; disclose collection from the saved payment method | Stripe attempts collection without a new Checkout. Pending payment shows a completion action; an applied change links to payment history and invoices |
@@ -32,3 +43,5 @@ Change plan in the overview opens pricing for selection. Its confirmation dialog
 Pending payments are resolved inside the confirmation dialog. Confirmed subscription cancellation clears any future plan before stopping renewal.
 
 The membership API derives effective access from the canonical `billing_subscriptions` status and expiry on every request; it does not rewrite the historical plan to Free. Canceling retains access until its end date; expired or past-due subscriptions receive no paid access by default. Signed subscription lifecycle webhooks update that snapshot, and the host's minute-based recovery job refreshes subscriptions in bounded batches and replays missed events. Manual membership overrides and Lifetime use their separate entitlement rules.
+
+Future plan changes are authoritative Stripe Subscription Schedule phases. The subscription API returns `scheduled_change` (plan, billing cycle, effective date) from Stripe. Local `billing_subscriptions.plan` remains the currently active plan; synchronized raw snapshots can include the future change, with no dedicated `next_plan` column. Removing a schedule keeps the current Stripe subscription running; it does not cancel renewal or create another subscription. The frontend re-reads state before and after the removal and refuses to silently remove a different schedule.

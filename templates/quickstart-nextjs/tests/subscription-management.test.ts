@@ -1,13 +1,56 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SubscriptionPreview, SubscriptionView } from "../lib/api";
-import { cancelRenewalForSubscription, confirmPlanSelection, isScheduledSelection, removeScheduledChangeForSelection, subscriptionRenewalAction } from "../lib/subscription-management";
+import { cancelRenewalForSubscription, confirmPlanSelection, isScheduledSelection, keepCurrentSubscription, removeScheduledChangeForSelection, subscriptionRenewalAction } from "../lib/subscription-management";
 
 const pro: SubscriptionView = { plan: "pro", status: "active", billing_cycle: "monthly" };
 const scheduled = { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } };
 const canceled = { ...pro, cancel_at_period_end: true };
 const premium = { plan: "premium", interval: "monthly" };
 const price: SubscriptionPreview = { currency: "usd", amount_due_now: 45, target_plan: "premium", target_interval: "monthly", change_mode: "immediate_prorated", immediate_charge: true, effective_at_period_end: false, message: "" };
+
+test("keeping Premium only removes the scheduled Pro downgrade and preserves renewal", async () => {
+  const current: SubscriptionView = { plan: "premium", status: "active", billing_cycle: "yearly", current_period_end: "2027-01-01T00:00:00Z" };
+  const reviewed = { ...current, scheduled_change: { plan: "pro", billing_cycle: "monthly", effective_at: current.current_period_end } };
+  let snapshot: SubscriptionView = reviewed;
+  const calls: string[] = [];
+  const result = await keepCurrentSubscription(reviewed, {
+    load: async () => { calls.push("read"); return snapshot; }, current: () => true,
+    removeSchedule: async () => { calls.push("remove schedule"); snapshot = current; }
+  });
+  assert.deepEqual(result, { state: "kept", subscription: current });
+  assert.deepEqual(calls, ["read", "remove schedule", "read"]);
+});
+
+test("keeping a current plan refuses a changed subscription or a newly scheduled target", async () => {
+  let removes = 0;
+  for (const latest of [{ ...scheduled, plan: "starter" }, { ...scheduled, billing_cycle: "yearly" },
+    { ...scheduled, scheduled_change: { plan: "premium", billing_cycle: "monthly" } },
+    { ...scheduled, pending_payment: { amount_due: 100, currency: "usd" } },
+    { ...scheduled, cancel_at_period_end: true }]) {
+    const result = await keepCurrentSubscription(scheduled, { load: async () => latest, current: () => true, removeSchedule: async () => { removes++; } });
+    assert.equal(result?.state, "review");
+  }
+  assert.equal(removes, 0);
+});
+
+test("keeping a current plan retries a lost successful response without removing again", async () => {
+  let snapshot: SubscriptionView = scheduled;
+  let removes = 0;
+  const deps = { load: async () => snapshot, current: () => true, removeSchedule: async () => { removes++; snapshot = pro; throw new TypeError("fixture response lost"); } };
+  await assert.rejects(keepCurrentSubscription(scheduled, deps), TypeError);
+  assert.equal((await keepCurrentSubscription(scheduled, deps))?.state, "kept");
+  assert.equal(removes, 1);
+});
+
+test("failed, stale and unconfirmed schedule removals cannot report the plan kept", async () => {
+  const deps = { load: async () => scheduled, current: () => true, removeSchedule: async () => {} };
+  assert.equal((await keepCurrentSubscription(scheduled, deps))?.state, "review");
+  assert.equal(await keepCurrentSubscription(scheduled, { ...deps, current: () => false, removeSchedule: async () => { assert.fail("stale account"); } }), null);
+  await assert.rejects(keepCurrentSubscription(scheduled, { ...deps, removeSchedule: async () => { throw new TypeError("fixture offline"); } }), TypeError);
+  let current = true;
+  assert.equal(await keepCurrentSubscription(scheduled, { ...deps, current: () => current, removeSchedule: async () => { current = false; } }), null);
+});
 
 test("selecting an already scheduled target shows its result without replacing it", async () => {
   const selection = { plan: "starter", interval: "monthly" };

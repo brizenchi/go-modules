@@ -69,6 +69,12 @@ test("payment confirmation names the immediate amount or a future scheduled chan
   assert.equal(changeTimingText({ ...preview, amount_due_now: 0 }).label.zh, "确认后立即生效");
 });
 
+test("canceling a future plan change is distinct from canceling the subscription", () => {
+  assert.equal(planActionText("keep", "Premium", "monthly").en, "Cancel plan change");
+  assert.equal(planActionText("keep", "Premium", "monthly").zh, "取消套餐变更");
+  assert.equal(changeDialogTitle("keep").en, "Cancel plan change?");
+});
+
 test("disabled dialog actions explain current selection, billing restrictions, loading and errors", () => {
   const state = { choice: "upgrade" as const, configured: true, phase: "loading" as const, preview: null, amount: "" };
   assert.equal(changeSubmitText(state).en, "Loading price…");

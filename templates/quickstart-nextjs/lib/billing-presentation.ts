@@ -16,6 +16,18 @@ export const billingText = {
   checkoutCanceled: { en: "Checkout was canceled. You can choose a plan again.", zh: "已退出结账，可以重新选择套餐。" }
 } satisfies Record<string, Text>;
 
+// Action wording: SendPulse's "View your subscriptions"; see BILLING_UX.md.
+export const cancelPlanChangeText = {
+  action: { en: "Cancel plan change", zh: "取消套餐变更" },
+  title: { en: "Cancel plan change?", zh: "取消套餐变更？" },
+  description: { en: "Your current plan and renewal date will stay the same. No payment is due now.", zh: "当前套餐及续费日期保持不变，本次无需付款。" },
+  scheduledChange: { en: "Scheduled change", zh: "待生效变更" },
+  back: { en: "Go back", zh: "返回" },
+  submitting: { en: "Canceling…", zh: "正在取消…" },
+  successTitle: { en: "Plan change canceled", zh: "已取消套餐变更" },
+  successBody: { en: "Your current plan and renewal date are unchanged.", zh: "当前套餐及续费日期保持不变。" }
+} satisfies Record<string, Text>;
+
 export function subscriptionRestrictionText(blocker: ReturnType<typeof subscriptionChangeBlocker>): Text | null {
   return blocker ? {
     payment: { en: "Complete the pending payment before changing plans.", zh: "完成待付款后，才可更改套餐。" },
@@ -36,6 +48,7 @@ export function lifetimePurchaseAction(subscription: SubscriptionView | null): "
 export function planActionText(action: SubscriptionPlanAction, name: string, _interval: string, ended = false): Text {
   switch (action) {
     case "current": return billingText.current;
+    case "keep": return cancelPlanChangeText.action;
     case "upgrade":
     case "downgrade":
     case "interval": return { en: "Change plan", zh: "更改套餐" };
@@ -80,6 +93,7 @@ export function subscriptionStatusText(status: string): Text {
 }
 
 export function changeDialogTitle(choice: SubscriptionPlanAction): Text {
+  if (choice === "keep") return cancelPlanChangeText.title;
   return choice === "upgrade" ? { en: "Upgrade plan", zh: "升级套餐" }
     : choice === "downgrade" ? { en: "Downgrade plan", zh: "降级套餐" }
       : choice === "interval" ? { en: "Change billing interval", zh: "更改计费周期" }

@@ -59,6 +59,7 @@ export async function preparePricingCheckout(intent: BillingIntent, quantity: nu
       const selection = { plan: intent.plan, interval: intent.interval };
       const action = subscriptionPlanIntent(selection, subscription);
       if (action === "current") return { kind: "current" };
+      if (action === "keep") return { kind: "change", selection: { plan: subscription.plan, interval: subscription.billing_cycle || selection.interval }, subscription, offers: capabilities.billing.offers.subscriptions };
       if (["upgrade", "downgrade", "interval"].includes(action)) return { kind: "change", selection, subscription, offers: capabilities.billing.offers.subscriptions };
       return { kind: "manage", subscription };
     }
