@@ -17,7 +17,18 @@ function subscriptionIdentity(subscription: SubscriptionView, includeSchedule = 
 
 function priceIdentity(preview: SubscriptionPreview): string {
   return JSON.stringify([preview.target_plan, preview.target_interval, preview.currency.toLowerCase(), preview.amount_due_now, preview.unused_credit_amount,
-    preview.change_mode, preview.immediate_charge, preview.effective_at_period_end, preview.current_period_end, preview.next_billing_at]);
+    preview.change_mode, preview.immediate_charge, preview.effective_at_period_end, preview.current_period_end]);
+}
+
+function sameReviewedPrice(reviewed: SubscriptionPreview, fresh: SubscriptionPreview): boolean {
+  if (priceIdentity(reviewed) !== priceIdentity(fresh)) return false;
+  if (reviewed.next_billing_at === fresh.next_billing_at) return true;
+  // A cycle reset starts at confirmation time. Stripe's second preview moves
+  // the anniversary by the time spent reviewing; this is not a new price.
+  // Keep a short bound, require both dates, and never tolerate money changes.
+  if (reviewed.change_mode !== "immediate_reset_cycle" || !reviewed.next_billing_at || !fresh.next_billing_at) return false;
+  const elapsed = Date.parse(fresh.next_billing_at) - Date.parse(reviewed.next_billing_at);
+  return Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 5 * 60_000;
 }
 
 /** One reviewed confirmation may replace its known schedule; changed billing details need a new review. */
@@ -49,7 +60,7 @@ export async function confirmPlanSelection<T>(reviewed: {
   const freshPrice = await deps.preview();
   if (!deps.current()) return null;
   if (!canConfirmSubscriptionChange({ selection: reviewed.selection, subscription: latest, preview: freshPrice, ready: true, busy: false })
-    || priceIdentity(freshPrice) !== priceIdentity(reviewed.preview)) return needsReview();
+    || !sameReviewedPrice(reviewed.preview, freshPrice)) return needsReview();
   const result = await deps.submit();
   return deps.current() ? { state: "submitted", result } : null;
 }

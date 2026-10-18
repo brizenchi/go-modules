@@ -193,3 +193,25 @@ test("removing a schedule only changes the schedule, preserving the chosen subsc
   assert.equal(removes, 1);
   assert.equal(await removeScheduledChangeForSelection({ ...deps, current: () => false }), null);
 });
+
+test("monthly to annual confirmation accepts clock drift without a false billing change", async () => {
+  const subscription = { plan: "premium", status: "active", billing_cycle: "monthly", current_period_end: "2026-11-17T08:25:12Z" };
+  const preview: SubscriptionPreview = { currency: "usd", amount_due_now: 533.37, unused_credit_amount: 5663, target_plan: "premium", target_interval: "yearly", change_mode: "immediate_reset_cycle", immediate_charge: true, effective_at_period_end: false, current_period_end: subscription.current_period_end, next_billing_at: "2027-10-18T14:14:39Z", message: "" };
+  let writes = 0;
+  const result = await confirmPlanSelection({ selection: {plan:"premium",interval:"yearly"}, subscription, preview }, {
+    load: async () => subscription, preview: async () => ({...preview,next_billing_at:"2027-10-18T14:15:39Z"}),
+    current: () => true, removeSchedule: async () => assert.fail("no schedule"), submit: async () => { writes++; return "updated"; }
+  });
+  assert.equal(result?.state,"submitted");
+  assert.equal(writes,1);
+});
+
+test("annual confirmation still rejects price changes and material renewal-date changes", async () => {
+  const annual: SubscriptionPreview = {...price,change_mode:"immediate_reset_cycle",target_interval:"yearly",next_billing_at:"2027-10-18T14:15:39Z"};
+  for (const next of [{...annual,amount_due_now:46},{...annual,unused_credit_amount:500},{...annual,currency:"eur"},{...annual,next_billing_at:"2027-11-18T14:15:39Z"},{...annual,next_billing_at:undefined}]) {
+    const result=await confirmPlanSelection({selection:{plan:"premium",interval:"yearly"},subscription:pro,preview:annual},{
+      load:async()=>pro,preview:async()=>next,current:()=>true,removeSchedule:async()=>{},submit:async()=>assert.fail("unreviewed charge")
+    });
+    assert.equal(result?.state,"review");
+  }
+});
