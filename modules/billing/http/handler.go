@@ -518,6 +518,9 @@ func formatTimePtr(value *time.Time) string {
 
 func respondAppError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, domain.ErrPriceConfiguration):
+		slog.ErrorContext(c.Request.Context(), "billing: invalid price configuration", "error", err)
+		httpresp.Custom(c, http.StatusServiceUnavailable, http.StatusServiceUnavailable, "purchase unavailable", gin.H{"reason": "billing_price_configuration"})
 	case errors.Is(err, domain.ErrPendingSubscriptionChange):
 		httpresp.Custom(c, 409, 409, "resolve pending subscription change", gin.H{"reason": "subscription_change_pending"})
 	case errors.Is(err, domain.ErrInvalidInput),

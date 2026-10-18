@@ -393,6 +393,16 @@ APP_BILLING_STRIPE_CREDITS_PER_PACKAGE=100
 Price 对象 ID；生产环境会拒绝占位值、`prod_...` 以及格式错误的订阅、终身版和积分包
 Price ID，避免前端展示无法结算的商品。
 
+Lifetime 必须引用启用的 **One-time（一次性）** Price；不能使用 Monthly / Yearly 的
+Recurring Price。月付和年付订阅使用各自的 Recurring Price，积分包也使用一次性价格。
+如果 Lifetime 填成了月付价格，应在 Stripe 为该商品添加正确的一次性价格，再更新后台
+Stripe 配置的 Lifetime Price ID（或未启用后台配置时的环境变量）。改商品名称不会改变
+Price 的计费类型；不要把 Lifetime 的 Checkout 改成订阅模式来绕过错误。
+
+后端创建 Lifetime Checkout 前会读取 Price 校验类型。配置错误返回 503，稳定原因是
+`billing_price_configuration`，客户端提示商品暂不可购买并显示请求 ID；不会自动替换
+价格、扣款或结束用户原有订阅。
+
 当前前端只创建后端托管的 Stripe Checkout Session，不在浏览器创建 PaymentIntent，
 所以不需要 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`。后端保留的 publishable key 字段也是
 可选兼容项，不属于最小配置。

@@ -17,6 +17,7 @@ import (
 	"github.com/stripe/stripe-go/v76/checkout/session"
 	"github.com/stripe/stripe-go/v76/customer"
 	"github.com/stripe/stripe-go/v76/invoice"
+	"github.com/stripe/stripe-go/v76/price"
 	"github.com/stripe/stripe-go/v76/subscription"
 	"github.com/stripe/stripe-go/v76/subscriptionschedule"
 )
@@ -166,6 +167,9 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		if priceID == "" {
 			return nil, fmt.Errorf("%w: lifetime price not configured", domain.ErrPriceNotFound)
 		}
+		if err := p.validateLifetimePrice(ctx, priceID); err != nil {
+			return nil, err
+		}
 		in.Plan = domain.PlanLifetime
 		in.Interval = ""
 		quantity = 1
@@ -273,6 +277,22 @@ func (p *Provider) CreateCheckout(ctx context.Context, in domain.CheckoutInput) 
 		result.ExpiresAt = &expires
 	}
 	return result, nil
+}
+
+// Lifetime must remain a one-time purchase even when the catalog is misconfigured.
+func (p *Provider) validateLifetimePrice(ctx context.Context, priceID string) error {
+	configured, err := price.Get(priceID, &stripesdk.PriceParams{Params: stripesdk.Params{Context: ctx}})
+	if err != nil {
+		var providerErr *stripesdk.Error
+		if errors.As(err, &providerErr) && providerErr.Code == stripesdk.ErrorCodeResourceMissing {
+			return fmt.Errorf("%w: lifetime price lookup: %w", domain.ErrPriceConfiguration, err)
+		}
+		return fmt.Errorf("stripe: read lifetime price: %w", err)
+	}
+	if configured == nil || configured.ID != priceID || !configured.Active || configured.Type != stripesdk.PriceTypeOneTime || configured.Recurring != nil {
+		return fmt.Errorf("%w: lifetime requires an active one-time price", domain.ErrPriceConfiguration)
+	}
+	return nil
 }
 
 func (p *Provider) GetCheckoutSession(ctx context.Context, providerSessionID string) (*domain.CheckoutSessionSnapshot, error) {

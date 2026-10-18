@@ -9,6 +9,10 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Fixed
 
+- Verify Lifetime uses an active one-time Stripe price before opening Checkout.
+  Invalid catalog prices return 503 with reason `billing_price_configuration`
+  instead of an unexplained internal error; existing recurring access is untouched.
+
 - Include the Checkout Session ID in paid credit events so hosts can deduplicate
   one purchase across return confirmation, webhook retries and async events.
 

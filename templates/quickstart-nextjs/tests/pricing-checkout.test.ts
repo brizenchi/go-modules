@@ -98,6 +98,14 @@ test("checkout failures never expose raw server text and display request ids onl
  assert.ok(conflict.manage);assert.equal(conflict.requestId,"");assert.ok(!JSON.stringify(conflict).includes("private database"));
  assert.equal(pricingCheckoutFailure(new ApiError("private error",500,500,null,"trace-server")).requestId,"trace-server");
 });
+test("invalid catalog prices explain purchase unavailability without suggesting retries",()=>{
+ const error = new ApiError("private provider detail",503,503,{reason:"billing_price_configuration"},"fixture-request");
+ const failure = pricingCheckoutFailure(error);
+ assert.match(failure.messages.en,/contact support/i);
+ assert.doesNotMatch(failure.messages.en,/try again|retry|recurring|Stripe/i);
+ assert.equal(failure.requestId,"fixture-request");
+ assert.ok(!JSON.stringify(failure).includes("private provider detail"));
+});
 test("provider checkout destinations must be trusted Stripe URLs",async()=>{
  const {deps}=fixture();
  for(const checkout_url of ["https://evil.example/pay","javascript:alert(1)","http://checkout.stripe.com/pay","https://user:pass@checkout.stripe.com/pay"]) await assert.rejects(preparePricingCheckout(intent,1,urls,"",{...deps,create:async()=>({checkout_url})}));

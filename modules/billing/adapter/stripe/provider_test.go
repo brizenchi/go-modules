@@ -473,6 +473,11 @@ func TestCreateCheckout_CreditsRejectsQuantityOutsideStripeBounds(t *testing.T) 
 func TestCreateCheckout_Lifetime(t *testing.T) {
 	var captured url.Values
 	p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/prices/price_lifetime" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"price_lifetime","active":true,"type":"one_time"}`))
+			return
+		}
 		captured = readForm(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"cs_lifetime","url":"https://stripe.test/lifetime","object":"checkout.session"}`))

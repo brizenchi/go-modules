@@ -8,6 +8,7 @@ var (
 	ErrInvalidInput                 = errors.New("billing: invalid input")
 	ErrPlanNotFound                 = errors.New("billing: plan not found")
 	ErrPriceNotFound                = errors.New("billing: price not configured")
+	ErrPriceConfiguration           = errors.New("billing: configured price cannot be used for this purchase")
 	ErrInvalidPriceID               = errors.New("billing: invalid price id")
 	ErrInvalidCancelMode            = errors.New("billing: invalid cancel mode")
 	ErrNoBillingCustomer            = errors.New("billing: no billing customer")

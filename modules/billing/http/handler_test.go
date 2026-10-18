@@ -123,6 +123,17 @@ func TestRespondAppErrorDoesNotLeakUnknownInternalError(t *testing.T) {
 	}
 }
 
+func TestRespondPriceConfigurationErrorHasStableReasonWithoutProviderDetails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/stripe/checkout/session", nil)
+	respondAppError(c, errors.Join(domain.ErrPriceConfiguration, errors.New("private provider detail")))
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), `"reason":"billing_price_configuration"`) || strings.Contains(w.Body.String(), "private provider detail") {
+		t.Fatalf("status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
 type handlerTestProvider struct{}
 
 func (handlerTestProvider) Name() string  { return "stripe" }
