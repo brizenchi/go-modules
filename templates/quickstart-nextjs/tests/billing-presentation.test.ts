@@ -64,6 +64,9 @@ test("payment confirmation names the immediate amount or a future scheduled chan
   assert.equal(changeTimingText(scheduled).label.en, "Next billing cycle");
   assert.ok(!changeTimingText({ ...preview, amount_due_now: 0 }).label.en.includes("payment"));
   assert.equal(changeConfirmationText({ ...preview, amount_due_now: 0 }, "$0.00").en, "Confirm change");
+  assert.equal(changeTimingText(preview).label.zh, "付款成功后立即生效");
+  assert.match(changeTimingText(preview).detail.zh, /补差价/);
+  assert.equal(changeTimingText({ ...preview, amount_due_now: 0 }).label.zh, "确认后立即生效");
 });
 
 test("disabled dialog actions explain current selection, billing restrictions, loading and errors", () => {

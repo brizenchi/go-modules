@@ -133,7 +133,7 @@ export function ProductPricing() {
       </section>
       <SignInDialog open={Boolean(checkout.pending)} onClose={checkout.close} onSuccess={checkout.signedIn} returnTo={checkout.returnTo} />
       {checkout.changeRequest && checkout.token ? <SubscriptionChangeDialog token={checkout.token} subscription={checkout.changeRequest.subscription} offers={checkout.changeRequest.offers} selection={checkout.changeRequest.selection}
-        onSelection={selection => checkout.setChangeRequest(current => current ? { ...current, selection } : null)} onClose={() => checkout.setChangeRequest(null)} onChanged={checkout.revalidate} /> : null}
+        onClose={() => checkout.setChangeRequest(null)} onChanged={checkout.revalidate} /> : null}
       <PageSection id="faq" title={t({ en: "A few things to know", zh: "选择前，了解这些" })}>
         <div className={styles.faqGrid}>{notes.map((note) => <article className={styles.faqItem} key={note.title.en}><h3>{t(note.title)}</h3><p>{t(note.body)}</p></article>)}</div>
       </PageSection>

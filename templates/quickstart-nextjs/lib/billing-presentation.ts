@@ -109,12 +109,12 @@ export function changeTimingText(preview: SubscriptionPreview): { label: Text; d
     detail: { en: "Your current plan continues until the change takes effect. No payment is due now.", zh: "变更生效前继续使用当前套餐，本次无需付款。" }
   };
   if (mode === "immediate_reset_cycle") return {
-    label: preview.amount_due_now > 0 ? { en: "After payment, new billing cycle", zh: "付款确认后，开启新计费周期" } : { en: "On confirmation, new billing cycle", zh: "确认后，开启新计费周期" },
+    label: preview.amount_due_now > 0 ? { en: "Immediately after payment, new billing cycle", zh: "付款成功后立即生效，开启新计费周期" } : { en: "Immediately on confirmation, new billing cycle", zh: "确认后立即生效，开启新计费周期" },
     detail: { en: "A new billing cycle starts when the change takes effect. The amount shown includes the adjustment for your current plan.", zh: "变更生效后开始新的计费周期，当前应付已包含原套餐的费用调整。" }
   };
   return {
-    label: preview.amount_due_now > 0 ? { en: "After payment confirmation", zh: "付款确认后生效" } : { en: "On confirmation", zh: "确认后生效" },
-    detail: { en: "The amount shown includes the adjustment for the remaining time in your current billing period.", zh: "当前应付已包含本期剩余时间的费用调整。" }
+    label: preview.amount_due_now > 0 ? { en: "Immediately after payment", zh: "付款成功后立即生效" } : { en: "Immediately on confirmation", zh: "确认后立即生效" },
+    detail: { en: "The amount shown includes the prorated adjustment for the remaining time in your current billing period.", zh: "当前应付按本期剩余时间计算补差价。" }
   };
 }
 

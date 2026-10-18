@@ -32,7 +32,7 @@ import {
 } from "@/lib/billing-state";
 import { appEnv } from "@/lib/env";
 import { readBillingIntent, type BillingIntent } from "@/lib/billing-intent";
-import { billingSelectionPath, isBillingIntentAvailable } from "@/lib/billing-selection";
+import { isBillingIntentAvailable } from "@/lib/billing-selection";
 import { formatDate } from "@/lib/format";
 import { localizeHref } from "@/lib/locale";
 import { useI18n } from "@/lib/i18n";
@@ -208,7 +208,6 @@ export default function BillingPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (["#plans", "#subscription-checkout"].includes(window.location.hash)) setPlansOpen(true);
     if (["product", "plan", "interval"].some(key => params.has(key))) {
       const intent = readBillingIntent(window.location.search);
       setIntentRequest({ intent });
@@ -236,6 +235,12 @@ export default function BillingPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (["#plans", "#subscription-checkout"].includes(window.location.hash) && !readBillingIntent(window.location.search)) {
+      window.location.replace(localizeHref("/pricing#plans", locale));
+    }
+  }, [locale]);
 
   useEffect(() => {
     capabilitiesMountedRef.current = true;
@@ -447,39 +452,13 @@ export default function BillingPage() {
     </div>;
   }
 
-  function changeSelection(nextPlan: string, nextInterval = interval) {
-    const intervals = billingCapability?.offers.subscriptions.find(offer => offer.plan === nextPlan)?.intervals || [];
-    const selectedInterval = intervals.includes(nextInterval) ? nextInterval : intervals[0] || nextInterval;
-    const intent: BillingIntent | null = nextPlan === "lifetime"
-      ? { product: "lifetime" }
-      : selectedInterval === "monthly" || selectedInterval === "yearly"
-        ? { product: "subscription", plan: nextPlan, interval: selectedInterval }
-        : null;
-    if (intent) syncSelectionURL(intent);
-    setIntentRequest(null);
-    setPlansOpen(true);
-    setPlan(nextPlan);
-    setInterval(selectedInterval);
-    setStatus("");
-    setActionFailure(null);
-  }
-
-  function syncSelectionURL(intent: BillingIntent) {
-    const path = billingSelectionPath(window.location.search, intent, billingCapability);
-    if (path) window.history.replaceState(window.history.state, "", path);
-  }
-
   function primaryPlanControl() {
     if (hasLifetime) return <button className="button" disabled>{t(billingText.lifetime)}</button>;
     if (upgradeLoading) return <button className="button primary" disabled>{t(billingText.loading)}</button>;
     if (subscriptionState.status === "error" || billingDisabled) return <button className="button" disabled>{t({ en: "Plan unavailable", zh: "暂时无法读取套餐" })}</button>;
     const label = t(billingPrimaryText(upgradeAction));
-    if (ongoingRecurringSubscription && subscription) return <button className="button primary" disabled={baseActionDisabled} onClick={() => {
-      setPlan(subscription.plan); setInterval(subscription.billing_cycle || defaultInterval);
-      setStatus(""); setActionFailure(null); setPlansOpen(true);
-    }}>{t({ en: "Change plan", zh: "更改套餐" })}</button>;
     if (baseActionDisabled) return <button className="button primary" disabled>{label}</button>;
-    return <Link className="button primary" href={localizeHref("/pricing", locale)}>{label}</Link>;
+    return <Link className="button primary" href={localizeHref("/pricing#plans", locale)}>{label}</Link>;
   }
 
   return (
@@ -584,7 +563,6 @@ export default function BillingPage() {
 
         {plansOpen && ongoingRecurringSubscription && !hasLifetime && subscription ? <SubscriptionChangeDialog
           token={sessionToken} subscription={subscription} offers={subscriptionOffers} selection={{ plan, interval }}
-          onSelection={selection => changeSelection(selection.plan, selection.interval)}
           onClose={() => setPlansOpen(false)} onChanged={() => loadBillingState(sessionToken, true)} /> : null}
 
         {session ? <BillingHistory key={session.token} token={session.token} revision={historyRevision} invoicesEnabled={billingReady} /> : null}

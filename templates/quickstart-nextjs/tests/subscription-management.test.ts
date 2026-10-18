@@ -1,11 +1,90 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { SubscriptionView } from "../lib/api";
-import { cancelRenewalForSubscription, removeScheduledChangeForSelection, subscriptionRenewalAction } from "../lib/subscription-management";
+import type { SubscriptionPreview, SubscriptionView } from "../lib/api";
+import { cancelRenewalForSubscription, confirmPlanSelection, isScheduledSelection, removeScheduledChangeForSelection, subscriptionRenewalAction } from "../lib/subscription-management";
 
 const pro: SubscriptionView = { plan: "pro", status: "active", billing_cycle: "monthly" };
 const scheduled = { ...pro, scheduled_change: { plan: "starter", billing_cycle: "monthly" } };
 const canceled = { ...pro, cancel_at_period_end: true };
+const premium = { plan: "premium", interval: "monthly" };
+const price: SubscriptionPreview = { currency: "usd", amount_due_now: 45, target_plan: "premium", target_interval: "monthly", change_mode: "immediate_prorated", immediate_charge: true, effective_at_period_end: false, message: "" };
+
+test("selecting an already scheduled target shows its result without replacing it", async () => {
+  const selection = { plan: "starter", interval: "monthly" };
+  assert.equal(isScheduledSelection(selection, scheduled), true);
+  assert.equal(isScheduledSelection(premium, scheduled), false);
+  assert.equal(isScheduledSelection({ ...selection, interval: "yearly" }, scheduled), false);
+  let writes = 0;
+  const result = await confirmPlanSelection({ selection, subscription: scheduled, preview: { ...price, target_plan: "starter", amount_due_now: 0, change_mode: "period_end", immediate_charge: false, effective_at_period_end: true } }, {
+    load: async () => scheduled, current: () => true, preview: async () => price,
+    removeSchedule: async () => { writes++; }, submit: async () => { writes++; return "changed"; }
+  });
+  assert.equal(result?.state, "review");
+  assert.equal(writes, 0);
+});
+
+test("one confirmation replaces the reviewed schedule with the exact selected plan", async () => {
+  let snapshot: SubscriptionView = scheduled;
+  const calls: string[] = [];
+  const result = await confirmPlanSelection({ selection: premium, subscription: scheduled, preview: price }, {
+    load: async () => { calls.push("read"); return snapshot; }, current: () => true,
+    removeSchedule: async () => { calls.push("remove schedule"); snapshot = pro; },
+    preview: async () => { calls.push("preview"); return price; },
+    submit: async () => { calls.push("submit premium monthly"); return "changed"; }
+  });
+  assert.deepEqual(result, { state: "submitted", result: "changed" });
+  assert.deepEqual(calls, ["read", "remove schedule", "read", "preview", "submit premium monthly"]);
+});
+
+test("a newer schedule, payment or current plan is never silently overwritten", async () => {
+  let writes = 0;
+  for (const latest of [
+    { ...scheduled, scheduled_change: { plan: "starter", billing_cycle: "yearly" } },
+    { ...scheduled, pending_payment: { amount_due: 4500, currency: "usd" } },
+    { ...scheduled, plan: "premium" }, { ...scheduled, current_period_end: "2026-12-01T00:00:00Z" }
+  ]) {
+    const result = await confirmPlanSelection({ selection: premium, subscription: scheduled, preview: price }, {
+      load: async () => latest, current: () => true, preview: async () => price,
+      removeSchedule: async () => { writes++; }, submit: async () => { writes++; }
+    });
+    assert.equal(result?.state, "review");
+  }
+  assert.equal(writes, 0);
+});
+
+test("a changed amount or effective date requires another review before payment", async () => {
+  for (const next of [{ ...price, amount_due_now: 46 }, { ...price, next_billing_at: "2026-12-01T00:00:00Z" }, { ...price, currency: "eur" }]) {
+    let submits = 0;
+    const result = await confirmPlanSelection({ selection: premium, subscription: pro, preview: price }, {
+      load: async () => pro, current: () => true, preview: async () => next,
+      removeSchedule: async () => { assert.fail("no schedule to remove"); }, submit: async () => { submits++; }
+    });
+    assert.equal(result?.state, "review");
+    assert.equal(submits, 0);
+  }
+});
+
+test("failed removal and stale sessions never submit the selected plan", async () => {
+  let submits = 0;
+  const deps = { load: async () => scheduled, current: () => true, preview: async () => price,
+    removeSchedule: async () => { throw new TypeError("fixture offline"); }, submit: async () => { submits++; } };
+  await assert.rejects(confirmPlanSelection({ selection: premium, subscription: scheduled, preview: price }, deps), TypeError);
+  assert.equal(await confirmPlanSelection({ selection: premium, subscription: scheduled, preview: price }, { ...deps, current: () => false }), null);
+  let current = true;
+  assert.equal(await confirmPlanSelection({ selection: premium, subscription: scheduled, preview: price }, { ...deps,
+    current: () => current, removeSchedule: async () => { current = false; } }), null);
+  assert.equal(submits, 0);
+});
+
+test("a new pending payment after removal blocks the replacement", async () => {
+  let snapshot: SubscriptionView = scheduled;
+  const result = await confirmPlanSelection({ selection: premium, subscription: scheduled, preview: price }, {
+    load: async () => snapshot, current: () => true, preview: async () => price,
+    removeSchedule: async () => { snapshot = { ...pro, pending_payment: { amount_due: 4500, currency: "usd" } }; },
+    submit: async () => { assert.fail("payment must be resolved first"); }
+  });
+  assert.equal(result?.state, "review");
+});
 
 test("ongoing subscriptions offer Cancel or Renew regardless of a scheduled plan", () => {
   for (const sub of [pro, scheduled, { ...pro, status: "past_due" }]) assert.equal(subscriptionRenewalAction(sub), "cancel");

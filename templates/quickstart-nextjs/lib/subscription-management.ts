@@ -1,5 +1,58 @@
-import type { SubscriptionView } from "./api";
+import type { SubscriptionPreview, SubscriptionView } from "./api";
 import { hasOngoingRecurringSubscription } from "./billing-state";
+import { canConfirmSubscriptionChange, subscriptionChangeBlocker, type SubscriptionSelection } from "./subscription-change";
+
+export function isScheduledSelection(selection: SubscriptionSelection, subscription: SubscriptionView): boolean {
+  return subscriptionChangeBlocker(subscription) === "scheduled"
+    && subscription.scheduled_change?.plan === selection.plan
+    && subscription.scheduled_change.billing_cycle === selection.interval;
+}
+
+function subscriptionIdentity(subscription: SubscriptionView, includeSchedule = true): string {
+  const schedule = subscription.scheduled_change;
+  return JSON.stringify([subscription.plan, subscription.status, subscription.billing_cycle, subscription.current_period_end,
+    Boolean(subscription.cancel_at_period_end), subscription.effective_cancel_at,
+    includeSchedule && schedule ? [schedule.plan, schedule.billing_cycle, schedule.effective_at] : null]);
+}
+
+function priceIdentity(preview: SubscriptionPreview): string {
+  return JSON.stringify([preview.target_plan, preview.target_interval, preview.currency.toLowerCase(), preview.amount_due_now,
+    preview.change_mode, preview.immediate_charge, preview.effective_at_period_end, preview.current_period_end, preview.next_billing_at]);
+}
+
+/** One reviewed confirmation may replace its known schedule; changed billing details need a new review. */
+export async function confirmPlanSelection<T>(reviewed: {
+  selection: SubscriptionSelection;
+  subscription: SubscriptionView;
+  preview: SubscriptionPreview;
+}, deps: ScheduleDependencies & {
+  preview: () => Promise<SubscriptionPreview>;
+  submit: () => Promise<T>;
+}): Promise<{ state: "submitted"; result: T } | { state: "review"; subscription: SubscriptionView } | null> {
+  let latest = await deps.load();
+  if (!deps.current()) return null;
+  const needsReview = () => ({ state: "review" as const, subscription: latest });
+  if (subscriptionIdentity(latest) !== subscriptionIdentity(reviewed.subscription)
+    || latest.pending_payment || isScheduledSelection(reviewed.selection, latest)) return needsReview();
+  const eligible = (subscription: SubscriptionView) => canConfirmSubscriptionChange({
+    selection: reviewed.selection, subscription, preview: reviewed.preview, ready: true, busy: false
+  });
+  if (!eligible({ ...latest, scheduled_change: null })) return needsReview();
+  if (latest.scheduled_change) {
+    await deps.removeSchedule();
+    if (!deps.current()) return null;
+    latest = await deps.load();
+    if (!deps.current()) return null;
+    if (subscriptionIdentity(latest, false) !== subscriptionIdentity(reviewed.subscription, false)) return needsReview();
+  }
+  if (!eligible(latest)) return needsReview();
+  const freshPrice = await deps.preview();
+  if (!deps.current()) return null;
+  if (!canConfirmSubscriptionChange({ selection: reviewed.selection, subscription: latest, preview: freshPrice, ready: true, busy: false })
+    || priceIdentity(freshPrice) !== priceIdentity(reviewed.preview)) return needsReview();
+  const result = await deps.submit();
+  return deps.current() ? { state: "submitted", result } : null;
+}
 
 export function subscriptionRenewalAction(subscription: SubscriptionView | null): "cancel" | "renew" | null {
   if (!subscription || !hasOngoingRecurringSubscription(subscription)) return null;
