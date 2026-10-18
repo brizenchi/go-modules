@@ -24,6 +24,8 @@ type State struct {
 	Membership View      `json:"membership"`
 	Billing    View      `json:"billing"`
 	Override   *Override `json:"override"`
+	// Retained for administrative presentation; never serialize the raw snapshot.
+	Subscription *domain.BillingSubscription `json:"-"`
 }
 
 func Resolve(billing View, override *Override, now time.Time) View {
@@ -62,7 +64,7 @@ func LoadStates(ctx context.Context, db *gorm.DB, ids []string, now time.Time, b
 		for _, row := range rows {
 			v := Evaluate(row, now)
 			v.Source = "billing"
-			states[row.UserID] = State{Membership: v, Billing: v}
+			states[row.UserID] = State{Membership: v, Billing: v, Subscription: &row}
 		}
 	}
 	overrides := []Override{}

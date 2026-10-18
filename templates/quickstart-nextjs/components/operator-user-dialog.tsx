@@ -16,6 +16,7 @@ import styles from "./admin-shell.module.css";
 export type UserDetailTab = "overview" | "payments" | "credits";
 import { customerTabs, customerTabNames, creditSourceName, signedCredits } from "@/lib/customer-records";
 import { Select } from "./select";
+import { adminSubscriptionPresentation } from "@/lib/admin-subscription";
 type UserTarget = { id: string; email: string; credits: number };
 const planOptions = ["automatic", "free", "starter", "pro", "premium", "lifetime"] as const;
 function localDate(value: string | null | undefined) {
@@ -119,9 +120,8 @@ function UserDialog({ user, token, tab, onClose, onSaved }: { user: UserTarget; 
  function selectTab(next: UserDetailTab) { if (!action.busy) { setEditor(null); setCurrent(next); action.setMessage(""); } }
  const profile = access.data?.user;
  const membership = access.data?.membership;
- const subscription = access.data?.subscription;
+ const subscription = adminSubscriptionPresentation(access.data?.subscription);
  const plan = adminTag("users", "plan", membership?.plan || profile?.plan);
- const subscriptionStatus = adminTag("subscriptions", "status", subscription?.status);
  return <ResponsiveDialog open size="wide" onClose={onClose} dismissible={!action.busy} title={t({ en: "Manage customer", zh: "用户管理" })} closeLabel={t({ en: "Close", zh: "关闭" })}>
   <div className={styles.userDialog}>
    <div className={styles.userSummary}><strong>{profile?.email || user.email}</strong><span>{user.id}</span></div>
@@ -139,10 +139,17 @@ function UserDialog({ user, token, tab, onClose, onSaved }: { user: UserTarget; 
     {current === "overview" ? <section className={styles.customerOverview}>
      <dl className={styles.customerFacts}>
       <div><dt>{t({ en: "Joined", zh: "注册时间" })}</dt><dd>{profile ? formatDate(profile.created_at, locale === "zh" ? "zh-CN" : "en-US") : "—"}</dd></div>
-      <div><dt>{t({ en: "Membership", zh: "会员级别" })}</dt><dd>{plan ? <StatusBadge tone={plan.tone}>{t(plan.label)}</StatusBadge> : "—"}</dd></div>
+      <div><dt>{t({ en: "Membership", zh: "会员级别" })}</dt><dd>{plan ? <StatusBadge tone={plan.tone}>{t(plan.label)}</StatusBadge> : "—"}{membership?.source === "manual" ? <small className={styles.membershipSource}>{t({ en: "Manual access", zh: "手动授权" })}</small> : null}</dd></div>
       <div><dt>{t({ en: "Available credits", zh: "可用积分" })}</dt><dd>{profile ? profile.credits.toLocaleString() : "—"}</dd></div>
      </dl>
-     {subscription ? <dl className={styles.userFacts}><dt>{t({ en: "Payment subscription", zh: "支付订阅" })}</dt><dd>{subscription.plan} · {subscriptionStatus ? t(subscriptionStatus.label) : subscription.status}</dd><dt>{t({ en: "Period end", zh: "本期截止" })}</dt><dd>{subscription.period_end ? formatDate(subscription.period_end, locale) : "—"}</dd></dl> : null}
+     {subscription ? <section className={styles.customerSubscription} aria-label={t({ en: "Payment subscription", zh: "支付订阅" })}>
+      <div className={styles.subscriptionHeading}><h3>{t({ en: "Payment subscription", zh: "支付订阅" })}</h3><StatusBadge tone={subscription.status.tone}>{t(subscription.status.label)}</StatusBadge></div>
+      <dl className={styles.userFacts}>
+       <dt>{t({ en: "Plan", zh: "订阅套餐" })}</dt><dd>{t(subscription.plan)}</dd>
+       {subscription.periodEnd ? <><dt>{t(subscription.endLabel)}</dt><dd>{formatDate(subscription.periodEnd, locale)}</dd></> : null}
+       {subscription.upcoming ? <><dt>{t({ en: "Upcoming plan", zh: "下期套餐" })}</dt><dd>{t(subscription.upcoming.plan)}</dd><dt>{t({ en: "Starts", zh: "生效时间" })}</dt><dd>{subscription.upcoming.effectiveAt ? formatDate(subscription.upcoming.effectiveAt, locale) : t({ en: "Date pending", zh: "时间待确认" })}</dd></> : null}
+      </dl>
+     </section> : null}
      {!editor ? <div className="button-row"><button type="button" className="button" disabled={access.loading || !profile} onClick={() => setEditor("membership")}>{t({ en: "Adjust membership", zh: "调整会员级别" })}</button><button type="button" className="button" disabled={access.loading || !profile} onClick={() => setEditor("credits")}>{t({ en: "Adjust credits", zh: "调整积分" })}</button></div> : <section className={styles.customerEditor} aria-label={t(editor === "credits" ? { en: "Adjust credits", zh: "调整积分" } : { en: "Adjust membership", zh: "调整会员级别" })}><h3>{t(editor === "credits" ? { en: "Adjust credits", zh: "调整积分" } : { en: "Adjust membership", zh: "调整会员级别" })}</h3><UserEditor key={`editor-${editor}`} user={{ ...user, credits: profile?.credits ?? user.credits }} token={token} tab={editor} close={() => setEditor(null)} action={action} access={access} onSaved={saved} /></section>}
     </section> : <UserHistory key={`history-${current}`} token={token} userID={user.id} kind={current} />}
    </div>

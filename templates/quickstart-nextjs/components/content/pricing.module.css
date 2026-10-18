@@ -375,4 +375,5 @@
 .checkoutFeedback small { font-size: 11px; }
 .currentPlan { border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
 .currentPlan .planLabel { background: var(--surface-subtle); color: var(--muted-strong); }
-.currentPlan .planButton:disabled { background: var(--surface-subtle); border-color: var(--line); color: var(--muted); opacity: 1; cursor: default; }
+.scheduledPlan .planLabel { background: var(--accent-soft); color: var(--accent-ink); }
+.currentPlan .planButton:disabled, .scheduledPlan .planButton:disabled { background: var(--surface-subtle); border-color: var(--line); color: var(--muted-strong); opacity: 1; cursor: default; }

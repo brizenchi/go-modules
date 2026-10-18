@@ -558,7 +558,14 @@ export function getMembership(token:string):Promise<MembershipView> {
 }
 
 export type MembershipOverride = { user_id: string; plan: string; expires_at: string | null; updated_at: string };
-export type OperatorAccess = { membership: MembershipView; billing: MembershipView; override: MembershipOverride | null; user: OperatorUser; subscription: { plan: string; status: string; period_end?: string; billing_interval?: string; provider_subscription_id?: string } | null };
+export type OperatorSubscription = {
+ id?: number; user_id?: string; email?: string; provider?: string; provider_subscription_id?: string;
+ plan: string; status: string; billing_interval?: string; period_end?: string | null;
+ cancel_at_period_end?: boolean; cancel_effective_at?: string | null;
+ scheduled_change?: SubscriptionView["scheduled_change"]; payment_pending?: boolean;
+ created_at?: string; updated_at?: string;
+};
+export type OperatorAccess = { membership: MembershipView; billing: MembershipView; override: MembershipOverride | null; user: OperatorUser; subscription: OperatorSubscription | null };
 export type OperatorMetricDay = { date: string; registrations: number; referrals: number; payments: number; new_paying_users: number };
 export type OperatorOverview = {
  users: number; subscriptions: number; active_subscriptions: number; referrals: number;
@@ -569,7 +576,7 @@ export type OperatorOverview = {
 export type OperatorReportFilters = { days: 7 | 30; timezone: "Asia/Shanghai" | "UTC"; mode: "live" | "test" };
 export type MembershipPatch = { plan: "automatic" | "free" | "starter" | "pro" | "premium" | "lifetime"; expires_at?: string; reason: string };
 
-export type OperatorUser = { id: string; email: string; username: string; role: string; plan: string; membership: MembershipView; credits: number; email_verified: boolean; created_at: string; last_login_at?: string };
+export type OperatorUser = { id: string; email: string; username: string; role: string; plan: string; membership: MembershipView; subscription?: OperatorSubscription | null; credits: number; email_verified: boolean; created_at: string; last_login_at?: string };
 export type OperatorAuthorization = { authorized: true };
 
 export type ContentTranslation = { title: string; summary: string; body: string; seo_title: string; seo_description: string };

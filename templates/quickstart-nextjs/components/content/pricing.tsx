@@ -10,7 +10,7 @@ import { SignInDialog } from "@/components/sign-in-dialog";
 import { SubscriptionChangeDialog } from "@/components/subscription-change-dialog";
 import { ConsoleError } from "@/components/console-kit";
 import { canSelectSubscriptionPlan, subscriptionPlanIntent } from "@/lib/subscription-change";
-import { billingText, isEndedSubscription, lifetimePurchaseAction, planActionText } from "@/lib/billing-presentation";
+import { billingText, lifetimePurchaseAction, pricingPlanPresentation } from "@/lib/billing-presentation";
 import { hasOngoingRecurringSubscription } from "@/lib/billing-state";
 import { usePricingCheckout } from "@/components/use-pricing-checkout";
 import { appEnv } from "@/lib/env";
@@ -71,21 +71,20 @@ export function ProductPricing() {
         <div className={styles.planGrid}>
           {plans.map((plan) => {
             const action = subscriptionPlanIntent({ plan: plan.slug, interval }, checkout.subscription);
-            const sameOffer = action === "current";
-            const currentTier = ongoingSubscription && checkout.subscription?.plan === plan.slug;
-            const current = currentTier;
-            const currentCycle = checkout.subscription?.billing_cycle;
-            const selectable = canSelectSubscriptionPlan({ plan: plan.slug, interval }, checkout.subscription, {
+            const card = pricingPlanPresentation({ plan: plan.slug, interval }, plan.name, checkout.subscription);
+            const current = card.current;
+            const emphasized = plan.slug === "pro" && !ongoingSubscription && !hasLifetime;
+            const selectable = !card.scheduled && canSelectSubscriptionPlan({ plan: plan.slug, interval }, checkout.subscription, {
               busy: checkout.busy, loading: checkout.accountLoading, failed: Boolean(checkout.accountError)
             });
-            return <article key={plan.slug} className={`${styles.planCard}${plan.slug === "pro" ? ` ${styles.emphasized}` : ""}${current ? ` ${styles.currentPlan}` : ""}`} aria-labelledby={`plan-${plan.slug}`}>
-              <div className={styles.planHeading}><h3 id={`plan-${plan.slug}`}>{plan.name}</h3><span className={styles.planLabel}>{sameOffer ? t(billingText.current) : currentTier && (currentCycle === "monthly" || currentCycle === "yearly") ? t(currentCycle === "monthly" ? { en: "Current · Monthly", zh: "当前为月付" } : { en: "Current · Yearly", zh: "当前为年付" }) : t(plan.label)}</span></div>
+            return <article key={plan.slug} className={`${styles.planCard}${emphasized ? ` ${styles.emphasized}` : ""}${current ? ` ${styles.currentPlan}` : ""}${card.scheduled ? ` ${styles.scheduledPlan}` : ""}`} aria-labelledby={`plan-${plan.slug}`}>
+              <div className={styles.planHeading}><h3 id={`plan-${plan.slug}`}>{plan.name}</h3>{card.badge || !ongoingSubscription ? <span className={styles.planLabel}>{t(card.badge || plan.label)}</span> : null}</div>
               <p className={styles.planDescription}>{t(plan.description)}</p>
               <div className={styles.priceBlock}>
                 <p className={styles.price}><span className={styles.currency}>US$</span><strong>{yearly ? plan.yearly : plan.monthly}</strong><span className={styles.period}>{yearly ? t({ en: "/ year", zh: "/ 年" }) : t({ en: "/ month", zh: "/ 月" })}</span></p>
-                <p className={styles.priceNote}>{yearly ? t({ en: "One payment, billed every year.", zh: "每年一次付清，按年续费。" }) : t({ en: "Billed monthly. Yearly billing also available.", zh: "按月续费，也可以选择年付。" })}</p>
+                <p className={styles.priceNote}>{card.note ? t(card.note) : yearly ? t({ en: "One payment, billed every year.", zh: "每年一次付清，按年续费。" }) : t({ en: "Billed monthly. Yearly billing also available.", zh: "按月续费，也可以选择年付。" })}</p>
               </div>
-              <button className={`button${plan.slug === "pro" && !current && !hasLifetime ? " primary" : ""} ${styles.planButton}`} disabled={!selectable} aria-busy={checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval })} onClick={() => checkout.purchase({ product: "subscription", plan: plan.slug, interval })} type="button">{checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <PendingLabel>{t(action === "subscribe" ? { en: "Opening checkout…", zh: "正在打开结账…" } : action === "keep" ? billingText.loading : { en: "Loading preview…", zh: "正在获取预览…" })}</PendingLabel> : checkout.accountLoading ? t(billingText.loading) : t(current && action !== "keep" ? billingText.current : planActionText(action, plan.name, interval, isEndedSubscription(checkout.subscription)))}{(!current || action === "keep") && action !== "lifetime" && !checkout.accountLoading ? <span aria-hidden="true">→</span> : null}</button>
+              <button className={`button${emphasized ? " primary" : ""} ${styles.planButton}`} disabled={!selectable} aria-busy={checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval })} onClick={() => checkout.purchase({ product: "subscription", plan: plan.slug, interval })} type="button">{checkout.busy && pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <PendingLabel>{t(action === "subscribe" ? { en: "Opening checkout…", zh: "正在打开结账…" } : action === "keep" ? billingText.loading : { en: "Loading preview…", zh: "正在获取预览…" })}</PendingLabel> : checkout.accountLoading ? t(billingText.loading) : t(card.button)}{!card.scheduled && (!current || action === "keep") && action !== "lifetime" && !checkout.accountLoading ? <span aria-hidden="true">→</span> : null}</button>
               {pricingIntentMatches(checkout.lastIntent, { product: "subscription", plan: plan.slug, interval }) ? <CheckoutFeedback failure={checkout.failure} /> : null}
             </article>;
           })}

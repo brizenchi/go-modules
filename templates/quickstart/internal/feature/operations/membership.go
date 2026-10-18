@@ -59,18 +59,7 @@ func (m *Module) userAccess(c *gin.Context) {
 		}
 		u.Credits = summary.Balance
 	}
-	var subscription *subscriptionView
-	if m.deps.Modules == nil || m.deps.Modules.Billing != nil {
-		row := subscriptionView{}
-		err := db.Table("billing_subscriptions").Where("user_id = ? AND provider = ?", u.ID, "stripe").Take(&row).Error
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			queryFailed(c, err)
-			return
-		}
-		if err == nil {
-			subscription = &row
-		}
-	}
+	subscription := operatorSubscription(state.Subscription, time.Now().UTC())
 	httpresp.OK(c, gin.H{"membership": state.Membership, "billing": state.Billing, "override": state.Override, "user": u, "subscription": subscription})
 }
 

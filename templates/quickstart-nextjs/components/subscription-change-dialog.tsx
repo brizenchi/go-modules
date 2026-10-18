@@ -11,7 +11,7 @@ import { appEnv } from "@/lib/env";
 import { confirmPlanSelection, isScheduledSelection, keepCurrentSubscription } from "@/lib/subscription-management";
 import { idleResource, loadingResource, settleResource } from "@/lib/request-state";
 import { canConfirmSubscriptionChange, canKeepCurrentPlan, isValidSubscriptionPreview, resumeRenewalForChange, subscriptionPlanIntent, subscriptionChangeBlocker, subscriptionPreviewAmount, type SubscriptionSelection } from "@/lib/subscription-change";
-import { billingText, cancelPlanChangeText, changeDialogTitle, changeSubmitText, changeTimingText, changePaymentText, changeResultText, subscriptionRestrictionText } from "@/lib/billing-presentation";
+import { billingText, cancelPlanChangeText, changeDialogTitle, changeSubmitText, changeTimingText, changePaymentText, changeResultText, planActionText, subscriptionRestrictionText } from "@/lib/billing-presentation";
 import { useConsoleAction, ConsoleError } from "./console-kit";
 import { BillingFailure } from "./billing-failure";
 import { ResponsiveDialog } from "./responsive-dialog";
@@ -142,7 +142,7 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
     });
   }
 
-  return <ResponsiveDialog open onClose={onClose} dismissible={!action.busy} title={t(kept ? cancelPlanChangeText.successTitle : keepRequested ? changeDialogTitle("keep") : resultCopy?.title || changeDialogTitle(intent))} closeLabel={t({ en: "Close", zh: "关闭" })}>
+  return <ResponsiveDialog open onClose={onClose} dismissible={!action.busy} title={t(kept ? cancelPlanChangeText.successTitle : keepRequested ? changeDialogTitle("keep", planName(plan)) : resultCopy?.title || changeDialogTitle(intent))} closeLabel={t({ en: "Close", zh: "关闭" })}>
     <p className={styles.selection}><strong>{planName(plan)}</strong><span>{intervalName(interval)}</span></p>
     {kept ? <div className={styles.feedback} role="status"><Notice tone="success">{t(cancelPlanChangeText.successBody)}</Notice></div>
       : keepRequested ? <div className={styles.summary}>
@@ -184,7 +184,7 @@ export function SubscriptionChangeDialog({ token, subscription, offers, selectio
     {pendingError ? <p className={styles.note} role="alert">{t({ en: "Your billing status has changed. Review billing before trying again.", zh: "订阅状态已变更，请先查看账单后重试。" })} <Link href="/billing">{t(billingText.viewBilling)}</Link></p> : <ConsoleError error={action.error} />}
     <div className={styles.actions}>
       {!result && !kept && !alreadyScheduled && blocker !== "payment" && blocker !== "unavailable" ? keepRequested
-        ? <button className="button primary" type="button" disabled={!keepConfirmable} onClick={keepPlan}>{t(action.busy ? cancelPlanChangeText.submitting : cancelPlanChangeText.action)}</button>
+        ? <button className="button primary" type="button" disabled={!keepConfirmable} onClick={keepPlan}>{t(action.busy ? cancelPlanChangeText.submitting : planActionText("keep", planName(plan), interval))}</button>
         : blocker === "cancellation"
         ? <button className="button primary" type="button" disabled={action.busy || !configured} onClick={resume}>{action.busy ? t({ en: "Restoring…", zh: "恢复中…" }) : t({ en: "Resume renewal to continue", zh: "恢复续费并继续" })}</button>
         : <button className="button primary" type="button" disabled={!confirmable} onClick={confirm}>{action.busy ? t({ en: "Submitting…", zh: "正在提交…" }) : t(changeSubmitText({ choice, configured, phase: preview.status, preview: validPreview, amount: validPreview ? subscriptionPreviewAmount(validPreview, dateLocale) : "" }))}</button> : null}

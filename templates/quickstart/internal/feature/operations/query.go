@@ -2,14 +2,15 @@ package operations
 
 import (
 	"fmt"
-	"github.com/brizenchi/quickstart-template/internal/credit"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
+	billingdomain "github.com/brizenchi/go-modules/modules/billing/domain"
 	refdomain "github.com/brizenchi/go-modules/modules/referral/domain"
+	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/brizenchi/quickstart-template/internal/feature/membership"
 	"github.com/brizenchi/quickstart-template/internal/user"
 	"github.com/gin-gonic/gin"
@@ -114,30 +115,34 @@ func (m *Module) users(c *gin.Context) {
 	}
 	type userView struct {
 		user.User
-		Plan       string          `json:"plan"`
-		Membership membership.View `json:"membership"`
+		Plan         string            `json:"plan"`
+		Membership   membership.View   `json:"membership"`
+		Subscription *subscriptionView `json:"subscription"`
 	}
 	views := make([]userView, 0, len(items))
 	for _, u := range items {
 		v := states[u.ID].Membership
-		views = append(views, userView{User: u, Plan: v.Plan, Membership: v})
+		views = append(views, userView{User: u, Plan: v.Plan, Membership: v, Subscription: operatorSubscription(states[u.ID].Subscription, time.Now().UTC())})
 	}
 	pageResponse(c, p, views, total)
 }
 
 type subscriptionView struct {
-	ID                     uint       `json:"id"`
-	UserID                 string     `json:"user_id"`
-	Email                  string     `json:"email"`
-	Provider               string     `json:"provider"`
-	ProviderSubscriptionID string     `json:"provider_subscription_id"`
-	Plan                   string     `json:"plan"`
-	Status                 string     `json:"status"`
-	BillingInterval        string     `json:"billing_interval"`
-	PeriodEnd              *time.Time `json:"period_end"`
-	CancelAtPeriodEnd      bool       `json:"cancel_at_period_end"`
-	CreatedAt              time.Time  `json:"created_at"`
-	UpdatedAt              time.Time  `json:"updated_at"`
+	ID                     uint                           `json:"id"`
+	UserID                 string                         `json:"user_id"`
+	Email                  string                         `json:"email"`
+	Provider               string                         `json:"provider"`
+	ProviderSubscriptionID string                         `json:"provider_subscription_id"`
+	Plan                   string                         `json:"plan"`
+	Status                 string                         `json:"status"`
+	BillingInterval        string                         `json:"billing_interval"`
+	PeriodEnd              *time.Time                     `json:"period_end"`
+	CancelAtPeriodEnd      bool                           `json:"cancel_at_period_end"`
+	CancelEffectiveAt      *time.Time                     `json:"cancel_effective_at,omitempty"`
+	ScheduledChange        *billingdomain.ScheduledChange `json:"scheduled_change,omitempty"`
+	PaymentPending         bool                           `json:"payment_pending"`
+	CreatedAt              time.Time                      `json:"created_at"`
+	UpdatedAt              time.Time                      `json:"updated_at"`
 }
 
 func (m *Module) subscriptions(c *gin.Context) {
@@ -158,9 +163,18 @@ func (m *Module) subscriptions(c *gin.Context) {
 	if queryFailed(c, q.Count(&total).Error) {
 		return
 	}
-	items := []subscriptionView{}
-	if queryFailed(c, q.Select("s.id,s.user_id,u.email,s.provider,s.provider_subscription_id,s.plan,s.status,s.billing_interval,s.period_end,s.cancel_at_period_end,s.created_at,s.updated_at").Order("s.created_at DESC, s.id DESC").Offset((p.page-1)*p.limit).Limit(p.limit).Scan(&items).Error) {
+	rows := []struct {
+		billingdomain.BillingSubscription
+		Email string
+	}{}
+	if queryFailed(c, q.Select("s.*, u.email").Order("s.created_at DESC, s.id DESC").Offset((p.page-1)*p.limit).Limit(p.limit).Scan(&rows).Error) {
 		return
+	}
+	items := make([]subscriptionView, 0, len(rows))
+	for _, row := range rows {
+		view := operatorSubscription(&row.BillingSubscription, time.Now().UTC())
+		view.Email = row.Email
+		items = append(items, *view)
 	}
 	pageResponse(c, p, items, total)
 }

@@ -1,10 +1,9 @@
 import { apiRequest, ApiError, type OperatorOverview, type OperatorReportFilters, type OperatorAccess, type MembershipPatch, type OperatorAuthorization, type WebsiteSettings, type OperatorOrder } from "./api";
-export type { OperatorUser, OperatorOverview, OperatorReportFilters, OperatorAccess, MembershipPatch, OperatorOrder } from "./api";
+export type { OperatorUser, OperatorOverview, OperatorReportFilters, OperatorAccess, MembershipPatch, OperatorOrder, OperatorSubscription } from "./api";
 import { apiUrl } from "./env";
 import { clearSessionIfToken } from "./auth";
 
 export type PageResult<T> = { items: T[]; total: number; page: number; limit: number };
-export type OperatorSubscription = { id: number; user_id: string; email?: string; plan: string; status: string; billing_interval?: string; provider: string; provider_subscription_id?: string; period_end?: string; updated_at: string };
 
 export type OperatorReferral = { id: number; referrer_id: string; referee_id: string; referrer_email?: string; referee_email?: string; code: string; status: string; reward_credits: number; created_at: string; activated_at?: string; expires_at?: string };
 export type AuditEntry = { id: number; actor_id: string; action: string; target_id?: string; reason: string; created_at: string; idempotency_key?: string };

@@ -33,6 +33,8 @@ const modules = Object.fromEntries(Object.entries({
   "@/lib/dialog-focus": "lib/dialog-focus.ts",
   "../lib/table-state": "lib/table-state.ts",
   "@/lib/admin-presentation": "lib/admin-presentation.ts",
+  "./admin-presentation": "lib/admin-presentation.ts",
+  "@/lib/admin-subscription": "lib/admin-subscription.ts",
   "@/lib/format": "lib/format.ts",
   "@/lib/billing-money": "lib/billing-money.ts"
 }).map(([name, file]) => [name, compile(file)]));
@@ -46,8 +48,8 @@ function fixture(locale, mode) {
   const script = String.raw`
 const modules = MODULES, cache = {}, checks = [];
 const locale = LOCALE, mode = MODE;
-const user = {id:'user-fixture',email:'customer@example.test',created_at:'2026-01-02T03:04:05Z',credits:1250,plan:'pro'};
-const profile = {user,membership:{plan:'pro',active:true},billing:{plan:'free',active:false},override:null,subscription:null};
+const user = {id:'user-fixture',email:'customer@example.test',created_at:'2026-01-02T03:04:05Z',credits:1250,plan:'premium'};
+const profile = {user,membership:{plan:'premium',active:true},billing:{plan:'premium',active:true},override:null,subscription:{plan:'premium',status:'active',billing_interval:'monthly',period_end:'2026-11-17T04:25:00Z',scheduled_change:{plan:'starter',billing_cycle:'monthly',effective_at:'2026-11-17T04:25:00Z'}}};
 const ledger = ['admin_grant','referral_signup','stripe','monthly','campaign','note_export'].map((source,index)=>({
   id:index+1,kind:index===5?'consume':'grant',source,actor_id:index===0?'admin-fixture':'',
   amount:index===5?-5:50,balance_after:1000+index*50,reason:['Support adjustment','Invitation reward','Credit pack purchase','Monthly allowance','Campaign reward','Export usage'][index],
@@ -84,6 +86,7 @@ async function run(){await document.fonts.ready;await settle();
   if(!['filters','list-filters'].includes(mode)){
     check(document.querySelectorAll('[role=tab]').length===3,'Exactly three tabs');
     check(document.querySelector('.customerFacts').textContent.includes('2026'),'Registration date visible');
+    check(document.querySelector('.customerSubscription').textContent.includes('Premium')&&document.querySelector('.customerSubscription').textContent.includes('Starter'),'Current and upcoming plans shown separately');
     for(let pass=0;pass<3;pass++){
       click('Credit changes','积分变更记录');await settle();check(!document.querySelector('form')&&document.querySelectorAll('tbody tr').length===6,'Unified read-only ledger, no retained editor');
       click('Payment records','支付记录');await settle();check(!document.querySelector('form')&&document.querySelectorAll('tbody tr').length===2,'Paid and unpaid records, no editor');

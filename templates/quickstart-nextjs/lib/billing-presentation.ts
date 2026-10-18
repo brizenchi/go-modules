@@ -1,6 +1,6 @@
 import type { SubscriptionPreview, SubscriptionView } from "./api";
 import { hasOngoingRecurringSubscription, subscriptionUpgradeAction } from "./billing-state";
-import { subscriptionChangeBlocker, type SubscriptionPlanAction } from "./subscription-change";
+import { subscriptionChangeBlocker, subscriptionPlanIntent, type SubscriptionPlanAction, type SubscriptionSelection } from "./subscription-change";
 import type { RequestFailure } from "./request-state";
 
 type Text = { en: string; zh: string };
@@ -48,7 +48,7 @@ export function lifetimePurchaseAction(subscription: SubscriptionView | null): "
 export function planActionText(action: SubscriptionPlanAction, name: string, _interval: string, ended = false): Text {
   switch (action) {
     case "current": return billingText.current;
-    case "keep": return cancelPlanChangeText.action;
+    case "keep": return { en: `Keep ${name}`, zh: `保留 ${name}` };
     case "upgrade":
     case "downgrade":
     case "interval": return { en: "Change plan", zh: "更改套餐" };
@@ -56,6 +56,38 @@ export function planActionText(action: SubscriptionPlanAction, name: string, _in
     case "manage": return billingText.viewBilling;
     default: return ended ? { en: `Resubscribe to ${name}`, zh: `重新订阅 ${name}` } : { en: `Subscribe to ${name}`, zh: `订阅 ${name}` };
   }
+}
+
+/** A scheduled purchase is distinct from the active tier and the interval being browsed. */
+export function pricingPlanPresentation(selection: SubscriptionSelection, name: string, subscription: SubscriptionView | null) {
+  const current = hasOngoingRecurringSubscription(subscription) && subscription?.plan === selection.plan;
+  const schedule = subscriptionChangeBlocker(subscription) === "scheduled" ? subscription?.scheduled_change : null;
+  const upcoming = Boolean(schedule && schedule.plan === selection.plan);
+  const scheduled = upcoming && schedule?.billing_cycle === selection.interval;
+  const cycle = current ? subscription?.billing_cycle : upcoming ? schedule?.billing_cycle : null;
+  let badge: Text | null = current ? billingText.current : upcoming ? { en: "Upcoming plan", zh: "下期套餐" } : null;
+  if (badge && cycle !== selection.interval && (cycle === "monthly" || cycle === "yearly")) {
+    badge = current
+      ? { en: `Current · ${cycle === "monthly" ? "Monthly" : "Yearly"}`, zh: `当前为${cycle === "monthly" ? "月付" : "年付"}` }
+      : { en: `Upcoming · ${cycle === "monthly" ? "Monthly" : "Yearly"}`, zh: `下期为${cycle === "monthly" ? "月付" : "年付"}` };
+  }
+  let note: Text | null = null;
+  if (schedule && (current || upcoming)) {
+    const date = schedule.effective_at ? new Date(schedule.effective_at) : null;
+    if (date && Number.isFinite(date.getTime())) {
+      const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
+      const en = new Intl.DateTimeFormat("en-US", options).format(date);
+      const zh = new Intl.DateTimeFormat("zh-CN", options).format(date);
+      note = current ? { en: `Active until ${en}`, zh: `当前套餐保留至 ${zh}` } : { en: `Starts ${en}`, zh: `${zh} 生效` };
+    } else {
+      note = current ? { en: "Active until next billing cycle", zh: "当前套餐保留至本期结束" } : { en: "Starts next billing cycle", zh: "下个计费周期生效" };
+    }
+  }
+  const action = subscriptionPlanIntent(selection, subscription);
+  const button: Text = scheduled ? { en: "Scheduled", zh: "已预约" }
+    : current && action !== "keep" ? billingText.current
+      : planActionText(action, name, selection.interval, isEndedSubscription(subscription));
+  return { current, scheduled, badge, note, button };
 }
 
 export function billingPrimaryAction(membershipPlan: string | undefined, subscription: SubscriptionView | null) {
@@ -92,8 +124,8 @@ export function subscriptionStatusText(status: string): Text {
   } as Record<string, Text>)[status] || { en: "Needs attention", zh: "待处理" };
 }
 
-export function changeDialogTitle(choice: SubscriptionPlanAction): Text {
-  if (choice === "keep") return cancelPlanChangeText.title;
+export function changeDialogTitle(choice: SubscriptionPlanAction, name?: string): Text {
+  if (choice === "keep") return name ? { en: `Keep ${name}?`, zh: `保留 ${name}？` } : cancelPlanChangeText.title;
   return choice === "upgrade" ? { en: "Upgrade plan", zh: "升级套餐" }
     : choice === "downgrade" ? { en: "Downgrade plan", zh: "降级套餐" }
       : choice === "interval" ? { en: "Change billing interval", zh: "更改计费周期" }

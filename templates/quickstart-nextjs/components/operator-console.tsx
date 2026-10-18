@@ -25,13 +25,14 @@ import { CustomerPageLoading } from "./customer-page-loading";
 import { OperatorOverview } from "./operator-overview";
 import { OperatorUserDialog, type UserDetailTab } from "./operator-user-dialog";
 import { adminTag, adminActionLabel } from "@/lib/admin-presentation";
+import { adminSubscriptionPresentation } from "@/lib/admin-subscription";
 
 export const operatorSections = adminSections;
 export type OperatorSection = typeof operatorSections[number];
 type Row = Record<string, unknown>;
 const names = adminSectionNames;
 const columns: Partial<Record<OperatorSection, Array<[string, { en: string; zh: string }]>>> = {
-  users: [["email", { en: "Customer", zh: "用户" }], ["plan", { en: "Membership", zh: "会员级别" }], ["credits", { en: "Credits", zh: "积分" }], ["created_at", { en: "Joined", zh: "注册时间" }]],
+  users: [["email", { en: "Customer", zh: "用户" }], ["plan", { en: "Membership", zh: "会员级别" }], ["subscription", { en: "Payment subscription", zh: "支付订阅" }], ["credits", { en: "Credits", zh: "积分" }], ["created_at", { en: "Joined", zh: "注册时间" }]],
   orders: [["created_at",{en:"Created",zh:"创建时间"}],["user_id",{en:"Customer",zh:"用户"}],["product_type",{en:"Purchase",zh:"购买内容"}],["amount",{en:"Paid amount",zh:"实付金额"}],["status",{en:"Status",zh:"支付状态"}],["id",{en:"Reference",zh:"交易编号"}]],
   subscriptions: [["user_id", { en: "Account", zh: "账号" }], ["plan", { en: "Plan", zh: "套餐" }], ["status", { en: "Status", zh: "状态" }], ["provider_subscription_id", { en: "Subscription", zh: "订阅编号" }], ["period_end", { en: "Period end", zh: "本期截止" }]],
   referrals: [["referrer_id", { en: "Inviter", zh: "邀请人" }], ["referee_id", { en: "Invitee", zh: "受邀人" }], ["status", { en: "Status", zh: "状态" }], ["reward_credits", { en: "Reward", zh: "奖励积分" }], ["expires_at", { en: "Deadline", zh: "奖励截止" }]],
@@ -106,6 +107,14 @@ function OperatorConsoleInner({ section }: { section: Exclude<OperatorSection, "
   }
   function cell(row: Row, key: string) {
     const value = row[key];
+    if (section === "users" && key === "subscription") {
+      const subscription = adminSubscriptionPresentation(value);
+      return subscription ? <span className={adminStyles.subscriptionCell}>
+        <span>{t(subscription.plan)}</span>
+        <StatusBadge tone={subscription.status.tone}>{t(subscription.status.label)}</StatusBadge>
+        {subscription.upcoming ? <small>{t({ en: "Next", zh: "下期" })}: {t(subscription.upcoming.plan)}<br />{subscription.upcoming.effectiveAt ? formatDate(subscription.upcoming.effectiveAt, locale) : t({ en: "Date pending", zh: "时间待确认" })}</small> : null}
+      </span> : "—";
+    }
  if(section==="audit"&&key==="action")return t(adminActionLabel(String(value)));
  if(key==="product_type")return value==="subscription"?t({en:"Subscription",zh:"订阅"}):value==="credits"?t({en:"Credit package",zh:"积分包"}):value==="lifetime"?"Lifetime":"—";
     if (section === "users" && key === "email") return <span className={adminStyles.cellIdentity}><span title={String(value)}>{String(value)}</span><small title={String(row.id)}>{String(row.id)}</small></span>;

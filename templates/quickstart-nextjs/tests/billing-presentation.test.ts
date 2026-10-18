@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SubscriptionPreview, SubscriptionView } from "../lib/api";
-import { billingPrimaryAction, billingPrimaryText, billingText, lifetimePurchaseAction, planActionText, subscriptionRestrictionText, subscriptionStatusText, changeDialogTitle, changeConfirmationText, changeSubmitText, changeTimingText, changePaymentText, changeResultText, billingFailureText } from "../lib/billing-presentation";
+import { billingPrimaryAction, billingPrimaryText, billingText, lifetimePurchaseAction, planActionText, pricingPlanPresentation, subscriptionRestrictionText, subscriptionStatusText, changeDialogTitle, changeConfirmationText, changeSubmitText, changeTimingText, changePaymentText, changeResultText, billingFailureText } from "../lib/billing-presentation";
 import { subscriptionChangeBlocker, subscriptionPlanIntent } from "../lib/subscription-change";
 
 const pro: SubscriptionView = { plan: "pro", status: "active", billing_cycle: "monthly" };
@@ -70,9 +70,60 @@ test("payment confirmation names the immediate amount or a future scheduled chan
 });
 
 test("canceling a future plan change is distinct from canceling the subscription", () => {
-  assert.equal(planActionText("keep", "Premium", "monthly").en, "Cancel plan change");
-  assert.equal(planActionText("keep", "Premium", "monthly").zh, "取消套餐变更");
+  assert.equal(planActionText("keep", "Premium", "monthly").en, "Keep Premium");
+  assert.equal(planActionText("keep", "Premium", "monthly").zh, "保留 Premium");
   assert.equal(changeDialogTitle("keep").en, "Cancel plan change?");
+  assert.equal(changeDialogTitle("keep", "Premium").en, "Keep Premium?");
+});
+
+test("pricing separates active, scheduled and alternative plans after a downgrade", () => {
+  const subscription: SubscriptionView = { plan: "premium", status: "active", billing_cycle: "monthly", scheduled_change: { plan: "starter", billing_cycle: "monthly", effective_at: "2026-11-17T04:25:00Z" } };
+  const current = pricingPlanPresentation({ plan: "premium", interval: "monthly" }, "Premium", subscription);
+  assert.equal(current.badge?.en, "Current plan");
+  assert.equal(current.button.en, "Keep Premium");
+  assert.equal(current.scheduled, false);
+  assert.match(current.note?.en || "", /^Active until /);
+  assert.match(current.note?.en || "", /2026/);
+  const scheduled = pricingPlanPresentation({ plan: "starter", interval: "monthly" }, "Starter", subscription);
+  assert.equal(scheduled.badge?.en, "Upcoming plan");
+  assert.equal(scheduled.badge?.zh, "下期套餐");
+  assert.equal(scheduled.button.en, "Scheduled");
+  assert.equal(scheduled.scheduled, true);
+  assert.match(scheduled.note?.en || "", /^Starts /);
+  const alternative = pricingPlanPresentation({ plan: "pro", interval: "monthly" }, "Pro", subscription);
+  assert.equal(alternative.badge, null);
+  assert.equal(alternative.note, null);
+  assert.equal(alternative.button.en, "Change plan");
+});
+
+test("browsing another interval does not relabel it as the scheduled purchase", () => {
+  const subscription: SubscriptionView = { plan: "premium", status: "active", billing_cycle: "monthly", scheduled_change: { plan: "starter", billing_cycle: "monthly" } };
+  const otherInterval = pricingPlanPresentation({ plan: "starter", interval: "yearly" }, "Starter", subscription);
+  assert.equal(otherInterval.scheduled, false);
+  assert.equal(otherInterval.button.en, "Change plan");
+  assert.equal(otherInterval.badge?.en, "Upcoming · Monthly");
+  assert.equal(otherInterval.note?.en, "Starts next billing cycle");
+  const current = pricingPlanPresentation({ plan: "premium", interval: "yearly" }, "Premium", subscription);
+  assert.equal(current.badge?.en, "Current · Monthly");
+  assert.equal(current.button.en, "Keep Premium");
+  const scheduledYearly: SubscriptionView = { ...subscription, scheduled_change: { plan: "starter", billing_cycle: "yearly", effective_at: "not-a-date" } };
+  assert.equal(pricingPlanPresentation({ plan: "starter", interval: "monthly" }, "Starter", scheduledYearly).badge?.en, "Upcoming · Yearly");
+  assert.equal(pricingPlanPresentation({ plan: "starter", interval: "yearly" }, "Starter", scheduledYearly).note?.zh, "下个计费周期生效");
+});
+
+test("ended subscriptions and payment problems do not claim a future plan is confirmed", () => {
+  for (const subscription of [
+    { ...pro, status: "canceled" },
+    { ...pro, pending_payment: { amount_due: 100, currency: "usd" } }
+  ]) {
+    const card = pricingPlanPresentation({ plan: "starter", interval: "monthly" }, "Starter", { ...subscription, scheduled_change: { plan: "starter", billing_cycle: "monthly" } });
+    assert.equal(card.scheduled, false);
+    assert.equal(card.badge, null);
+    assert.equal(card.note, null);
+  }
+  assert.equal(pricingPlanPresentation({ plan: "pro", interval: "monthly" }, "Pro", pro).button.en, "Current plan");
+  assert.equal(pricingPlanPresentation({ plan: "starter", interval: "monthly" }, "Starter", null).button.en, "Subscribe to Starter");
+  assert.equal(pricingPlanPresentation({ plan: "pro", interval: "monthly" }, "Pro", { plan: "lifetime", status: "active" }).button.en, "Lifetime active");
 });
 
 test("disabled dialog actions explain current selection, billing restrictions, loading and errors", () => {

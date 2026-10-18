@@ -236,6 +236,12 @@
 .auditDetails { margin: 0; padding: 18px; max-height: 460px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.8; background: var(--surface-subtle); border-radius: var(--radius-sm); }
 
 .customerOverview { display: grid; gap: 24px; }
+.customerSubscription { display: grid; gap: 18px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.subscriptionHeading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.subscriptionHeading h3 { margin: 0; font-size: 14px; }
+.subscriptionCell { display: grid; justify-items: start; gap: 6px; min-width: 160px; }
+.subscriptionCell small, .membershipSource { color: var(--muted-strong); font-family: inherit; font-size: 11px; line-height: 1.6; font-weight: 400; }
+.membershipSource { display: block; margin-top: 4px; }
 .customerFacts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; margin: 0; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); }
 .customerFacts > div { min-width: 0; } .customerFacts dt { color: var(--muted); font-size: 12px; margin-bottom: 12px; } .customerFacts dd { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
 .customerEditor { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); } .customerEditor h3 { margin: 0 0 20px; font-size: 15px; font-weight: 650; }
