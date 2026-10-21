@@ -472,7 +472,13 @@ func (p *Provider) ChangeSubscription(ctx context.Context, subID string, in doma
 		ProrationBehavior: stripesdk.String("always_invoice"),
 		PaymentBehavior:   stripesdk.String("pending_if_incomplete"),
 	}
-	if in.Mode == domain.ChangeModeImmediateResetCycle {
+	if hasRemainingTrial(current) {
+		// Keep the original trial deadline; the paid cycle starts there.
+		// No immediate payment is due, so a pending payment update is unnecessary.
+		params.TrialEnd = stripesdk.Int64(current.TrialEnd)
+		params.ProrationBehavior = stripesdk.String("none")
+		params.PaymentBehavior = nil
+	} else if in.Mode == domain.ChangeModeImmediateResetCycle {
 		params.BillingCycleAnchorNow = stripesdk.Bool(true)
 	} else {
 		params.BillingCycleAnchorUnchanged = stripesdk.Bool(true)
@@ -786,6 +792,13 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 		return preview, nil
 	}
 
+	if hasRemainingTrial(current) {
+		preview.ImmediateCharge = false
+		preview.NextBillingAt = unixToTimePtr(current.TrialEnd)
+		preview.Message = "billing for the selected plan will begin when the current trial ends"
+		return preview, nil
+	}
+
 	params := &stripesdk.InvoiceUpcomingParams{
 		Customer:     stripesdk.String(customerID),
 		Subscription: stripesdk.String(subID),
@@ -842,6 +855,12 @@ func (p *Provider) PreviewSubscriptionChange(ctx context.Context, customerID, su
 		preview.Message = "subscription will switch now with prorated billing"
 	}
 	return preview, nil
+}
+
+// hasRemainingTrial keeps all trial plan and interval changes anchored to the
+// existing deadline instead of starting paid billing before the trial ends.
+func hasRemainingTrial(current *stripesdk.Subscription) bool {
+	return current.Status == stripesdk.SubscriptionStatusTrialing && current.TrialEnd > time.Now().Unix()
 }
 
 // primarySubscriptionItem validates the minimum Stripe shape required by all
