@@ -1,4 +1,5 @@
 import { SitePresentationProvider } from "@/components/site-presentation";
+import { NavigationData } from "@/components/navigation-data";
 import { websitePresentation } from "@/lib/public-content";
 import type { Metadata } from "next";
 import "@fontsource-variable/manrope";
@@ -20,7 +21,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body>
-        <SitePresentationProvider value={presentation}><LocaleProvider initialLocale="zh">{children}<SiteExtensions /></LocaleProvider></SitePresentationProvider>
+        <SitePresentationProvider value={presentation}><NavigationData locales={["zh"]}><LocaleProvider initialLocale="zh">{children}<SiteExtensions /></LocaleProvider></NavigationData></SitePresentationProvider>
       </body>
     </html>
   );

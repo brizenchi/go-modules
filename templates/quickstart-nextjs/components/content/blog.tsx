@@ -63,7 +63,7 @@ export function BlogArticle({ article, entries }: { article: Article; entries: D
       sideBody={<div className={styles.meta}><span>{t({ en: "Published", zh: "发布日期" })}</span><time dateTime={article.publishedAt}>{formatContentDate(article.publishedAt, locale)}</time><Link href="/blog">{t({ en: "← All guides", zh: "← 全部指南" })}</Link></div>}
       breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { href: "/blog", label: t({ en: "Blog", zh: "博客" }) }, { label: t(article.title) }]}
     >
-      <StructuredData data={articleStructuredData({ title: t(article.title), description: t(article.summary), path: localizeHref(`/blog/${article.slug}`, locale), publishedAt: article.publishedAt, language: locale === "zh" ? "zh-CN" : "en" })} />
+      <StructuredData data={articleStructuredData({ type: "BlogPosting", title: t(article.title), description: t(article.summary), path: localizeHref(`/blog/${article.slug}`, locale), publishedAt: article.publishedAt, language: locale === "zh" ? "zh-CN" : "en" })} />
       <ReadingLayout toc={article.sections.map((section) => ({ id: section.id, label: t(section.title) }))} title={t({ en: "On this page", zh: "本页目录" })} supportLabel={t({ en: "Have a question?", zh: "有疑问？" })}>
         {article.sections.map((section) => <section id={section.id} key={section.id}><h2>{t(section.title)}</h2>{section.paragraphs.map((paragraph, index) => <p key={index}>{t(paragraph)}</p>)}</section>)}
       </ReadingLayout>

@@ -9,6 +9,7 @@ const paths = new Set(urls.map(url => url.pathname));
 const pages = urls.map(url => url.pathname === "/" ? "index.html" : `${url.pathname.slice(1)}.html`);
 const articlePages = pages.filter(page => /^(zh\/)?(docs|blog)\//.test(page));
 const canonicals = new Set();
+const brands = new Map();
 const pageFile = path => path === "/" ? "index.html" : `${path.slice(1)}.html`;
 const shellPaths = new Set();
 // First-install directories/home still work before editorial initialization,
@@ -65,6 +66,11 @@ for (const page of pages) {
   }
   assert.ok(!canonicals.has(canonical), `${page}: unique canonical`);
   canonicals.add(canonical);
+  const title = html.match(/<title>([^<]*)<\/title>/)?.[1] || "";
+  const brand = title.includes(" · ") ? title.slice(title.lastIndexOf(" · ") + 3) : "";
+  assert.ok(brand, `${page}: title ends with the site brand`);
+  brands.set(brand, [...(brands.get(brand) || []), page]);
+  assert.match(html, /<meta name="description" content="[^"]+"/, `${page}: search result description`);
   assert.ok(sitemap.includes(`<loc>${canonical}</loc>`), `${page}: sitemap coverage`);
   const schemas = [...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
   if (page !== "index.html" && page !== "zh.html") {
@@ -72,16 +78,44 @@ for (const page of pages) {
     assert.equal(breadcrumb?.itemListElement.at(-1).item, canonical, `${page}: breadcrumb canonical`);
   }
   if (articlePages.includes(page)) {
-    const article = schemas.find((schema) => schema["@type"] === "Article");
+    const article = schemas.find((schema) => schema["@type"] === (/^(zh\/)?docs\//.test(page) ? "TechArticle" : "BlogPosting"));
     assert.equal(article?.url, canonical, `${page}: article canonical`);
     assert.ok(rendered.includes("<article"), `${page}: article in initial HTML`);
   }
+  if (/^(zh\/)?(features|use-cases|compare)\//.test(page)) {
+    assert.equal(schemas.find(schema => schema["@type"] === "WebPage")?.url, canonical, `${page}: product page is a WebPage, not an Article`);
+  }
+  if (page === "index.html" || page === "zh.html") {
+    const types = schemas.flatMap(schema => schema["@graph"] || [schema]).map(node => node["@type"]);
+    for (const type of ["Organization", "WebSite"]) assert.ok(types.includes(type), `${page}: ${type} structured data`);
+  }
+  if (rendered.includes('id="faq"')) assert.ok(schemas.some(schema => schema["@type"] === "FAQPage"), `${page}: visible FAQ has FAQPage data`);
   const ids = [...rendered.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
   assert.equal(new Set(ids).size, ids.length, `${page}: unique anchors`);
   for (const match of rendered.matchAll(/href="#([^"]+)"/g)) {
     assert.ok(ids.includes(match[1]), `${page}: #${match[1]} target exists`);
   }
 }
+
+// llms.txt may only point AI assistants to published pages or structural directories.
+const llms = readFileSync(join(root, "llms.txt.body"), "utf8");
+assert.match(llms, /^# .+\n\n> .+/, "llms.txt: title and summary");
+for (const match of llms.matchAll(/\]\((https?:\/\/[^)]+)\)/g)) {
+  const url = new URL(match[1]);
+  if (url.origin !== urls[0].origin) continue;
+  assert.ok(paths.has(url.pathname) || shellPaths.has(url.pathname), `llms.txt: ${url.pathname} is published`);
+}
+
+// A directory is listed only when it has pages: an empty section stays out of the sitemap.
+for (const path of paths) {
+  const base = path.replace(/^\/zh(?=\/|$)/, "") || "/";
+  if (!["/features", "/use-cases", "/compare", "/docs", "/blog"].includes(base)) continue;
+  const main = withoutScripts(readFileSync(join(root, pageFile(path)), "utf8")).match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || "";
+  assert.match(main, new RegExp(`href="${path}/[a-z0-9-]+"`), `${path}: listed directory links at least one of its pages`);
+}
+
+// Pages rendered from static metadata must still carry the brand saved in admin.
+assert.equal(brands.size, 1, `one brand across public titles: ${[...brands].map(([brand, files]) => `${brand} (${files.slice(0, 4).join(", ")})`).join("; ")}`);
 
 for (const directory of ["docs", "blog", "zh/docs", "zh/blog"]) {
   const html = withoutScripts(readFileSync(join(root, `${directory}.html`), "utf8"));
@@ -137,7 +171,9 @@ for (const home of ["/", "/zh"]) {
   const guidePage = home === "/" ? "resources.html" : "zh/resources.html";
   const guideMain = withoutScripts(readFileSync(join(root, guidePage), "utf8")).match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || "";
   for (const directory of ["docs", "blog", "updates"]) {
-    assert.ok(guideMain.includes(`href="${home === "/zh" ? "/zh" : ""}/${directory}"`), `${guidePage}: real ${directory} directory link`);
+    const target = `${home === "/zh" ? "/zh" : ""}/${directory}`;
+    if (paths.has(target)) assert.ok(guideMain.includes(`href="${target}"`), `${guidePage}: real ${directory} directory link`);
+    else assert.ok(!guideMain.includes(`href="${target}"`), `${guidePage}: no link to the empty ${directory} directory`);
   }
 }
 

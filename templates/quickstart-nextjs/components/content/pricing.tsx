@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { SiteShell } from "@/components/site-shell";
+import { StructuredData } from "@/components/structured-data";
+import { faqStructuredData } from "@/lib/structured-data";
 import { DetailRows, PageSection } from "@/components/ui";
 import { PendingLabel } from "@/components/pending-label";
 import { pricingIntentMatches, pricingCheckoutFailure, pricingCheckoutResultHref } from "@/lib/pricing-checkout";
@@ -134,6 +136,7 @@ export function ProductPricing() {
       {checkout.changeRequest && checkout.token ? <SubscriptionChangeDialog token={checkout.token} subscription={checkout.changeRequest.subscription} offers={checkout.changeRequest.offers} selection={checkout.changeRequest.selection}
         onClose={() => checkout.setChangeRequest(null)} onChanged={checkout.revalidate} /> : null}
       <PageSection id="faq" title={t({ en: "A few things to know", zh: "选择前，了解这些" })}>
+        <StructuredData data={faqStructuredData(notes.map(note => ({ question: t(note.title), answer: t(note.body) })))} />
         <div className={styles.faqGrid}>{notes.map((note) => <article className={styles.faqItem} key={note.title.en}><h3>{t(note.title)}</h3><p>{t(note.body)}</p></article>)}</div>
       </PageSection>
     </SiteShell>

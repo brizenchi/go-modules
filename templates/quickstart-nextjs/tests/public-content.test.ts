@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { discoveryIndex, isManagedPath, managedMetadata, publishedPaths, publishedArticle } from "../lib/public-content";
+import { discoveryIndex, isManagedPath, managedMetadata, publishedDirectories, publishedPaths, publishedArticle } from "../lib/public-content";
 import { appEnv } from "../lib/env";
 import { canonicalURL } from "../lib/seo";
 
@@ -96,4 +96,23 @@ test("empty CMS keeps structural pages available without inventing published art
  assert.deepEqual(metadata?.robots, { index: false, follow: true });
  assert.deepEqual(await publishedPaths("en", ["/", "/features", "/resources", "/about", "/pricing"]), ["/", "/features", "/resources", "/about", "/pricing"]);
  assert.equal(await managedMetadata("/blog/unpublished", "en"), null);
+});
+
+test("a published directory without pages in a language is not indexed or offered as an alternate", async () => {
+ appEnv.apiConfigured = true;
+ const directory = { ...article, id: "compare", kind: "page", path: "/compare", locales: ["en", "zh"], translation: { ...article.translation, title: "Comparisons", body: "" } };
+ const child = { ...article, id: "child", kind: "compare", path: "/compare/starter", position: 1, locales: ["en"], translation: { ...article.translation, body: "" } };
+ globalThis.fetch = (async url => {
+  const value = String(url);
+  if (value.includes("/resolve")) return response({ article: directory });
+  if (value.includes("/site/articles")) return response(value.includes("locale=en") ? { items: [directory, child], total: 2 } : { items: [directory], total: 1 });
+  return response({ presentation_version: 1, brand_name: "Live product" });
+ }) as typeof fetch;
+ const en = await managedMetadata("/compare", "en");
+ assert.equal(en?.robots, undefined);
+ assert.deepEqual(en?.alternates?.languages, { en: canonicalURL("/compare"), "x-default": canonicalURL("/compare") });
+ const zh = await managedMetadata("/compare", "zh");
+ assert.deepEqual(zh?.robots, { index: false, follow: true });
+ assert.deepEqual(await publishedDirectories("zh"), new Set());
+ assert.deepEqual(await publishedDirectories("en"), new Set(["/compare"]));
 });

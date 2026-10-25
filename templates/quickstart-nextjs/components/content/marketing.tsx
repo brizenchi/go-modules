@@ -10,6 +10,8 @@ import {
   type MarketingPage
 } from "@/content/marketing";
 import { LocalizedLink } from "@/components/localized-link";
+import { StructuredData } from "@/components/structured-data";
+import { faqStructuredData } from "@/lib/structured-data";
 import { SiteShell } from "@/components/site-shell";
 import { useI18n } from "@/lib/i18n";
 import { getHomeContent } from "@/content/site";
@@ -204,6 +206,7 @@ export function MarketingDetail({ page, entries }: { page: MarketingPage; entrie
 
           <section className={styles.readingSection} id="questions">
             <h2>{t(labels.faq)}</h2>
+            <StructuredData data={faqStructuredData(page.faq.map(item => ({ question: t(item.question), answer: t(item.answer) })))} />
             <div className={styles.faq}>
               {page.faq.map((item) => (
                 <details key={item.question.en}>

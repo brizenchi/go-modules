@@ -1,5 +1,6 @@
 import { PolicyContent } from "@/components/content/policy";
-import { publicMetadata } from "@/lib/seo";
+import { managedMetadata } from "@/lib/public-content";
 
-export const metadata = publicMetadata("Terms", "Editable service terms covering accounts, subscriptions, credits, and support for your product.", "/terms");
+export const revalidate = 30;
+export async function generateMetadata() { return managedMetadata("/terms", "en"); }
 export default function TermsPage() { return <PolicyContent kind="terms" />; }

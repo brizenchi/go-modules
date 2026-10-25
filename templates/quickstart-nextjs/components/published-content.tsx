@@ -4,13 +4,16 @@ import { LocalizedLink as Link } from "./localized-link";
 import type { PublishedArticle } from "@/lib/api";
 import type { PagePresentation } from "@/lib/page-presentation";
 import { useI18n } from "@/lib/i18n";
-import { localizeHref } from "@/lib/locale";
+import { localizeHref, type Locale } from "@/lib/locale";
+import { appEnv } from "@/lib/env";
 import { SiteShell } from "./site-shell";
+import { useSitePresentation } from "./site-presentation";
+import { useLinkablePath } from "./navigation-index";
 import { MarkdownContent } from "./markdown-content";
 import { markdownBlocks } from "@/lib/markdown";
 import { ArticleLanguagesProvider } from "./article-language-context";
 import { StructuredData } from "./structured-data";
-import { articleStructuredData } from "@/lib/structured-data";
+import { articleSchemaType, articleStructuredData, webPageStructuredData } from "@/lib/structured-data";
 import { siteLinks } from "@/content/navigation";
 import { filterGuideIndex, type GuideCategory, type GuideIndexEntry } from "@/lib/guide-index";
 import type { DiscoveryEntry } from "@/lib/content-discovery";
@@ -27,13 +30,14 @@ const descriptions = {
 };
 export function PublishedContentIndex({ kind, entries, page }: { kind: Exclude<keyof typeof names, "page">; entries: GuideIndexEntry[]; page?: PagePresentation }) {
  const { t, locale } = useI18n();
+ const linkable = useLinkablePath(entries);
  const [query, setQuery] = useState("");
  const [category, setCategory] = useState<GuideCategory>("all");
  const rows = filterGuideIndex(entries, kind, category, query);
  const title = page?.translation.title || t(names[kind]);
  return <ArticleLanguagesProvider locales={page?.locales || ["en", "zh"]}><SiteShell variant="compact" eyebrow={title} title={title} description={page ? page.translation.summary : t(descriptions[kind])}>
   {kind === "resources" ? <GuideDirectories /> : ["features", "use-cases", "compare"].includes(kind) ? <ProductNavigation currentPath={`/${kind}`} /> : null}
-  {page ? <div className={listStyles.introduction}><MarkdownContent source={page.translation.body} locale={locale} /></div> : null}
+  {page ? <div className={listStyles.introduction}><MarkdownContent source={page.translation.body} locale={locale} linkable={linkable} /></div> : null}
   <section className={listStyles.library} aria-label={title}>
    <div className={listStyles.toolbar}>
     {kind === "resources" ? <div className={listStyles.filters} role="group" aria-label={t({ en: "Guide category", zh: "指南分类" })}>
@@ -64,13 +68,18 @@ export function PublishedContentIndex({ kind, entries, page }: { kind: Exclude<k
   </section>
  </SiteShell></ArticleLanguagesProvider>;
 }
+/** A live snapshot's time is its latest publication, so it is the modification date. */
+function contentStructuredData(article: PublishedArticle, locale: Locale, publisher: string) {
+ const page = { title: article.translation.title, description: article.translation.summary, path: localizeHref(article.path, locale), language: locale === "zh" ? "zh-CN" : "en", publisher, modifiedAt: article.published_at };
+ return ["features", "use-cases", "compare"].includes(article.kind) ? webPageStructuredData(page) : articleStructuredData({ ...page, type: articleSchemaType(article.kind) });
+}
 export function PublishedContentArticle({ article, entries }: { article: PublishedArticle; entries: DiscoveryEntry[] }) {
- const { t, locale } = useI18n(); const text = article.translation;
+ const { t, locale } = useI18n(); const text = article.translation; const presentation = useSitePresentation(); const linkable = useLinkablePath(entries);
  const toc = markdownBlocks(text.body).flatMap(block => block.kind === "heading" && block.level === 2 ? [{ id: `content-${block.id}`, label: block.text }] : []);
  return <ArticleLanguagesProvider locales={article.locales}><SiteShell variant="article" eyebrow={t(names[article.kind])} title={text.title} description={text.summary} breadcrumbs={[{ href: "/", label: t({ en: "Home", zh: "首页" }) }, { href: `/${article.kind}`, label: t(names[article.kind]) }, { label: text.title }]}>
   {["features", "use-cases", "compare"].includes(article.kind) ? <ProductNavigation currentPath={article.path} /> : null}
-  <StructuredData data={articleStructuredData({ title: text.title, description: text.summary, path: localizeHref(article.path, locale), language: locale === "zh" ? "zh-CN" : "en", publishedAt: article.published_at })} />
-  <div className="published-article" id="details">{toc.length > 2 ? <details className={listStyles.outline}><summary>{t({ en: "On this page", zh: "本页目录" })}</summary><nav aria-label={t({ en: "On this page", zh: "本页目录" })}><ol>{toc.map(item => <li key={item.id}><a href={`#${item.id}`}>{item.label}</a></li>)}</ol></nav></details> : null}<MarkdownContent locale={locale} source={text.body} idPrefix="content-" /><footer><Link href={`/${article.kind}`}>← {t(names[article.kind])}</Link><Link href="/contact">{t({ en: "Help & support", zh: "帮助与支持" })} →</Link></footer></div>
+  <StructuredData data={contentStructuredData(article, locale, presentation?.brand_name || appEnv.appName)} />
+  <div className="published-article" id="details">{toc.length > 2 ? <details className={listStyles.outline}><summary>{t({ en: "On this page", zh: "本页目录" })}</summary><nav aria-label={t({ en: "On this page", zh: "本页目录" })}><ol>{toc.map(item => <li key={item.id}><a href={`#${item.id}`}>{item.label}</a></li>)}</ol></nav></details> : null}<MarkdownContent locale={locale} source={text.body} idPrefix="content-" linkable={linkable} /><footer><Link href={`/${article.kind}`}>← {t(names[article.kind])}</Link><Link href="/contact">{t({ en: "Help & support", zh: "帮助与支持" })} →</Link></footer></div>
   <RelatedContent entries={entries} currentPath={article.path} />
  </SiteShell></ArticleLanguagesProvider>;
 }

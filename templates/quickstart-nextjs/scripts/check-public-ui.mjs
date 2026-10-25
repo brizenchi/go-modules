@@ -21,7 +21,7 @@ const compile = file => ts.transpileModule(readFileSync(join(root, file), "utf8"
 const files = ["components/language-picker.tsx", "components/account-menu.tsx", "components/sign-out-button.tsx", "components/interface-icon.tsx", "components/localized-link.tsx", "components/public-navigation.tsx", "components/published-content.tsx", "components/site-footer.tsx", "lib/guide-index.ts", "lib/disclosure-focus.ts", "lib/locale.ts", "content/navigation.ts", "content/docs.ts", "content/articles.ts"];
 files.push("components/sign-in-dialog.tsx", "components/sign-in-panel.tsx", "components/responsive-dialog.tsx", "components/ui.tsx", "components/resource-feedback.tsx", "lib/dialog-focus.ts", "lib/request-state.ts", "lib/resource-data.ts", "lib/request-generation.ts", "lib/auth-methods.ts", "lib/sign-in-methods-cache.ts");
 files.push("components/brand-mark.tsx", "lib/site-branding.ts", "components/content/contact.tsx", "components/site-shell.tsx", "components/breadcrumbs.tsx");
-files.push("components/content-discovery.tsx", "lib/content-discovery.ts", "lib/markdown.ts", "lib/workspace.ts");
+files.push("components/content-discovery.tsx", "lib/content-discovery.ts", "lib/markdown.ts", "lib/workspace.ts", "components/navigation-index.tsx");
 const modules = Object.fromEntries(files.map(file => [file.replace(/\.tsx?$/, ""), compile(file)]));
 const prefix = file => `m_${file.split("/").at(-1).replace(".module.css", "").replaceAll("-", "_")}_`;
 const stylesheets = ["components/account-menu.module.css", "components/published-content.module.css", "components/content/marketing.module.css", "components/site-footer.module.css"];
@@ -79,8 +79,9 @@ function load(name,parent=''){
   if(cache[key])return cache[key];if(!modules[key])throw Error('Unexpected dependency '+key);
   const m={exports:{}};new Function('require','module','exports',modules[key])(name=>load(name,key),m,m.exports);cache[key]=m.exports;return m.exports;
 }
+const navigationFixture=[{path:'/features/authentication',kind:'features',title:'Email and OAuth login',position:1},{path:'/features/credits',kind:'features',title:'Credit ledger',position:2},{path:'/use-cases/subscription-saas',kind:'use-cases',title:'Subscription SaaS',position:1},{path:'/compare/starter-vs-from-scratch',kind:'compare',title:'Starter or scratch',position:1}];
 function Frame(props){const[session,setSession]=React.useState(fixture.session);React.useEffect(()=>{const sync=()=>setSession(fixture.session);addEventListener('fixture-session',sync);return()=>removeEventListener('fixture-session',sync)},[]);
-  return icon('div',{className:'app-shell compact-shell'},icon('header',{className:'topbar'},icon('div',{className:'topbar-inner'},icon('a',{className:'brand-lockup',href:'#'},'SaaS Starter'),icon(load('components/public-navigation').PublicNavigation,{pathname:'/resources'}),icon('div',{className:'topbar-tools'},icon(load('components/language-picker').LanguagePicker,{locale,label:'Language',onSelect:()=>{}}),icon(load('components/account-menu').AccountMenu,{session})))),icon('main',{id:'main-content',className:'page-shell'},icon('section',{className:'hero-grid'},icon('div',{className:'hero-main-card'},icon('span',{className:'eyebrow'},props.eyebrow),icon('h1',null,props.title),icon('p',null,props.description))),props.children),icon(load('components/site-footer').SiteFooter,{name:'SaaS Starter'}));
+  return icon('div',{className:'app-shell compact-shell'},icon('header',{className:'topbar'},icon('div',{className:'topbar-inner'},icon('a',{className:'brand-lockup',href:'#'},'SaaS Starter'),icon(load('components/navigation-index').NavigationIndexProvider,{value:{[locale]:{entries:navigationFixture,directories:['/features','/use-cases','/compare','/docs','/blog','/resources','/about','/updates']}}},icon(load('components/public-navigation').PublicNavigation,{pathname:'/resources'})),icon('div',{className:'topbar-tools'},icon(load('components/language-picker').LanguagePicker,{locale,label:'Language',onSelect:()=>{}}),icon(load('components/account-menu').AccountMenu,{session})))),icon('main',{id:'main-content',className:'page-shell'},icon('section',{className:'hero-grid'},icon('div',{className:'hero-main-card'},icon('span',{className:'eyebrow'},props.eyebrow),icon('h1',null,props.title),icon('p',null,props.description))),props.children),icon(load('components/site-footer').SiteFooter,{name:'SaaS Starter'}));
 }
 const docs=load('content/docs').documentation.map(row=>({id:'docs:'+row.id,path:'/docs/'+row.id,kind:'docs',translation:{title:row.title[locale],summary:row.summary[locale]}}));
 const articles=load('content/articles').articles.map(row=>({id:'blog:'+row.slug,path:'/blog/'+row.slug,kind:'blog',translation:{title:row.title[locale],summary:row.summary[locale]}}));
@@ -150,13 +151,31 @@ try {
     await evaluate("fixture.reset()");await settle();await evaluate("document.querySelector('.account-menu > button').click()");await settle();
     await evaluate(`fixture.click('${signout}');fixture.session={...fixture.session,token:'newer-login'};dispatchEvent(new Event('fixture-session'));fixture.resolve()`);await settle();
     await check("fixture.session.token==='newer-login' && fixture.redirects.length===1",tag+': old logout preserves newer login');
-    await check("document.querySelectorAll('.main-nav > a').length===4",tag+': four direct navigation links');
-    await check("!document.querySelector('.main-nav button, .main-nav svg, .main-nav [aria-expanded]')",tag+': no navigation dropdowns or arrows');
-    await check(`parseFloat(getComputedStyle(document.querySelector('.main-nav')).columnGap)>=${width>640?12:8}`,tag+': navigation has breathing room');
-    await check("(()=>{const links=[...document.querySelectorAll('.main-nav > a')];return links.slice(1).every((link,index)=>link.getBoundingClientRect().left-links[index].getBoundingClientRect().right>=8)})()",tag+': full link targets remain separated');
-    const featurePoint=await evaluate("(()=>{const b=document.querySelector('.main-nav > a:nth-child(2)').getBoundingClientRect();return{x:b.x+b.width/2,y:b.y+b.height/2}})()");
+    await check("document.querySelectorAll('.main-nav-item > .main-nav-link').length===5",tag+': five directory links');
+    await check("!document.querySelector('.main-nav button, .main-nav svg, .main-nav [aria-expanded]')",tag+': menus need no scripted controls');
+    const prefix=locale==='zh'?'/zh':'';
+    const featureLinks=JSON.stringify(["/features/authentication","/features/credits"].map(path=>prefix+path));
+    await check(`JSON.stringify([...document.querySelectorAll('.main-nav-item:first-child .main-nav-menu ul a')].map(a=>a.getAttribute('href')))===${JSON.stringify(featureLinks)}`,tag+': feature menu links published pages in order');
+    await check("document.querySelectorAll('.main-nav-item:nth-child(2) .main-nav-menu-group').length===2 && !document.querySelector('.main-nav-item:nth-child(3) .main-nav-menu')",tag+': use cases group comparisons; docs is a direct link');
+    await check(`parseFloat(getComputedStyle(document.querySelector('.main-nav')).columnGap)>=8`,tag+': navigation has breathing room');
+    await check("(()=>{const links=[...document.querySelectorAll('.main-nav-item > .main-nav-link')];return links.slice(1).every((link,index)=>link.getBoundingClientRect().left-links[index].getBoundingClientRect().right>=8)})()",tag+': full link targets remain separated');
+    await check("[...document.querySelectorAll('.main-nav-menu')].every(menu=>getComputedStyle(menu).visibility==='hidden')",tag+': menus start closed');
+    const featurePoint=await evaluate("(()=>{const b=document.querySelector('.main-nav-item:first-child > .main-nav-link').getBoundingClientRect();return{x:b.x+b.width/2,y:b.y+b.height/2}})()");
     await command("Input.dispatchMouseEvent",{type:"mouseMoved",...featurePoint});await settle();
+    if(width>860){
+      await check("getComputedStyle(document.querySelector('.main-nav-item:first-child .main-nav-menu')).visibility==='visible'",tag+': hovering a directory opens its menu');
+      await check("(()=>{const box=document.querySelector('.main-nav-item:first-child .main-nav-menu-card').getBoundingClientRect();return box.left>=0&&box.right<=innerWidth})()",tag+': open menu fits the viewport');
+    } else await check("getComputedStyle(document.querySelector('.main-nav-menu')).display==='none' && getComputedStyle(document.querySelector('.has-menu > .main-nav-link'),'::after').display==='none'",tag+': small screens use directory pages, without menu arrows');
     await screenshot(tag+'-navigation');
+    await command("Input.dispatchMouseEvent",{type:"mouseMoved",x:5,y:600});await settle();
+    if(width>860){
+      await evaluate("document.querySelector('.main-nav-item:nth-child(2) > .main-nav-link').focus()");await settle();
+      await check("getComputedStyle(document.querySelector('.main-nav-item:nth-child(2) .main-nav-menu')).visibility==='visible'",tag+': focusing a directory opens its menu');
+      await evaluate("document.querySelector('.main-nav-item:nth-child(2) .main-nav-menu a').focus()");await settle();
+      await check("document.activeElement===document.querySelector('.main-nav-item:nth-child(2) .main-nav-menu a') && getComputedStyle(document.querySelector('.main-nav-item:nth-child(2) .main-nav-menu')).visibility==='visible'",tag+': the next focus stop is inside the open menu');
+      await screenshot(tag+'-navigation-focus');
+      await evaluate("document.activeElement.blur()");await settle();
+    }
     await evaluate(`fixture.click('${locale==='zh'?'使用文档':'Documentation'}')`);await settle();
     await check(`document.querySelectorAll('main article').length>0 && [...document.querySelectorAll('main article h2 a')].every(link=>link.getAttribute('href').includes('/docs/'))`,tag+': category filters results');
     await evaluate("fixture.search('not-a-guide-match')");await settle();
@@ -190,6 +209,8 @@ try {
     await check("!!document.querySelector('#support a[href=\"mailto:support@example.test\"]')",tag+': configured support email remains available');
     await check(`document.querySelector('#support').textContent.includes('${locale==='zh'?'登录验证码':'login codes'}')`,tag+': reporting guidance stays beside support channels');
     await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': support page fits viewport');
+    await check("(()=>{const bar=document.querySelector('.topbar-inner');return bar.scrollWidth<=bar.clientWidth+1})()",tag+': header tools fit the bar');
+    await check(`(()=>{const cta=document.querySelector('.topbar-cta');return cta.getAttribute('href')==='${locale==='zh'?'/zh':''}/examples'&&(getComputedStyle(cta).display==='none')===${width<=640}})()`,tag+': demo call to action, hidden only on phones');
     await screenshot(tag);
   }}
   for(const locale of ["en","zh"]){for(const width of [1440,390]){

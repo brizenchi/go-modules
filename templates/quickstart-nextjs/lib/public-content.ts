@@ -4,14 +4,16 @@ import { appEnv } from "./env";
 import { canonicalURL, publicMetadata, publicPageMetadata } from "./seo";
 import { localizeHref, type Locale } from "./locale";
 import type { PageResult } from "./operations-api";
-import { discoveryEntry, type DiscoveryEntry } from "./content-discovery";
+import { availableDirectories, discoveryEntry, isContentDirectory, isEditorialPath, navigationEntries, type DiscoveryEntry, type NavigationIndex } from "./content-discovery";
 import { staticContentIndex } from "./static-content-index";
 import { managedPagePaths, pagePresentation } from "./page-presentation";
+import { siteStructuredData } from "./structured-data";
+import { siteConfig } from "../content/site";
 export { managedPagePaths } from "./page-presentation";
 
 const publicRead = { cache: "force-cache" as const, next: { revalidate: 30 } };
 export function isManagedPath(path: string): boolean {
- return managedPagePaths.includes(path) || /^\/(blog|docs|features|use-cases|compare)\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
+ return managedPagePaths.includes(path) || isEditorialPath(path);
 }
 /** Unconfigured previews and older APIs without CMS routes retain compatibility.
  * A CMS returning a successful empty response never resurrects bundled articles. */
@@ -29,9 +31,34 @@ export async function publishedIndex(locale: Locale): Promise<PublishedArticle[]
  }
 }
 
+async function siteCatalog(locale: Locale): Promise<{ entries: DiscoveryEntry[]; pages: Set<string> | null }> {
+ const rows = await publishedIndex(locale);
+ return rows === null
+  ? { entries: staticContentIndex(locale), pages: null }
+  : { entries: rows.map(discoveryEntry), pages: new Set(rows.filter(row => row.kind === "page").map(row => row.path)) };
+}
 export async function discoveryIndex(locale: Locale): Promise<DiscoveryEntry[]> {
- const entries = await publishedIndex(locale);
- return entries === null ? staticContentIndex(locale) : entries.map(discoveryEntry);
+ return (await siteCatalog(locale)).entries;
+}
+/** Directories with something to show in this language (see availableDirectories). */
+export async function publishedDirectories(locale: Locale): Promise<Set<string>> {
+ const { entries, pages } = await siteCatalog(locale);
+ return new Set(availableDirectories(entries, pages));
+}
+/** The homepage identifies the site with the same description its search result uses. */
+export async function homeStructuredData(locale: Locale) {
+ const [metadata, site] = await Promise.all([managedMetadata("/", locale), websitePresentation()]);
+ return siteStructuredData({
+  name: site?.brand_name || appEnv.appName,
+  description: typeof metadata?.description === "string" && metadata.description ? metadata.description : siteConfig.description[locale],
+  path: localizeHref("/", locale), language: locale === "zh" ? "zh-CN" : "en",
+  sameAs: siteConfig.repositoryURL ? [siteConfig.repositoryURL] : [],
+  application: siteConfig.application
+ });
+}
+export async function navigationIndex(locale: Locale): Promise<NavigationIndex> {
+ const { entries, pages } = await siteCatalog(locale);
+ return { entries: navigationEntries(entries), directories: availableDirectories(entries, pages) };
 }
 /** Enumerate the live build snapshot; dynamicParams still permits later publications. */
 export async function publishedPaths(locale: Locale, fallback: string[]): Promise<string[]> {
@@ -85,5 +112,16 @@ export async function managedMetadata(path: string, locale: Locale): Promise<Met
   }
  }
  if (!metadata) return null;
- return applyWebsiteMetadata(metadata, await websitePresentation(), false, locale);
+ metadata = applyWebsiteMetadata(metadata, await websitePresentation(), false, locale);
+ return isContentDirectory(path) ? withDirectoryAvailability(metadata, path, locale) : metadata;
+}
+/** An empty directory stays reachable but leaves search results, and no language version points to it. */
+async function withDirectoryAvailability(metadata: Metadata, path: string, locale: Locale): Promise<Metadata> {
+ const [en, zh] = await Promise.all([publishedDirectories("en"), publishedDirectories("zh")]);
+ const visible = { en: en.has(path), zh: zh.has(path) };
+ if (visible.en && visible.zh) return metadata;
+ const languages = Object.fromEntries(Object.entries(metadata.alternates?.languages || {}).filter(([language]) =>
+  language === "x-default" ? visible.en || visible.zh : language === "zh-CN" ? visible.zh : visible.en));
+ if (!visible.en && visible.zh && "x-default" in languages) languages["x-default"] = canonicalURL(localizeHref(path, "zh"));
+ return { ...metadata, alternates: { ...metadata.alternates, languages }, ...(visible[locale] ? {} : { robots: { index: false, follow: true } }) };
 }

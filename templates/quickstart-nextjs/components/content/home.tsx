@@ -5,16 +5,20 @@ import Image from "next/image";
 import { getHomeContent, siteConfig } from "@/content/site";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { SiteShell } from "@/components/site-shell";
+import { StructuredData } from "@/components/structured-data";
+import { faqStructuredData } from "@/lib/structured-data";
 import { CTAButton, PageSection } from "@/components/ui";
 import { documentation } from "@/content/docs";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
 import { latestGuides, uniqueContent, type DiscoveryEntry } from "@/lib/content-discovery";
 import { ContentCards } from "@/components/content-discovery";
+import { useDirectoryFilter } from "@/components/navigation-index";
 import styles from "./home.module.css";
 
 export function HomeContent({ entries }: { entries: DiscoveryEntry[] }) {
   const { t, locale } = useI18n();
+  const shown = useDirectoryFilter();
  const presentation=useSitePresentation();
   const demo = appEnv.demoMode;
   const content = t(getHomeContent(demo));
@@ -74,7 +78,7 @@ export function HomeContent({ entries }: { entries: DiscoveryEntry[] }) {
       {cases.length > 0 ? <PageSection id="use-cases" title={t({ en: "A starting point for your product.", zh: "找到适合你的产品场景。" })}
         description={t({ en: "See how the shared foundations fit different ways to deliver and charge for your product.", zh: "了解通用基础能力如何用于不同的产品交付与收费方式。" })}>
         <ContentCards entries={cases} />
-        <div className={styles.sectionLinks}><Link href="/use-cases">{t({ en: "Explore all use cases", zh: "查看全部使用场景" })}<span aria-hidden="true">→</span></Link><Link href="/compare">{t({ en: "Compare starting points", zh: "比较开发方案" })}<span aria-hidden="true">→</span></Link></div>
+        <div className={styles.sectionLinks}><Link href="/use-cases">{t({ en: "Explore all use cases", zh: "查看全部使用场景" })}<span aria-hidden="true">→</span></Link>{shown("/compare") ? <Link href="/compare">{t({ en: "Compare starting points", zh: "比较开发方案" })}<span aria-hidden="true">→</span></Link> : null}</div>
       </PageSection> : null}
 
       <PageSection id="try-it" title={t({ en: "Take it for a spin.", zh: "像你的用户一样，亲自体验。" })} description={t({ en: "Start here without deploying your own copy. Available flows depend on the services enabled on this site.", zh: "无需先部署，从这个站点开始体验。可用流程以本站启用的服务为准。" })}>
@@ -86,6 +90,7 @@ export function HomeContent({ entries }: { entries: DiscoveryEntry[] }) {
       </PageSection>
 
       <PageSection id="questions" title={t({ en: "A few things before you start.", zh: "开始前，你可能想了解。" })}>
+        <StructuredData data={faqStructuredData(siteConfig.faq.map(item => ({ question: t(item.question), answer: t(item.answer) })))} />
         <div className={styles.faq}>
           {siteConfig.faq.map(item => <details key={item.question.en}><summary>{t(item.question)}<span aria-hidden="true">+</span></summary><p>{t(item.answer)}</p></details>)}
         </div>
@@ -99,13 +104,13 @@ export function HomeContent({ entries }: { entries: DiscoveryEntry[] }) {
             return <Link className={styles.guide} href={`/docs/${guide.id}`} id={slug === "payments" ? "test-payment" : slug === "invitations" ? "sharing" : undefined} key={guide.id}><span className={styles.guideNumber}>0{index + 1}</span><div><h3>{t(guide.title)}</h3><p>{t(guide.summary)}</p></div><span className={styles.guideArrow} aria-hidden="true">↗</span></Link>;
           })}
         </div>
-        <div className={styles.closing}><div><span className={styles.kicker}>{t({ en: "YOUR NEXT SAAS STARTS HERE", zh: "你的下一个 SaaS，从这里开始" })}</span><h3>{t({ en: "Put your next sprint into your product.", zh: "把下一轮开发，留给核心业务。" })}</h3><Link className={styles.aboutLink} href="/about">{t({ en: "About the project", zh: "了解这个项目" })}<span aria-hidden="true"> →</span></Link></div><div className={styles.closingActions}><a className="button primary" href={siteConfig.repositoryURL} rel="noopener noreferrer">{t({ en: "Get the source", zh: "获取模板源码" })}<span aria-hidden="true">↗</span></a><CTAButton href="/resources">{t({ en: "Browse all guides", zh: "浏览全部指南" })}</CTAButton></div></div>
+        <div className={styles.closing}><div><span className={styles.kicker}>{t({ en: "YOUR NEXT SAAS STARTS HERE", zh: "你的下一个 SaaS，从这里开始" })}</span><h3>{t({ en: "Put your next sprint into your product.", zh: "把下一轮开发，留给核心业务。" })}</h3>{shown("/about") ? <Link className={styles.aboutLink} href="/about">{t({ en: "About the project", zh: "了解这个项目" })}<span aria-hidden="true"> →</span></Link> : null}</div><div className={styles.closingActions}><a className="button primary" href={siteConfig.repositoryURL} rel="noopener noreferrer">{t({ en: "Get the source", zh: "获取模板源码" })}<span aria-hidden="true">↗</span></a>{shown("/resources") ? <CTAButton href="/resources">{t({ en: "Browse all guides", zh: "浏览全部指南" })}</CTAButton> : null}</div></div>
       </PageSection>
 
       <PageSection id="latest-guides" title={t({ en: "Keep learning. Keep building.", zh: "继续了解，持续构建。" })}
         description={t({ en: "Read the latest published guides and follow product updates.", zh: "查阅最近发布的指南，了解产品更新。" })}>
         {latest.length > 0 ? <ContentCards entries={latest} /> : null}
-        <div className={styles.sectionLinks}><Link href="/resources">{t({ en: "All guides", zh: "指南总览" })}<span aria-hidden="true">→</span></Link><Link href="/updates">{t({ en: "Product updates", zh: "更新日志" })}<span aria-hidden="true">→</span></Link></div>
+        <div className={styles.sectionLinks}>{shown("/resources") ? <Link href="/resources">{t({ en: "All guides", zh: "指南总览" })}<span aria-hidden="true">→</span></Link> : null}{shown("/updates") ? <Link href="/updates">{t({ en: "Product updates", zh: "更新日志" })}<span aria-hidden="true">→</span></Link> : null}</div>
       </PageSection>
     </SiteShell>
   );

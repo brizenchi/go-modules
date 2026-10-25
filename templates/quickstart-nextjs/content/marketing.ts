@@ -62,8 +62,8 @@ export const marketingCategories: MarketingCategory[] = [
   },
   {
     kind: "examples", path: "/examples",
-    title: text("Explore the customer account", "体验账户服务"),
-    description: text("", ""),
+    title: text("Try the live demo", "在线体验"),
+    description: text("Try the included customer account center: sign in with email, manage a subscription and invoices, check credit history and share a referral link.", "在线体验模板自带的账户中心：用邮箱登录，管理订阅与账单，查看积分明细，分享邀请链接，提前走一遍你的用户会用到的流程。"),
     intro: text("Open one of the three common account services. Sign in when prompted to view your own records.", "选择以下三个通用账户服务，需要时登录后查看自己的记录。")
   }
 ];

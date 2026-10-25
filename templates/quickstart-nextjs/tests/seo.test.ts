@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalURL, privateMetadata, privatePaths, publicMetadata, publicPageMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
+import { canonicalURL, exposedSitemapEntries, privateMetadata, privatePaths, publicMetadata, publicPageMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
 import { siteConfig } from "../content/site";
 import { appEnv } from "../lib/env";
 import { articles } from "../content/articles";
@@ -72,4 +72,29 @@ test("both homepage metadata variants use the configured public identity", () =>
     assert.ok(metadata.openGraph && "siteName" in metadata.openGraph);
     assert.equal(metadata.openGraph.siteName, appEnv.appName);
   }
+});
+
+test("sitemap alternates match each page's hreflang set, including x-default", () => {
+  for (const entry of sitemapEntries()) {
+    assert.equal(entry.alternates.languages["x-default"], entry.alternates.languages.en);
+  }
+  const subscriptions = sitemapEntries().find(entry => entry.url === canonicalURL("/features/subscriptions"));
+  assert.match(subscriptions?.lastModified || "", /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test("an empty directory leaves the sitemap and the alternates of its other language", () => {
+  const url = (path: string) => canonicalURL(path);
+  const entries = [
+    { url: url("/compare"), alternates: { languages: { en: url("/compare"), "zh-CN": url("/zh/compare"), "x-default": url("/compare") } } },
+    { url: url("/zh/compare"), alternates: { languages: { en: url("/compare"), "zh-CN": url("/zh/compare"), "x-default": url("/compare") } } },
+    { url: url("/docs"), alternates: { languages: { en: url("/docs"), "zh-CN": url("/zh/docs"), "x-default": url("/docs") } } },
+    { url: url("/zh/docs"), alternates: { languages: { en: url("/docs"), "zh-CN": url("/zh/docs"), "x-default": url("/docs") } } },
+    { url: url("/pricing") },
+    { url: url("/compare/starter") }
+  ];
+  const exposed = exposedSitemapEntries(entries, { en: new Set(["/compare"]), zh: new Set(["/docs"]) });
+  assert.deepEqual(exposed.map(entry => new URL(entry.url).pathname), ["/compare", "/zh/docs", "/pricing", "/compare/starter"]);
+  assert.deepEqual(exposed[0].alternates?.languages, { en: url("/compare"), "x-default": url("/compare") });
+  // With English hidden, the fallback for other languages points to Chinese.
+  assert.deepEqual(exposed[1].alternates?.languages, { "zh-CN": url("/zh/docs"), "x-default": url("/zh/docs") });
 });

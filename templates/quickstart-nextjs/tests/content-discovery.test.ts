@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { contentReferences, latestGuides, relatedContent, uniqueContent, type DiscoveryEntry } from "../lib/content-discovery";
+import { availableDirectories, contentReferences, isContentDirectory, isEditorialPath, latestGuides, linkablePath, navigationEntries, relatedContent, uniqueContent, type DiscoveryEntry } from "../lib/content-discovery";
 
 function entry(path: string, kind: DiscoveryEntry["kind"], body = "", published_at?: string): DiscoveryEntry {
   return { id: path, path, kind, published_at, links: contentReferences(body), translation: { title: path, summary: "Fixture summary" } };
@@ -40,4 +40,37 @@ test("the discovery catalog accepts only public content paths matching their kin
   const valid = entry("/docs/setup", "docs");
   assert.deepEqual(uniqueContent([valid, valid, entry("/account", "docs"), entry("//example.test/page", "blog")]), [valid]);
   assert.deepEqual(latestGuides([entry("/docs/undated", "docs"), entry("/blog/invalid-date", "blog", "", "invalid")]), []);
+});
+
+test("header navigation receives only titles and order of published product pages", () => {
+  const entries = navigationEntries([
+    { id: "1", path: "/features/credits", kind: "features", position: 3, translation: { title: "Credits", summary: "Long summary" }, links: ["/docs/payments"] },
+    { id: "2", path: "/features/credits", kind: "features", position: 3, translation: { title: "Credits", summary: "Duplicate" } },
+    { id: "3", path: "/docs/payments", kind: "docs", translation: { title: "Payments", summary: "" } },
+    { id: "4", path: "/compare", kind: "compare", translation: { title: "Directory", summary: "" } }
+  ]);
+  assert.deepEqual(entries, [{ path: "/features/credits", kind: "features", title: "Credits", position: 3 }]);
+});
+
+test("a directory exists only with published pages, and Guides with docs or articles", () => {
+  const entry = (path: string, kind: DiscoveryEntry["kind"]): DiscoveryEntry => ({ id: path, path, kind, translation: { title: path, summary: "" } });
+  assert.deepEqual(availableDirectories([entry("/features/credits", "features"), entry("/docs/setup", "docs"), entry("/compare", "compare")], new Set(["/about"])), ["/features", "/docs", "/resources", "/about"]);
+  assert.deepEqual(availableDirectories([entry("/blog/news", "blog")], new Set()), ["/blog", "/resources"]);
+  // Without a CMS the bundled about and updates pages always exist.
+  assert.deepEqual(availableDirectories([], null), ["/about", "/updates"]);
+  assert.equal(isContentDirectory("/compare"), true);
+  assert.equal(isContentDirectory("/pricing"), false);
+  assert.equal(isContentDirectory("/constructor"), false);
+});
+
+test("published text links only to pages and directories that exist", () => {
+  const linkable = linkablePath(new Set(["/docs/setup"]), new Set(["/docs"]));
+  assert.equal(linkable("/docs/setup"), true);
+  assert.equal(linkable("/zh/docs/setup?ref=x#step"), true);
+  assert.equal(linkable("/docs/removed"), false);
+  assert.equal(linkable("/blog"), false);
+  assert.equal(linkable("/docs"), true);
+  for (const path of ["/", "/pricing", "/account", "/docs/Not_A_Slug"]) assert.equal(linkable(path), true, path);
+  assert.equal(linkablePath(new Set(), null)("/blog"), true, "unknown directories stay linked");
+  assert.equal(isEditorialPath("/compare/x"), true);
 });

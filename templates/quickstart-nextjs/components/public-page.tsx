@@ -1,4 +1,5 @@
-import { discoveryIndex, isManagedPath, managedPagePaths, publishedArticle, websitePresentation } from "@/lib/public-content";
+import { discoveryIndex, homeStructuredData, isManagedPath, managedPagePaths, publishedArticle, websitePresentation } from "@/lib/public-content";
+import { StructuredData } from "./structured-data";
 import { pagePresentation } from "@/lib/page-presentation";
 import { appEnv } from "@/lib/env";
 import type { Locale } from "@/lib/locale";
@@ -26,16 +27,16 @@ export async function PublicPage({ path, locale="en" }: { path: string; locale?:
    if (!resolved.article && !managedPagePaths.includes(path)) notFound();
    const page = resolved.article || pagePresentation(path, locale, await websitePresentation(), appEnv.appName);
    const entries = await discoveryIndex(locale);
-   if (path === "/") return <ManagedHome page={page} entries={entries} identityOnly={!resolved.article} />;
+   if (path === "/") return <><StructuredData data={await homeStructuredData(locale)} /><ManagedHome page={page} entries={entries} identityOnly={!resolved.article} /></>;
    if (["/blog", "/docs", "/features", "/use-cases", "/compare", "/resources"].includes(path)) {
     return <PublishedContentIndex kind={path.slice(1) as "blog" | "docs" | "features" | "use-cases" | "compare" | "resources"} page={page} entries={entries} />;
    }
-   if (!resolved.article || resolved.article.kind === "page") return <ManagedPage page={page} />;
+   if (!resolved.article || resolved.article.kind === "page") return <ManagedPage page={page} entries={entries} />;
    return <PublishedContentArticle article={resolved.article} entries={entries} />;
   }
  }
 
-  if (path === "/") return <HomeContent entries={await discoveryIndex(locale)} />;
+  if (path === "/") return <><StructuredData data={await homeStructuredData(locale)} /><HomeContent entries={await discoveryIndex(locale)} /></>;
   if (path === "/pricing") return <ProductPricing />;
   if (path === "/docs") return <Documentation />;
   if (path === "/blog") return <BlogIndex />;

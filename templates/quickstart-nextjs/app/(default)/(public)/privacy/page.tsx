@@ -1,5 +1,6 @@
 import { PolicyContent } from "@/components/content/policy";
-import { publicMetadata } from "@/lib/seo";
+import { managedMetadata } from "@/lib/public-content";
 
-export const metadata = publicMetadata("Privacy", "Editable privacy information for the SaaS starter. Adapt it to your actual service.", "/privacy");
+export const revalidate = 30;
+export async function generateMetadata() { return managedMetadata("/privacy", "en"); }
 export default function PrivacyPage() { return <PolicyContent kind="privacy" />; }

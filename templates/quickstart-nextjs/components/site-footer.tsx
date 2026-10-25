@@ -1,13 +1,15 @@
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { useI18n } from "@/lib/i18n";
 import { siteConfig } from "@/content/site";
-import { siteFooterGroups, siteLegalLinks } from "@/content/navigation";
+import { siteLegalLinks, sourceRepository, visibleFooterGroups } from "@/content/navigation";
+import { usePublishedDirectories } from "./navigation-index";
 import { BrandMark } from "./brand-mark";
 import styles from "./site-footer.module.css";
 
 
 export function SiteFooter({ name, description }: { name: string; description?: string }) {
   const { t } = useI18n();
+  const groups = visibleFooterGroups(usePublishedDirectories());
   return (
     <footer className={styles.footer} data-site-footer>
       <div className={styles.inner}>
@@ -15,8 +17,9 @@ export function SiteFooter({ name, description }: { name: string; description?: 
           <div className={styles.identity}>
             <Link className={styles.brand} href="/"><BrandMark className={styles.brandMark} />{name}</Link>
             <p>{description || t(siteConfig.footer.description)}</p>
+            {sourceRepository ? <a className={styles.source} href={sourceRepository.href} rel="noopener noreferrer">{t({ en: "Source on GitHub", zh: "GitHub 源码" })}<span aria-hidden="true"> ↗</span></a> : null}
           </div>
-          {siteFooterGroups.map((group, index) => (
+          {groups.map((group, index) => (
             <nav key={group.title.en} aria-labelledby={`footer-group-${index}`}>
               <h2 id={`footer-group-${index}`}>{t(group.title)}</h2>
               <ul>{group.links.map((link) => <li key={link.href}><Link href={link.href}>{t(link.label)}</Link></li>)}</ul>

@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, MetadataRoute } from "next";
+import { isContentDirectory } from "./content-discovery";
 import { articles } from "../content/articles";
 import { siteConfig } from "../content/site";
 import { documentation } from "../content/docs";
 import { appEnv } from "./env";
-import { marketingRoutes } from "../content/marketing";
+import { marketingPages, marketingRoutes } from "../content/marketing";
 import { localizeHref, localeFromPath, stripLocalePrefix, type Locale } from "./locale";
 
 export const siteDescription = siteConfig.description.en;
@@ -67,15 +68,33 @@ export function publicContentPaths(): string[] {
 }
 
 export function sitemapEntries(): Array<{ url: string; lastModified?: string; alternates: { languages: Record<string, string> } }> {
+  const updated = new Map<string, string>(marketingPages.map(page => [page.path, page.updatedAt]));
   const pages = [
-    ...publicPaths.map((path) => ({ url: canonicalURL(path) })),
+    ...publicPaths.map((path) => ({ url: canonicalURL(path), ...(updated.has(path) ? { lastModified: updated.get(path) } : {}) })),
     ...documentation.map((guide) => ({ url: canonicalURL(`/docs/${guide.id}`) })),
     ...articles.map((article) => ({ url: canonicalURL(`/blog/${article.slug}`), lastModified: article.publishedAt }))
   ];
   return pages.flatMap(page => {
     const path = new URL(page.url).pathname;
-    const languages = { en: page.url, "zh-CN": canonicalURL(localizeHref(path, "zh")) };
+    // Matches the page's own hreflang set, including the fallback for other languages.
+    const languages = { en: page.url, "zh-CN": canonicalURL(localizeHref(path, "zh")), "x-default": page.url };
     return [page.url, languages["zh-CN"]].map(url => ({ ...page, url, alternates: { languages } }));
+  });
+}
+
+/** Directories that are empty in a language leave the sitemap and every alternate list. */
+export function exposedSitemapEntries(entries: MetadataRoute.Sitemap, directories: Record<Locale, ReadonlySet<string>>): MetadataRoute.Sitemap {
+  const visible = (url: string) => {
+    const path = new URL(url).pathname;
+    const base = stripLocalePrefix(path);
+    return !isContentDirectory(base) || directories[localeFromPath(path)].has(base);
+  };
+  return entries.filter(entry => visible(entry.url)).map(entry => {
+    if (!entry.alternates?.languages) return entry;
+    const languages: Record<string, string> = Object.fromEntries(Object.entries(entry.alternates.languages)
+      .filter((item): item is [string, string] => typeof item[1] === "string" && visible(item[1])));
+    if (!languages["x-default"] && "x-default" in entry.alternates.languages && (languages.en || languages["zh-CN"])) languages["x-default"] = languages.en || languages["zh-CN"];
+    return { ...entry, alternates: { ...entry.alternates, languages } };
   });
 }
 

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MarkdownContent } from "../components/markdown-content";
 import { importMarkdown, markdownBlocks, safeMarkdownHref } from "../lib/markdown";
+import { linkablePath } from "../lib/content-discovery";
 test("Markdown renders headings, lists, code and escapes HTML and script links", () => {
  const html = renderToStaticMarkup(<MarkdownContent source={'## Guide\n\n- One\n- Two\n\n```html\n<script>alert(1)</script>\n```\n\n<img src=x onerror=alert(1)>\n\n[Bad](javascript:alert) [Good](https://example.test)'} />);
  assert.match(html, /id="guide"/); assert.match(html, /<ul>/); assert.match(html, /&lt;script&gt;/); assert.match(html, /&lt;img/); assert.doesNotMatch(html, /href="javascript/); assert.match(html, /href="https:\/\/example.test"/);
@@ -21,4 +22,17 @@ test("translated Markdown contains complete readable HTML and language-correct i
  assert.match(html, /href="\/zh\/docs\/content#publish"/);
  assert.match(html, /href="\/account"/);
  assert.match(html, /href="https:\/\/example.test"/);
+});
+
+test("internal links to pages that are not published read as plain text", () => {
+  const linkable = linkablePath(new Set(["/docs/setup"]), new Set(["/docs"]));
+  const html = renderToStaticMarkup(<MarkdownContent locale="zh" linkable={linkable} source={"[Setup](/docs/setup) [Removed](/docs/removed) [Blog](/blog) [Docs](/docs#top) [Pricing](/pricing) [Site](https://example.com)"} />);
+  assert.match(html, /<a href="\/zh\/docs\/setup">Setup<\/a>/);
+  assert.match(html, /<a href="\/zh\/docs#top">Docs<\/a>/);
+  assert.match(html, /<a href="\/zh\/pricing">Pricing<\/a>/);
+  assert.match(html, /<a href="https:\/\/example.com" rel="noopener noreferrer">Site<\/a>/);
+  assert.ok(!html.includes("/docs/removed") && html.includes("Removed"), "unpublished page keeps its text without a link");
+  assert.ok(!html.includes('href="/zh/blog"') && html.includes("Blog"), "empty directory keeps its text without a link");
+  // Without the rule (editor preview), every safe link renders.
+  assert.match(renderToStaticMarkup(<MarkdownContent source="[Removed](/docs/removed)" />), /href="\/docs\/removed"/);
 });

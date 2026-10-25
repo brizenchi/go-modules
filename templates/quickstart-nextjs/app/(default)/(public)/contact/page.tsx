@@ -1,5 +1,6 @@
 import { ContactContent } from "@/components/content/contact";
-import { publicMetadata } from "@/lib/seo";
+import { managedMetadata } from "@/lib/public-content";
 
-export const metadata = publicMetadata("Contact and support", "Find product guides and the support channels configured for this site.", "/contact");
+export const revalidate = 30;
+export async function generateMetadata() { return managedMetadata("/contact", "en"); }
 export default function ContactPage() { return <ContactContent />; }

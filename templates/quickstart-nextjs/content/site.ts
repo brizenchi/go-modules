@@ -4,6 +4,8 @@ export const siteConfig = {
     name: "SaaS Starter"
   },
   repositoryURL: "https://github.com/brizenchi/go-modules",
+  /** Homepage schema.org facts. Describe your own product, or remove `application`. */
+  application: { category: "DeveloperApplication", operatingSystem: "Web", price: "0", priceCurrency: "USD" },
   description: {
     en: "A free SaaS starter with authentication, subscriptions, credits, referrals and AI integration. Start with connected workflows and build your own product.",
     zh: "免费的 SaaS 模板，整合登录、订阅、积分、邀请和 AI 接入。从已接通的流程开始，构建你自己的产品。"
