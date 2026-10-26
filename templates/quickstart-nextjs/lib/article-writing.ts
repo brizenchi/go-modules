@@ -1,5 +1,6 @@
-import type { ArticleImageSuggestion } from "./api";
-import { contentLocales, isContentLocale, type ContentLocale } from "./locale";
+import type { ContentArticle, ContentArticleState } from "./api";
+import { articleState } from "./content-filters";
+import { contentLocales, type ContentLocale } from "./locale";
 
 /** Languages articles can be written and translated in (the content languages). */
 export const writingLanguages = contentLocales;
@@ -33,68 +34,54 @@ export async function mapLimit<T>(items: readonly T[], limit: number, task: (ite
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-/** One suggested image in every language it was translated into. */
-export type ImagePlanItem = Partial<Record<WritingLanguage, ArticleImageSuggestion>>;
-export type ImagePlan = { source: WritingLanguage; items: ImagePlanItem[] };
+export type PublishOption = { language: WritingLanguage; state: ContentArticleState; complete: boolean };
 
-/** Pairs the source suggestions with their translations; a language whose list does not match is left out. */
-export function imagePlan(source: WritingLanguage, images: readonly ArticleImageSuggestion[], translated: Partial<Record<WritingLanguage, readonly ArticleImageSuggestion[]>>): ImagePlan {
-  const matching = (Object.entries(translated) as Array<[WritingLanguage, readonly ArticleImageSuggestion[] | undefined]>).filter(([language, list]) => language !== source && list?.length === images.length);
-  return { source, items: images.map((image, index) => ({ [source]: image, ...Object.fromEntries(matching.map(([language, list]) => [language, list?.[index]])) })) };
+/** Every language with its state; publishing needs a title, summary and body. */
+export function publishOptions(row: Pick<ContentArticle, "translations" | "published">): PublishOption[] {
+  return writingLanguages.map(language => {
+    const draft = row.translations[language];
+    return { language, state: articleState(row, language), complete: !!(draft?.title.trim() && draft.summary.trim() && draft.body.trim()) };
+  });
 }
 
-/** Inserts one uploaded image into each language's body, under that language's heading for it. */
-export function insertPlannedImage(bodies: Partial<Record<WritingLanguage, string>>, item: ImagePlanItem, source: WritingLanguage, url: string): Partial<Record<WritingLanguage, string>> {
-  const position = headingIndex(bodies[source] ?? "", item[source]?.section ?? "");
-  const next: Partial<Record<WritingLanguage, string>> = {};
-  for (const language of writingLanguages) {
-    const image = item[language]; const body = bodies[language];
-    if (image && body !== undefined) next[language] = insertImage(body, imageMarkdown(image.alt, url), image.section, position);
-  }
-  return next;
-}
-
-/** Suggestions kept in session storage while an article is edited; anything malformed is ignored. */
-export function parseImagePlan(raw: string | null): ImagePlan | null {
-  try {
-    const value: unknown = raw ? JSON.parse(raw) : null;
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-    const { source, items } = value as { source?: unknown; items?: unknown };
-    const suggestion = (image: unknown) => !!image && typeof image === "object" && ["section", "alt", "description"].every(key => typeof (image as Record<string, unknown>)[key] === "string");
-    if (!isContentLocale(source) || !Array.isArray(items)) return null;
-    const valid = items.every(item => item && typeof item === "object" && suggestion((item as Record<string, unknown>)[source]) && Object.entries(item as Record<string, unknown>).every(([language, image]) => isContentLocale(language) && suggestion(image)));
-    return valid ? { source, items: items as ImagePlanItem[] } : null;
-  } catch {
-    return null;
-  }
-}
-
-const headingLine = /^#{2,6}\s+/;
-function headingIndex(body: string, section: string): number {
-  return section.trim() ? body.split("\n").filter(line => headingLine.test(line)).findIndex(line => line.replace(headingLine, "").trim() === section.trim()) : -1;
+/** A complete language that is new or changed; an unchanged live language has nothing to publish. */
+export function canPublish(option: PublishOption): boolean {
+  return option.complete && (option.state === "draft" || option.state === "changed");
 }
 
 /** Markdown for an uploaded image; brackets and line breaks cannot break out of the alt text. */
 export function imageMarkdown(alt: string, url: string): string {
-  return `![${alt.replace(/[[\]\r\n]+/g, " ").replace(/\s+/g, " ").trim()}](${url})`;
-}
-
-/** Puts the image right below the "## section" heading it was suggested for; otherwise below the
- * heading at position (counting headings from 0) when given, or at the end. */
-export function insertImage(body: string, image: string, section: string, position = -1): string {
-  const lines = body.split("\n");
-  const headings = lines.flatMap((line, index) => headingLine.test(line) ? [index] : []);
-  const named = section.trim() ? headings.find(index => lines[index].replace(headingLine, "").trim() === section.trim()) : undefined;
-  const heading = named ?? (position >= 0 ? headings[position] : undefined) ?? -1;
-  if (heading < 0) return insertImageAt(body, image, body.length);
-  lines.splice(heading + 1, 0, "", image);
-  return lines.join("\n");
+  return `![${cleanAlt(alt)}](${url})`;
 }
 
 /** Inserts the image as its own paragraph at a cursor offset. */
 export function insertImageAt(body: string, image: string, offset: number): string {
+  return placeImage(body, image, offset).body;
+}
+
+/** Inserts an image at the cursor and reports where its alt text sits, so the editor can select it. */
+export function insertImageAtCursor(body: string, alt: string, url: string, offset: number): { body: string; altStart: number; altEnd: number } {
+  const placed = placeImage(body, imageMarkdown(alt, url), offset);
+  const altStart = placed.start + 2;
+  return { body: placed.body, altStart, altEnd: altStart + cleanAlt(alt).length };
+}
+
+const genericName = /^(image|img|photo|picture|pasted image|screenshot|screen shot|截屏|截图|屏幕截图|图片)?[\s\d.:_-]*(at)?[\s\d.:_-]*$/i;
+
+/** A file name as alt text, or "" when it only says the file is a screenshot, photo or number. */
+export function defaultAlt(fileName: string): string {
+  const name = fileName.replace(/\.[a-z0-9]+$/i, "").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  return genericName.test(name) ? "" : name;
+}
+
+function cleanAlt(alt: string): string {
+  return alt.replace(/[[\]\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function placeImage(body: string, image: string, offset: number): { body: string; start: number } {
   const position = Math.max(0, Math.min(offset, body.length));
   const before = body.slice(0, position).trimEnd();
   const after = body.slice(position).trimStart();
-  return `${before ? `${before}\n\n` : ""}${image}\n${after ? `\n${after}` : ""}`;
+  const prefix = before ? `${before}\n\n` : "";
+  return { body: `${prefix}${image}\n${after ? `\n${after}` : ""}`, start: prefix.length };
 }

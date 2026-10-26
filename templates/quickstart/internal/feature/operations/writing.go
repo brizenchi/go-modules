@@ -113,16 +113,11 @@ func (m *Module) draftArticle(c *gin.Context) {
 
 func (m *Module) translateArticle(c *gin.Context) {
 	var in struct {
-		From        string                   `json:"from"`
-		To          []string                 `json:"to"`
-		Translation content.Translation      `json:"translation"`
-		Images      []writer.ImageSuggestion `json:"images"`
+		From        string              `json:"from"`
+		To          []string            `json:"to"`
+		Translation content.Translation `json:"translation"`
 	}
 	if !decodeBodyLimit(c, &in, 400000) {
-		return
-	}
-	if len(in.Images) > writer.MaxImages {
-		httpresp.BadRequest(c, "too many image suggestions")
 		return
 	}
 	targets := []string{}
@@ -140,18 +135,12 @@ func (m *Module) translateArticle(c *gin.Context) {
 	ctx := c.Request.Context()
 	m.allowSlowResponse(c, len(targets))
 	translations := map[string]content.Translation{}
-	images := map[string][]writer.ImageSuggestion{}
 	for _, locale := range targets {
-		translation, translated, err := m.articleWriter(ctx).TranslateWithImages(ctx, in.From, locale, in.Translation, in.Images)
+		translation, err := m.articleWriter(ctx).Translate(ctx, in.From, locale, in.Translation)
 		if writerFailed(c, err) {
 			return
 		}
 		translations[locale] = translation
-		images[locale] = translated
 	}
-	if len(in.Images) == 0 {
-		httpresp.OK(c, gin.H{"translations": translations})
-		return
-	}
-	httpresp.OK(c, gin.H{"translations": translations, "images": images})
+	httpresp.OK(c, gin.H{"translations": translations})
 }

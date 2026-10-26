@@ -41,8 +41,8 @@ func TestDraftBuildsASavableArticleAndKeepsOnlyKnownLinks(t *testing.T) {
 	if strings.Contains(body, "![") {
 		t.Fatalf("model-written images are dropped: %s", body)
 	}
-	if len(draft.Images) != 1 || draft.Images[0].Alt != "团队空间设置界面" {
-		t.Fatalf("image suggestions: %+v", draft.Images)
+	if strings.Contains(model.messages[0].Content, `"images"`) {
+		t.Fatalf("drafts do not ask for image suggestions: %s", model.messages[0].Content)
 	}
 	prompt := model.messages[1].Content
 	if !strings.Contains(model.messages[0].Content, "Simplified Chinese") || !strings.Contains(prompt, "团队空间") || !strings.Contains(prompt, "/docs/payments") || !strings.Contains(prompt, "支持邀请成员") {
@@ -100,35 +100,5 @@ func TestTranslateKeepsImagesAndOnlySourceLinks(t *testing.T) {
 		if _, err := New(model).Translate(context.Background(), pair[0], pair[1], source); !errors.Is(err, ErrInvalidBrief) {
 			t.Errorf("%v: %v", pair, err)
 		}
-	}
-}
-
-func TestTranslateCarriesImageSuggestionsIntoTheTargetLanguage(t *testing.T) {
-	source := content.Translation{Title: "团队空间", Summary: "共用订阅。", Body: "介绍。\n\n## 如何开始\n\n步骤。"}
-	images := []ImageSuggestion{{Section: "如何开始", Alt: "团队空间设置界面", Description: "成员列表"}}
-	reply := `{"title":"Team workspaces","summary":"Share one subscription.","seo_title":"","seo_description":"","body":"Intro.\n\n## Getting started\n\nSteps.","images":[{"section":"Getting started","alt":"Team workspace settings","description":"The member list"}]}`
-	model := &fakeModel{reply: aix.Completion{Content: reply}}
-	translated, translatedImages, err := New(model).TranslateWithImages(context.Background(), "zh", "en", source, images)
-	if err != nil || translated.Title != "Team workspaces" {
-		t.Fatalf("translate: %+v %v", translated, err)
-	}
-	if len(translatedImages) != 1 || translatedImages[0] != (ImageSuggestion{Section: "Getting started", Alt: "Team workspace settings", Description: "The member list"}) {
-		t.Fatalf("images: %+v", translatedImages)
-	}
-	if !strings.Contains(model.messages[1].Content, "团队空间设置界面") || !strings.Contains(model.messages[0].Content, "images") {
-		t.Fatalf("the suggestions must be sent for translation: %s", model.messages[1].Content)
-	}
-	for _, broken := range []string{
-		strings.Replace(reply, `,"images":[{"section":"Getting started","alt":"Team workspace settings","description":"The member list"}]`, `,"images":[]`, 1),
-		strings.Replace(reply, `"alt":"Team workspace settings"`, `"alt":" "`, 1),
-	} {
-		if _, _, err := New(&fakeModel{reply: aix.Completion{Content: broken}}).TranslateWithImages(context.Background(), "zh", "en", source, images); !errors.Is(err, ErrInvalidOutput) {
-			t.Errorf("unusable image suggestions accepted: %v", err)
-		}
-	}
-	// Without suggestions the request and reply stay as before.
-	plain := &fakeModel{reply: aix.Completion{Content: reply}}
-	if _, none, err := New(plain).TranslateWithImages(context.Background(), "zh", "en", source, nil); err != nil || none != nil || strings.Contains(plain.messages[1].Content, `"images"`) {
-		t.Fatalf("no suggestions: %v %v %s", none, err, plain.messages[1].Content)
 	}
 }
