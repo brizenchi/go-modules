@@ -6,8 +6,7 @@ type Section = { title: string; kind?: DiscoveryEntry["kind"]; links?: Array<{ p
 const sections: Section[] = [
   { title: "Product", links: [
     { path: "/features", title: "Features", summary: "Capabilities included in the product." },
-    { path: "/pricing", title: "Pricing", summary: "Plans, one-time purchases and credit packages." },
-    { path: "/examples", title: "Live demo", summary: "Try the customer account center." }
+    { path: "/pricing", title: "Pricing", summary: "Plans, one-time purchases and credit packages." }
   ] },
   { title: "Features", kind: "features" },
   { title: "Use cases", kind: "use-cases" },
@@ -20,7 +19,7 @@ const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
 const label = (value: string) => oneLine(value).replace(/[[\]]/g, "");
 
 /** An llms.txt (llmstxt.org) index of published pages, so AI assistants can cite current URLs. */
-export function llmsText(site: { name: string; description: string; entries: readonly DiscoveryEntry[]; directories: ReadonlySet<string>; sourceURL?: string }): string {
+export function llmsText(site: { name: string; description: string; entries: readonly DiscoveryEntry[]; directories: ReadonlySet<string> }): string {
   const catalog = uniqueContent(site.entries);
   const shown = (path: string) => !isContentDirectory(path) || site.directories.has(path);
   const lines = [`# ${label(site.name)}`, "", `> ${oneLine(site.description)}`, "", `Pages are available in English and Chinese (${canonicalURL("/zh")}).`];
@@ -32,10 +31,8 @@ export function llmsText(site: { name: string; description: string; entries: rea
     if (!links.length) continue;
     lines.push("", `## ${section.title}`, "", ...links.map(link => `- [${label(link.title)}](${canonicalURL(link.path)})${link.summary ? `: ${oneLine(link.summary)}` : ""}`));
   }
-  const optional = [
-    ...[{ path: "/updates", title: "Product updates" }, { path: "/about", title: "About" }].filter(link => shown(link.path)).map(link => `- [${link.title}](${canonicalURL(link.path)})`),
-    ...(site.sourceURL ? [`- [Source code](${site.sourceURL})`] : [])
-  ];
+  const optional = [{ path: "/updates", title: "Product updates" }, { path: "/about", title: "About" }]
+    .filter(link => shown(link.path)).map(link => `- [${link.title}](${canonicalURL(link.path)})`);
   if (optional.length) lines.push("", "## Optional", "", ...optional);
   return `${lines.join("\n")}\n`;
 }

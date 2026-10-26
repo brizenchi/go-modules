@@ -69,7 +69,7 @@ test("saved menus are read defensively and nothing saved means the defaults", ()
 test("footer columns link published sections only and drop columns left empty", () => {
   assert.deepEqual(resolveFooter(defaultNavigation, null, "zh").map(group => group.title), ["产品", "资源", "关于与支持"]);
   const footer = resolveFooter(defaultNavigation, new Set(["/features"]), "en");
-  assert.deepEqual(footer.map(group => [group.title, group.links.map(link => link.href)]), [["Product", ["/features", "/examples", "/pricing"]], ["About & support", ["/contact"]]]);
+  assert.deepEqual(footer.map(group => [group.title, group.links.map(link => link.href)]), [["Product", ["/features", "/pricing"]], ["About & support", ["/contact"]]]);
   const links = defaultNavigation.footer.flatMap(group => group.links);
   assert.equal(new Set(links).size, links.length, "no footer link repeats");
   const published = new Set(publicContentPaths());

@@ -51,7 +51,7 @@ var menuSections = map[string]bool{"features": true, "use-cases": true, "compare
 // Every section a header item or footer link may name.
 var navigationSections = map[string]bool{
 	"features": true, "use-cases": true, "compare": true, "docs": true, "blog": true, "resources": true,
-	"updates": true, "pricing": true, "examples": true, "about": true, "contact": true,
+	"updates": true, "pricing": true, "about": true, "contact": true,
 }
 
 // validNavigation trims labels and normalizes Items, then checks every limit.

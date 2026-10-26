@@ -38,7 +38,6 @@ export const navigationSections: Readonly<Record<NavigationSection, { link: Site
   resources: { link: siteLinks.resources, menu: true },
   updates: { link: siteLinks.updates, menu: false },
   pricing: { link: siteLinks.pricing, menu: false },
-  examples: { link: siteLinks.examples, menu: false },
   about: { link: siteLinks.about, menu: false },
   contact: { link: siteLinks.help, menu: false }
 };
@@ -52,7 +51,7 @@ export const defaultNavigation: SiteNavigation = {
     { section: "use-cases", label: noLabel, menu: "auto", items: [] }
   ],
   footer: [
-    { title: { en: "Product", zh: "产品" }, links: ["features", "use-cases", "compare", "examples", "pricing"] },
+    { title: { en: "Product", zh: "产品" }, links: ["features", "use-cases", "compare", "pricing"] },
     { title: { en: "Resources", zh: "资源" }, links: ["docs", "blog", "updates"] },
     { title: { en: "About & support", zh: "关于与支持" }, links: ["about", "contact"] }
   ]
@@ -139,7 +138,7 @@ export function resolveFooter(navigation: SiteNavigation, directories: ReadonlyS
   })).filter(group => group.links.length > 0);
 }
 
-export const productNavigation = [siteLinks.features, siteLinks.useCases, siteLinks.compare, siteLinks.examples];
+export const productNavigation = [siteLinks.features, siteLinks.useCases, siteLinks.compare];
 export const guideDirectories = [
   { ...siteLinks.docs, description: { en: "Set up your site and connect the services you need.", zh: "配置站点，接入产品需要的服务。" } },
   { ...siteLinks.blog, description: { en: "Practical answers to product and account questions.", zh: "围绕产品与账户问题，查阅实用文章。" } },

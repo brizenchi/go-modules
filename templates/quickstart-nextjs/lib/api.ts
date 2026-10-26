@@ -588,7 +588,7 @@ export type ContentArticle = { id: string; path: string; kind: ContentKind; posi
 export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
 export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: Array<"en" | "zh"> };
 /** Sections a header item or footer link may name; mirrors the backend allowlist. */
-export type NavigationSection = "features" | "use-cases" | "compare" | "docs" | "blog" | "resources" | "updates" | "pricing" | "examples" | "about" | "contact";
+export type NavigationSection = "features" | "use-cases" | "compare" | "docs" | "blog" | "resources" | "updates" | "pricing" | "about" | "contact";
 export type NavigationCopy = { en: string; zh: string };
 /** `auto` lists the section's published pages, `manual` lists `items` in order, `none` shows no menu. An empty label uses the section's default name. */
 export type HeaderNavigationItem = { section: NavigationSection; label: NavigationCopy; menu: "auto" | "manual" | "none"; items: string[] };

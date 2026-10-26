@@ -38,6 +38,7 @@ func TestNavigationAcceptsKnownSectionsAndArticlePathsOnly(t *testing.T) {
 		"multiline label":       func(n *Navigation) { n.Header[0].Label.EN = "a\nb" },
 		"untitled footer group": func(n *Navigation) { n.Footer[0].Title.ZH = " " },
 		"unknown footer link":   func(n *Navigation) { n.Footer[0].Links = []string{"/account"} },
+		"retired demo section":  func(n *Navigation) { n.Footer[0].Links = []string{"examples"} },
 		"repeated footer link": func(n *Navigation) {
 			n.Footer = append(n.Footer, NavigationGroup{Title: NavigationCopy{EN: "More", ZH: "更多"}, Links: []string{"pricing"}})
 		},
