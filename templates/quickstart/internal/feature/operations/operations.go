@@ -64,6 +64,7 @@ func (m *Module) Register(g hostapi.Groups) {
 	admin.POST("/referrals/:id/retry-reward", m.retryReward)
 	admin.GET("/articles", m.articles)
 	admin.GET("/articles/:id", m.article)
+	admin.POST("/articles/:id/move", m.moveArticle)
 	admin.POST("/articles", m.saveArticle)
 	admin.POST("/articles/import", m.importArticles)
 	admin.POST("/articles/drafts", m.draftArticle)

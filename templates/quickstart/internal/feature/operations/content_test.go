@@ -166,7 +166,7 @@ func TestContentPackAndPagePathBoundaries(t *testing.T) {
 			t.Fatalf("duplicate pack path: %s", row.Path)
 		}
 		paths[row.Path] = true
-		if !content.Valid(content.Save{Path: row.Path, Kind: row.Kind, Position: row.Position, Translations: row.Translations}) {
+		if !content.Valid(content.Save{Path: row.Path, Kind: row.Kind, Position: &row.Position, Translations: row.Translations}) {
 			t.Fatalf("invalid pack record: %s", row.Path)
 		}
 		for _, locale := range []string{"en", "zh"} {
@@ -336,7 +336,7 @@ func TestAdminArticlesFilterBySectionLanguageAndState(t *testing.T) {
 		"status=draft":                       "/features/alpha /blog/beta",
 		"locale=ja":                          "/features/alpha",
 		"locale=ja&status=draft":             "/features/alpha",
-		"locale=ja&status=missing":           "/blog/beta /docs/gamma",
+		"locale=ja&status=missing":           "/docs/gamma /blog/beta",
 		"locale=en&status=draft":             "/blog/beta",
 		"locale=en&status=published":         "/features/alpha /docs/gamma",
 		"kind=docs&locale=en&status=changed": "",
@@ -350,5 +350,69 @@ func TestAdminArticlesFilterBySectionLanguageAndState(t *testing.T) {
 		if w := request(f, "GET", "/admin/articles?"+query, "", "admin", ""); w.Code != 400 {
 			t.Errorf("%s accepted: %d", query, w.Code)
 		}
+	}
+}
+
+func TestArticlesMoveWithinTheirSectionAndSavesKeepTheOrder(t *testing.T) {
+	f := newFixture(t)
+	ids := map[string]string{}
+	for _, path := range []string{"/features/a", "/features/b", "/docs/x", "/features/c"} {
+		kind := strings.Split(path, "/")[1]
+		body := fmt.Sprintf(`{"path":%q,"kind":%q,"version":0,"translations":{"en":{"title":"T","summary":"S","body":"B"}},"reason":"Write article"}`, path, kind)
+		w := request(f, "POST", "/admin/articles", body, "admin", "create-"+path)
+		if w.Code != 200 {
+			t.Fatalf("create %s: %s", path, w.Body)
+		}
+		ids[path] = data(t, w)["id"].(string)
+	}
+	order := func(query string) string {
+		t.Helper()
+		w := request(f, "GET", "/admin/articles?"+query, "", "admin", "")
+		paths := []string{}
+		for _, item := range data(t, w)["items"].([]any) {
+			paths = append(paths, item.(map[string]any)["path"].(string))
+		}
+		return strings.Join(paths, " ")
+	}
+	if got := order("kind=features"); got != "/features/a /features/b /features/c" {
+		t.Fatalf("new articles go to the end of their section: %s", got)
+	}
+	move := func(path, direction, key string) int {
+		t.Helper()
+		return request(f, "POST", "/admin/articles/"+ids[path]+"/move", fmt.Sprintf(`{"direction":%q,"reason":"Reorder"}`, direction), "admin", key).Code
+	}
+	if code := move("/features/c", "up", "move-1"); code != 200 {
+		t.Fatalf("move: %d", code)
+	}
+	if got := order("kind=features"); got != "/features/a /features/c /features/b" {
+		t.Fatalf("moved up: %s", got)
+	}
+	if move("/features/a", "up", "move-2") != 200 || move("/features/b", "down", "move-3") != 200 || order("kind=features") != "/features/a /features/c /features/b" {
+		t.Fatalf("moving past the ends changes nothing: %s", order("kind=features"))
+	}
+	// Moving touches only the order: the version and drafts stay, and a later save keeps the order.
+	w := request(f, "GET", "/admin/articles/"+ids["/features/b"], "", "admin", "")
+	if data(t, w)["version"].(float64) != 1 {
+		t.Fatalf("moving must not change the version: %s", w.Body)
+	}
+	save := `{"path":"/features/b","kind":"features","version":1,"translations":{"en":{"title":"Edited","summary":"S","body":"B"}},"reason":"Edit"}`
+	if w := request(f, "PUT", "/admin/articles/"+ids["/features/b"], save, "admin", "edit-b"); w.Code != 200 {
+		t.Fatalf("save: %s", w.Body)
+	}
+	if got := order(""); got != "/features/a /features/c /features/b /docs/x" {
+		t.Fatalf("saving keeps the order, and the list groups sections: %s", got)
+	}
+	if code := move("/features/a", "sideways", "move-4"); code != 400 {
+		t.Fatalf("unknown direction: %d", code)
+	}
+	if code := request(f, "POST", "/admin/articles/missing/move", `{"direction":"up","reason":"Reorder"}`, "admin", "move-5").Code; code != 404 {
+		t.Fatalf("unknown article: %d", code)
+	}
+	if code := request(f, "POST", "/admin/articles/"+ids["/features/a"]+"/move", `{"direction":"up","reason":"Reorder"}`, "user", "move-6").Code; code != 403 {
+		t.Fatalf("customers cannot reorder: %d", code)
+	}
+	var moves int64
+	if err := f.db.Table("operations_audit_events").Where("action = ?", "content.move").Count(&moves).Error; err != nil || moves != 3 {
+		t.Fatalf("each move is audited: %d %v", moves, err)
 	}
 }

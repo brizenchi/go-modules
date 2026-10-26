@@ -597,7 +597,8 @@ export type ContentArticleState = "published" | "changed" | "draft" | "missing";
 /** Admin article list filters (`GET /admin/articles`). Blank values are not sent; status `published`
  * includes `changed`, and `missing` requires a language. Without a language a status matches any language. */
 export type ContentListFilters = { query: string; kind: ContentKind | ""; locale: ContentLocale | ""; status: ContentArticleState | "" };
-export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
+/** `position` is optional: new articles go to the end of their section and saves keep the order (reorder with the move endpoint). */
+export type ContentSave = Pick<ContentArticle, "path" | "kind" | "version" | "translations"> & { position?: number; reason: string };
 export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: ContentLocale[] };
 /** Sections a header item or footer link may name; mirrors the backend allowlist. */
 export type NavigationSection = "home" | "features" | "use-cases" | "compare" | "docs" | "blog" | "resources" | "updates" | "pricing" | "examples" | "about" | "contact";

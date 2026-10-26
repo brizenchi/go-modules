@@ -1,4 +1,4 @@
-import type { ContentArticle, ContentArticleState } from "./api";
+import type { ContentArticle, ContentArticleState, ContentKind } from "./api";
 import { articleState } from "./content-filters";
 import { contentLocales, type ContentLocale } from "./locale";
 
@@ -32,6 +32,13 @@ export async function mapLimit<T>(items: readonly T[], limit: number, task: (ite
   let next = 0;
   const worker = async () => { while (next < items.length) await task(items[next++]); };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
+const articlePath = /^\/(blog|docs|features|use-cases|compare)\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Mirrors the backend: the section, then a lowercase slug, up to 200 characters. Pages keep fixed paths. */
+export function validArticlePath(kind: ContentKind, path: string): boolean {
+  return kind === "page" || (path.length <= 200 && articlePath.test(path) && path.startsWith(`/${kind}/`));
 }
 
 export type PublishOption = { language: WritingLanguage; state: ContentArticleState; complete: boolean };

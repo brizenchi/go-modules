@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { canPublish, defaultAlt, imageMarkdown, insertImageAt, insertImageAtCursor, mapLimit, publishOptions, translationTargets, writingPlan } from "../lib/article-writing";
+import { canPublish, defaultAlt, validArticlePath, imageMarkdown, insertImageAt, insertImageAtCursor, mapLimit, publishOptions, translationTargets, writingPlan } from "../lib/article-writing";
 import { markdownBlocks } from "../lib/markdown";
 
 const image = imageMarkdown("成员\n列表 [示例]", "/api/v1/site/images/00000000-0000-4000-8000-000000000000?w=4&h=3");
@@ -65,4 +65,11 @@ test("publishing offers complete languages that are new or changed", () => {
   assert.deepEqual(options.find(option => option.language === "ja"), { language: "ja", state: "draft", complete: false });
   assert.equal(options.find(option => option.language === "de")?.state, "published");
   assert.equal(options.find(option => option.language === "ko")?.state, "missing");
+});
+
+test("an article path needs its section and a lowercase slug, as the backend requires", () => {
+  assert.equal(validArticlePath("features", "/features/team-spaces"), true);
+  assert.equal(validArticlePath("compare", "/compare/a-vs-b-2"), true);
+  for (const path of ["/features/", "/features", "/features/Team", "/features/team_spaces", "/features/team--spaces", "/use-cases/team", "/features/a/b", `/features/${"a".repeat(200)}`]) assert.equal(validArticlePath("features", path), false, path);
+  assert.equal(validArticlePath("page", "/features"), true, "pages keep their fixed paths");
 });

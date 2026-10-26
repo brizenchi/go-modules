@@ -7,6 +7,8 @@ export function listContent(token: string, page = 1, filters: ContentListFilters
 export function readContent(token: string, id: string) { return apiRequest<ContentArticle>(`/admin/articles/${encodeURIComponent(id)}`, { authToken: token }); }
 export function saveContent(token: string, id: string | null, value: ContentSave, key: string) { return apiRequest<ContentArticle>(`/admin/articles${id ? `/${encodeURIComponent(id)}` : ""}`, { authToken: token, method: id ? "PUT" : "POST", json: value, headers: { "Idempotency-Key": key } }); }
 export function publishContent(token: string, id: string, version: number, locale: ContentLocale, action: "publish" | "unpublish", reason: string, key: string) { return apiRequest<ContentArticle>(`/admin/articles/${encodeURIComponent(id)}/publications`, { authToken: token, method: "POST", json: { version, locale, action, reason }, headers: { "Idempotency-Key": key } }); }
+/** Swaps an article with its neighbour in the same section; nothing else changes. */
+export function moveContent(token: string, id: string, direction: "up" | "down", reason: string, key: string) { return apiRequest<ContentArticle>(`/admin/articles/${encodeURIComponent(id)}/move`, { authToken: token, method: "POST", json: { direction, reason }, headers: { "Idempotency-Key": key } }); }
 export function importContent(token: string, apply = false, reason = "", key = "") { return apiRequest<ContentImportResult>("/admin/articles/import", { authToken: token, method: "POST", json: { apply, reason }, headers: key ? { "Idempotency-Key": key } : {} }); }
 
 async function publishedArticles(locale: ContentLocale): Promise<PublishedArticle[]> {

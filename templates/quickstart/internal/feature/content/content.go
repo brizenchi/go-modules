@@ -49,8 +49,8 @@ type Article struct {
 	UpdatedAt    time.Time              `json:"updated_at"`
 }
 
-// Kinds are the content sections, in editor order.
-var Kinds = []string{"page", "blog", "docs", "features", "use-cases", "compare"}
+// Kinds are the content sections, in the order the admin list groups them.
+var Kinds = []string{"features", "use-cases", "compare", "docs", "blog", "page"}
 
 // States are what State reports for one language of an article.
 const (
@@ -231,16 +231,18 @@ var validPath = regexp.MustCompile(`^/(blog|docs|features|use-cases|compare)/[a-
 func ValidArticlePath(path string) bool { return len(path) <= 200 && validPath.MatchString(path) }
 
 type Save struct {
-	Version      int64                  `json:"version"`
-	Path         string                 `json:"path"`
-	Kind         string                 `json:"kind"`
-	Position     int                    `json:"position"`
+	Version int64  `json:"version"`
+	Path    string `json:"path"`
+	Kind    string `json:"kind"`
+	// Position is optional: a new article without one goes to the end of its
+	// section and a saved article keeps its place (see Move).
+	Position     *int                   `json:"position,omitempty"`
 	Translations map[string]Translation `json:"translations"`
 	Reason       string                 `json:"reason"`
 }
 
 func Valid(in Save) bool {
-	if !validKind(in.Path, in.Kind) || len(in.Path) > 200 || in.Position < 0 || in.Position > 100000 || len(in.Translations) > len(Locales) {
+	if !validKind(in.Path, in.Kind) || len(in.Path) > 200 || in.Position != nil && (*in.Position < 0 || *in.Position > 100000) || len(in.Translations) > len(Locales) {
 		return false
 	}
 	for locale, t := range in.Translations {
@@ -283,8 +285,15 @@ func (s *Service) Save(ctx context.Context, id, actor, key string, in Save) (Art
 		previous, err := read(ctx, tx, id)
 		if errors.Is(err, ErrNotFound) {
 			previous = Article{ID: id, Path: in.Path, Kind: in.Kind, Published: map[string]Publication{}}
+			if err := tx.Model(&Record{}).Where("kind = ?", in.Kind).Select("COALESCE(MAX(position) + 1, 0)").Scan(&previous.Position).Error; err != nil {
+				return err
+			}
 		} else if err != nil {
 			return err
+		}
+		position := previous.Position
+		if in.Position != nil {
+			position = *in.Position
 		}
 		if previous.Version != in.Version {
 			return ErrVersion
@@ -299,11 +308,66 @@ func (s *Service) Save(ctx context.Context, id, actor, key string, in Save) (Art
 		if duplicate > 0 {
 			return ErrVersion
 		}
-		next := Article{ID: id, Path: in.Path, Kind: in.Kind, Position: in.Position, Version: in.Version + 1, Translations: in.Translations, Published: previous.Published, UpdatedAt: time.Now().UTC()}
+		next := Article{ID: id, Path: in.Path, Kind: in.Kind, Position: position, Version: in.Version + 1, Translations: in.Translations, Published: previous.Published, UpdatedAt: time.Now().UTC()}
 		if err := persist(tx, next, in.Version); err != nil {
 			return err
 		}
 		details, _ := json.Marshal(map[string]any{"article_id": id, "before": in.Version, "after": next.Version, "path": in.Path, "locales": translationLocales(in.Translations)})
+		return s.audit.Finish(ctx, tx, &operation, "succeeded", string(details))
+	})
+	if err != nil {
+		return Article{}, err
+	}
+	return s.Read(ctx, id)
+}
+
+// Move asks to swap an article with its neighbour in the same section.
+type Move struct {
+	Direction string `json:"direction"` // "up" or "down"
+	Reason    string `json:"reason"`
+}
+
+// Move swaps the article with the one before or after it in its section; at
+// either end nothing changes. The section is renumbered from 0 so articles
+// with equal positions still move. Drafts, publications and the version are
+// untouched, so an editor open on either article can still save.
+func (s *Service) Move(ctx context.Context, id, actor, key string, in Move) (Article, error) {
+	if in.Direction != "up" && in.Direction != "down" {
+		return Article{}, ErrInvalid
+	}
+	operation := audit.Operation{ActorID: actor, IdempotencyKey: key, Action: "content.move", TargetID: id, Reason: in.Reason, RequestHash: audit.Hash(in), Status: "pending"}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var target Record
+		if err := tx.Select("id", "kind").Where("id = ?", id).Take(&target).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		created, err := s.audit.Claim(ctx, tx, &operation)
+		if err != nil || !created {
+			return err
+		}
+		var rows []Record
+		if err := tx.Select("id", "position", "path").Where("kind = ?", target.Kind).Order("position ASC, path ASC").Find(&rows).Error; err != nil {
+			return err
+		}
+		from := slices.IndexFunc(rows, func(row Record) bool { return row.ID == id })
+		to := from - 1
+		if in.Direction == "down" {
+			to = from + 1
+		}
+		moved := to >= 0 && to < len(rows)
+		if moved {
+			rows[from], rows[to] = rows[to], rows[from]
+			for position, row := range rows {
+				if row.Position != position {
+					if err := tx.Model(&Record{}).Where("id = ?", row.ID).UpdateColumn("position", position).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+		details, _ := json.Marshal(map[string]any{"article_id": id, "direction": in.Direction, "moved": moved})
 		return s.audit.Finish(ctx, tx, &operation, "succeeded", string(details))
 	})
 	if err != nil {

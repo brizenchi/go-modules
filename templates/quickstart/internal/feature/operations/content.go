@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 	"regexp"
@@ -63,6 +64,10 @@ func (m *Module) articles(c *gin.Context) {
 			items = append(items, row)
 		}
 	}
+	// Sections stay together, each in its public order.
+	slices.SortStableFunc(items, func(a, b content.Article) int {
+		return cmp.Or(cmp.Compare(slices.Index(content.Kinds, a.Kind), slices.Index(content.Kinds, b.Kind)), cmp.Compare(a.Position, b.Position), strings.Compare(a.Path, b.Path))
+	})
 	total := len(items)
 	start := min((p.page-1)*p.limit, total)
 	end := min(start+p.limit, total)
@@ -124,6 +129,23 @@ func (m *Module) saveArticle(c *gin.Context) {
 		return
 	}
 	row, err := m.contentService().Save(c.Request.Context(), c.Param("id"), userID(c), key, in)
+	if !contentError(c, err) {
+		httpresp.OK(c, row)
+	}
+}
+func (m *Module) moveArticle(c *gin.Context) {
+	if m.db(c) == nil {
+		return
+	}
+	var in content.Move
+	if !decodeBody(c, &in) {
+		return
+	}
+	key, ok := operationMetadata(c, in.Reason)
+	if !ok {
+		return
+	}
+	row, err := m.contentService().Move(c.Request.Context(), c.Param("id"), userID(c), key, in)
 	if !contentError(c, err) {
 		httpresp.OK(c, row)
 	}

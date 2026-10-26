@@ -44,7 +44,7 @@ func (s *Service) ImportStarter(ctx context.Context, actor, key, reason string, 
 			} else {
 				if apply {
 					intent := audit.Hash(struct{ Key, Path string }{key, draft.Path})
-					saved, err := service.Save(ctx, draft.ID, actor, intent+"-save", Save{Path: draft.Path, Kind: draft.Kind, Position: draft.Position, Translations: draft.Translations, Reason: reason})
+					saved, err := service.Save(ctx, draft.ID, actor, intent+"-save", Save{Path: draft.Path, Kind: draft.Kind, Position: &draft.Position, Translations: draft.Translations, Reason: reason})
 					if err != nil {
 						return fmt.Errorf("import content draft: %w", err)
 					}
