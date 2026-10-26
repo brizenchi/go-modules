@@ -66,7 +66,8 @@ func (m *Module) saveArticle(c *gin.Context) {
 	if m.db(c) == nil {
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 400000)
+	// Every language may carry a full article body.
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, int64(len(content.Locales))*160000)
 	var in content.Save
 	if !decodeContentBody(c, &in) {
 		return
@@ -143,7 +144,7 @@ func publicArticle(row content.Article, locale string, body bool) gin.H {
 		translation.Body = ""
 	}
 	locales := []string{}
-	for _, l := range []string{"en", "zh"} {
+	for _, l := range content.Locales {
 		if _, ok := row.Published[l]; ok {
 			locales = append(locales, l)
 		}
@@ -159,7 +160,7 @@ func (m *Module) publicArticles(c *gin.Context) {
 		return
 	}
 	locale := c.DefaultQuery("locale", "en")
-	if locale != "en" && locale != "zh" {
+	if !content.ValidLocale(locale) {
 		httpresp.BadRequest(c, "unsupported locale")
 		return
 	}

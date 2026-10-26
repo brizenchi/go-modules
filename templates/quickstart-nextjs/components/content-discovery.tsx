@@ -4,6 +4,7 @@ import { LocalizedLink as Link } from "./localized-link";
 import { guideDirectories, guideNavigation, productNavigation, siteLinks } from "@/content/navigation";
 import { relatedContent, type DiscoveryEntry } from "@/lib/content-discovery";
 import { useI18n } from "@/lib/i18n";
+import { contentHref, isInterfaceLocale, languageTags, type ContentLocale } from "@/lib/locale";
 import { useDirectoryFilter } from "./navigation-index";
 import styles from "./content-discovery.module.css";
 
@@ -36,11 +37,13 @@ export function GuideNavigation({ currentPath }: { currentPath: string }) {
   </nav>;
 }
 
-export function ContentCards({ entries }: { entries: readonly DiscoveryEntry[] }) {
+/** Cards for pages published in `locale`; an article language links to its own URLs. */
+export function ContentCards({ entries, locale }: { entries: readonly DiscoveryEntry[]; locale?: ContentLocale }) {
   const { t } = useI18n();
+  const own = locale && !isInterfaceLocale(locale) ? locale : null;
   const labels = { page: { en: "Page", zh: "页面" }, docs: siteLinks.docs.label, blog: siteLinks.blog.label, features: siteLinks.features.label, "use-cases": siteLinks.useCases.label, compare: siteLinks.compare.label };
   return <ul className={styles.cards} data-content-cards>
-    {entries.map(entry => <li key={entry.path}><Link className={styles.card} href={entry.path}>
+    {entries.map(entry => <li key={entry.path} lang={own ? languageTags[own] : undefined}><Link className={styles.card} href={own ? contentHref(entry.path, own) : entry.path}>
       <span className={styles.category}>{t(labels[entry.kind])}</span>
       <h3>{entry.translation.title}</h3><p>{entry.translation.summary}</p>
       <span className={styles.destination}>{t({ en: "Explore", zh: "查看详情" })}<span aria-hidden="true">→</span></span>
@@ -48,12 +51,12 @@ export function ContentCards({ entries }: { entries: readonly DiscoveryEntry[] }
   </ul>;
 }
 
-export function RelatedContent({ entries, currentPath }: { entries: readonly DiscoveryEntry[]; currentPath: string }) {
+export function RelatedContent({ entries, currentPath, locale }: { entries: readonly DiscoveryEntry[]; currentPath: string; locale?: ContentLocale }) {
   const { t } = useI18n();
   const related = relatedContent(entries, currentPath);
   if (!related.length) return null;
   return <section className={styles.related} data-related-content aria-label={t({ en: "Continue exploring", zh: "继续了解" })}>
     <h2>{t({ en: "Continue exploring", zh: "继续了解" })}</h2>
-    <ContentCards entries={related} />
+    <ContentCards entries={related} locale={locale} />
   </section>;
 }

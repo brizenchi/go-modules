@@ -3,7 +3,7 @@ import { createContext, useContext, useMemo } from "react";
 import { directoryFilter } from "@/content/navigation";
 import { linkablePath, type DiscoveryEntry, type NavigationIndex } from "@/lib/content-discovery";
 import { useI18n } from "@/lib/i18n";
-import type { Locale } from "@/lib/locale";
+import { contentHref, isInterfaceLocale, stripLocalePrefix, type ContentLocale, type Locale } from "@/lib/locale";
 
 type NavigationIndexes = Partial<Record<Locale, NavigationIndex>>;
 const NavigationIndexContext = createContext<NavigationIndexes>({});
@@ -30,4 +30,17 @@ export function useDirectoryFilter(): (href: string) => boolean {
 export function useLinkablePath(entries: readonly Pick<DiscoveryEntry, "path">[]): (href: string) => boolean {
   const directories = usePublishedDirectories();
   return useMemo(() => linkablePath(new Set(entries.map(entry => entry.path)), directories), [entries, directories]);
+}
+/** Links in an article: to its own language where that page is published there,
+ * otherwise to the interface version, and never to a page that does not exist. */
+export function useArticleLinks(entries: readonly Pick<DiscoveryEntry, "path">[], locale: ContentLocale): { linkable: (href: string) => boolean; hrefFor?: (href: string) => string } {
+  const index = useNavigationIndex();
+  const directories = usePublishedDirectories();
+  return useMemo(() => {
+    const own = new Set(entries.map(entry => entry.path));
+    if (isInterfaceLocale(locale)) return { linkable: linkablePath(own, directories) };
+    const fallback = linkablePath(new Set((index?.entries ?? []).map(entry => entry.path)), directories);
+    const base = (href: string) => stripLocalePrefix(href.split(/[?#]/, 1)[0]) || "/";
+    return { linkable: href => own.has(base(href)) || fallback(href), hrefFor: href => own.has(base(href)) ? contentHref(href, locale) : href };
+  }, [entries, locale, index, directories]);
 }

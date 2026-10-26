@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { apiRequest, ApiError, type PublishedArticle, type WebsiteSettings } from "./api";
 import { appEnv } from "./env";
-import { canonicalURL, publicMetadata, publicPageMetadata } from "./seo";
-import { localizeHref, type Locale } from "./locale";
+import { canonicalURL, languageAlternates, publicMetadata, publicPageMetadata } from "./seo";
+import { contentHref, interfaceLocale, isInterfaceLocale, localizeHref, openGraphLocales, type ContentLocale, type Locale } from "./locale";
 import type { PageResult } from "./operations-api";
 import { availableDirectories, discoveryEntry, isContentDirectory, isEditorialPath, navigationEntries, type DiscoveryEntry, type NavigationIndex } from "./content-discovery";
 import { staticContentIndex } from "./static-content-index";
@@ -17,7 +17,7 @@ export function isManagedPath(path: string): boolean {
 }
 /** Unconfigured previews and older APIs without CMS routes retain compatibility.
  * A CMS returning a successful empty response never resurrects bundled articles. */
-export async function publishedIndex(locale: Locale): Promise<PublishedArticle[] | null> {
+export async function publishedIndex(locale: ContentLocale): Promise<PublishedArticle[] | null> {
  if (!appEnv.apiConfigured) return null;
  const items: PublishedArticle[] = [];
  try {
@@ -27,21 +27,23 @@ export async function publishedIndex(locale: Locale): Promise<PublishedArticle[]
   }
  } catch (error) {
   if (error instanceof ApiError && error.status === 404) return null;
+  // A backend older than article languages rejects them; it has none to list.
+  if (error instanceof ApiError && error.status === 400 && !isInterfaceLocale(locale)) return [];
   throw error;
  }
 }
 
-async function siteCatalog(locale: Locale): Promise<{ entries: DiscoveryEntry[]; pages: Set<string> | null }> {
+async function siteCatalog(locale: ContentLocale): Promise<{ entries: DiscoveryEntry[]; pages: Set<string> | null }> {
  const rows = await publishedIndex(locale);
  return rows === null
-  ? { entries: staticContentIndex(locale), pages: null }
+  ? { entries: isInterfaceLocale(locale) ? staticContentIndex(locale) : [], pages: null }
   : { entries: rows.map(discoveryEntry), pages: new Set(rows.filter(row => row.kind === "page").map(row => row.path)) };
 }
-export async function discoveryIndex(locale: Locale): Promise<DiscoveryEntry[]> {
+export async function discoveryIndex(locale: ContentLocale): Promise<DiscoveryEntry[]> {
  return (await siteCatalog(locale)).entries;
 }
 /** Directories with something to show in this language (see availableDirectories). */
-export async function publishedDirectories(locale: Locale): Promise<Set<string>> {
+export async function publishedDirectories(locale: ContentLocale): Promise<Set<string>> {
  const { entries, pages } = await siteCatalog(locale);
  return new Set(availableDirectories(entries, pages));
 }
@@ -56,17 +58,17 @@ export async function homeStructuredData(locale: Locale) {
   application: siteConfig.application
  });
 }
-export async function navigationIndex(locale: Locale): Promise<NavigationIndex> {
+export async function navigationIndex(locale: ContentLocale): Promise<NavigationIndex> {
  const { entries, pages } = await siteCatalog(locale);
  return { entries: navigationEntries(entries), directories: availableDirectories(entries, pages) };
 }
 /** Enumerate the live build snapshot; dynamicParams still permits later publications. */
-export async function publishedPaths(locale: Locale, fallback: string[]): Promise<string[]> {
+export async function publishedPaths(locale: ContentLocale, fallback: string[]): Promise<string[]> {
  const rows = await publishedIndex(locale);
  if (rows === null) return fallback;
  return [...new Set([...fallback.filter(path => managedPagePaths.includes(path) || !isManagedPath(path)), ...rows.map(row => row.path)])];
 }
-export async function publishedArticle(path: string, locale: Locale): Promise<{ managed: boolean; article: PublishedArticle | null }> {
+export async function publishedArticle(path: string, locale: ContentLocale): Promise<{ managed: boolean; article: PublishedArticle | null }> {
  if (!appEnv.apiConfigured) return { managed: false, article: null };
  try {
   const data = await apiRequest<{ article: PublishedArticle | null }>(`/site/articles/resolve?${new URLSearchParams({ path, locale })}`, publicRead);
@@ -75,6 +77,7 @@ export async function publishedArticle(path: string, locale: Locale): Promise<{ 
   // Missing content is represented by 200 {article:null}. A route-level 404
   // instead means an older backend/preview without this endpoint.
   if (error instanceof ApiError && error.status === 404) return { managed: false, article: null };
+  if (error instanceof ApiError && error.status === 400 && !isInterfaceLocale(locale)) return { managed: true, article: null };
   throw error;
  }
 }
@@ -91,8 +94,10 @@ export function applyWebsiteMetadata(metadata: Metadata, site: WebsiteSettings |
  const description = home ? (locale === "zh" ? site.description_zh : site.description) || metadata.description : metadata.description;
  return { ...metadata, title, description, openGraph: { ...metadata.openGraph, title, description: description || undefined, siteName: brand }, twitter: { ...metadata.twitter, title, description: description || undefined } };
 }
-export async function managedMetadata(path: string, locale: Locale): Promise<Metadata | null> {
- let metadata = publicPageMetadata(path, locale);
+export async function managedMetadata(path: string, locale: ContentLocale): Promise<Metadata | null> {
+ // Only articles exist in languages without an interface translation.
+ if (!isInterfaceLocale(locale) && !isEditorialPath(path)) return null;
+ let metadata = isInterfaceLocale(locale) ? publicPageMetadata(path, locale) : null;
  if (isManagedPath(path)) {
   const resolved = await publishedArticle(path, locale);
   if (resolved.managed) {
@@ -100,20 +105,20 @@ export async function managedMetadata(path: string, locale: Locale): Promise<Met
    if (!article) {
     if (!managedPagePaths.includes(path)) return null;
     const site = await websitePresentation();
-    const page = pagePresentation(path, locale, site, appEnv.appName);
-    const base = publicMetadata(page.translation.title, page.translation.summary, localizeHref(path, locale));
+    const page = pagePresentation(path, interfaceLocale(locale), site, appEnv.appName);
+    const base = publicMetadata(page.translation.title, page.translation.summary, contentHref(path, locale));
     // Keep navigation usable while preventing empty shells from being indexed.
     return { ...applyWebsiteMetadata(base, site), robots: { index: false, follow: true } };
    }
    const text = article.translation; const title = text.seo_title || text.title; const description = text.seo_description || text.summary;
-   const languages = {...Object.fromEntries(article.locales.map(language => [language === "zh" ? "zh-CN" : "en", canonicalURL(localizeHref(path, language))])), "x-default":canonicalURL(localizeHref(path,article.locales.includes("en")?"en":article.locales[0]))};
-   const base = publicMetadata(title, description, localizeHref(path, locale), article.kind === "page" ? undefined : { publishedAt: article.published_at });
-   metadata = { ...base, alternates: { canonical: canonicalURL(localizeHref(path, locale)), languages }, openGraph: { ...base.openGraph, alternateLocale: article.locales.filter(value => value !== locale).map(value => value === "zh" ? "zh_CN" : "en_US") } };
+   const languages = languageAlternates(path, article.locales);
+   const base = publicMetadata(title, description, contentHref(path, locale), article.kind === "page" ? undefined : { publishedAt: article.published_at });
+   metadata = { ...base, alternates: { canonical: canonicalURL(contentHref(path, locale)), languages }, openGraph: { ...base.openGraph, alternateLocale: article.locales.filter(value => value !== locale && (isInterfaceLocale(value) || isEditorialPath(path))).map(value => openGraphLocales[value]) } };
   }
  }
  if (!metadata) return null;
- metadata = applyWebsiteMetadata(metadata, await websitePresentation(), false, locale);
- return isContentDirectory(path) ? withDirectoryAvailability(metadata, path, locale) : metadata;
+ metadata = applyWebsiteMetadata(metadata, await websitePresentation(), false, interfaceLocale(locale));
+ return isContentDirectory(path) ? withDirectoryAvailability(metadata, path, interfaceLocale(locale)) : metadata;
 }
 /** An empty directory stays reachable but leaves search results, and no language version points to it. */
 async function withDirectoryAvailability(metadata: Metadata, path: string, locale: Locale): Promise<Metadata> {

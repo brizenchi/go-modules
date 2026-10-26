@@ -98,6 +98,9 @@ export function ConsoleError({ error, retry }: { error: unknown; retry?: () => v
     : api?.status === 409 && api.message === "insufficient_credits" ? t({ en: "There are not enough credits for this export. Check your balance or get more credits.", zh: "当前积分不足，请查看余额或购买积分后重试。" })
     : api?.status === 409 ? t({ en: "This request conflicts with an earlier action. Refresh the page and check the latest record.", zh: "本次请求与已有操作冲突，请刷新页面并查看最新记录。" })
     : api?.status === 400 || api?.status === 422 ? t({ en: "Check the entered values and try again.", zh: "请检查填写内容后重试。" })
+    : api?.reason === "AI_NOT_CONFIGURED" ? t({ en: "AI writing is not configured. Set the model and key in host.ai of the deployment configuration, then restart the API.", zh: "AI 写作尚未配置：请在部署配置的 host.ai 中设置模型与密钥，然后重启后端。" })
+    : api?.reason === "AI_PROVIDER_FAILED" ? t({ en: "The AI service did not respond. Try again in a moment.", zh: "AI 服务暂时没有响应，请稍后重试。" })
+    : api?.reason === "AI_OUTPUT_INVALID" ? t({ en: "The AI reply was incomplete or broke the article rules. Try again, or shorten the notes.", zh: "AI 返回的内容不完整或不符合文章规则，请重试，或缩短补充说明。" })
     : api?.status === 503 ? t({ en: "This feature is not ready yet. Please contact support.", zh: "此功能暂未就绪，请联系支持人员。" })
     : t({ en: "Unable to complete the request. Please try again.", zh: "请求未能完成，请重试。" });
   const requestId = api && (api.status >= 500 || api.status === 0) ? api.requestId : "";

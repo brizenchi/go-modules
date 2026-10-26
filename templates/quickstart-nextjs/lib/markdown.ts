@@ -1,4 +1,4 @@
-export type MarkdownBlock = { kind: "heading"; level: number; text: string; id: string } | { kind: "paragraph" | "quote" | "code"; text: string } | { kind: "list"; ordered: boolean; items: string[] };
+export type MarkdownBlock = { kind: "heading"; level: number; text: string; id: string } | { kind: "paragraph" | "quote" | "code"; text: string } | { kind: "list"; ordered: boolean; items: string[] } | { kind: "image"; alt: string; src: string };
 export function markdownBlocks(source: string): MarkdownBlock[] {
  const lines = source.replace(/\r\n?/g, "\n").split("\n"); const blocks: MarkdownBlock[] = []; const used = new Set<string>();
  for (let i = 0; i < lines.length;) {
@@ -8,8 +8,10 @@ export function markdownBlocks(source: string): MarkdownBlock[] {
   if (heading) { const base = heading[2].toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "section"; let id=base,n=1;while(used.has(id))id=`${base}-${++n}`;used.add(id);blocks.push({kind:"heading",level:Math.max(2,heading[1].length),text:heading[2],id}); i++; continue; }
   const list = /^\s*(?:([-*])|\d+[.)])\s+(.+)$/.exec(line);
   if (list) { const ordered = !list[1]; const items: string[] = []; while (i < lines.length) { const match = /^\s*(?:([-*])|\d+[.)])\s+(.+)$/.exec(lines[i]); if (!match || !match[1] !== ordered) break; items.push(match[2]); i++; } blocks.push({ kind: "list", ordered, items }); continue; }
+  const image = /^!\[([^\]\n]*)\]\(([^)\s]+)\)\s*$/.exec(line);
+  if (image) { blocks.push({ kind: "image", alt: image[1].trim(), src: image[2] }); i++; continue; }
   if (/^>\s?/.test(line)) { const text: string[] = []; while (i < lines.length && /^>/.test(lines[i])) text.push(lines[i++].replace(/^>\s?/, "")); blocks.push({ kind: "quote", text: text.join(" ") }); continue; }
-  const text = [line]; i++; while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\s*```|>\s?|\s*[-*]\s|\s*\d+[.)]\s)/.test(lines[i])) text.push(lines[i++]); blocks.push({ kind: "paragraph", text: text.join(" ") });
+  const text = [line]; i++; while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\s*```|>\s?|\s*[-*]\s|\s*\d+[.)]\s|!\[)/.test(lines[i])) text.push(lines[i++]); blocks.push({ kind: "paragraph", text: text.join(" ") });
  }
  return blocks;
 }
@@ -23,4 +25,11 @@ export function importMarkdown(source: string) {
  if (new TextEncoder().encode(source).length > 150000) throw new Error("file_too_large");
  const normalized = source.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n"); const match = /^#\s+([^\n]+)\n?/.exec(normalized);
  return { title: match?.[1]?.trim() || "", body: match ? normalized.slice(match[0].length).trimStart() : normalized };
+}
+
+/** Article images are uploads served by the API (with known size) or HTTPS URLs. */
+export function markdownImage(raw: string, apiOrigin: string): { src: string; width?: number; height?: number } | null {
+ const site = /^\/api\/v1\/site\/images\/([0-9a-f-]{36})(?:\?w=(\d{1,5})&h=(\d{1,5}))?$/.exec(raw);
+ if (site) return { src: `${apiOrigin}${raw}`, ...(site[2] && site[3] ? { width: Number(site[2]), height: Number(site[3]) } : {}) };
+ try { const url = new URL(raw); return url.protocol === "https:" && !url.username && !url.password ? { src: url.toString() } : null; } catch { return null; }
 }

@@ -133,10 +133,13 @@ referral:
 host:
   ai:
     enabled: false
+    # Gemini: base_url "https://generativelanguage.googleapis.com/v1beta/openai", model "gemini-3.8-flash"
     base_url: "https://api.openai.com/v1"
     api_key: ""
     model: ""
-    max_output_tokens: 1024
+    max_output_tokens: 1024        # 最多 65536；Gemini 的思考 token 也计入此上限
+    reasoning_effort: ""           # 可选：none / minimal / low / medium / high
+    timeout_seconds: 0             # 0 表示 45 秒，最多 600
   signup_credits: 0
   uploads:
     enabled: false

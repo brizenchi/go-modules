@@ -10,6 +10,7 @@ test("llms.txt lists published pages by section with canonical URLs", () => {
   const text = llmsText({
     name: "Acme",
     description: "Acme helps\nteams ship.",
+    sourceURL: "https://github.com/acme/acme",
     directories: new Set(["/features", "/docs", "/resources", "/about"]),
     entries: [
       entry("/docs/payments", "docs", "Configure [Stripe]", "Plans and webhooks.", 2),
@@ -24,7 +25,7 @@ test("llms.txt lists published pages by section with canonical URLs", () => {
   assert.ok(text.includes(`- [Configure Stripe](${canonicalURL("/docs/payments")})`));
   assert.ok(!text.includes("## Use cases"), "empty sections are omitted");
   assert.ok(!text.includes("Not a listed page"));
-  assert.ok(!text.includes("Source code") && !text.includes("/examples"), "no repository or demo entry");
+  assert.ok(text.includes("- [Source code](https://github.com/acme/acme)"));
   assert.ok(text.endsWith("\n"));
   assert.ok(text.includes(`[About](${canonicalURL("/about")})`));
   assert.ok(!text.includes(canonicalURL("/updates")), "an unpublished page directory is not listed");

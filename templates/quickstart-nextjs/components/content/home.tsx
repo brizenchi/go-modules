@@ -82,6 +82,7 @@ export function HomeContent({ entries }: { entries: DiscoveryEntry[] }) {
       </PageSection> : null}
 
       <PageSection id="try-it" title={t({ en: "Take it for a spin.", zh: "像你的用户一样，亲自体验。" })} description={t({ en: "Start here without deploying your own copy. Available flows depend on the services enabled on this site.", zh: "无需先部署，从这个站点开始体验。可用流程以本站启用的服务为准。" })}>
+        <div className={styles.sectionLinks}><Link href="/examples">{t({ en: "Browse the demo", zh: "查看体验入口" })}<span aria-hidden="true">→</span></Link></div>
         {demo && <aside className={styles.demoNotice} aria-label={t({ en: "Demo payment information", zh: "演示支付说明" })}><span className={styles.modeBadge}>{t({ en: "DEMO", zh: "在线体验" })}</span><p>{t({ en: "Accounts and referrals are saved. Stripe test-mode purchases do not move real money; check the Checkout mode before using a test card.", zh: "账号与邀请记录会保存。Stripe 测试模式下的付款不涉及真实资金，使用测试卡前请确认收银台模式。" })}</p><Link href="/docs/payments">{t({ en: "Payment guide", zh: "支付指南" })} <span aria-hidden="true">↗</span></Link></aside>}
         <ol className={styles.journey}>
           {content.steps.map((step, index) => <li className={styles.step} key={step.title}><span className={styles.stepNumber}>0{index + 1}</span><h3>{step.title}</h3><p>{step.description}</p><Link href={step.href}>{step.action}<span aria-hidden="true">↗</span></Link></li>)}
@@ -103,7 +104,7 @@ export function HomeContent({ entries }: { entries: DiscoveryEntry[] }) {
             return <Link className={styles.guide} href={`/docs/${guide.id}`} id={slug === "payments" ? "test-payment" : slug === "invitations" ? "sharing" : undefined} key={guide.id}><span className={styles.guideNumber}>0{index + 1}</span><div><h3>{t(guide.title)}</h3><p>{t(guide.summary)}</p></div><span className={styles.guideArrow} aria-hidden="true">↗</span></Link>;
           })}
         </div>
-        <div className={styles.closing}><div><span className={styles.kicker}>{t({ en: "YOUR NEXT SAAS STARTS HERE", zh: "你的下一个 SaaS，从这里开始" })}</span><h3>{t({ en: "Put your next sprint into your product.", zh: "把下一轮开发，留给核心业务。" })}</h3>{shown("/about") ? <Link className={styles.aboutLink} href="/about">{t({ en: "About the project", zh: "了解这个项目" })}<span aria-hidden="true"> →</span></Link> : null}</div><div className={styles.closingActions}>{shown("/resources") ? <CTAButton href="/resources">{t({ en: "Browse all guides", zh: "浏览全部指南" })}</CTAButton> : null}</div></div>
+        <div className={styles.closing}><div><span className={styles.kicker}>{t({ en: "YOUR NEXT SAAS STARTS HERE", zh: "你的下一个 SaaS，从这里开始" })}</span><h3>{t({ en: "Put your next sprint into your product.", zh: "把下一轮开发，留给核心业务。" })}</h3>{shown("/about") ? <Link className={styles.aboutLink} href="/about">{t({ en: "About the project", zh: "了解这个项目" })}<span aria-hidden="true"> →</span></Link> : null}</div><div className={styles.closingActions}><a className="button primary" href={siteConfig.repositoryURL} rel="noopener noreferrer">{t({ en: "Get the source", zh: "获取模板源码" })}<span aria-hidden="true">↗</span></a>{shown("/resources") ? <CTAButton href="/resources">{t({ en: "Browse all guides", zh: "浏览全部指南" })}</CTAButton> : null}</div></div>
       </PageSection>
 
       <PageSection id="latest-guides" title={t({ en: "Keep learning. Keep building.", zh: "继续了解，持续构建。" })}

@@ -7,10 +7,10 @@ export const navigationLimits = { header: 6, menu: 10, footer: 4, links: 8, labe
 
 export type ArticleOption = { path: string; kind: ContentKind; title: string };
 
-/** Articles published in either language, once each; the English title wins. */
-export function articleOptions(en: readonly PublishedArticle[], zh: readonly PublishedArticle[]): ArticleOption[] {
+/** Articles published in any language, once each; the first language listed wins the title. */
+export function articleOptions(rows: readonly PublishedArticle[]): ArticleOption[] {
   const options = new Map<string, ArticleOption>();
-  for (const row of [...en, ...zh]) {
+  for (const row of rows) {
     if (isEditorialPath(row.path) && !options.has(row.path)) options.set(row.path, { path: row.path, kind: row.kind, title: row.translation.title });
   }
   return [...options.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title));

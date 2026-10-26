@@ -75,7 +75,7 @@ func TestInvalidConfigurationAndMessagesNeverCallProvider(t *testing.T) {
 	for _, configure := range []func(*Config){
 		func(c *Config) { c.APIKey = "" }, func(c *Config) { c.APIKey = "key\r\nheader" },
 		func(c *Config) { c.Model = "" }, func(c *Config) { c.Model = strings.Repeat("m", 201) },
-		func(c *Config) { c.MaxOutputTokens = -1 }, func(c *Config) { c.MaxOutputTokens = 4097 },
+		func(c *Config) { c.MaxOutputTokens = -1 }, func(c *Config) { c.MaxOutputTokens = 65537 }, func(c *Config) { c.ReasoningEffort = "extreme" }, func(c *Config) { c.Timeout = 500 * time.Millisecond }, func(c *Config) { c.Timeout = 11 * time.Minute },
 	} {
 		cfg := testConfig()
 		configure(&cfg)
@@ -175,5 +175,43 @@ func TestCancellationWhileReadingCompletionRemainsDetectable(t *testing.T) {
 	}
 	if _, err := client.Complete(ctx, []Message{{Role: "user", Content: "input"}}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("error=%v, want cancellation", err)
+	}
+}
+
+func TestReasoningEffortTimeoutAndFinishReasonAreOptIn(t *testing.T) {
+	var seen map[string]any
+	var deadline time.Duration
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		seen = map[string]any{}
+		if err := json.NewDecoder(req.Body).Decode(&seen); err != nil {
+			t.Fatal(err)
+		}
+		if d, ok := req.Context().Deadline(); ok {
+			deadline = time.Until(d)
+		}
+		return response(200, `{"choices":[{"message":{"role":"assistant","content":"Partial"},"finish_reason":"length"}]}`), nil
+	})
+	defaults, err := New(testConfig(), &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := defaults.Complete(context.Background(), []Message{{Role: "user", Content: "Write"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := seen["reasoning_effort"]; ok || deadline > 45*time.Second {
+		t.Fatalf("defaults must not send reasoning_effort or extend the deadline: %v %s", seen, deadline)
+	}
+	cfg := testConfig()
+	cfg.MaxOutputTokens, cfg.ReasoningEffort, cfg.Timeout = 65536, "low", 3*time.Minute
+	long, err := New(cfg, &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := long.Complete(context.Background(), []Message{{Role: "user", Content: "Write"}})
+	if err != nil || result.FinishReason != "length" {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if seen["reasoning_effort"] != "low" || seen["max_tokens"] != float64(65536) || deadline <= 45*time.Second || deadline > 3*time.Minute {
+		t.Fatalf("configured request: %v deadline %s", seen, deadline)
 	}
 }

@@ -15,14 +15,19 @@ const index: NavigationIndex = {
   directories: ["/features", "/compare", "/docs", "/resources", "/about"]
 };
 
-test("by default the header has Features and Use cases, each listing its published pages", () => {
-  assert.deepEqual(defaultNavigation.header.map(item => [item.section, item.menu]), [["features", "auto"], ["use-cases", "auto"]]);
-  const header = resolveHeader(defaultNavigation, { ...index, directories: [...index.directories, "/use-cases"], entries: [...index.entries, { path: "/use-cases/saas", kind: "use-cases", title: "SaaS", position: 1 }] }, "en", "/features/credits");
-  assert.deepEqual(header.map(item => [item.href, item.label, item.current]), [["/features", "Features", true], ["/use-cases", "Use cases", false]]);
+test("by default the header is one level: home, features, use cases, comparisons and pricing", () => {
+  assert.deepEqual(defaultNavigation.header.map(item => [item.section, item.menu]), [["home", "none"], ["features", "none"], ["use-cases", "none"], ["compare", "none"], ["pricing", "none"]]);
+  const header = resolveHeader(defaultNavigation, { ...index, directories: [...index.directories, "/use-cases"] }, "zh", "/zh/features/credits");
+  assert.deepEqual(header.map(item => [item.href, item.label, item.current]), [["/", "首页", false], ["/features", "功能介绍", true], ["/use-cases", "使用场景", false], ["/compare", "方案比较", false], ["/pricing", "价格", false]]);
+  assert.ok(header.every(item => item.links.length === 0 && !item.all), "no dropdowns");
+  assert.equal(resolveHeader(defaultNavigation, index, "en", "/")[0].current, true, "home is current only on the homepage");
+});
+
+test("an administrator can still give a section a one-level menu of its pages", () => {
+  const navigation = normalizeNavigation({ version: 1, header: [{ section: "features", menu: "auto" }], footer: [] });
+  const header = resolveHeader(navigation, index, "en", "/features/credits");
   assert.deepEqual(header[0].links.map(link => [link.href, link.current]), [["/features/authentication", false], ["/features/credits", true]]);
   assert.deepEqual(header[0].all, { href: "/features", label: "View all" });
-  // Single level: a use-case menu lists use cases only, never a comparison sub-group.
-  assert.deepEqual(header[1].links.map(link => link.href), ["/use-cases/saas"]);
 });
 
 test("saved menus control sections, names, order and chosen pages; empty sections disappear", () => {
@@ -42,7 +47,7 @@ test("saved menus control sections, names, order and chosen pages; empty section
 
 test("without the published index every section shows, without menus", () => {
   const header = resolveHeader(defaultNavigation, null, "en", "/");
-  assert.deepEqual(header.map(item => [item.href, item.links.length]), [["/features", 0], ["/use-cases", 0]]);
+  assert.deepEqual(header.map(item => [item.href, item.links.length]), [["/", 0], ["/features", 0], ["/use-cases", 0], ["/compare", 0], ["/pricing", 0]]);
 });
 
 test("saved menus are read defensively and nothing saved means the defaults", () => {
@@ -67,9 +72,9 @@ test("saved menus are read defensively and nothing saved means the defaults", ()
 });
 
 test("footer columns link published sections only and drop columns left empty", () => {
-  assert.deepEqual(resolveFooter(defaultNavigation, null, "zh").map(group => group.title), ["产品", "资源", "关于与支持"]);
+  assert.deepEqual(resolveFooter(defaultNavigation, null, "zh").map(group => group.title), ["产品", "关于与支持"]);
   const footer = resolveFooter(defaultNavigation, new Set(["/features"]), "en");
-  assert.deepEqual(footer.map(group => [group.title, group.links.map(link => link.href)]), [["Product", ["/features", "/pricing"]], ["About & support", ["/contact"]]]);
+  assert.deepEqual(footer.map(group => [group.title, group.links.map(link => link.href)]), [["Product", ["/features", "/examples", "/pricing"]], ["About & support", ["/contact"]]]);
   const links = defaultNavigation.footer.flatMap(group => group.links);
   assert.equal(new Set(links).size, links.length, "no footer link repeats");
   const published = new Set(publicContentPaths());

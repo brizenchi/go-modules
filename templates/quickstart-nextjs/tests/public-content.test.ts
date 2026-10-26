@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { discoveryIndex, isManagedPath, managedMetadata, publishedDirectories, publishedPaths, publishedArticle } from "../lib/public-content";
+import { discoveryIndex, isManagedPath, managedMetadata, publishedDirectories, publishedIndex, publishedPaths, publishedArticle } from "../lib/public-content";
 import { appEnv } from "../lib/env";
 import { canonicalURL } from "../lib/seo";
 
@@ -115,4 +115,24 @@ test("a published directory without pages in a language is not indexed or offere
  assert.deepEqual(zh?.robots, { index: false, follow: true });
  assert.deepEqual(await publishedDirectories("zh"), new Set());
  assert.deepEqual(await publishedDirectories("en"), new Set(["/compare"]));
+});
+
+test("an article in Japanese has its own canonical and alternates; other Japanese pages do not exist", async () => {
+ appEnv.apiConfigured = true;
+ const japanese = { ...article, id: "ja", kind: "docs", path: "/docs/setup", locales: ["en", "ja"], translation: { ...article.translation, title: "セットアップ", summary: "設定します。", body: "" } };
+ globalThis.fetch = (async url => String(url).includes("/site/settings") ? response({ presentation_version: 1, brand_name: "Live product" }) : response({ article: japanese })) as typeof fetch;
+ const metadata = await managedMetadata("/docs/setup", "ja");
+ assert.equal(metadata?.alternates?.canonical, canonicalURL("/ja/docs/setup"));
+ assert.deepEqual(metadata?.alternates?.languages, { en: canonicalURL("/docs/setup"), ja: canonicalURL("/ja/docs/setup"), "x-default": canonicalURL("/docs/setup") });
+ assert.equal(metadata?.openGraph && "locale" in metadata.openGraph ? metadata.openGraph.locale : "", "ja_JP");
+ assert.equal(await managedMetadata("/features", "ja"), null);
+ assert.equal(await managedMetadata("/pricing", "ja"), null);
+});
+
+test("a backend without article languages lists none instead of failing", async () => {
+ appEnv.apiConfigured = true;
+ globalThis.fetch = (async () => new Response(JSON.stringify({ code: 400, msg: "invalid locale" }), { status: 400 })) as typeof fetch;
+ assert.deepEqual(await publishedIndex("ja"), []);
+ assert.deepEqual(await publishedArticle("/docs/setup", "ja"), { managed: true, article: null });
+ await assert.rejects(publishedIndex("en"), "interface languages still surface errors");
 });

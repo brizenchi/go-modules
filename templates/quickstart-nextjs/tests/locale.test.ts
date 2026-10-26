@@ -1,16 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  DEFAULT_LOCALE,
-  humanizeSegment,
-  isPublicPath,
-  localeFromPath,
-  localizeHref,
-  normalizeLocale,
-  pickLocaleText,
-  resolvePageLocale,
-  stripLocalePrefix
-} from "../lib/locale";
+import { DEFAULT_LOCALE, contentHref, contentLocaleFromPath, humanizeSegment, interfaceLocale, isContentLocale, isPublicPath, localeFromPath, localizeHref, normalizeLocale, pickLocaleText, resolvePageLocale, stripLocalePrefix } from "../lib/locale";
 
 test("normalizeLocale maps zh variants and falls back to default", () => {
   assert.equal(normalizeLocale("zh-CN"), "zh");
@@ -60,4 +50,20 @@ test("public URLs determine the initial language while private pages retain a sa
   assert.equal(resolvePageLocale("/zh/pricing", "en"), "zh");
   assert.equal(resolvePageLocale("/billing", "zh"), "zh");
   assert.equal(resolvePageLocale("/account", "en"), "en");
+});
+
+test("article languages have their own prefix while the interface stays English", () => {
+  assert.equal(contentLocaleFromPath("/ja/features/credits"), "ja");
+  assert.equal(contentLocaleFromPath("/de"), "de");
+  assert.equal(contentLocaleFromPath("/japan/features"), "en");
+  assert.equal(localeFromPath("/ja/features/credits"), "en");
+  assert.equal(stripLocalePrefix("/ko/docs/setup#step"), "/docs/setup#step");
+  assert.equal(contentHref("/features/credits", "fr"), "/fr/features/credits");
+  assert.equal(contentHref("/zh/features/credits", "es"), "/es/features/credits");
+  assert.equal(contentHref("/", "ja"), "/ja");
+  assert.equal(localizeHref("/ja/features/credits", "zh"), "/ja/features/credits", "an explicit article language is kept");
+  assert.equal(localizeHref("/features/credits", "zh"), "/zh/features/credits");
+  assert.equal(interfaceLocale("ja"), "en");
+  assert.equal(interfaceLocale("zh"), "zh");
+  assert.ok(isContentLocale("ko") && !isContentLocale("pt"));
 });

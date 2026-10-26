@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canonicalURL, exposedSitemapEntries, privateMetadata, privatePaths, publicMetadata, publicPageMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
+import { canonicalURL, exposedSitemapEntries, languageAlternates, privateMetadata, privatePaths, publicMetadata, publicPageMetadata, sitemapEntries, siteOrigin } from "../lib/seo";
 import { siteConfig } from "../content/site";
 import { appEnv } from "../lib/env";
 import { articles } from "../content/articles";
@@ -97,4 +97,11 @@ test("an empty directory leaves the sitemap and the alternates of its other lang
   assert.deepEqual(exposed[0].alternates?.languages, { en: url("/compare"), "x-default": url("/compare") });
   // With English hidden, the fallback for other languages points to Chinese.
   assert.deepEqual(exposed[1].alternates?.languages, { "zh-CN": url("/zh/docs"), "x-default": url("/zh/docs") });
+});
+
+test("hreflang lists every published article language but only interface languages for other pages", () => {
+  const article = languageAlternates("/ja/features/credits", ["en", "ja", "zh"]);
+  assert.deepEqual(article, { en: canonicalURL("/features/credits"), "zh-CN": canonicalURL("/zh/features/credits"), ja: canonicalURL("/ja/features/credits"), "x-default": canonicalURL("/features/credits") });
+  assert.deepEqual(languageAlternates("/features", ["en", "ja"]), { en: canonicalURL("/features"), "x-default": canonicalURL("/features") }, "/ja/features has no route");
+  assert.deepEqual(languageAlternates("/docs/setup", ["de", "ja"]), { ja: canonicalURL("/ja/docs/setup"), de: canonicalURL("/de/docs/setup"), "x-default": canonicalURL("/ja/docs/setup") });
 });

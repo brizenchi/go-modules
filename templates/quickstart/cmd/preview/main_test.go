@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/brizenchi/quickstart-template/internal/user"
+
+	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 )
 
 func previewRequest(t *testing.T, app *previewApp, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -64,7 +66,7 @@ func TestPreviewUsesOnlyIsolatedLocalConfigurationAndCleansUp(t *testing.T) {
 	for _, key := range []string{"DATABASE_URL", "APP_DB_DSN", "APP_EMAIL_PROVIDER", "APP_BILLING_STRIPE_SECRET_KEY", "APP_AUTH_USER_JWT_SECRET", "RESEND_API_KEY"} {
 		t.Setenv(key, "must-not-be-used")
 	}
-	app, err := newPreview("http://localhost:3100", "")
+	app, err := newPreview("http://localhost:3100", "", hostcfg.AIConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +102,7 @@ func TestPreviewUsesOnlyIsolatedLocalConfigurationAndCleansUp(t *testing.T) {
 }
 
 func TestPreviewRealRegistrationAttributesReferralAndRunsCreditFeature(t *testing.T) {
-	app, err := newPreview("http://localhost:3100", "")
+	app, err := newPreview("http://localhost:3100", "", hostcfg.AIConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +161,7 @@ func jsonNumber(t *testing.T, value float64) string {
 
 func TestPreviewAdministratorPasswordAndOrdinaryUserPermissions(t *testing.T) {
 	const password = "local-preview-password-2026"
-	app, err := newPreview("http://localhost:3100", password)
+	app, err := newPreview("http://localhost:3100", password, hostcfg.AIConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,5 +206,22 @@ func TestPreviewRejectsNonLocalFrontendOrigins(t *testing.T) {
 		if _, err := localOrigin(raw); err != nil {
 			t.Fatalf("local origin rejected: %q: %v", raw, err)
 		}
+	}
+}
+
+func TestPreviewAIIsOptInAndDefaultsToGemini(t *testing.T) {
+	env := map[string]string{}
+	lookup := func(key string) string { return env[key] }
+	if cfg := previewAI(lookup); cfg.Enabled {
+		t.Fatal("AI stays disabled without a key")
+	}
+	env["PREVIEW_AI_API_KEY"] = "sk_test_not-a-real-key"
+	cfg := previewAI(lookup)
+	if !cfg.Enabled || cfg.Model != "gemini-3.8-flash" || !strings.Contains(cfg.BaseURL, "generativelanguage.googleapis.com") || cfg.Validate() != nil {
+		t.Fatalf("Gemini defaults: %+v", cfg)
+	}
+	env["PREVIEW_AI_MODEL"] = "another-model"
+	if previewAI(lookup).Model != "another-model" {
+		t.Fatal("model override ignored")
 	}
 }

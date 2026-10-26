@@ -135,6 +135,6 @@ referral:
 
 ## Optional AI integration
 
-Host-owned configuration lives in `host.ai` / `APP_HOST_AI_*`: `enabled` (default false), `base_url` (HTTPS API base), `api_key` (server secret), `model`, and `max_output_tokens` (default 1024, maximum 4096). Invalid enabled configuration fails startup validation. Restart after changes. Public configuration and browser variables never contain the key.
+Host-owned configuration lives in `host.ai` / `APP_HOST_AI_*`: `enabled` (default false), `base_url` (HTTPS API base), `api_key` (server secret), `model`, `max_output_tokens` (default 1024, maximum 65536; Gemini counts reasoning tokens toward it), `reasoning_effort` (optional `none`/`minimal`/`low`/`medium`/`high`) and `timeout_seconds` (0 means 45, maximum 600). For Gemini use `base_url: https://generativelanguage.googleapis.com/v1beta/openai` and, for example, `model: gemini-3.8-flash`. Article writing and translation in admin need `max_output_tokens` of at least 16384 and `timeout_seconds` of about 180. Invalid enabled configuration fails startup validation. Restart after changes. Public configuration and browser variables never contain the key.
 
 Configuration supplies the `internal/ai` factory; products explicitly inject the resulting `foundation/aix.Generator` into their own features. It opens no default AI routes and defines no conversation storage, daily quota, subscription or credit policy. See `templates/quickstart-nextjs/EXTENSIONS.md` and `foundation/aix/README.md` for integration and transport limits.

@@ -28,7 +28,7 @@ export function ManagedHome({ page, entries, identityOnly = false }: { page: Pag
  return <ArticleLanguagesProvider locales={page.locales}><SiteShell pagePath="/" eyebrow={t(siteConfig.hero.eyebrow)}
   title={page.translation.title} description={page.translation.summary} showEnvironment={false}
   heroVisual={<figure className={styles.heroPreview}><div className={styles.previewChrome}><span aria-hidden="true">● ● ●</span><span>{t({ en: "Account center", zh: "账户中心" })}</span><span>{t({ en: "PREVIEW", zh: "界面预览" })}</span></div><Image src={siteConfig.preview[locale].src} alt={t({ en: "Preview of the supplied customer account interface", zh: "模板用户账户界面预览" })} width={1200} height={640} priority sizes="(max-width: 980px) 100vw, 680px" /></figure>}
-  actions={identityOnly ? <><CTAButton href="/pricing" primary>{t({ en: "Explore plans", zh: "查看套餐" })}</CTAButton><CTAButton href="/account">{t({ en: "My account", zh: "账户中心" })}</CTAButton></> : <>{shown("/features") ? <CTAButton href="/features" primary>{t({ en: "Explore features", zh: "了解功能" })}</CTAButton> : null}{overview ? <CTAButton href={overview}>{t({ en: "Read the overview", zh: "阅读概览" })}</CTAButton> : null}</>}
+  actions={identityOnly ? <><CTAButton href="/pricing" primary>{t({ en: "Explore plans", zh: "查看套餐" })}</CTAButton><CTAButton href="/account">{t({ en: "My account", zh: "账户中心" })}</CTAButton></> : <><CTAButton href="/examples" primary>{t({ en: "Explore the demo", zh: "体验演示" })}</CTAButton>{overview ? <CTAButton href={overview}>{t({ en: "Read the overview", zh: "阅读概览" })}</CTAButton> : null}</>}
  >
   <section className={styles.spaces} aria-label={t({ en: "Explore the template", zh: "了解模板" })}>{[
    { href: "/features", label: t({ en: "Features", zh: "功能介绍" }) },

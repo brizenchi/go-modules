@@ -1,11 +1,11 @@
 import type { Metadata, MetadataRoute } from "next";
-import { isContentDirectory } from "./content-discovery";
+import { isContentDirectory, isEditorialPath } from "./content-discovery";
 import { articles } from "../content/articles";
 import { siteConfig } from "../content/site";
 import { documentation } from "../content/docs";
 import { appEnv } from "./env";
 import { marketingPages, marketingRoutes } from "../content/marketing";
-import { localizeHref, localeFromPath, stripLocalePrefix, type Locale } from "./locale";
+import { contentHref, contentLocaleFromPath, contentLocales, isInterfaceLocale, languageTags, localizeHref, localeFromPath, openGraphLocales, stripLocalePrefix, type ContentLocale, type Locale } from "./locale";
 
 export const siteDescription = siteConfig.description.en;
 export const siteDescriptions = siteConfig.description;
@@ -25,7 +25,7 @@ export function canonicalURL(path: string): string {
 
 export function publicMetadata(title: string, description: string, path: string, article?: { publishedAt?: string }): Metadata {
   const url = canonicalURL(path);
-  const locale = localeFromPath(path);
+  const locale = contentLocaleFromPath(path);
   const basePath = stripLocalePrefix(path);
   const languages = {
     en: canonicalURL(localizeHref(basePath, "en")),
@@ -40,13 +40,24 @@ export function publicMetadata(title: string, description: string, path: string,
     openGraph: {
       title: fullTitle, description, url, siteName: appEnv.appName,
       type: article ? "article" : "website",
-      locale: locale === "zh" ? "zh_CN" : "en_US",
+      locale: openGraphLocales[locale],
       alternateLocale: [locale === "zh" ? "en_US" : "zh_CN"],
       images: [{ url: canonicalURL("/opengraph-image"), width: 1200, height: 630, alt: appEnv.appName }],
       ...(article?.publishedAt ? { publishedTime: article.publishedAt } : {})
     },
     twitter: { card: "summary_large_image", title: fullTitle, description, images: [canonicalURL("/opengraph-image")] }
   };
+}
+
+/** hreflang alternates for the languages a page is published in. Articles have
+ * routes in every article language; other pages exist in the interface languages. */
+export function languageAlternates(path: string, locales: readonly ContentLocale[]): Record<string, string> {
+  const base = stripLocalePrefix(path);
+  const routable = contentLocales.filter(locale => locales.includes(locale) && (isInterfaceLocale(locale) || isEditorialPath(base)));
+  const languages: Record<string, string> = Object.fromEntries(routable.map(locale => [languageTags[locale], canonicalURL(contentHref(base, locale))]));
+  const fallback = routable.includes("en") ? "en" : routable[0];
+  if (fallback) languages["x-default"] = canonicalURL(contentHref(base, fallback));
+  return languages;
 }
 
 export function privateMetadata(title?: string): Metadata {

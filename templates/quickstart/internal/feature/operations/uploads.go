@@ -169,6 +169,45 @@ func (m *Module) removeImage(ctx context.Context, key string) {
 	_ = root.Remove(key)
 }
 
+// readUploadedImage reads the single multipart "file" image and identifies its
+// type from content. It writes the error response itself when it returns false.
+func (m *Module) readUploadedImage(c *gin.Context) ([]byte, string, string, bool) {
+	if err := m.prepareStorage(); err != nil {
+		httpresp.Custom(c, 503, 503, "image storage is not configured", nil)
+		return nil, "", "", false
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxImageBytes+(64<<10))
+	if err := c.Request.ParseMultipartForm(MaxImageBytes + (64 << 10)); err != nil {
+		httpresp.BadRequest(c, "invalid upload; maximum image size is 5 MB")
+		return nil, "", "", false
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	files := c.Request.MultipartForm.File["file"]
+	if len(files) != 1 || len(c.Request.MultipartForm.File) != 1 {
+		httpresp.BadRequest(c, "upload exactly one image using the file field")
+		return nil, "", "", false
+	}
+	file, err := files[0].Open()
+	if err != nil {
+		httpresp.BadRequest(c, "unable to read upload")
+		return nil, "", "", false
+	}
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, MaxImageBytes+1))
+	if err != nil || len(body) == 0 || int64(len(body)) > MaxImageBytes {
+		httpresp.BadRequest(c, "image must be between 1 byte and 5 MB")
+		return nil, "", "", false
+	}
+	kind, ext, err := sniffImage(body)
+	if err != nil {
+		httpresp.BadRequest(c, err.Error())
+		return nil, "", "", false
+	}
+	return body, kind, ext, true
+}
+
 func (m *Module) uploadImage(c *gin.Context) {
 	owner := userID(c)
 	if owner == "" {
@@ -178,37 +217,8 @@ func (m *Module) uploadImage(c *gin.Context) {
 	if db == nil {
 		return
 	}
-	if err := m.prepareStorage(); err != nil {
-		httpresp.Custom(c, 503, 503, "image storage is not configured", nil)
-		return
-	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxImageBytes+(64<<10))
-	if err := c.Request.ParseMultipartForm(MaxImageBytes + (64 << 10)); err != nil {
-		httpresp.BadRequest(c, "invalid upload; maximum image size is 5 MB")
-		return
-	}
-	if c.Request.MultipartForm != nil {
-		defer c.Request.MultipartForm.RemoveAll()
-	}
-	files := c.Request.MultipartForm.File["file"]
-	if len(files) != 1 || len(c.Request.MultipartForm.File) != 1 {
-		httpresp.BadRequest(c, "upload exactly one image using the file field")
-		return
-	}
-	file, err := files[0].Open()
-	if err != nil {
-		httpresp.BadRequest(c, "unable to read upload")
-		return
-	}
-	defer file.Close()
-	body, err := io.ReadAll(io.LimitReader(file, MaxImageBytes+1))
-	if err != nil || len(body) == 0 || int64(len(body)) > MaxImageBytes {
-		httpresp.BadRequest(c, "image must be between 1 byte and 5 MB")
-		return
-	}
-	kind, ext, err := sniffImage(body)
-	if err != nil {
-		httpresp.BadRequest(c, err.Error())
+	body, kind, ext, ok := m.readUploadedImage(c)
+	if !ok {
 		return
 	}
 	id := uuid.NewString()

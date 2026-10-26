@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 )
 
 // Client sends stateless completion requests through an injected HTTP client.
@@ -38,15 +37,16 @@ func (c *Client) Complete(ctx context.Context, messages []Message) (Completion, 
 		return Completion{}, err
 	}
 	body, err := json.Marshal(struct {
-		Model     string    `json:"model"`
-		Messages  []Message `json:"messages"`
-		MaxTokens int       `json:"max_tokens"`
-		Stream    bool      `json:"stream"`
-	}{c.cfg.Model, messages, c.cfg.MaxOutputTokens, false})
+		Model           string    `json:"model"`
+		Messages        []Message `json:"messages"`
+		MaxTokens       int       `json:"max_tokens"`
+		ReasoningEffort string    `json:"reasoning_effort,omitempty"`
+		Stream          bool      `json:"stream"`
+	}{c.cfg.Model, messages, c.cfg.MaxOutputTokens, c.cfg.ReasoningEffort, false})
 	if err != nil {
 		return Completion{}, fmt.Errorf("encode model input: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, c.cfg.Timeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
@@ -76,7 +76,8 @@ func (c *Client) Complete(ctx context.Context, messages []Message) (Completion, 
 	var result struct {
 		Model   string `json:"model"`
 		Choices []struct {
-			Message Message `json:"message"`
+			Message      Message `json:"message"`
+			FinishReason string  `json:"finish_reason"`
 		} `json:"choices"`
 	}
 	if json.Unmarshal(data, &result) != nil || len(result.Choices) == 0 || strings.TrimSpace(result.Choices[0].Message.Content) == "" {
@@ -85,7 +86,7 @@ func (c *Client) Complete(ctx context.Context, messages []Message) (Completion, 
 	if result.Model == "" {
 		result.Model = c.cfg.Model
 	}
-	return Completion{Content: result.Choices[0].Message.Content, Model: result.Model}, nil
+	return Completion{Content: result.Choices[0].Message.Content, Model: result.Model, FinishReason: result.Choices[0].FinishReason}, nil
 }
 
 var _ Generator = (*Client)(nil)

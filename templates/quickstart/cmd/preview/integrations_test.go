@@ -7,10 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 )
 
 func TestPreviewProviderCredentialsStayDeploymentManaged(t *testing.T) {
-	app, err := newPreview("http://localhost:3100", "")
+	app, err := newPreview("http://localhost:3100", "", hostcfg.AIConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}

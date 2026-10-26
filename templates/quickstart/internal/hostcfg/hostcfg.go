@@ -10,7 +10,11 @@
 //	    enable_export: true        →  APP_HOST_FEATURE_ENABLE_EXPORT
 package hostcfg
 
-import "github.com/brizenchi/go-modules/foundation/aix"
+import (
+	"time"
+
+	"github.com/brizenchi/go-modules/foundation/aix"
+)
 
 // Config 是当前 SaaS 的业务配置。
 type Config struct {
@@ -52,11 +56,20 @@ type AIConfig struct {
 	APIKey          string `mapstructure:"api_key" json:"-"`
 	Model           string `mapstructure:"model"`
 	MaxOutputTokens int    `mapstructure:"max_output_tokens"`
+	// ReasoningEffort is optional: none, minimal, low, medium or high.
+	ReasoningEffort string `mapstructure:"reasoning_effort"`
+	// TimeoutSeconds bounds one model request; 0 means 45 seconds.
+	TimeoutSeconds int `mapstructure:"timeout_seconds"`
+}
+
+// Client is the adapter configuration for these settings.
+func (c AIConfig) Client() aix.Config {
+	return aix.Config{BaseURL: c.BaseURL, APIKey: c.APIKey, Model: c.Model, MaxOutputTokens: c.MaxOutputTokens, ReasoningEffort: c.ReasoningEffort, Timeout: time.Duration(c.TimeoutSeconds) * time.Second}
 }
 
 func (c AIConfig) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	return (aix.Config{BaseURL: c.BaseURL, APIKey: c.APIKey, Model: c.Model, MaxOutputTokens: c.MaxOutputTokens}).Validate()
+	return c.Client().Validate()
 }

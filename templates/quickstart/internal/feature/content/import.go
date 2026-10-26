@@ -48,7 +48,7 @@ func (s *Service) ImportStarter(ctx context.Context, actor, key, reason string, 
 					if err != nil {
 						return fmt.Errorf("import content draft: %w", err)
 					}
-					for _, locale := range []string{"en", "zh"} {
+					for _, locale := range Locales {
 						if _, ok := draft.Translations[locale]; !ok {
 							continue
 						}

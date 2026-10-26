@@ -31,8 +31,12 @@ existing accounts cannot attach an invitation on a later login.
 This is a **throwaway local fixture**, not a deployment mode. It constructs all
 provider configuration in code and never reads `.env`, deployment YAML, configured DB
 connections, payment keys, email credentials, or object-storage credentials.
-The only environment variable it consumes is `APP_AUTH_ADMIN_PASSWORD` for the
-local administrator login; its value is never printed.
+The only environment variables it consumes are `APP_AUTH_ADMIN_PASSWORD` for the
+local administrator login and, optionally, `PREVIEW_AI_API_KEY` to try AI writing in
+Admin → Content (Gemini `gemini-3.8-flash` by default; `PREVIEW_AI_MODEL` and
+`PREVIEW_AI_BASE_URL` override them). Their values are never printed. Without a key,
+AI writing reports that it is not configured; the model is only called when an
+administrator asks for a draft or a translation.
 The real authentication, referral, account, notes, credits, settings, operator,
 and private upload handlers run against a newly created temporary SQLite file.
 Email uses the log sender; OAuth and billing are disabled. No payment provider

@@ -14,6 +14,7 @@ import (
 	"github.com/brizenchi/quickstart-template/internal/audit"
 	"github.com/brizenchi/quickstart-template/internal/checkoutlog"
 	"github.com/brizenchi/quickstart-template/internal/feature/content"
+	"github.com/brizenchi/quickstart-template/internal/feature/writer"
 	"github.com/brizenchi/quickstart-template/internal/hostapi"
 	"github.com/brizenchi/quickstart-template/internal/serviceconfig"
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,8 @@ type Module struct {
 	storageOnce sync.Once
 	bucket      ossx.Bucket
 	storageErr  error
+	writerOnce  sync.Once
+	writer      *writer.Service
 }
 
 func New(deps hostapi.Deps) *Module { return &Module{deps: deps.WithServices()} }
@@ -33,6 +36,7 @@ func (m *Module) Register(g hostapi.Groups) {
 	if g.Public != nil {
 		g.Public.GET("/site/settings", m.getSettings)
 		g.Public.GET("/site/logo/:id", m.siteLogo)
+		g.Public.GET("/site/images/:id", m.siteImage)
 		g.Public.GET("/site/articles", m.publicArticles)
 		g.Public.GET("/site/articles/resolve", m.resolveArticle)
 	}
@@ -62,6 +66,9 @@ func (m *Module) Register(g hostapi.Groups) {
 	admin.GET("/articles/:id", m.article)
 	admin.POST("/articles", m.saveArticle)
 	admin.POST("/articles/import", m.importArticles)
+	admin.POST("/articles/drafts", m.draftArticle)
+	admin.POST("/articles/translations", m.translateArticle)
+	admin.POST("/site-images", m.uploadSiteImage)
 	admin.PUT("/articles/:id", m.saveArticle)
 	admin.POST("/articles/:id/publications", m.publishArticle)
 	admin.GET("/audit", m.audit)
@@ -148,7 +155,7 @@ type Upload struct {
 func (Upload) TableName() string { return "private_image_uploads" }
 
 func Models() []any {
-	models := append([]any{&SiteSettings{}, &Upload{}, &checkoutlog.Record{}}, audit.Models()...)
+	models := append([]any{&SiteSettings{}, &Upload{}, &SiteImage{}, &checkoutlog.Record{}}, audit.Models()...)
 	models = append(models, content.Models()...)
 	return append(models, serviceconfig.Models()...)
 }

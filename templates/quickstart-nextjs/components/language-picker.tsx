@@ -2,25 +2,24 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import type { Locale } from "../lib/locale";
+import { isInterfaceLocale, languageTags, type ContentLocale } from "../lib/locale";
 
-export const languageOptions: { locale: Locale; label: string; language: string }[] = [
-  { locale: "en", label: "EN", language: "en" },
-  { locale: "zh", label: "中文", language: "zh-CN" }
-];
+const labels: Record<ContentLocale, string> = { en: "EN", zh: "中文", ja: "日本語", ko: "한국어", es: "Español", fr: "Français", de: "Deutsch" };
+export const languageOptions: { locale: ContentLocale; label: string; language: string }[] = (Object.keys(labels) as ContentLocale[]).map(locale => ({ locale, label: labels[locale], language: languageTags[locale] }));
 
 type Props = {
-  locale: Locale;
+  locale: ContentLocale;
   label: string;
-  destinations?: Partial<Record<Locale, string>>;
-  onSelect: (locale: Locale) => void;
+  /** Public pages link to each published language; without them only interface languages are offered. */
+  destinations?: Partial<Record<ContentLocale, string>>;
+  onSelect: (locale: ContentLocale) => void;
 };
 
 /** Public options remain links in initial HTML, even while the disclosure is closed. */
 export function LanguagePicker({ locale, label, destinations, onSelect }: Props) {
   const disclosure = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);
-  const current = languageOptions.find(option => option.locale === locale)!;
+  const current = languageOptions.find(option => option.locale === locale) || languageOptions[0];
 
   useEffect(() => {
     const dismissOutside = (event: PointerEvent) => {
@@ -30,7 +29,7 @@ export function LanguagePicker({ locale, label, destinations, onSelect }: Props)
     return () => document.removeEventListener("pointerdown", dismissOutside);
   }, []);
 
-  function select(value: Locale) {
+  function select(value: ContentLocale) {
     onSelect(value);
     if (disclosure.current) disclosure.current.open = false;
     trigger.current?.focus();
@@ -52,7 +51,7 @@ export function LanguagePicker({ locale, label, destinations, onSelect }: Props)
         <svg className="language-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4" /></svg>
       </summary>
       <nav className="language-options" aria-label={label}>
-        {languageOptions.filter(option => !destinations || destinations[option.locale]).map(option => {
+        {languageOptions.filter(option => destinations ? destinations[option.locale] : isInterfaceLocale(option.locale)).map(option => {
           const content = <><span>{option.label}</span><span aria-hidden="true">{option.locale === locale ? "✓" : ""}</span></>;
           return destinations ? (
             <Link key={option.locale} href={destinations[option.locale]!} hrefLang={option.language} lang={option.language} aria-current={option.locale === locale ? "page" : undefined} onClick={() => select(option.locale)}>{content}</Link>

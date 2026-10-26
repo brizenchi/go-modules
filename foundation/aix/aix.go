@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -28,9 +29,23 @@ type Config struct {
 	APIKey string `json:"-"`
 	// Model is the provider's compatible text model identifier.
 	Model string
-	// MaxOutputTokens defaults to 1024 and must not exceed 4096.
+	// MaxOutputTokens defaults to 1024 and must not exceed 65536. Some providers
+	// count reasoning tokens toward this limit.
 	MaxOutputTokens int
+	// ReasoningEffort is sent as reasoning_effort when set: none, minimal, low,
+	// medium or high. Empty leaves the provider's default.
+	ReasoningEffort string
+	// Timeout bounds each request, defaulting to 45 seconds and at most 10 minutes.
+	Timeout time.Duration
 }
+
+const (
+	defaultTimeout  = 45 * time.Second
+	maxTimeout      = 10 * time.Minute
+	maxOutputTokens = 65536
+)
+
+var reasoningEfforts = map[string]bool{"": true, "none": true, "minimal": true, "low": true, "medium": true, "high": true}
 
 func (c Config) normalized() Config {
 	c.BaseURL = strings.TrimRight(strings.TrimSpace(c.BaseURL), "/")
@@ -42,14 +57,21 @@ func (c Config) normalized() Config {
 	if c.MaxOutputTokens == 0 {
 		c.MaxOutputTokens = 1024
 	}
+	c.ReasoningEffort = strings.TrimSpace(c.ReasoningEffort)
+	if c.Timeout == 0 {
+		c.Timeout = defaultTimeout
+	}
 	return c
 }
 
 // Validate checks transport configuration without making any outbound call.
 func (c Config) Validate() error {
 	c = c.normalized()
-	if c.APIKey == "" || strings.ContainsAny(c.APIKey, "\r\n\x00") || c.Model == "" || len(c.Model) > 200 || c.MaxOutputTokens < 1 || c.MaxOutputTokens > 4096 {
+	if c.APIKey == "" || strings.ContainsAny(c.APIKey, "\r\n\x00") || c.Model == "" || len(c.Model) > 200 || c.MaxOutputTokens < 1 || c.MaxOutputTokens > maxOutputTokens {
 		return fmt.Errorf("%w: key, model or output limit", ErrInvalidConfig)
+	}
+	if !reasoningEfforts[c.ReasoningEffort] || c.Timeout < time.Second || c.Timeout > maxTimeout {
+		return fmt.Errorf("%w: reasoning effort or timeout", ErrInvalidConfig)
 	}
 	u, err := url.Parse(c.BaseURL)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
@@ -72,6 +94,8 @@ type Completion struct {
 	Content string
 	// Model is the returned model identifier, falling back to configuration.
 	Model string
+	// FinishReason is the provider's stop reason; "length" means the output was cut off.
+	FinishReason string
 }
 
 // Generator is injected into the host's own business service and can be faked.

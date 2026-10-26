@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MarkdownContent } from "../components/markdown-content";
-import { importMarkdown, markdownBlocks, safeMarkdownHref } from "../lib/markdown";
+import { importMarkdown, markdownBlocks, markdownImage, safeMarkdownHref } from "../lib/markdown";
 import { linkablePath } from "../lib/content-discovery";
 test("Markdown renders headings, lists, code and escapes HTML and script links", () => {
  const html = renderToStaticMarkup(<MarkdownContent source={'## Guide\n\n- One\n- Two\n\n```html\n<script>alert(1)</script>\n```\n\n<img src=x onerror=alert(1)>\n\n[Bad](javascript:alert) [Good](https://example.test)'} />);
@@ -35,4 +35,18 @@ test("internal links to pages that are not published read as plain text", () => 
   assert.ok(!html.includes('href="/zh/blog"') && html.includes("Blog"), "empty directory keeps its text without a link");
   // Without the rule (editor preview), every safe link renders.
   assert.match(renderToStaticMarkup(<MarkdownContent source="[Removed](/docs/removed)" />), /href="\/docs\/removed"/);
+});
+
+test("article images render as lazy figures with known size; unsafe sources render nothing", () => {
+  const id = "00000000-0000-4000-8000-000000000000";
+  const blocks = markdownBlocks(`Intro\n![Member list](/api/v1/site/images/${id}?w=1200&h=630)\nAfter`);
+  assert.deepEqual(blocks.map(block => block.kind), ["paragraph", "image", "paragraph"]);
+  assert.deepEqual(markdownImage(`/api/v1/site/images/${id}?w=1200&h=630`, "https://api.example.test"), { src: `https://api.example.test/api/v1/site/images/${id}?w=1200&h=630`, width: 1200, height: 630 });
+  assert.deepEqual(markdownImage("https://cdn.example.test/a.png", "https://api.example.test"), { src: "https://cdn.example.test/a.png" });
+  for (const unsafe of ["javascript:alert(1)", "http://cdn.example.test/a.png", "/uploads/images/x", `/api/v1/site/images/${id}?w=1&h=1&x=2`, "data:image/png;base64,AAAA", "https://user:pass@cdn.example.test/a.png"]) {
+    assert.equal(markdownImage(unsafe, "https://api.example.test"), null, unsafe);
+  }
+  const html = renderToStaticMarkup(<MarkdownContent source={`![Member list](/api/v1/site/images/${id}?w=1200&h=630)\n\n![Bad](javascript:alert(1))`} />);
+  assert.match(html, /<figure class="markdown-figure"><img src="[^"]+\/api\/v1\/site\/images\/[^"]+" alt="Member list" width="1200" height="630" loading="lazy" decoding="async"\/><\/figure>/);
+  assert.equal((html.match(/<img/g) ?? []).length, 1);
 });

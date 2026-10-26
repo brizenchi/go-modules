@@ -30,6 +30,7 @@ export const siteLinks = {
 
 /** Each section a header item or footer link may name, and whether its directory lists articles. */
 export const navigationSections: Readonly<Record<NavigationSection, { link: SiteLink; menu: boolean; headerLabel?: Copy }>> = {
+  home: { link: siteLinks.home, menu: false },
   features: { link: siteLinks.features, menu: true },
   "use-cases": { link: siteLinks.useCases, menu: true },
   compare: { link: siteLinks.compare, menu: true },
@@ -38,21 +39,18 @@ export const navigationSections: Readonly<Record<NavigationSection, { link: Site
   resources: { link: siteLinks.resources, menu: true },
   updates: { link: siteLinks.updates, menu: false },
   pricing: { link: siteLinks.pricing, menu: false },
+  examples: { link: siteLinks.examples, menu: false },
   about: { link: siteLinks.about, menu: false },
   contact: { link: siteLinks.help, menu: false }
 };
 
 const noLabel: Copy = { en: "", zh: "" };
-/** Used until an administrator saves menus: two product sections, each listing its published pages. */
+/** Used until an administrator saves menus: one level of links, no dropdowns. */
 export const defaultNavigation: SiteNavigation = {
   version: 1,
-  header: [
-    { section: "features", label: noLabel, menu: "auto", items: [] },
-    { section: "use-cases", label: noLabel, menu: "auto", items: [] }
-  ],
+  header: (["home", "features", "use-cases", "compare", "pricing"] as const).map(section => ({ section, label: noLabel, menu: "none" as const, items: [] })),
   footer: [
-    { title: { en: "Product", zh: "产品" }, links: ["features", "use-cases", "compare", "pricing"] },
-    { title: { en: "Resources", zh: "资源" }, links: ["docs", "blog", "updates"] },
+    { title: { en: "Product", zh: "产品" }, links: ["features", "use-cases", "compare", "examples", "pricing"] },
     { title: { en: "About & support", zh: "关于与支持" }, links: ["about", "contact"] }
   ]
 };

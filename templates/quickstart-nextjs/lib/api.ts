@@ -1,6 +1,7 @@
 import { apiUrl } from "./env";
 import { clearSessionIfToken, type AuthSession, type SessionUser } from "./auth";
 import { prepareOAuthBrowserFlow } from "./oauth-flow";
+import type { ContentLocale } from "./locale";
 
 export type ApiEnvelope<T> = {
   code: number;
@@ -582,13 +583,20 @@ export type OperatorUser = { id: string; email: string; username: string; role: 
 export type OperatorAuthorization = { authorized: true };
 
 export type ContentTranslation = { title: string; summary: string; body: string; seo_title: string; seo_description: string };
+/** AI writing (POST /admin/articles/drafts, /admin/articles/translations): nothing is saved until the editor saves the draft. */
+export type ArticleImageSuggestion = { section: string; alt: string; description: string };
+export type ArticleDraft = { path: string; translation: ContentTranslation; images: ArticleImageSuggestion[] };
+export type ArticleBrief = { kind: Exclude<ContentKind, "page">; keyword: string; notes: string; locale: ContentLocale };
+export type ArticleTranslations = { translations: Partial<Record<ContentLocale, ContentTranslation>> };
+/** An article image from POST /admin/site-images; `url` is public. */
+export type SiteImage = { id: string; url: string; width: number; height: number; content_type: string; size: number };
 export type ContentPublication = ContentTranslation & { published_at: string };
 export type ContentKind = "page" | "blog" | "docs" | "features" | "use-cases" | "compare";
-export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translations: Partial<Record<"en" | "zh", ContentTranslation>>; published: Partial<Record<"en" | "zh", ContentPublication>>; updated_at: string };
+export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translations: Partial<Record<ContentLocale, ContentTranslation>>; published: Partial<Record<ContentLocale, ContentPublication>>; updated_at: string };
 export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
-export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: Array<"en" | "zh"> };
+export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: ContentLocale[] };
 /** Sections a header item or footer link may name; mirrors the backend allowlist. */
-export type NavigationSection = "features" | "use-cases" | "compare" | "docs" | "blog" | "resources" | "updates" | "pricing" | "about" | "contact";
+export type NavigationSection = "home" | "features" | "use-cases" | "compare" | "docs" | "blog" | "resources" | "updates" | "pricing" | "examples" | "about" | "contact";
 export type NavigationCopy = { en: string; zh: string };
 /** `auto` lists the section's published pages, `manual` lists `items` in order, `none` shows no menu. An empty label uses the section's default name. */
 export type HeaderNavigationItem = { section: NavigationSection; label: NavigationCopy; menu: "auto" | "manual" | "none"; items: string[] };

@@ -9,8 +9,10 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import {
+  contentLocaleFromPath,
   DEFAULT_LOCALE,
   isPublicPath,
+  languageTags,
   localeFromPath,
   type Locale,
   normalizeLocale,
@@ -32,11 +34,12 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function applyDocumentLanguage(locale: Locale): void {
+/** A public page keeps the language of its content; private pages follow the interface. */
+function applyDocumentLanguage(locale: Locale, pathname: string, publicPage: boolean): void {
   if (typeof document === "undefined") {
     return;
   }
-  document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  document.documentElement.lang = languageTags[publicPage ? contentLocaleFromPath(pathname) : locale];
 }
 
 export function LocaleProvider({ children, initialLocale = DEFAULT_LOCALE }: { children: React.ReactNode; initialLocale?: Locale }) {
@@ -66,7 +69,7 @@ export function LocaleProvider({ children, initialLocale = DEFAULT_LOCALE }: { c
     return () => window.removeEventListener("storage", sync);
   }, [pathname, publicPage]);
 
-  useEffect(() => { applyDocumentLanguage(locale); }, [locale]);
+  useEffect(() => { applyDocumentLanguage(locale, pathname, publicPage); }, [locale, pathname, publicPage]);
 
   const value = useMemo<I18nContextValue>(() => ({
     locale,

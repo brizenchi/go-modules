@@ -11,7 +11,7 @@ export type DiscoveryEntry = GuideIndexEntry & {
 export function contentReferences(markdown: string): string[] {
   return [...new Set([...markdown.matchAll(/\]\((\/[^\s)]+)(?:\s+"[^"]*")?\)/g)]
     .map(match => stripLocalePrefix(match[1].split(/[?#]/, 1)[0]))
-    .filter(path => !path.startsWith("//")))];
+    .filter(path => !path.startsWith("//") && !path.startsWith("/api/")))];
 }
 
 /** Send card metadata and reference paths to the browser, not every article body. */

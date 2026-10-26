@@ -20,12 +20,14 @@ const normalize = text => decode(text).replace(/\s+/g, " ").trim();
 const plain = text => text.replace(/\[([^\]]+)\]\([^\s)]+\)/g, "$1").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1");
 async function get(path) { const response = await fetch(`${base.replace(/\/$/, "")}${path}`); assert.ok(response.ok, `API ${response.status}`); return (await response.json()).data; }
 let pages = 0, blocks = 0;
-for (const locale of ["en", "zh"]) {
+for (const locale of ["en", "zh", "ja", "ko", "es", "fr", "de"]) {
  const rows = [];
  for (let page = 1; ; page++) { const data = await get(`/site/articles?locale=${locale}&page=${page}&limit=100`); rows.push(...data.items); if (rows.length >= data.total) break; assert.ok(data.items.length, "Pagination progressed"); }
  for (const row of rows) {
   const { article } = await get(`/site/articles/resolve?${new URLSearchParams({ path: row.path, locale })}`);
-  const route = `${locale === "zh" ? "/zh" : ""}${row.path === "/" ? "" : row.path}` || "/";
+  // Languages without an interface translation publish articles only.
+  if (!["en", "zh"].includes(locale) && !/^\/(blog|docs|features|use-cases|compare)\//.test(row.path)) continue;
+  const route = `${locale === "en" ? "" : `/${locale}`}${row.path === "/" ? "" : row.path}` || "/";
   const html = readFileSync(join(build, "server/app", route === "/" ? "index.html" : `${route.slice(1)}.html`), "utf8");
   const rendered = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
   const visible = normalize(rendered.replace(/<\/(?:p|div|li|h[1-6]|section|pre|blockquote)>/g, " ").replace(/<[^>]+>/g, ""));
@@ -33,6 +35,7 @@ for (const locale of ["en", "zh"]) {
   assert.ok(visible.includes(normalize(article.translation.summary)), `${route}: visible CMS summary`);
   assert.ok(normalize(html.match(/<title>([^<]+)<\/title>/)?.[1] || "").includes(article.translation.seo_title || article.translation.title), `${route}: published search title`);
   for (const block of markdownBlocks(article.translation.body)) {
+   if (block.kind === "image") { if (block.alt) assert.ok(rendered.includes(`alt="${block.alt.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`), `${route}: published image alt missing: ${block.alt}`); continue; }
    const texts = block.kind === "list" ? block.items : [block.text];
    for (const source of texts) { const text = normalize(block.kind === "code" ? source : plain(source)); assert.ok(visible.includes(text), `${route}: published ${block.kind} missing from initial HTML: ${text.slice(0, 80)}`); blocks++; }
   }

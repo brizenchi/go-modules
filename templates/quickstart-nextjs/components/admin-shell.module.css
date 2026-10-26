@@ -273,3 +273,20 @@
 .navigationHint { margin: 0; color: var(--muted); font-size: 12px; }
 .navigationProblems { margin: 0; padding: 12px 14px 12px 30px; border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--danger); font-size: 12px; line-height: 1.8; }
 @media (max-width: 640px) { .navigationButton { min-height: 44px; min-width: 44px; } }
+.writingPanel { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 16px; background: var(--surface); }
+.writingPanel > summary { padding: 12px 0; font-weight: 650; cursor: pointer; }
+.writingPanel > fieldset { padding-bottom: 16px; }
+.writingHint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.writingImages { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); }
+.writingImages h2 { margin: 0; font-size: 14px; font-weight: 650; }
+.writingImages ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.writingImages li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 12px; border-radius: 7px; background: var(--surface); font-size: 13px; }
+.writingImages small { display: block; margin-top: 2px; color: var(--muted); line-height: 1.6; }
+.imageInsert { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.imageInsert > .field { flex: 1 1 260px; }
+.translatePanel { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.translatePanel legend { padding: 0 6px; font-size: 14px; font-weight: 650; }
+.translatePanel > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.translateTargets { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.translateTargets label { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; font-size: 13px; }
+.translateTargets small { color: var(--muted); }

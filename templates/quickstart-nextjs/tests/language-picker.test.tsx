@@ -43,3 +43,13 @@ test("English stays above Chinese regardless of the selected language", () => {
     }
   }
 });
+
+test("an article links to each language it is published in; private pages offer interface languages only", () => {
+  const html = renderToStaticMarkup(<LanguagePicker locale="ja" label="Choose language" destinations={{ en: "/docs/setup", ja: "/ja/docs/setup", de: "/de/docs/setup" }} onSelect={() => {}} />);
+  assert.match(html, /aria-label="Choose language: 日本語"/);
+  assert.match(html, /<a hrefLang="ja"[^>]*href="\/ja\/docs\/setup"/);
+  assert.match(html, /hrefLang="de"/);
+  assert.ok(!html.includes('hrefLang="zh-CN"'), "unpublished languages are not offered");
+  const workspace = renderToStaticMarkup(<LanguagePicker locale="en" label="Choose language" onSelect={() => {}} />);
+  assert.ok(!workspace.includes("日本語"));
+});

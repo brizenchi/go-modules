@@ -9,6 +9,7 @@ import { getOperatorAuthorization } from "@/lib/operations-api";
 import { useSitePresentation } from "./site-presentation";
 import { appEnv } from "@/lib/env";
 import { useI18n } from "@/lib/i18n";
+import { interfaceLocale } from "@/lib/locale";
 import { ConsoleError, useConsoleAction, useConsoleResource, useConsoleSession } from "./console-kit";
 import { LanguagePicker } from "./language-picker";
 import { AdminSignInPanel } from "./admin-sign-in-panel";
@@ -74,7 +75,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     return () => desktop.removeEventListener("change", close);
   }, []);
   function signOut() { void action.run(() => logout(token), () => {}); }
-  const languageSwitch = <LanguagePicker locale={locale} label={t({ en: "Choose language", zh: "选择语言" })} onSelect={setLocale} />;
+  const languageSwitch = <LanguagePicker locale={locale} label={t({ en: "Choose language", zh: "选择语言" })} onSelect={value => setLocale(interfaceLocale(value))} />;
   const brand = <Link className={styles.brand} href="/" aria-label={`${siteName} · ${t({ en: "Home", zh: "首页" })}`}>
     <BrandMark className={styles.brandMark} />
     <strong>{siteName}</strong><span className={styles.tag}>{t({ en: "Admin", zh: "管理后台" })}</span>

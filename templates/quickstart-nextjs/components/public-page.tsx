@@ -2,7 +2,8 @@ import { discoveryIndex, homeStructuredData, isManagedPath, managedPagePaths, pu
 import { StructuredData } from "./structured-data";
 import { pagePresentation } from "@/lib/page-presentation";
 import { appEnv } from "@/lib/env";
-import type { Locale } from "@/lib/locale";
+import { isInterfaceLocale, type ContentLocale, type Locale } from "@/lib/locale";
+import { isEditorialPath } from "@/lib/content-discovery";
 import { PublishedContentArticle, PublishedContentIndex } from "./published-content";
 import { ManagedHome } from "./content/managed-home";
 import { ManagedPage } from "./managed-page";
@@ -20,7 +21,15 @@ import { marketingCategories, getMarketingPage } from "@/content/marketing";
 import { findDocumentation } from "@/content/docs";
 import { findArticle } from "@/content/articles";
 
-export async function PublicPage({ path, locale="en" }: { path: string; locale?: Locale }) {
+/** `contentLocale` renders an article in a language without an interface translation:
+ * only published articles exist there, with the interface in English. */
+export async function PublicPage({ path, locale="en", contentLocale }: { path: string; locale?: Locale; contentLocale?: ContentLocale }) {
+ if (contentLocale && !isInterfaceLocale(contentLocale)) {
+  if (!isEditorialPath(path)) notFound();
+  const resolved = await publishedArticle(path, contentLocale);
+  if (!resolved.article) notFound();
+  return <PublishedContentArticle article={resolved.article} entries={await discoveryIndex(contentLocale)} contentLocale={contentLocale} />;
+ }
  if (isManagedPath(path)) {
   const resolved = await publishedArticle(path, locale);
   if (resolved.managed) {

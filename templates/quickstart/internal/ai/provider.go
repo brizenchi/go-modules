@@ -19,5 +19,5 @@ func New(cfg hostcfg.AIConfig, client *http.Client) (aix.Generator, error) {
 	if !cfg.Enabled {
 		return nil, ErrDisabled
 	}
-	return aix.New(aix.Config{BaseURL: cfg.BaseURL, APIKey: cfg.APIKey, Model: cfg.Model, MaxOutputTokens: cfg.MaxOutputTokens}, client)
+	return aix.New(cfg.Client(), client)
 }

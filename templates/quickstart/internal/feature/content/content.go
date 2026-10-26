@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -146,7 +147,7 @@ func read(ctx context.Context, db *gorm.DB, id string) (Article, error) {
 	return Article{}, ErrNotFound
 }
 func (s *Service) Resolve(ctx context.Context, path, locale string) (*Article, error) {
-	if !ValidPath(path) || (locale != "en" && locale != "zh") {
+	if !ValidPath(path) || !ValidLocale(locale) {
 		return nil, ErrInvalid
 	}
 	var record Record
@@ -189,6 +190,13 @@ func validKind(path, kind string) bool {
 	return validPath.MatchString(path) && strings.HasPrefix(path, "/"+kind+"/")
 }
 
+// Locales are the languages an article can be written and published in, in
+// display order. English is the default; the site interface covers en and zh.
+var Locales = []string{"en", "zh", "ja", "ko", "es", "fr", "de"}
+
+// ValidLocale reports whether articles can be stored in locale.
+func ValidLocale(locale string) bool { return slices.Contains(Locales, locale) }
+
 var validPath = regexp.MustCompile(`^/(blog|docs|features|use-cases|compare)/[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 // ValidArticlePath reports whether path is a publishable article such as /docs/setup.
@@ -204,11 +212,11 @@ type Save struct {
 }
 
 func Valid(in Save) bool {
-	if !validKind(in.Path, in.Kind) || len(in.Path) > 200 || in.Position < 0 || in.Position > 100000 || len(in.Translations) > 2 {
+	if !validKind(in.Path, in.Kind) || len(in.Path) > 200 || in.Position < 0 || in.Position > 100000 || len(in.Translations) > len(Locales) {
 		return false
 	}
 	for locale, t := range in.Translations {
-		if locale != "en" && locale != "zh" {
+		if !ValidLocale(locale) {
 			return false
 		}
 		if !utf8.ValidString(t.Body) || len(t.Body) > 150000 || utf8.RuneCountInString(t.Title) > 160 || utf8.RuneCountInString(t.Summary) > 500 || utf8.RuneCountInString(t.SEOTitle) > 160 || utf8.RuneCountInString(t.SEODescription) > 500 {
@@ -315,7 +323,7 @@ type Publish struct {
 }
 
 func (s *Service) Publish(ctx context.Context, id, actor, key string, in Publish) (Article, error) {
-	if (in.Locale != "en" && in.Locale != "zh") || (in.Action != "publish" && in.Action != "unpublish") {
+	if !ValidLocale(in.Locale) || (in.Action != "publish" && in.Action != "unpublish") {
 		return Article{}, ErrInvalid
 	}
 	operation := audit.Operation{ActorID: actor, IdempotencyKey: key, Action: "content." + in.Action, TargetID: id, Reason: in.Reason, RequestHash: audit.Hash(in), Status: "pending"}

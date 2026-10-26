@@ -54,7 +54,8 @@ function load(name,parent=''){
   if(key==='next/link')return{__esModule:true,default:({href,onClick,onNavigate,...props})=>icon('a',{...props,href,onClick:event=>{event.preventDefault();onClick?.(event);onNavigate?.()}})};
   if(key==='next/navigation')return{usePathname:()=>supportFixture?'/contact':'/resources',useRouter:()=>({replace:path=>fixture.redirects.push(path)})};
   if(key==='lib/i18n')return i18n;
-  if(key==='components/site-presentation')return{useSitePresentation:()=>null};
+  // The guide fixture saves menus as an administrator could; the support fixture keeps the defaults.
+  if(key==='components/site-presentation')return{useSitePresentation:()=>supportFixture?null:{navigation:{version:1,header:[{section:'features',label:{en:'',zh:''},menu:'auto',items:[]},{section:'use-cases',label:{en:'',zh:''},menu:'auto',items:[]}],footer:[{title:{en:'Product',zh:'产品'},links:['features','use-cases','compare','examples','pricing']},{title:{en:'About & support',zh:'关于与支持'},links:['about','contact']}]}}};
   if(supportFixture && key==='components/account-menu')return{AccountMenu:()=>null};
   if(supportFixture && key==='components/locale-switch')return{LocaleSwitch:()=>null};
   if(supportFixture && key==='components/customer-shell')return{CustomerPage:()=>null};
@@ -151,7 +152,7 @@ try {
     await evaluate("fixture.reset()");await settle();await evaluate("document.querySelector('.account-menu > button').click()");await settle();
     await evaluate(`fixture.click('${signout}');fixture.session={...fixture.session,token:'newer-login'};dispatchEvent(new Event('fixture-session'));fixture.resolve()`);await settle();
     await check("fixture.session.token==='newer-login' && fixture.redirects.length===1",tag+': old logout preserves newer login');
-    await check("document.querySelectorAll('.main-nav-item > .main-nav-link').length===2",tag+': default header has Features and Use cases');
+    await check("document.querySelectorAll('.main-nav-item > .main-nav-link').length===2",tag+': saved header has Features and Use cases');
     await check("!document.querySelector('.main-nav button, .main-nav svg, .main-nav [aria-expanded]')",tag+': menus need no scripted controls');
     const prefix=locale==='zh'?'/zh':'';
     const featureLinks=JSON.stringify(["/features/authentication","/features/credits"].map(path=>prefix+path));
@@ -211,6 +212,7 @@ try {
     await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': support page fits viewport');
     await check("(()=>{const bar=document.querySelector('.topbar-inner');return bar.scrollWidth<=bar.clientWidth+1})()",tag+': header tools fit the bar');
     await check("!document.querySelector('.topbar-tools a')",tag+': header tools hold only language and account');
+    await check(`JSON.stringify([...document.querySelectorAll('.main-nav-item > .main-nav-link')].map(a=>a.getAttribute('href')))===${JSON.stringify(JSON.stringify(["", "/features", "/use-cases", "/compare", "/pricing"].map(path=>(locale==='zh'?'/zh':'')+path).map(path=>path||'/')))} && !document.querySelector('.main-nav-menu')`,tag+': default header is one level: home, features, use cases, comparisons, pricing');
     await screenshot(tag);
   }}
   for(const locale of ["en","zh"]){for(const width of [1440,390]){

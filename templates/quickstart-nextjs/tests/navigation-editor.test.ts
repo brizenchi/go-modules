@@ -7,10 +7,10 @@ import { addHeaderItem, articleOptions, moveItem, navigationPayload, navigationP
 const published = (path: string, kind: PublishedArticle["kind"], title: string) => ({ id: path, path, kind, title, translation: { title, summary: "", body: "", seo_title: "", seo_description: "" } }) as unknown as PublishedArticle;
 
 test("menu choices are published articles from either language, listed once", () => {
-  const options = articleOptions(
-    [published("/features/credits", "features", "Credits"), published("/", "page", "Home")],
-    [published("/features/credits", "features", "积分"), published("/docs/setup", "docs", "配置")]
-  );
+  const options = articleOptions([
+    published("/features/credits", "features", "Credits"), published("/", "page", "Home"),
+    published("/features/credits", "features", "积分"), published("/docs/setup", "docs", "配置")
+  ]);
   assert.deepEqual(options, [{ path: "/docs/setup", kind: "docs", title: "配置" }, { path: "/features/credits", kind: "features", title: "Credits" }]);
 });
 
@@ -22,14 +22,16 @@ test("items move within bounds and can be removed", () => {
 });
 
 test("adding a section picks a menu it supports and never repeats a section", () => {
-  let navigation: SiteNavigation = addHeaderItem(defaultNavigation, "pricing");
-  assert.deepEqual(navigation.header.at(-1), { section: "pricing", label: { en: "", zh: "" }, menu: "none", items: [] });
+  const start: SiteNavigation = { ...defaultNavigation, header: defaultNavigation.header.slice(0, 2) };
+  let navigation = addHeaderItem(start, "about");
+  assert.deepEqual(navigation.header.at(-1), { section: "about", label: { en: "", zh: "" }, menu: "none", items: [] });
   navigation = addHeaderItem(navigation, "resources");
   assert.equal(navigation.header.at(-1)?.menu, "auto");
-  assert.equal(addHeaderItem(navigation, "pricing"), navigation);
+  assert.equal(addHeaderItem(navigation, "about"), navigation);
+  assert.equal(addHeaderItem(defaultNavigation, "docs").header.length, 6);
   assert.ok(!unusedHeaderSections(navigation).includes("features"));
-  assert.ok(!unusedFooterSections(defaultNavigation).includes("docs"));
-  assert.ok(unusedFooterSections(defaultNavigation).includes("resources"));
+  assert.ok(!unusedFooterSections(defaultNavigation).includes("pricing"));
+  assert.ok(unusedFooterSections(defaultNavigation).includes("docs"));
 });
 
 test("the editor reports what the backend would reject", () => {

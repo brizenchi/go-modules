@@ -105,7 +105,7 @@ func localOrigin(raw string) (string, error) {
 	return strings.TrimSuffix(u.String(), "/"), nil
 }
 
-func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
+func newPreview(frontend, adminPassword string, writing hostcfg.AIConfig) (_ *previewApp, err error) {
 	frontend, err = localOrigin(frontend)
 	if err != nil {
 		return nil, err
@@ -184,7 +184,7 @@ func newPreview(frontend, adminPassword string) (_ *previewApp, err error) {
 		return nil, err
 	}
 	installPreviewListeners(app.modules)
-	deps := hostapi.Deps{DB: db, Modules: app.modules, Users: app.modules.Users, ServiceSettings: serviceSettings, Config: hostcfg.Config{SignupCredits: previewInitialCredits, Uploads: hostcfg.UploadConfig{Enabled: true, Provider: "local", Directory: filepath.Join(directory, "private-images")}}}
+	deps := hostapi.Deps{DB: db, Modules: app.modules, Users: app.modules.Users, ServiceSettings: serviceSettings, Config: hostcfg.Config{SignupCredits: previewInitialCredits, AI: writing, Uploads: hostcfg.UploadConfig{Enabled: true, Provider: "local", Directory: filepath.Join(directory, "private-images")}}}
 	// Reuse production auth middleware, API routes, settings, and feature wiring.
 	app.handler = middleware.BuildRouter(middleware.RouterConfig{ServiceName: cfg.ServiceName, AllowedOrigins: []string{frontend, "http://localhost:3000", "http://localhost:3100", "http://127.0.0.1:3000", "http://127.0.0.1:3100"}}, apphttp.NewRouter(app.modules, deps))
 	return app, nil
@@ -223,9 +223,9 @@ func runPreview(ctx context.Context, port int, frontend string) error {
 	if port < 1 || port > 65535 {
 		return errors.New("port must be between 1 and 65535")
 	}
-	// Only this explicitly supported credential is read from the environment.
+	// Only these explicitly supported credentials are read from the environment.
 	// Provider and database configuration remain isolated from deployment values.
-	app, err := newPreview(frontend, os.Getenv("APP_AUTH_ADMIN_PASSWORD"))
+	app, err := newPreview(frontend, os.Getenv("APP_AUTH_ADMIN_PASSWORD"), previewAI(os.Getenv))
 	if err != nil {
 		return err
 	}
@@ -279,4 +279,22 @@ func main() {
 		log.Printf("preview stopped: %v", err)
 		os.Exit(1)
 	}
+}
+
+// previewAI enables admin AI writing only when PREVIEW_AI_API_KEY is set, with
+// Gemini defaults that PREVIEW_AI_MODEL and PREVIEW_AI_BASE_URL may override.
+// The key is never printed.
+func previewAI(env func(string) string) hostcfg.AIConfig {
+	key := strings.TrimSpace(env("PREVIEW_AI_API_KEY"))
+	if key == "" {
+		return hostcfg.AIConfig{}
+	}
+	cfg := hostcfg.AIConfig{Enabled: true, BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", APIKey: key, Model: "gemini-3.8-flash", MaxOutputTokens: 32768, ReasoningEffort: "low", TimeoutSeconds: 180}
+	if model := strings.TrimSpace(env("PREVIEW_AI_MODEL")); model != "" {
+		cfg.Model = model
+	}
+	if base := strings.TrimSpace(env("PREVIEW_AI_BASE_URL")); base != "" {
+		cfg.BaseURL = base
+	}
+	return cfg
 }

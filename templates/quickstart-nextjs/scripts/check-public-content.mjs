@@ -7,7 +7,13 @@ const sitemap = readFileSync(join(root, "sitemap.xml.body"), "utf8");
 const urls = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => new URL(match[1]));
 const paths = new Set(urls.map(url => url.pathname));
 const pages = urls.map(url => url.pathname === "/" ? "index.html" : `${url.pathname.slice(1)}.html`);
-const articlePages = pages.filter(page => /^(zh\/)?(docs|blog)\//.test(page));
+// Article languages beyond the interface languages: /ja/docs/setup and so on.
+const languageTags = { en: "en", zh: "zh-CN", ja: "ja", ko: "ko", es: "es", fr: "fr", de: "de" };
+const prefixed = "zh|ja|ko|es|fr|de";
+const languageOf = path => path.match(new RegExp(`^/(${prefixed})(?=/|$)`))?.[1] || "en";
+const baseOf = path => path.replace(new RegExp(`^/(${prefixed})(?=/|$)`), "") || "/";
+const inLanguage = (base, language) => language === "en" ? base : base === "/" ? `/${language}` : `/${language}${base}`;
+const articlePages = pages.filter(page => new RegExp(`^((${prefixed})/)?(docs|blog)/`).test(page));
 const canonicals = new Set();
 const brands = new Map();
 const pageFile = path => path === "/" ? "index.html" : `${path.slice(1)}.html`;
@@ -40,16 +46,14 @@ for (const page of pages) {
   assert.ok(canonicalHref, `${page}: canonical exists`);
   const canonical = new URL(canonicalHref).href;
   const path = new URL(canonical).pathname;
-  const chinese = path === "/zh" || path.startsWith("/zh/");
-  assert.ok(rendered.includes(`lang="${chinese ? "zh-CN" : "en"}"`), `${page}: server-rendered language`);
+  assert.ok(rendered.includes(`lang="${languageTags[languageOf(path)]}"`), `${page}: server-rendered language`);
   assert.ok(!html.includes('content="noindex'), `${page}: public content is indexable`);
-  const basePath = path.replace(/^\/zh(?=\/|$)/, "") || "/";
+  const basePath = baseOf(path);
   const expectedLanguages = [
-    ...(paths.has(basePath) ? ["en"] : []),
-    ...(paths.has(basePath === "/" ? "/zh" : `/zh${basePath}`) ? ["zh-CN"] : []),
+    ...Object.entries(languageTags).filter(([language]) => paths.has(inLanguage(basePath, language))).map(([, tag]) => tag),
     "x-default"
   ];
-  for (const language of ["en", "zh-CN", "x-default"]) {
+  for (const language of [...Object.values(languageTags), "x-default"]) {
     const alternate = [...html.matchAll(/<link[^>]+>/g)].find(match => match[0].includes(`hrefLang="${language}"`) || match[0].includes(`hreflang="${language}"`))?.[0];
     if (!expectedLanguages.includes(language)) {
       assert.ok(!alternate, `${page}: unpublished ${language} alternative is absent`);
@@ -60,7 +64,7 @@ for (const page of pages) {
   }
   for (const match of rendered.matchAll(/href="(\/[^"#?]*)[^"]*"/g)) {
     const target = match[1];
-    if (/^\/(?:zh(?:\/|$)|features(?:\/|$)|use-cases(?:\/|$)|compare(?:\/|$)|examples(?:\/|$)|docs(?:\/|$)|blog(?:\/|$)|resources$|about$)/.test(target)) {
+    if (/^\/(?:(?:zh|ja|ko|es|fr|de)(?:\/|$)|features(?:\/|$)|use-cases(?:\/|$)|compare(?:\/|$)|examples(?:\/|$)|docs(?:\/|$)|blog(?:\/|$)|resources$|about$)/.test(target)) {
       assert.ok(paths.has(target) || shellPaths.has(target), `${page}: available internal link ${target}`);
     }
   }
@@ -78,11 +82,11 @@ for (const page of pages) {
     assert.equal(breadcrumb?.itemListElement.at(-1).item, canonical, `${page}: breadcrumb canonical`);
   }
   if (articlePages.includes(page)) {
-    const article = schemas.find((schema) => schema["@type"] === (/^(zh\/)?docs\//.test(page) ? "TechArticle" : "BlogPosting"));
+    const article = schemas.find((schema) => schema["@type"] === (new RegExp(`^((${prefixed})/)?docs/`).test(page) ? "TechArticle" : "BlogPosting"));
     assert.equal(article?.url, canonical, `${page}: article canonical`);
     assert.ok(rendered.includes("<article"), `${page}: article in initial HTML`);
   }
-  if (/^(zh\/)?(features|use-cases|compare)\//.test(page)) {
+  if (new RegExp(`^((${prefixed})/)?(features|use-cases|compare)/`).test(page)) {
     assert.equal(schemas.find(schema => schema["@type"] === "WebPage")?.url, canonical, `${page}: product page is a WebPage, not an Article`);
   }
   if (page === "index.html" || page === "zh.html") {
@@ -155,19 +159,26 @@ for (const path of graphPaths) {
     .map(url => url.pathname);
   edges.set(path, targets);
 }
+const depths = {};
 for (const home of ["/", "/zh"]) {
   const depth = new Map([[home, 0]]);
   const queue = [home];
   for (const source of queue) {
     for (const target of edges.get(source) || []) {
-      if ((target === "/zh" || target.startsWith("/zh/")) !== (home === "/zh")) continue;
+      const language = languageOf(target);
+      // Each interface graph stays in its language; article languages join either.
+      if ((language === "en" || language === "zh") && (language === "zh") !== (home === "/zh")) continue;
       if (!depth.has(target)) { depth.set(target, depth.get(source) + 1); queue.push(target); }
     }
   }
-  for (const path of paths) {
-    if ((path === "/zh" || path.startsWith("/zh/")) !== (home === "/zh")) continue;
-    assert.ok(depth.has(path) && depth.get(path) <= 3, `${path}: reachable within three clicks without the global footer (depth: ${depth.get(path) ?? "unreachable"})`);
-  }
+  depths[home] = depth;
+}
+for (const path of paths) {
+  const language = languageOf(path);
+  const depth = language === "en" ? depths["/"].get(path) : language === "zh" ? depths["/zh"].get(path) : Math.min(depths["/"].get(path) ?? Infinity, depths["/zh"].get(path) ?? Infinity);
+  assert.ok(depth !== undefined && depth <= 3, `${path}: reachable within three clicks without the global footer (depth: ${depth ?? "unreachable"})`);
+}
+for (const home of ["/", "/zh"]) {
   const guidePage = home === "/" ? "resources.html" : "zh/resources.html";
   const guideMain = withoutScripts(readFileSync(join(root, guidePage), "utf8")).match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || "";
   for (const directory of ["docs", "blog", "updates"]) {
@@ -180,7 +191,7 @@ for (const home of ["/", "/zh"]) {
 console.log(`Public content checks passed: ${pages.length} pages, ${articlePages.length} articles, headings, anchors, canonical URLs, JSON-LD, sitemap and three-click discovery without the global footer.`);
 
 for (const path of new Set([...paths, ...shellPaths])) {
-  const base = path.replace(/^\/zh(?=\/|$)/, "") || "/";
+  const base = baseOf(path);
   if (!/^\/(docs|blog|updates)(?:\/|$)/.test(base)) continue;
   const html = readFileSync(join(root, pageFile(path)), "utf8");
   const schemas = [...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
