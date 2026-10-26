@@ -138,3 +138,16 @@ referral:
 Host-owned configuration lives in `host.ai` / `APP_HOST_AI_*`: `enabled` (default false), `base_url` (HTTPS API base), `api_key` (server secret), `model`, and `max_output_tokens` (default 1024, maximum 4096). Invalid enabled configuration fails startup validation. Restart after changes. Public configuration and browser variables never contain the key.
 
 Configuration supplies the `internal/ai` factory; products explicitly inject the resulting `foundation/aix.Generator` into their own features. It opens no default AI routes and defines no conversation storage, daily quota, subscription or credit policy. See `templates/quickstart-nextjs/EXTENSIONS.md` and `foundation/aix/README.md` for integration and transport limits.
+
+## 内容 AI 翻译
+
+`host.content_translation` / `APP_HOST_CONTENT_TRANSLATION_*` 独立管理内容管理的中英 AI 翻译，不复用 `host.ai` 的协议假设：
+`enabled`（默认 false）、`base_url`（固定 HTTPS 根地址，禁止凭据、查询参数与 fragment）、`model`、`max_output_tokens`
+（默认 16384）、`max_zh_characters`（默认 5000，中文按非空白 Unicode 字符计数）、`max_en_words`（默认 3000，英文按
+空白分词计数）、`request_timeout_seconds`（默认 240）与 `task_timeout_seconds`（默认 1200）。协议为 Gemini 原生
+`/v1beta/models/{model}:generateContent`，经 `x-goog-api-key` 认证。
+
+Key 仅经 `APP_HOST_CONTENT_TRANSLATION_API_KEY` 或未提交的本地 `.env` 提供，不写入 YAML 示例、Git 或日志。启用时
+启动校验要求 Key、模型、地址及全部正数限制，且单次请求超时不得大于任务总超时；禁用时无需 Key。适配器基于注入
+`platform.Config.HTTPClient` 的副本运行并拒绝跨地址重定向。修改配置后重启后端；第一版没有管理后台配置和热更新。
+实施方案见 `docs/plans/2026-10-26-content-ai-translation.md`。

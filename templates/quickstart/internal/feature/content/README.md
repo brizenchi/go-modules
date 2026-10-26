@@ -1,5 +1,18 @@
 # Editorial content ownership
 
+## AI translation
+
+Admins confirm one source language per article, then run "Translate & check".
+The job lands in `content_translation_jobs`, is leased by an in-process worker
+and runs the bounded pipeline — generate, programmatic structure check, AI
+review, at most one repair plus recheck (four model calls maximum). Results
+replace only the target-language draft; quality warnings stay publishable and
+technical failures keep every previous draft and live snapshot. Translation
+metadata (source hash, draft hash, check status, Chinese issues) is written
+only by the server into `content_articles.translation_meta_json`. Configuration
+lives in `docs/CONFIG_STANDARD.md` (内容 AI 翻译); the full contract and
+acceptance record are in `docs/plans/2026-10-26-content-ai-translation.md`.
+
 `seed.json` is a reviewed bilingual **import pack**, not a public read fallback.
 It contains 34 records: 9 pages/introductions, 12 documentation entries, 3 product
 articles, 6 feature details, 3 use cases and 1 comparison. Import timestamps are

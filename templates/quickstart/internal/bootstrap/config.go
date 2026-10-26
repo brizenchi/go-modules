@@ -182,6 +182,21 @@ func applyDefaults(cfg *AppConfig) {
 	if strings.TrimSpace(cfg.Referral.BaseLink) == "" {
 		cfg.Referral.BaseLink = frontendOriginOrDefault(cfg.Auth.FrontendRedirect) + "/invite?ref="
 	}
+	if cfg.Host.ContentTranslation.MaxOutputTokens == 0 {
+		cfg.Host.ContentTranslation.MaxOutputTokens = 16384
+	}
+	if cfg.Host.ContentTranslation.MaxZhCharacters == 0 {
+		cfg.Host.ContentTranslation.MaxZhCharacters = 5000
+	}
+	if cfg.Host.ContentTranslation.MaxEnWords == 0 {
+		cfg.Host.ContentTranslation.MaxEnWords = 3000
+	}
+	if cfg.Host.ContentTranslation.RequestTimeoutSeconds == 0 {
+		cfg.Host.ContentTranslation.RequestTimeoutSeconds = 240
+	}
+	if cfg.Host.ContentTranslation.TaskTimeoutSeconds == 0 {
+		cfg.Host.ContentTranslation.TaskTimeoutSeconds = 1200
+	}
 	if cfg.HTTP.ReadHeaderTimeoutSecond <= 0 {
 		cfg.HTTP.ReadHeaderTimeoutSecond = 10
 	}
@@ -210,6 +225,9 @@ func applyDefaults(cfg *AppConfig) {
 
 func (c AppConfig) Validate() error {
 	if err := c.Host.AI.Validate(); err != nil {
+		return err
+	}
+	if err := c.Host.ContentTranslation.Validate(); err != nil {
 		return err
 	}
 	modules := c.ModuleConfig()

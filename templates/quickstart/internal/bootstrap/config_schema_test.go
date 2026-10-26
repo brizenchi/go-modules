@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	foundationconfig "github.com/brizenchi/go-modules/foundation/config"
+	"github.com/brizenchi/quickstart-template/internal/hostcfg"
 )
 
 func falsePtr() *bool {
@@ -491,5 +492,92 @@ func TestAIEnvironmentConfiguration(t *testing.T) {
 	}
 	if !cfg.Host.AI.Enabled || cfg.Host.AI.Model != "example-model" || cfg.Host.AI.MaxOutputTokens != 2048 || cfg.Host.AI.Validate() != nil {
 		t.Fatal("AI environment schema mapping failed")
+	}
+}
+
+func TestContentTranslationEnvironmentConfiguration(t *testing.T) {
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_ENABLED", "true")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_BASE_URL", "https://api.aigocode.dev")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_API_KEY", "aistudio_test_not-a-real-key")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_MODEL", "gemini-3.8-flash")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_MAX_OUTPUT_TOKENS", "16384")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_MAX_ZH_CHARACTERS", "5000")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_MAX_EN_WORDS", "3000")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_REQUEST_TIMEOUT_SECONDS", "90")
+	t.Setenv("QUICKSTART_CT_HOST_CONTENT_TRANSLATION_TASK_TIMEOUT_SECONDS", "420")
+	source, err := os.ReadFile("../../deploy/config.yaml.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err = os.WriteFile(path, source, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var cfg AppConfig
+	if err = foundationconfig.Load(path, "QUICKSTART_CT", &cfg); err != nil {
+		t.Fatal(err)
+	}
+	translation := cfg.Host.ContentTranslation
+	if !translation.Enabled || translation.BaseURL != "https://api.aigocode.dev" || translation.Model != "gemini-3.8-flash" ||
+		translation.MaxOutputTokens != 16384 || translation.MaxZhCharacters != 5000 || translation.MaxEnWords != 3000 ||
+		translation.RequestTimeoutSeconds != 90 || translation.TaskTimeoutSeconds != 420 {
+		t.Fatalf("content translation mapping: %+v", translation)
+	}
+	if translation.Validate() != nil {
+		t.Fatal("enabled content translation must validate with complete values")
+	}
+}
+
+func enabledContentTranslationForTest() hostcfg.ContentTranslationConfig {
+	return hostcfg.ContentTranslationConfig{
+		Enabled:               true,
+		BaseURL:               "https://api.aigocode.dev",
+		APIKey:                "aistudio_test_not-a-real-key",
+		Model:                 "gemini-3.8-flash",
+		MaxOutputTokens:       16384,
+		MaxZhCharacters:       5000,
+		MaxEnWords:            3000,
+		RequestTimeoutSeconds: 90,
+		TaskTimeoutSeconds:    420,
+	}
+}
+
+func TestValidateRejectsInvalidContentTranslationConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*hostcfg.ContentTranslationConfig)
+		want      string
+	}{
+		{name: "missing key", configure: func(c *hostcfg.ContentTranslationConfig) { c.APIKey = "" }, want: "content_translation"},
+		{name: "missing model", configure: func(c *hostcfg.ContentTranslationConfig) { c.Model = "" }, want: "content_translation"},
+		{name: "plain http base", configure: func(c *hostcfg.ContentTranslationConfig) { c.BaseURL = "http://api.example.com" }, want: "content_translation"},
+		{name: "base with query", configure: func(c *hostcfg.ContentTranslationConfig) { c.BaseURL = "https://api.example.com?key=1" }, want: "content_translation"},
+		{name: "base with fragment", configure: func(c *hostcfg.ContentTranslationConfig) { c.BaseURL = "https://api.example.com#frag" }, want: "content_translation"},
+		{name: "zero output tokens", configure: func(c *hostcfg.ContentTranslationConfig) { c.MaxOutputTokens = -1 }, want: "content_translation"},
+		{name: "negative zh characters", configure: func(c *hostcfg.ContentTranslationConfig) { c.MaxZhCharacters = -5 }, want: "content_translation"},
+		{name: "zero en words", configure: func(c *hostcfg.ContentTranslationConfig) { c.MaxEnWords = -5 }, want: "content_translation"},
+		{name: "request timeout beyond task timeout", configure: func(c *hostcfg.ContentTranslationConfig) {
+			c.RequestTimeoutSeconds = 500
+			c.TaskTimeoutSeconds = 420
+		}, want: "content_translation"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := productionConfigForTest()
+			cfg.Host.ContentTranslation = enabledContentTranslationForTest()
+			tt.configure(&cfg.Host.ContentTranslation)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate error=%v want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateAcceptsDisabledContentTranslationWithoutCredentials(t *testing.T) {
+	cfg := productionConfigForTest()
+	cfg.Host.ContentTranslation = hostcfg.ContentTranslationConfig{}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("disabled content translation must not require credentials: %v", err)
 	}
 }

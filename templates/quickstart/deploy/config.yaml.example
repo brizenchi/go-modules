@@ -137,6 +137,18 @@ host:
     api_key: ""
     model: ""
     max_output_tokens: 1024
+  content_translation:
+    enabled: false
+    # Gemini 原生协议端点；文档地址与实际可用地址（.dev / .app）接入前必须实测。
+    base_url: "https://api.aigocode.dev"
+    # Key 只经 APP_HOST_CONTENT_TRANSLATION_API_KEY 或本地 .env 提供，绝不写入本文件。
+    api_key: ""
+    model: "gemini-3.8-flash"
+    max_output_tokens: 16384
+    max_zh_characters: 5000    # 中文按非空白 Unicode 字符计
+    max_en_words: 3000         # 英文按空白分隔的词计
+    request_timeout_seconds: 240   # 思考型模型实测长文单次可达 ~90s，留足余量
+    task_timeout_seconds: 1200  # 覆盖最多四次调用；单次请求超时不得大于任务总超时
   signup_credits: 0
   uploads:
     enabled: false

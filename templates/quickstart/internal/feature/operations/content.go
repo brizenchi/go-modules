@@ -57,10 +57,15 @@ func (m *Module) article(c *gin.Context) {
 	if m.db(c) == nil {
 		return
 	}
-	row, err := m.contentService().Read(c.Request.Context(), c.Param("id"))
-	if !contentError(c, err) {
-		httpresp.OK(c, row)
+	service := m.contentService()
+	row, err := service.Read(c.Request.Context(), c.Param("id"))
+	if contentError(c, err) {
+		return
 	}
+	if jobID, err := service.ActiveTranslationJobID(c.Request.Context(), row.ID); err == nil {
+		row.ActiveTranslationJobID = jobID
+	}
+	httpresp.OK(c, content.MarkSourceStaleness(row))
 }
 func (m *Module) saveArticle(c *gin.Context) {
 	if m.db(c) == nil {
@@ -77,7 +82,7 @@ func (m *Module) saveArticle(c *gin.Context) {
 	}
 	row, err := m.contentService().Save(c.Request.Context(), c.Param("id"), userID(c), key, in)
 	if !contentError(c, err) {
-		httpresp.OK(c, row)
+		httpresp.OK(c, content.MarkSourceStaleness(row))
 	}
 }
 func (m *Module) publishArticle(c *gin.Context) {
@@ -94,7 +99,7 @@ func (m *Module) publishArticle(c *gin.Context) {
 	}
 	row, err := m.contentService().Publish(c.Request.Context(), c.Param("id"), userID(c), key, in)
 	if !contentError(c, err) {
-		httpresp.OK(c, row)
+		httpresp.OK(c, content.MarkSourceStaleness(row))
 	}
 }
 

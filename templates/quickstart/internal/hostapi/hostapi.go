@@ -12,6 +12,8 @@ package hostapi
 import (
 	"context"
 	"fmt"
+	"net/http"
+
 	"github.com/brizenchi/quickstart-template/internal/audit"
 	"github.com/brizenchi/quickstart-template/internal/credit"
 	"github.com/brizenchi/quickstart-template/internal/hostcfg"
@@ -50,6 +52,11 @@ type Deps struct {
 
 	// Config is your own business config from internal/hostcfg.
 	Config hostcfg.Config
+
+	// HTTPClient is the shared instrumented outbound client. Features that
+	// call third-party APIs should copy it (never mutate it); nil means the
+	// feature builds its own default from platform.NewOutboundHTTPClient.
+	HTTPClient *http.Client
 
 	// ServiceSettings manages administrator-owned provider configuration. Saved
 	// changes apply on the next backend start; nil disables configuration editing.

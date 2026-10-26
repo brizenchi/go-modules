@@ -199,7 +199,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     (response.ok ? "request failed" : `http ${response.status}`);
   const bodyCode = typeof envelope?.code === "number" ? envelope.code : response.status;
 
-  if (!response.ok || bodyCode !== 200) {
+  // Success follows HTTP semantics: any 2xx envelope code (202 Accepted for
+  // async jobs included) resolves; everything else is an ApiError.
+  if (!response.ok || bodyCode < 200 || bodyCode >= 300) {
     const error = new ApiError(message, response.status, bodyCode, envelope?.data, response.headers.get("x-request-id") || "");
     if ((response.status === 401 || bodyCode === 401) && options.authToken) {
       clearSessionIfToken(options.authToken);
@@ -584,8 +586,13 @@ export type OperatorAuthorization = { authorized: true };
 export type ContentTranslation = { title: string; summary: string; body: string; seo_title: string; seo_description: string };
 export type ContentPublication = ContentTranslation & { published_at: string };
 export type ContentKind = "page" | "blog" | "docs" | "features" | "use-cases" | "compare";
-export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translations: Partial<Record<"en" | "zh", ContentTranslation>>; published: Partial<Record<"en" | "zh", ContentPublication>>; updated_at: string };
-export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
+export type ContentLocale = "en" | "zh";
+export type ContentReviewIssue = { code: string; field: string; message_zh: string };
+export type ContentTranslationMeta = { source_locale: ContentLocale; source_hash: string; draft_hash: string; check_status: "passed" | "warning"; issues?: ContentReviewIssue[]; model: string; completed_at: string; job_id: string };
+export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; source_locale?: ContentLocale | ""; translations: Partial<Record<ContentLocale, ContentTranslation>>; published: Partial<Record<ContentLocale, ContentPublication>>; translation_meta?: Partial<Record<ContentLocale, ContentTranslationMeta>>; translation_source_updated?: Partial<Record<ContentLocale, boolean>>; active_translation_job_id?: string; updated_at: string };
+export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string; source_locale?: ContentLocale };
+export type ContentTranslationJob = { id: string; article_id: string; status: "queued" | "running" | "succeeded" | "failed"; phase: string; check_status?: "passed" | "warning"; issues?: ContentReviewIssue[]; reason?: string; article_version: number; created_at: string; updated_at: string };
+export type ContentTranslationSettings = { enabled: boolean; locales: ContentLocale[]; max_zh_characters: number; max_en_words: number };
 export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: Array<"en" | "zh"> };
 export type WebsiteSettings = { brand_name: string; logo_url?: string; description: string; description_zh?: string; headline_en?: string; headline_zh?: string; sender_email?: string; sender_name?: string; support_email: string; support_url: string; export_credit_cost: number; presentation_version?: number };
 

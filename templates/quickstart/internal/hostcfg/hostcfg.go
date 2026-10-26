@@ -10,11 +10,18 @@
 //	    enable_export: true        →  APP_HOST_FEATURE_ENABLE_EXPORT
 package hostcfg
 
-import "github.com/brizenchi/go-modules/foundation/aix"
+import (
+	"fmt"
+	"net/url"
+	"strings"
+
+	"github.com/brizenchi/go-modules/foundation/aix"
+)
 
 // Config 是当前 SaaS 的业务配置。
 type Config struct {
-	AI AIConfig `mapstructure:"ai"`
+	AI                 AIConfig                 `mapstructure:"ai"`
+	ContentTranslation ContentTranslationConfig `mapstructure:"content_translation"`
 
 	// SignupCredits 演示如何响应 UserSignedUp；设为 0 可关闭，
 	// 也可以在 host_hooks.go 中替换成当前 SaaS 自己的规则。
@@ -59,4 +66,39 @@ func (c AIConfig) Validate() error {
 		return nil
 	}
 	return (aix.Config{BaseURL: c.BaseURL, APIKey: c.APIKey, Model: c.Model, MaxOutputTokens: c.MaxOutputTokens}).Validate()
+}
+
+// ContentTranslationConfig owns the content AI translation integration. The
+// Gemini-native protocol is separate from host.ai; the key only ever comes
+// from APP_HOST_CONTENT_TRANSLATION_API_KEY or the uncommitted local .env.
+type ContentTranslationConfig struct {
+	Enabled               bool   `mapstructure:"enabled"`
+	BaseURL               string `mapstructure:"base_url"`
+	APIKey                string `mapstructure:"api_key" json:"-"`
+	Model                 string `mapstructure:"model"`
+	MaxOutputTokens       int    `mapstructure:"max_output_tokens"`
+	MaxZhCharacters       int    `mapstructure:"max_zh_characters"`
+	MaxEnWords            int    `mapstructure:"max_en_words"`
+	RequestTimeoutSeconds int    `mapstructure:"request_timeout_seconds"`
+	TaskTimeoutSeconds    int    `mapstructure:"task_timeout_seconds"`
+}
+
+func (c ContentTranslationConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	const name = "host.content_translation"
+	key := strings.TrimSpace(c.APIKey)
+	base := strings.TrimRight(strings.TrimSpace(c.BaseURL), "/")
+	model := strings.TrimSpace(c.Model)
+	if key == "" || strings.ContainsAny(key, "\r\n\x00") || model == "" || len(model) > 200 ||
+		c.MaxOutputTokens < 1 || c.MaxOutputTokens > 65536 || c.MaxZhCharacters < 1 || c.MaxEnWords < 1 ||
+		c.RequestTimeoutSeconds < 1 || c.TaskTimeoutSeconds < c.RequestTimeoutSeconds {
+		return fmt.Errorf("%s requires api key, model, positive limits and a request timeout within the task timeout", name)
+	}
+	u, err := url.Parse(base)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return fmt.Errorf("%s.base_url must be an https origin without credentials, query or fragment", name)
+	}
+	return nil
 }

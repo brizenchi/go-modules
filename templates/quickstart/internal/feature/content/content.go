@@ -38,28 +38,39 @@ type Publication struct {
 	PublishedAt time.Time `json:"published_at"`
 }
 type Article struct {
-	ID           string                 `json:"id"`
-	Path         string                 `json:"path"`
-	Kind         string                 `json:"kind"`
-	Position     int                    `json:"position"`
-	Version      int64                  `json:"version"`
-	Translations map[string]Translation `json:"translations"`
-	Published    map[string]Publication `json:"published"`
-	UpdatedAt    time.Time              `json:"updated_at"`
+	ID              string                     `json:"id"`
+	Path            string                     `json:"path"`
+	Kind            string                     `json:"kind"`
+	Position        int                        `json:"position"`
+	Version         int64                      `json:"version"`
+	SourceLocale    string                     `json:"source_locale"`
+	Translations    map[string]Translation     `json:"translations"`
+	Published       map[string]Publication     `json:"published"`
+	TranslationMeta map[string]TranslationMeta `json:"translation_meta"`
+	UpdatedAt       time.Time                  `json:"updated_at"`
+	// ActiveTranslationJobID is presentation state filled by the admin
+	// article endpoint; it is empty on public reads and persisted nowhere.
+	ActiveTranslationJobID string `json:"active_translation_job_id,omitempty"`
+	// TranslationSourceUpdated is presentation state filled by
+	// MarkSourceStaleness: the check recorded for that locale predates the
+	// current source draft.
+	TranslationSourceUpdated map[string]bool `json:"translation_source_updated,omitempty"`
 }
 type Record struct {
-	ID        string `gorm:"type:varchar(36);primaryKey"`
-	Path      string `gorm:"type:varchar(200);not null;uniqueIndex"`
-	Kind      string `gorm:"type:varchar(20);not null;index"`
-	Position  int
-	Version   int64  `gorm:"not null"`
-	DraftJSON string `gorm:"type:text;not null"`
-	LiveJSON  string `gorm:"type:text;not null"`
-	UpdatedAt time.Time
+	ID                  string `gorm:"type:varchar(36);primaryKey"`
+	Path                string `gorm:"type:varchar(200);not null;uniqueIndex"`
+	Kind                string `gorm:"type:varchar(20);not null;index"`
+	Position            int
+	Version             int64  `gorm:"not null"`
+	SourceLocale        string `gorm:"type:varchar(8)"`
+	TranslationMetaJSON string `gorm:"type:text"`
+	DraftJSON           string `gorm:"type:text;not null"`
+	LiveJSON            string `gorm:"type:text;not null"`
+	UpdatedAt           time.Time
 }
 
 func (Record) TableName() string { return "content_articles" }
-func Models() []any              { return []any{&Record{}} }
+func Models() []any              { return []any{&Record{}, &TranslationJob{}} }
 
 //go:embed seed.json
 var seedJSON []byte
@@ -92,12 +103,17 @@ func New(db *gorm.DB, recorder *audit.Service) *Service {
 	return &Service{db: db, audit: recorder}
 }
 func decode(row Record) (Article, error) {
-	result := Article{ID: row.ID, Path: row.Path, Kind: row.Kind, Position: row.Position, Version: row.Version, UpdatedAt: row.UpdatedAt, Translations: map[string]Translation{}, Published: map[string]Publication{}}
+	result := Article{ID: row.ID, Path: row.Path, Kind: row.Kind, Position: row.Position, Version: row.Version, SourceLocale: row.SourceLocale, UpdatedAt: row.UpdatedAt, Translations: map[string]Translation{}, Published: map[string]Publication{}, TranslationMeta: map[string]TranslationMeta{}}
 	if err := json.Unmarshal([]byte(row.DraftJSON), &result.Translations); err != nil {
 		return Article{}, err
 	}
 	if err := json.Unmarshal([]byte(row.LiveJSON), &result.Published); err != nil {
 		return Article{}, err
+	}
+	if strings.TrimSpace(row.TranslationMetaJSON) != "" {
+		if err := json.Unmarshal([]byte(row.TranslationMetaJSON), &result.TranslationMeta); err != nil {
+			return Article{}, err
+		}
 	}
 	return result, nil
 }
@@ -197,12 +213,22 @@ type Save struct {
 	Kind         string                 `json:"kind"`
 	Position     int                    `json:"position"`
 	Translations map[string]Translation `json:"translations"`
-	Reason       string                 `json:"reason"`
+	// SourceLocale is nil for legacy clients, which keeps the stored value;
+	// an empty string clears the unconfirmed state.
+	SourceLocale *string `json:"source_locale"`
+	Reason       string  `json:"reason"`
 }
 
 func Valid(in Save) bool {
 	if !validKind(in.Path, in.Kind) || len(in.Path) > 200 || in.Position < 0 || in.Position > 100000 || len(in.Translations) > 2 {
 		return false
+	}
+	if in.SourceLocale != nil {
+		switch locale := strings.TrimSpace(*in.SourceLocale); locale {
+		case "", "zh", "en":
+		default:
+			return false
+		}
 	}
 	for locale, t := range in.Translations {
 		if locale != "en" && locale != "zh" {
@@ -260,7 +286,11 @@ func (s *Service) Save(ctx context.Context, id, actor, key string, in Save) (Art
 		if duplicate > 0 {
 			return ErrVersion
 		}
-		next := Article{ID: id, Path: in.Path, Kind: in.Kind, Position: in.Position, Version: in.Version + 1, Translations: in.Translations, Published: previous.Published, UpdatedAt: time.Now().UTC()}
+		sourceLocale := previous.SourceLocale
+		if in.SourceLocale != nil {
+			sourceLocale = strings.TrimSpace(*in.SourceLocale)
+		}
+		next := Article{ID: id, Path: in.Path, Kind: in.Kind, Position: in.Position, Version: in.Version + 1, SourceLocale: sourceLocale, Translations: in.Translations, Published: previous.Published, TranslationMeta: previous.TranslationMeta, UpdatedAt: time.Now().UTC()}
 		if err := persist(tx, next, in.Version); err != nil {
 			return err
 		}
@@ -283,7 +313,11 @@ func translationLocales(t map[string]Translation) []string {
 func persist(tx *gorm.DB, a Article, expected int64) error {
 	draft, _ := json.Marshal(a.Translations)
 	live, _ := json.Marshal(a.Published)
-	row := Record{ID: a.ID, Path: a.Path, Kind: a.Kind, Position: a.Position, Version: a.Version, DraftJSON: string(draft), LiveJSON: string(live), UpdatedAt: a.UpdatedAt}
+	var meta []byte
+	if a.TranslationMeta != nil {
+		meta, _ = json.Marshal(a.TranslationMeta)
+	}
+	row := Record{ID: a.ID, Path: a.Path, Kind: a.Kind, Position: a.Position, Version: a.Version, SourceLocale: a.SourceLocale, TranslationMetaJSON: string(meta), DraftJSON: string(draft), LiveJSON: string(live), UpdatedAt: a.UpdatedAt}
 	if expected == 0 {
 		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
 		if result.Error != nil {
@@ -294,7 +328,7 @@ func persist(tx *gorm.DB, a Article, expected int64) error {
 		}
 		return nil
 	}
-	result := tx.Model(&Record{}).Where("id = ? AND version = ?", a.ID, expected).Select("position", "version", "draft_json", "live_json", "updated_at").Updates(&row)
+	result := tx.Model(&Record{}).Where("id = ? AND version = ?", a.ID, expected).Select("position", "version", "source_locale", "translation_meta_json", "draft_json", "live_json", "updated_at").Updates(&row)
 	if result.Error != nil {
 		return result.Error
 	}
