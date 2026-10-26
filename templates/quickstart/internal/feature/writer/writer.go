@@ -78,8 +78,10 @@ const (
 	maxKeyword = 120
 	maxNotes   = 4000
 	maxPages   = 80
-	maxImages  = 6
 )
+
+// MaxImages bounds the image suggestions of one article.
+const MaxImages = 6
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
@@ -130,8 +132,7 @@ func (s *Service) Draft(ctx context.Context, brief Brief) (Draft, error) {
 	}
 	images := []ImageSuggestion{}
 	for _, image := range out.Images {
-		image.Section, image.Alt, image.Description = strings.TrimSpace(image.Section), strings.TrimSpace(image.Alt), strings.TrimSpace(image.Description)
-		if image.Alt != "" && utf8.RuneCountInString(image.Alt) <= 125 && utf8.RuneCountInString(image.Section) <= 160 && utf8.RuneCountInString(image.Description) <= 300 && len(images) < maxImages {
+		if image, ok := validImage(image); ok && len(images) < MaxImages {
 			images = append(images, image)
 		}
 	}
@@ -140,32 +141,58 @@ func (s *Service) Draft(ctx context.Context, brief Brief) (Draft, error) {
 
 // Translate rewrites a draft in another language, keeping every link and image.
 func (s *Service) Translate(ctx context.Context, from, to string, source content.Translation) (content.Translation, error) {
+	translation, _, err := s.TranslateWithImages(ctx, from, to, source, nil)
+	return translation, err
+}
+
+// TranslateWithImages also translates the draft's image suggestions, so an
+// image uploaded once gets alt text and a heading in every language. The
+// suggestions come back in the same order; none in means none out.
+func (s *Service) TranslateWithImages(ctx context.Context, from, to string, source content.Translation, images []ImageSuggestion) (content.Translation, []ImageSuggestion, error) {
 	if s == nil || s.model == nil {
-		return content.Translation{}, ErrUnavailable
+		return content.Translation{}, nil, ErrUnavailable
 	}
 	fromName, okFrom := Languages[from]
 	toName, okTo := Languages[to]
-	if !okFrom || !okTo || from == to || strings.TrimSpace(source.Title) == "" || strings.TrimSpace(source.Body) == "" {
-		return content.Translation{}, ErrInvalidBrief
+	if !okFrom || !okTo || from == to || strings.TrimSpace(source.Title) == "" || strings.TrimSpace(source.Body) == "" || len(images) > MaxImages {
+		return content.Translation{}, nil, ErrInvalidBrief
 	}
-	input, _ := json.Marshal(map[string]string{"title": source.Title, "summary": source.Summary, "seo_title": source.SEOTitle, "seo_description": source.SEODescription, "body": source.Body})
-	reply, err := s.complete(ctx, translateInstructions(fromName, toName), string(input))
+	request := map[string]any{"title": source.Title, "summary": source.Summary, "seo_title": source.SEOTitle, "seo_description": source.SEODescription, "body": source.Body}
+	if len(images) > 0 {
+		request["images"] = images
+	}
+	input, _ := json.Marshal(request)
+	reply, err := s.complete(ctx, translateInstructions(fromName, toName, len(images) > 0), string(input))
 	if err != nil {
-		return content.Translation{}, err
+		return content.Translation{}, nil, err
 	}
 	var out struct {
-		Title          string `json:"title"`
-		Summary        string `json:"summary"`
-		SEOTitle       string `json:"seo_title"`
-		SEODescription string `json:"seo_description"`
-		Body           string `json:"body"`
+		Title          string            `json:"title"`
+		Summary        string            `json:"summary"`
+		SEOTitle       string            `json:"seo_title"`
+		SEODescription string            `json:"seo_description"`
+		Body           string            `json:"body"`
+		Images         []ImageSuggestion `json:"images"`
 	}
 	if err := decode(reply, &out); err != nil {
-		return content.Translation{}, err
+		return content.Translation{}, nil, err
 	}
 	// Images must survive unchanged; links may only point where the source does.
 	if !sameImages(source.Body, out.Body) {
-		return content.Translation{}, fmt.Errorf("%w: images changed", ErrInvalidOutput)
+		return content.Translation{}, nil, fmt.Errorf("%w: images changed", ErrInvalidOutput)
+	}
+	var translatedImages []ImageSuggestion
+	if len(images) > 0 {
+		if len(out.Images) != len(images) {
+			return content.Translation{}, nil, fmt.Errorf("%w: image suggestions changed", ErrInvalidOutput)
+		}
+		for _, image := range out.Images {
+			if image, ok := validImage(image); ok {
+				translatedImages = append(translatedImages, image)
+			} else {
+				return content.Translation{}, nil, fmt.Errorf("%w: image suggestion fields", ErrInvalidOutput)
+			}
+		}
 	}
 	allowed := map[string]bool{}
 	for _, target := range linkTargets(source.Body) {
@@ -173,9 +200,15 @@ func (s *Service) Translate(ctx context.Context, from, to string, source content
 	}
 	translation := content.Translation{Title: out.Title, Summary: out.Summary, SEOTitle: out.SEOTitle, SEODescription: out.SEODescription, Body: keepLinks(out.Body, allowed)}
 	if !validTranslation(&translation) {
-		return content.Translation{}, fmt.Errorf("%w: translation fields", ErrInvalidOutput)
+		return content.Translation{}, nil, fmt.Errorf("%w: translation fields", ErrInvalidOutput)
 	}
-	return translation, nil
+	return translation, translatedImages, nil
+}
+
+// validImage trims a suggestion and checks the limits the editor relies on.
+func validImage(image ImageSuggestion) (ImageSuggestion, bool) {
+	image.Section, image.Alt, image.Description = strings.TrimSpace(image.Section), strings.TrimSpace(image.Alt), strings.TrimSpace(image.Description)
+	return image, image.Alt != "" && utf8.RuneCountInString(image.Alt) <= 125 && utf8.RuneCountInString(image.Section) <= 160 && utf8.RuneCountInString(image.Description) <= 300
 }
 
 func (s *Service) complete(ctx context.Context, instructions, input string) (string, error) {
@@ -283,13 +316,19 @@ Rules:
 - images: 2-4 objects {"section": the exact text of the "## " heading the image belongs under, "alt": concise alt text in the article language, "description": what the image should show}.`
 }
 
-func translateInstructions(from, to string) string {
+func translateInstructions(from, to string, images bool) string {
+	keys := `title, summary, seo_title, seo_description and body`
+	imageRule := ""
+	if images {
+		keys += `, and "images": suggestions for pictures the editor will upload`
+		imageRule = "\n- images: the same number of objects in the same order. Translate alt and description; set section to your translation of that \"## \" heading exactly as it appears in your body (keep \"\" when empty)."
+	}
 	return `Translate a website article from ` + from + ` to ` + to + ` for native readers searching in ` + to + `.
-The input is a JSON object with keys title, summary, seo_title, seo_description and body. Reply with one JSON object only with the same keys.
+The input is a JSON object with keys ` + keys + `. Reply with one JSON object only with the same keys.
 Rules:
 - Keep the Markdown structure: the same headings, lists, quotes and paragraphs in the same order. Do not add or remove information.
 - Keep every link and image URL exactly as written. Translate link text and image alt text.
 - Keep product and brand names unchanged.
 - Write natural, fluent ` + to + `, not word-for-word. Use the terms people actually search for in ` + to + `.
-- seo_title: 50-60 characters (25-30 for Chinese, Japanese and Korean). seo_description: 150-160 characters (70-80 for Chinese, Japanese and Korean).`
+- seo_title: 50-60 characters (25-30 for Chinese, Japanese and Korean). seo_description: 150-160 characters (70-80 for Chinese, Japanese and Korean).` + imageRule
 }

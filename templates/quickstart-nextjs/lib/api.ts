@@ -587,7 +587,8 @@ export type ContentTranslation = { title: string; summary: string; body: string;
 export type ArticleImageSuggestion = { section: string; alt: string; description: string };
 export type ArticleDraft = { path: string; translation: ContentTranslation; images: ArticleImageSuggestion[] };
 export type ArticleBrief = { kind: Exclude<ContentKind, "page">; keyword: string; notes: string; locale: ContentLocale };
-export type ArticleTranslations = { translations: Partial<Record<ContentLocale, ContentTranslation>> };
+/** `images` (the request's image suggestions, translated) is present only when the request sent suggestions. */
+export type ArticleTranslations = { translations: Partial<Record<ContentLocale, ContentTranslation>>; images?: Partial<Record<ContentLocale, ArticleImageSuggestion[]>> };
 /** An article image from POST /admin/site-images; `url` is public. */
 export type SiteImage = { id: string; url: string; width: number; height: number; content_type: string; size: number };
 export type ContentPublication = ContentTranslation & { published_at: string };

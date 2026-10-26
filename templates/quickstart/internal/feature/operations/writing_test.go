@@ -45,6 +45,7 @@ func TestDraftAndTranslateReturnReviewableArticles(t *testing.T) {
 	model := &scriptedModel{replies: []string{
 		`{"slug":"team-workspaces","title":"Team workspaces","summary":"Share one plan.","seo_title":"Team workspaces for SaaS","seo_description":"Share one subscription.","body":"Intro.\n\n## Setup\n\nSee [payments](/docs/payments).","images":[{"section":"Setup","alt":"Member list","description":"Members"}]}`,
 		`{"title":"团队空间","summary":"共用一个订阅。","seo_title":"团队空间","seo_description":"共用订阅。","body":"介绍。\n\n## 设置\n\n查看[支付](/docs/payments)。"}`,
+		`{"title":"团队空间","summary":"共用一个订阅。","seo_title":"团队空间","seo_description":"共用订阅。","body":"介绍。\n\n## 设置\n\n查看[支付](/docs/payments)。","images":[{"section":"设置","alt":"成员列表","description":"成员"}]}`,
 	}}
 	f.module.writer = writer.New(model)
 	w := request(f, "POST", "/admin/articles/drafts", `{"kind":"features","keyword":"team workspaces","notes":"Invite members","locale":"en"}`, "admin", "")
@@ -67,6 +68,23 @@ func TestDraftAndTranslateReturnReviewableArticles(t *testing.T) {
 	w = request(f, "POST", "/admin/articles/translations", string(source), "admin", "")
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "团队空间") {
 		t.Fatalf("translate: %d %s", w.Code, w.Body)
+	}
+	if strings.Contains(w.Body.String(), `"images"`) {
+		t.Fatalf("a request without suggestions gets none back: %s", w.Body)
+	}
+	withImages, _ := json.Marshal(map[string]any{"from": "en", "to": []string{"zh"}, "translation": draft.Data.Translation, "images": draft.Data.Images})
+	w = request(f, "POST", "/admin/articles/translations", string(withImages), "admin", "")
+	var translatedImages struct {
+		Data struct {
+			Images map[string][]writer.ImageSuggestion `json:"images"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &translatedImages); w.Code != 200 || err != nil || len(translatedImages.Data.Images["zh"]) != 1 {
+		t.Fatalf("translate with images: %d %s", w.Code, w.Body)
+	}
+	tooMany, _ := json.Marshal(map[string]any{"from": "en", "to": []string{"zh"}, "translation": draft.Data.Translation, "images": make([]writer.ImageSuggestion, 7)})
+	if w := request(f, "POST", "/admin/articles/translations", string(tooMany), "admin", ""); w.Code != 400 {
+		t.Fatalf("seven suggestions accepted: %d", w.Code)
 	}
 	for _, body := range []string{`{"from":"en","to":[],"translation":{"title":"x","body":"y"}}`, `{"from":"en","to":["en"],"translation":{"title":"x","body":"y"}}`, `{"from":"en","to":["zh","zh"],"translation":{"title":"x","body":"y"}}`, `{"from":"en","to":["pt"],"translation":{"title":"x","body":"y"}}`} {
 		if w := request(f, "POST", "/admin/articles/translations", body, "admin", ""); w.Code != 400 {

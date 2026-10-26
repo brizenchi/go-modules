@@ -1,4 +1,4 @@
-import { apiRequest, type ArticleBrief, type ArticleDraft, type ArticleTranslations, type ContentArticle, type ContentSave, type ContentImportResult, type ContentListFilters, type ContentTranslation, type PublishedArticle, type SiteImage } from "./api";
+import { apiRequest, type ArticleBrief, type ArticleImageSuggestion, type ArticleDraft, type ArticleTranslations, type ContentArticle, type ContentSave, type ContentImportResult, type ContentListFilters, type ContentTranslation, type PublishedArticle, type SiteImage } from "./api";
 import type { PageResult } from "./operations-api";
 import { articleOptions, type ArticleOption } from "./navigation-editor";
 import { contentLocales, type ContentLocale } from "./locale";
@@ -26,8 +26,9 @@ export function draftArticle(token: string, brief: ArticleBrief) {
   return apiRequest<ArticleDraft>("/admin/articles/drafts", { authToken: token, method: "POST", json: brief });
 }
 /** Translates one language's draft; links and images are kept. */
-export function translateArticle(token: string, from: ContentLocale, to: ContentLocale[], translation: ContentTranslation) {
-  return apiRequest<ArticleTranslations>("/admin/articles/translations", { authToken: token, method: "POST", json: { from, to, translation } });
+/** With image suggestions, the reply also carries them translated into each language. */
+export function translateArticle(token: string, from: ContentLocale, to: ContentLocale[], translation: ContentTranslation, images: ArticleImageSuggestion[] = []) {
+  return apiRequest<ArticleTranslations>("/admin/articles/translations", { authToken: token, method: "POST", json: images.length ? { from, to, translation, images } : { from, to, translation } });
 }
 export function uploadSiteImage(token: string, file: File) {
   const body = new FormData();
