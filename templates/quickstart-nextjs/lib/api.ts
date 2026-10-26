@@ -593,6 +593,11 @@ export type SiteImage = { id: string; url: string; width: number; height: number
 export type ContentPublication = ContentTranslation & { published_at: string };
 export type ContentKind = "page" | "blog" | "docs" | "features" | "use-cases" | "compare";
 export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translations: Partial<Record<ContentLocale, ContentTranslation>>; published: Partial<Record<ContentLocale, ContentPublication>>; updated_at: string };
+/** One language of an article: live and unchanged, live with unpublished edits, written but never published, or neither. */
+export type ContentArticleState = "published" | "changed" | "draft" | "missing";
+/** Admin article list filters (`GET /admin/articles`). Blank values are not sent; status `published`
+ * includes `changed`, and `missing` requires a language. Without a language a status matches any language. */
+export type ContentListFilters = { query: string; kind: ContentKind | ""; locale: ContentLocale | ""; status: ContentArticleState | "" };
 export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
 export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: ContentLocale[] };
 /** Sections a header item or footer link may name; mirrors the backend allowlist. */

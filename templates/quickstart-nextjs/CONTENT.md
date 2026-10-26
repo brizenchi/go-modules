@@ -72,7 +72,7 @@ Runtime Website settings supplies the visible brand, bilingual homepage heading/
 
 ## Localized article publishing
 
-Use `/admin/articles` to manage blog, docs, feature, use-case and comparison detail pages. Each article has one tab per language (EN, 中文, 日本語, 한국어, ES, FR, DE). Import a UTF-8 `.md` file up to 150 KB, edit the selected language, save a draft, preview, then publish that language explicitly. Titles, summaries and body are required for publication. A saved draft never replaces its live snapshot until published. Unpublish languages independently; changing a URL after creation is intentionally unsupported in v1.
+Use `/admin/articles` to manage blog, docs, feature, use-case and comparison detail pages. Each article has one tab per language (EN, 中文, 日本語, 한국어, ES, FR, DE). Import a UTF-8 `.md` file up to 150 KB, edit the selected language, save a draft, preview, then publish that language explicitly. Titles, summaries and body are required for publication. A saved draft never replaces its live snapshot until published. Unpublish languages independently; changing a URL after creation is intentionally unsupported in v1. The list filters by section, language and status: published, published with edits not yet published, unpublished draft, or — for one language — not written yet, which lists the articles still to translate.
 
 The renderer supports paragraphs, headings, lists, quotes, fenced code, inline code, emphasis and safe links. Raw HTML/MDX is displayed as text, never executed; this is not a full rich text/page builder. Homepage, pricing, policies, updates and other specialized layouts remain code-owned.
 

@@ -1,8 +1,9 @@
-import { apiRequest, type ArticleBrief, type ArticleDraft, type ArticleTranslations, type ContentArticle, type ContentSave, type ContentImportResult, type ContentTranslation, type PublishedArticle, type SiteImage } from "./api";
+import { apiRequest, type ArticleBrief, type ArticleDraft, type ArticleTranslations, type ContentArticle, type ContentSave, type ContentImportResult, type ContentListFilters, type ContentTranslation, type PublishedArticle, type SiteImage } from "./api";
 import type { PageResult } from "./operations-api";
 import { articleOptions, type ArticleOption } from "./navigation-editor";
 import { contentLocales, type ContentLocale } from "./locale";
-export function listContent(token: string, page = 1, query = "") { return apiRequest<PageResult<ContentArticle>>(`/admin/articles?${new URLSearchParams({ page: String(page), limit: "20", query })}`, { authToken: token }); }
+import { contentListQuery, noContentFilters } from "./content-filters";
+export function listContent(token: string, page = 1, filters: ContentListFilters = noContentFilters) { return apiRequest<PageResult<ContentArticle>>(`/admin/articles?${contentListQuery(page, filters)}`, { authToken: token }); }
 export function readContent(token: string, id: string) { return apiRequest<ContentArticle>(`/admin/articles/${encodeURIComponent(id)}`, { authToken: token }); }
 export function saveContent(token: string, id: string | null, value: ContentSave, key: string) { return apiRequest<ContentArticle>(`/admin/articles${id ? `/${encodeURIComponent(id)}` : ""}`, { authToken: token, method: id ? "PUT" : "POST", json: value, headers: { "Idempotency-Key": key } }); }
 export function publishContent(token: string, id: string, version: number, locale: ContentLocale, action: "publish" | "unpublish", reason: string, key: string) { return apiRequest<ContentArticle>(`/admin/articles/${encodeURIComponent(id)}/publications`, { authToken: token, method: "POST", json: { version, locale, action, reason }, headers: { "Idempotency-Key": key } }); }

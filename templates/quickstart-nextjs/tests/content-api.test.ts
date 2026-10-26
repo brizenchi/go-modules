@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { saveContent, publishContent } from "../lib/content-api";
+import { listContent, saveContent, publishContent } from "../lib/content-api";
 import { apiRequest } from "../lib/api";
 const original = globalThis.fetch;
 afterEach(() => { globalThis.fetch = original; });
@@ -21,4 +21,12 @@ test("public server reads may cache but authenticated requests remain uncached",
  await apiRequest("/site/settings", { cache: "force-cache", next: { revalidate: 30 } });
  await apiRequest("/admin/articles", { authToken: "admin", cache: "force-cache" });
  assert.deepEqual(modes, ["force-cache", "no-store"]);
+});
+test("the article list sends the chosen section, language and state", async () => {
+ const paths: string[] = [];
+ globalThis.fetch = (async url => { paths.push(new URL(String(url)).pathname + new URL(String(url)).search); return ok(); }) as typeof fetch;
+ await listContent("admin");
+ await listContent("admin", 2, { query: "", kind: "features", locale: "ja", status: "missing" });
+ assert.match(paths[0], /\/admin\/articles\?page=1&limit=20$/);
+ assert.match(paths[1], /\/admin\/articles\?page=2&limit=20&kind=features&locale=ja&status=missing$/);
 });

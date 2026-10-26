@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/brizenchi/go-modules/foundation/httpresp"
@@ -34,6 +35,20 @@ func (m *Module) articles(c *gin.Context) {
 	if !ok {
 		return
 	}
+	kind, locale, status := c.Query("kind"), c.Query("locale"), c.Query("status")
+	if kind != "" && !slices.Contains(content.Kinds, kind) {
+		httpresp.BadRequest(c, "invalid article section")
+		return
+	}
+	if locale != "" && !content.ValidLocale(locale) {
+		httpresp.BadRequest(c, "invalid article language")
+		return
+	}
+	// "missing" is only meaningful for one language.
+	if status != "" && !slices.Contains(articleStatuses, status) || status == content.StateMissing && locale == "" {
+		httpresp.BadRequest(c, "invalid article status")
+		return
+	}
 	if m.db(c) == nil {
 		return
 	}
@@ -44,7 +59,7 @@ func (m *Module) articles(c *gin.Context) {
 	items := []content.Article{}
 	for _, row := range rows {
 		raw := strings.ToLower(stringJSON(row.Translations))
-		if p.query == "" || strings.Contains(strings.ToLower(row.Path)+raw, strings.ToLower(p.query)) {
+		if (p.query == "" || strings.Contains(strings.ToLower(row.Path)+raw, strings.ToLower(p.query))) && (kind == "" || row.Kind == kind) && articleMatches(row, locale, status) {
 			items = append(items, row)
 		}
 	}
@@ -52,6 +67,38 @@ func (m *Module) articles(c *gin.Context) {
 	start := min((p.page-1)*p.limit, total)
 	end := min(start+p.limit, total)
 	pageResponse(c, p, items[start:end], int64(total))
+}
+
+// articleStatuses filter the admin list; "published" includes live languages
+// with unpublished edits.
+var articleStatuses = []string{content.StatePublished, content.StateChanged, content.StateDraft, content.StateMissing}
+
+// articleMatches applies the language and status filters. A language alone
+// keeps articles written or published in it; a status without a language
+// matches when any language is in that state.
+func articleMatches(row content.Article, locale, status string) bool {
+	locales := content.Locales
+	if locale != "" {
+		locales = []string{locale}
+	}
+	for _, l := range locales {
+		state := row.State(l)
+		switch status {
+		case "":
+			if state != content.StateMissing {
+				return true
+			}
+		case content.StatePublished:
+			if state == content.StatePublished || state == content.StateChanged {
+				return true
+			}
+		default:
+			if state == status {
+				return true
+			}
+		}
+	}
+	return locale == "" && status == ""
 }
 func (m *Module) article(c *gin.Context) {
 	if m.db(c) == nil {

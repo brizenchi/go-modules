@@ -48,6 +48,34 @@ type Article struct {
 	Published    map[string]Publication `json:"published"`
 	UpdatedAt    time.Time              `json:"updated_at"`
 }
+
+// Kinds are the content sections, in editor order.
+var Kinds = []string{"page", "blog", "docs", "features", "use-cases", "compare"}
+
+// States are what State reports for one language of an article.
+const (
+	StatePublished = "published" // live and identical to its draft
+	StateChanged   = "changed"   // live, with draft edits not yet published
+	StateDraft     = "draft"     // written but never published
+	StateMissing   = "missing"   // neither written nor published
+)
+
+// State reports one language of the article. A draft without a title or body
+// does not count as a version.
+func (a Article) State(locale string) string {
+	live, published := a.Published[locale]
+	draft, drafted := a.Translations[locale]
+	switch {
+	case published && drafted && draft != live.Translation:
+		return StateChanged
+	case published:
+		return StatePublished
+	case drafted && (strings.TrimSpace(draft.Title) != "" || strings.TrimSpace(draft.Body) != ""):
+		return StateDraft
+	}
+	return StateMissing
+}
+
 type Record struct {
 	ID        string `gorm:"type:varchar(36);primaryKey"`
 	Path      string `gorm:"type:varchar(200);not null;uniqueIndex"`

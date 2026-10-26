@@ -280,3 +280,75 @@ func TestAdminPaymentsUseExactCustomerEnvironmentAndDateFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminArticlesFilterBySectionLanguageAndState(t *testing.T) {
+	f := newFixture(t)
+	create := func(path, kind string, position int, translations string) string {
+		t.Helper()
+		body := fmt.Sprintf(`{"path":%q,"kind":%q,"position":%d,"version":0,"translations":%s,"reason":"Write article"}`, path, kind, position, translations)
+		w := request(f, "POST", "/admin/articles", body, "admin", "create-"+path)
+		if w.Code != 200 {
+			t.Fatalf("create %s: %s", path, w.Body)
+		}
+		return data(t, w)["id"].(string)
+	}
+	publish := func(id string, version int, locale string) {
+		t.Helper()
+		body := fmt.Sprintf(`{"version":%d,"locale":%q,"action":"publish","reason":"Publish article"}`, version, locale)
+		if w := request(f, "POST", "/admin/articles/"+id+"/publications", body, "admin", "publish-"+id+locale); w.Code != 200 {
+			t.Fatalf("publish: %s", w.Body)
+		}
+	}
+	en := `{"title":"Alpha","summary":"S","body":"Body","seo_title":"","seo_description":""}`
+	ja := `{"title":"アルファ","summary":"S","body":"本文","seo_title":"","seo_description":""}`
+	// Alpha: English live with an unpublished edit, Japanese draft.
+	alpha := create("/features/alpha", "features", 1, `{"en":`+en+`,"ja":`+ja+`}`)
+	publish(alpha, 1, "en")
+	edit := fmt.Sprintf(`{"path":"/features/alpha","kind":"features","position":1,"version":2,"translations":{"en":%s,"ja":%s},"reason":"Edit draft"}`, strings.Replace(en, `"Body"`, `"Edited"`, 1), ja)
+	if w := request(f, "PUT", "/admin/articles/"+alpha, edit, "admin", "edit-alpha"); w.Code != 200 {
+		t.Fatalf("edit: %s", w.Body)
+	}
+	// Beta: English draft only; an empty Japanese entry does not count as a version.
+	create("/blog/beta", "blog", 2, `{"en":`+en+`,"ja":{"title":" ","summary":"","body":"","seo_title":"","seo_description":""}}`)
+	// Gamma: English live and unchanged.
+	publish(create("/docs/gamma", "docs", 3, `{"en":`+en+`}`), 1, "en")
+
+	list := func(query string) []string {
+		t.Helper()
+		w := request(f, "GET", "/admin/articles?"+query, "", "admin", "")
+		if w.Code != 200 {
+			t.Fatalf("list %s: %s", query, w.Body)
+		}
+		paths := []string{}
+		for _, item := range data(t, w)["items"].([]any) {
+			paths = append(paths, item.(map[string]any)["path"].(string))
+		}
+		if total := int(data(t, w)["total"].(float64)); total != len(paths) {
+			t.Fatalf("list %s: total %d for %d items", query, total, len(paths))
+		}
+		return paths
+	}
+	for query, want := range map[string]string{
+		"kind=features":                      "/features/alpha",
+		"kind=blog":                          "/blog/beta",
+		"status=published":                   "/features/alpha /docs/gamma",
+		"status=changed":                     "/features/alpha",
+		"status=draft":                       "/features/alpha /blog/beta",
+		"locale=ja":                          "/features/alpha",
+		"locale=ja&status=draft":             "/features/alpha",
+		"locale=ja&status=missing":           "/blog/beta /docs/gamma",
+		"locale=en&status=draft":             "/blog/beta",
+		"locale=en&status=published":         "/features/alpha /docs/gamma",
+		"kind=docs&locale=en&status=changed": "",
+		"query=gamma&status=published":       "/docs/gamma",
+	} {
+		if got := strings.Join(list(query), " "); got != want {
+			t.Errorf("%s: got %q, want %q", query, got, want)
+		}
+	}
+	for _, query := range []string{"kind=news", "locale=it", "status=archived", "status=missing"} {
+		if w := request(f, "GET", "/admin/articles?"+query, "", "admin", ""); w.Code != 400 {
+			t.Errorf("%s accepted: %d", query, w.Code)
+		}
+	}
+}
