@@ -96,19 +96,21 @@ func userID(c *gin.Context) string {
 }
 
 type SiteSettings struct {
-	ID               uint      `gorm:"primaryKey" json:"-"`
-	BrandName        string    `gorm:"type:varchar(100);not null" json:"brand_name"`
-	LogoURL          string    `gorm:"type:varchar(1024);not null;default:''" json:"logo_url"`
-	Description      string    `gorm:"type:varchar(500);not null" json:"description"`
-	DescriptionZH    string    `gorm:"type:varchar(500);not null;default:''" json:"description_zh"`
-	HeadlineEN       string    `gorm:"type:varchar(160);not null;default:''" json:"headline_en"`
-	HeadlineZH       string    `gorm:"type:varchar(160);not null;default:''" json:"headline_zh"`
-	SenderEmail      string    `gorm:"type:varchar(255);not null;default:''" json:"sender_email"`
-	SenderName       string    `gorm:"type:varchar(100);not null;default:''" json:"sender_name"`
-	SupportEmail     string    `gorm:"type:varchar(255);not null" json:"support_email"`
-	SupportURL       string    `gorm:"type:varchar(1024);not null" json:"support_url"`
-	ExportCreditCost int64     `gorm:"not null" json:"export_credit_cost"`
-	UpdatedAt        time.Time `json:"-"`
+	ID               uint   `gorm:"primaryKey" json:"-"`
+	BrandName        string `gorm:"type:varchar(100);not null" json:"brand_name"`
+	LogoURL          string `gorm:"type:varchar(1024);not null;default:''" json:"logo_url"`
+	Description      string `gorm:"type:varchar(500);not null" json:"description"`
+	DescriptionZH    string `gorm:"type:varchar(500);not null;default:''" json:"description_zh"`
+	HeadlineEN       string `gorm:"type:varchar(160);not null;default:''" json:"headline_en"`
+	HeadlineZH       string `gorm:"type:varchar(160);not null;default:''" json:"headline_zh"`
+	SenderEmail      string `gorm:"type:varchar(255);not null;default:''" json:"sender_email"`
+	SenderName       string `gorm:"type:varchar(100);not null;default:''" json:"sender_name"`
+	SupportEmail     string `gorm:"type:varchar(255);not null" json:"support_email"`
+	SupportURL       string `gorm:"type:varchar(1024);not null" json:"support_url"`
+	ExportCreditCost int64  `gorm:"not null" json:"export_credit_cost"`
+	// Navigation is nil until an administrator saves menus; the frontend then uses its defaults.
+	Navigation *Navigation `gorm:"type:text;serializer:json" json:"navigation"`
+	UpdatedAt  time.Time   `json:"-"`
 }
 
 func (SiteSettings) TableName() string { return "site_settings" }

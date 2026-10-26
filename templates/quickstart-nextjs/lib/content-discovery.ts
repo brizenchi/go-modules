@@ -34,7 +34,7 @@ export function uniqueContent(entries: readonly DiscoveryEntry[]): DiscoveryEntr
 }
 
 /** Directories that list published pages of these kinds; Guides gathers documentation and articles. */
-const directoryKinds: Readonly<Record<string, readonly string[]>> = {
+const kindsByDirectory: Readonly<Record<string, readonly string[]>> = {
   "/features": ["features"], "/use-cases": ["use-cases"], "/compare": ["compare"],
   "/docs": ["docs"], "/blog": ["blog"], "/resources": ["docs", "blog"]
 };
@@ -55,8 +55,13 @@ export function linkablePath(published: ReadonlySet<string>, directories: Readon
   };
 }
 
+/** Article kinds a directory lists; empty for single-page and code-owned sections. */
+export function directoryKinds(path: string): readonly string[] {
+  return Object.hasOwn(kindsByDirectory, path) ? kindsByDirectory[path] : [];
+}
+
 export function isContentDirectory(path: string): boolean {
-  return Object.hasOwn(directoryKinds, path) || pageDirectories.includes(path);
+  return Object.hasOwn(kindsByDirectory, path) || pageDirectories.includes(path);
 }
 
 /** A directory exists in a language only when it has something to show. Templates
@@ -65,20 +70,17 @@ export function isContentDirectory(path: string): boolean {
 export function availableDirectories(entries: readonly DiscoveryEntry[], publishedPages: ReadonlySet<string> | null): string[] {
   const kinds = new Set(uniqueContent(entries).map(entry => entry.kind));
   return [
-    ...Object.entries(directoryKinds).filter(([, needs]) => needs.some(kind => kinds.has(kind as DiscoveryEntry["kind"]))).map(([path]) => path),
+    ...Object.entries(kindsByDirectory).filter(([, needs]) => needs.some(kind => kinds.has(kind as DiscoveryEntry["kind"]))).map(([path]) => path),
     ...pageDirectories.filter(path => !publishedPages || publishedPages.has(path))
   ];
 }
 
-export type NavigationEntry = { path: string; kind: "features" | "use-cases" | "compare"; title: string; position?: number };
+export type NavigationEntry = { path: string; kind: DiscoveryEntry["kind"]; title: string; position?: number };
 export type NavigationIndex = { entries: NavigationEntry[]; directories: string[] };
-const navigationKinds = new Set<string>(["features", "use-cases", "compare"]);
 
-/** Header menus need published titles and order only, never summaries or bodies. */
+/** Header menus may list any published article, but need only its title and order. */
 export function navigationEntries(entries: readonly DiscoveryEntry[]): NavigationEntry[] {
-  return uniqueContent(entries)
-    .filter(entry => navigationKinds.has(entry.kind))
-    .map(entry => ({ path: entry.path, kind: entry.kind as NavigationEntry["kind"], title: entry.translation.title, position: entry.position }));
+  return uniqueContent(entries).map(entry => ({ path: entry.path, kind: entry.kind, title: entry.translation.title, position: entry.position }));
 }
 
 export function latestGuides(entries: readonly DiscoveryEntry[]): DiscoveryEntry[] {

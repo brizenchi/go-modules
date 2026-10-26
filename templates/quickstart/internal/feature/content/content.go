@@ -191,6 +191,9 @@ func validKind(path, kind string) bool {
 
 var validPath = regexp.MustCompile(`^/(blog|docs|features|use-cases|compare)/[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
+// ValidArticlePath reports whether path is a publishable article such as /docs/setup.
+func ValidArticlePath(path string) bool { return len(path) <= 200 && validPath.MatchString(path) }
+
 type Save struct {
 	Version      int64                  `json:"version"`
 	Path         string                 `json:"path"`

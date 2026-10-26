@@ -23,7 +23,7 @@ export const adminSectionDescriptions: Record<AdminSection, Copy> = {
   subscriptions: { en: "Review customer plans, subscription states and billing periods.", zh: "查看用户套餐、订阅状态与计费周期。" },
   referrals: { en: "Track invitations, activation and recorded referral rewards.", zh: "查看邀请归因、激活状态与已记录的推荐奖励。" },
   credits: { en: "Review credit transactions, grant credits or return a recorded consumption.", zh: "查询积分流水，按需发放积分或退回已记录的消费。" },
-  settings: { en: "Manage your website name, logo, support contacts and email sender.", zh: "管理网站名称、Logo、支持渠道与发件资料。" },
+  settings: { en: "Manage your website name, logo, support contacts, email sender, navigation and footer.", zh: "管理网站名称、Logo、支持渠道、发件资料，以及导航与页脚。" },
   integrations: { en: "Connect email and payment services. Saved changes require an API restart to take effect.", zh: "管理邮件与支付服务。保存配置后，需要重启后端服务使其生效。" },
   audit: { en: "Review administrator actions, affected resources and recorded outcomes.", zh: "查询管理员操作、关联资源与处理结果。" }
 };

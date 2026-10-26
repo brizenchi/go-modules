@@ -257,3 +257,19 @@
 .importItems strong { font-size: .875rem; font-weight: 500; }
 .importItems code { color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
 .importItems small { flex-shrink: 0; color: var(--muted); }
+.navigationTitle { margin: 12px 0 0; font-size: 20px; font-weight: 650; }
+.navigationList { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.navigationRow { display: grid; gap: 16px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.navigationRowHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.navigationRowHead strong { font-size: 14px; font-weight: 650; }
+.navigationActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.navigationButton { min-width: 36px; min-height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--muted-strong); font-size: 12px; font-weight: 600; cursor: pointer; }
+.navigationButton:hover:not(:disabled) { color: var(--text); background: var(--surface-subtle); }
+.navigationButton:disabled { opacity: .45; cursor: default; }
+.navigationPagesBlock { display: grid; gap: 12px; }
+.navigationPages { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.navigationPages li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 10px; border-radius: 7px; background: var(--surface-subtle); font-size: 13px; }
+.navigationPages small { display: block; margin-top: 2px; color: var(--muted); font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
+.navigationHint { margin: 0; color: var(--muted); font-size: 12px; }
+.navigationProblems { margin: 0; padding: 12px 14px 12px 30px; border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--danger); font-size: 12px; line-height: 1.8; }
+@media (max-width: 640px) { .navigationButton { min-height: 44px; min-width: 44px; } }

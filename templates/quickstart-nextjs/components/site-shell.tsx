@@ -8,7 +8,7 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { appEnv } from "@/lib/env";
-import { guideDirectories, headerAction, publicBreadcrumbs, sourceRepository } from "@/content/navigation";
+import { guideDirectories, publicBreadcrumbs } from "@/content/navigation";
 import { PublicNavigation } from "./public-navigation";
 import { useSitePresentation } from "./site-presentation";
 import { type AccountSummary } from "@/lib/account-summary";
@@ -142,8 +142,6 @@ function PublicSiteShell(props: SiteShellProps) {
 
           <div className="topbar-tools">
             <LocaleSwitch />
-            {sourceRepository ? <a className="topbar-source" href={sourceRepository.href} rel="noopener noreferrer">{t(sourceRepository.label)}</a> : null}
-            <Link className="button topbar-cta" href={headerAction.href}>{t(headerAction.label)}</Link>
             {accountMenu}
           </div>
         </div>

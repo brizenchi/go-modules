@@ -3,6 +3,7 @@ package operations
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/mail"
@@ -19,8 +20,13 @@ import (
 
 var errKeyConflict = audit.ErrConflict
 
-func decodeBody(c *gin.Context, target any) bool {
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8192)
+func decodeBody(c *gin.Context, target any) bool { return decodeBodyLimit(c, target, 8192) }
+
+// Settings carry navigation menus, so their body may exceed the default limit.
+const settingsBodyLimit = 32768
+
+func decodeBodyLimit(c *gin.Context, target any, limit int64) bool {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 	d := json.NewDecoder(c.Request.Body)
 	d.DisallowUnknownFields()
 	if err := d.Decode(target); err != nil {
@@ -55,26 +61,30 @@ func (m *Module) getSettings(c *gin.Context) {
 	if queryFailed(c, err) {
 		return
 	}
-	httpresp.OK(c, gin.H{"brand_name": settings.BrandName, "logo_url": settings.LogoURL, "description": settings.Description, "description_zh": settings.DescriptionZH, "headline_en": settings.HeadlineEN, "headline_zh": settings.HeadlineZH, "sender_email": settings.SenderEmail, "sender_name": settings.SenderName, "support_email": settings.SupportEmail, "support_url": settings.SupportURL, "export_credit_cost": settings.ExportCreditCost, "presentation_version": 1})
+	httpresp.OK(c, gin.H{"brand_name": settings.BrandName, "logo_url": settings.LogoURL, "description": settings.Description, "description_zh": settings.DescriptionZH, "headline_en": settings.HeadlineEN, "headline_zh": settings.HeadlineZH, "sender_email": settings.SenderEmail, "sender_name": settings.SenderName, "support_email": settings.SupportEmail, "support_url": settings.SupportURL, "export_credit_cost": settings.ExportCreditCost, "navigation": settings.Navigation, "presentation_version": 1})
 }
 
 type settingsPatch struct {
-	BrandName        *string `json:"brand_name"`
-	LogoURL          *string `json:"logo_url"`
-	Description      *string `json:"description"`
-	SupportEmail     *string `json:"support_email"`
-	SupportURL       *string `json:"support_url"`
-	ExportCreditCost *int64  `json:"export_credit_cost"`
-	DescriptionZH    *string `json:"description_zh"`
-	HeadlineEN       *string `json:"headline_en"`
-	HeadlineZH       *string `json:"headline_zh"`
-	SenderEmail      *string `json:"sender_email"`
-	SenderName       *string `json:"sender_name"`
-	Reason           string  `json:"reason"`
+	BrandName        *string     `json:"brand_name"`
+	LogoURL          *string     `json:"logo_url"`
+	Description      *string     `json:"description"`
+	SupportEmail     *string     `json:"support_email"`
+	SupportURL       *string     `json:"support_url"`
+	ExportCreditCost *int64      `json:"export_credit_cost"`
+	DescriptionZH    *string     `json:"description_zh"`
+	HeadlineEN       *string     `json:"headline_en"`
+	HeadlineZH       *string     `json:"headline_zh"`
+	SenderEmail      *string     `json:"sender_email"`
+	SenderName       *string     `json:"sender_name"`
+	Navigation       *Navigation `json:"navigation"`
+	Reason           string      `json:"reason"`
 }
 
 func validSettingsPatch(p *settingsPatch) bool {
-	if p.LogoURL == nil && p.BrandName == nil && p.Description == nil && p.SupportEmail == nil && p.SupportURL == nil && p.ExportCreditCost == nil && p.DescriptionZH == nil && p.HeadlineEN == nil && p.HeadlineZH == nil && p.SenderEmail == nil && p.SenderName == nil {
+	if p.LogoURL == nil && p.BrandName == nil && p.Description == nil && p.SupportEmail == nil && p.SupportURL == nil && p.ExportCreditCost == nil && p.DescriptionZH == nil && p.HeadlineEN == nil && p.HeadlineZH == nil && p.SenderEmail == nil && p.SenderName == nil && p.Navigation == nil {
+		return false
+	}
+	if p.Navigation != nil && !validNavigation(p.Navigation) {
 		return false
 	}
 	for value, max := range map[*string]int{p.LogoURL: 1024, p.BrandName: 100, p.Description: 500, p.SupportEmail: 255, p.SupportURL: 1024, p.DescriptionZH: 500, p.HeadlineEN: 160, p.HeadlineZH: 160, p.SenderEmail: 255, p.SenderName: 100} {
@@ -123,7 +133,7 @@ func (m *Module) patchSettings(c *gin.Context) {
 		return
 	}
 	var patch settingsPatch
-	if !decodeBody(c, &patch) {
+	if !decodeBodyLimit(c, &patch, settingsBodyLimit) {
 		return
 	}
 	patch.Reason = strings.TrimSpace(patch.Reason)
@@ -193,6 +203,13 @@ func (m *Module) patchSettings(c *gin.Context) {
 		}
 		if patch.ExportCreditCost != nil {
 			updates["export_credit_cost"] = *patch.ExportCreditCost
+		}
+		if patch.Navigation != nil {
+			raw, err := json.Marshal(patch.Navigation)
+			if err != nil {
+				return fmt.Errorf("encode navigation: %w", err)
+			}
+			updates["navigation"] = string(raw)
 		}
 		if err := tx.Model(&SiteSettings{}).Where("id = ?", 1).Updates(updates).Error; err != nil {
 			return err

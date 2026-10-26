@@ -587,7 +587,14 @@ export type ContentKind = "page" | "blog" | "docs" | "features" | "use-cases" | 
 export type ContentArticle = { id: string; path: string; kind: ContentKind; position: number; version: number; translations: Partial<Record<"en" | "zh", ContentTranslation>>; published: Partial<Record<"en" | "zh", ContentPublication>>; updated_at: string };
 export type ContentSave = Pick<ContentArticle, "path" | "kind" | "position" | "version" | "translations"> & { reason: string };
 export type PublishedArticle = { references?: string[]; id: string; path: string; kind: ContentKind; position: number; version: number; translation: ContentTranslation; published_at: string; updated_at: string; locales: Array<"en" | "zh"> };
-export type WebsiteSettings = { brand_name: string; logo_url?: string; description: string; description_zh?: string; headline_en?: string; headline_zh?: string; sender_email?: string; sender_name?: string; support_email: string; support_url: string; export_credit_cost: number; presentation_version?: number };
+/** Sections a header item or footer link may name; mirrors the backend allowlist. */
+export type NavigationSection = "features" | "use-cases" | "compare" | "docs" | "blog" | "resources" | "updates" | "pricing" | "examples" | "about" | "contact";
+export type NavigationCopy = { en: string; zh: string };
+/** `auto` lists the section's published pages, `manual` lists `items` in order, `none` shows no menu. An empty label uses the section's default name. */
+export type HeaderNavigationItem = { section: NavigationSection; label: NavigationCopy; menu: "auto" | "manual" | "none"; items: string[] };
+export type FooterNavigationGroup = { title: NavigationCopy; links: NavigationSection[] };
+export type SiteNavigation = { version: 1; header: HeaderNavigationItem[]; footer: FooterNavigationGroup[] };
+export type WebsiteSettings = { brand_name: string; logo_url?: string; description: string; description_zh?: string; headline_en?: string; headline_zh?: string; sender_email?: string; sender_name?: string; support_email: string; support_url: string; export_credit_cost: number; navigation?: SiteNavigation | null; presentation_version?: number };
 
 export type OperatorOrder = { id: string; user_id: string; email?: string; provider: string; provider_event_id: string; event_type: string; processed: boolean; created_at: string; amount: number | null; currency: string; status: string; record_type: "invoice" | "checkout" | "payment_event"; product_type?: string; plan?: string; billing_interval?: string; quantity?: number; amount_due?: number | null; checkout_session_id?: string; paid_at?: string; expires_at?: string; livemode: boolean | null };
 

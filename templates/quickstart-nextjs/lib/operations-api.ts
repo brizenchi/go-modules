@@ -1,4 +1,4 @@
-import { apiRequest, ApiError, type OperatorOverview, type OperatorReportFilters, type OperatorAccess, type MembershipPatch, type OperatorAuthorization, type WebsiteSettings, type OperatorOrder } from "./api";
+import { apiRequest, ApiError, type OperatorOverview, type OperatorReportFilters, type OperatorAccess, type MembershipPatch, type OperatorAuthorization, type WebsiteSettings, type OperatorOrder, type SiteNavigation } from "./api";
 export type { OperatorUser, OperatorOverview, OperatorReportFilters, OperatorAccess, MembershipPatch, OperatorOrder, OperatorSubscription } from "./api";
 import { apiUrl } from "./env";
 import { clearSessionIfToken } from "./auth";
@@ -27,6 +27,10 @@ export function listOperator<T>(token: string, section: "users" | "subscriptions
 }
 export function getOperatorOverview(token: string, signal?: AbortSignal, filters?: OperatorReportFilters) { return apiRequest<OperatorOverview>(`/admin/overview${filters ? `?${queryString(filters)}` : ""}`, { authToken: token, signal }); }
 export function getBusinessSettings(token: string) { return apiRequest<BusinessSettings>("/admin/settings", { authToken: token }); }
+/** Saves only the menus; other settings are left as they are. */
+export function saveNavigationSettings(token: string, navigation: SiteNavigation, reason: string, key: string) {
+  return apiRequest<BusinessSettings>("/admin/settings", { authToken: token, method: "PATCH", headers: { "Idempotency-Key": key }, json: { navigation, reason } });
+}
 export function saveBusinessSettings(token: string, data: BusinessSettings & { reason: string }, key: string) {
   return apiRequest<BusinessSettings>("/admin/settings", { authToken: token, method: "PATCH", headers: { "Idempotency-Key": key }, json: data });
 }

@@ -151,12 +151,12 @@ try {
     await evaluate("fixture.reset()");await settle();await evaluate("document.querySelector('.account-menu > button').click()");await settle();
     await evaluate(`fixture.click('${signout}');fixture.session={...fixture.session,token:'newer-login'};dispatchEvent(new Event('fixture-session'));fixture.resolve()`);await settle();
     await check("fixture.session.token==='newer-login' && fixture.redirects.length===1",tag+': old logout preserves newer login');
-    await check("document.querySelectorAll('.main-nav-item > .main-nav-link').length===5",tag+': five directory links');
+    await check("document.querySelectorAll('.main-nav-item > .main-nav-link').length===2",tag+': default header has Features and Use cases');
     await check("!document.querySelector('.main-nav button, .main-nav svg, .main-nav [aria-expanded]')",tag+': menus need no scripted controls');
     const prefix=locale==='zh'?'/zh':'';
     const featureLinks=JSON.stringify(["/features/authentication","/features/credits"].map(path=>prefix+path));
     await check(`JSON.stringify([...document.querySelectorAll('.main-nav-item:first-child .main-nav-menu ul a')].map(a=>a.getAttribute('href')))===${JSON.stringify(featureLinks)}`,tag+': feature menu links published pages in order');
-    await check("document.querySelectorAll('.main-nav-item:nth-child(2) .main-nav-menu-group').length===2 && !document.querySelector('.main-nav-item:nth-child(3) .main-nav-menu')",tag+': use cases group comparisons; docs is a direct link');
+    await check(`JSON.stringify([...document.querySelectorAll('.main-nav-item:nth-child(2) .main-nav-menu ul a')].map(a=>a.getAttribute('href')))===${JSON.stringify(JSON.stringify([prefix+"/use-cases/subscription-saas"]))}`,tag+': use-case menu is one level of use cases');
     await check(`parseFloat(getComputedStyle(document.querySelector('.main-nav')).columnGap)>=8`,tag+': navigation has breathing room');
     await check("(()=>{const links=[...document.querySelectorAll('.main-nav-item > .main-nav-link')];return links.slice(1).every((link,index)=>link.getBoundingClientRect().left-links[index].getBoundingClientRect().right>=8)})()",tag+': full link targets remain separated');
     await check("[...document.querySelectorAll('.main-nav-menu')].every(menu=>getComputedStyle(menu).visibility==='hidden')",tag+': menus start closed');
@@ -210,7 +210,7 @@ try {
     await check(`document.querySelector('#support').textContent.includes('${locale==='zh'?'登录验证码':'login codes'}')`,tag+': reporting guidance stays beside support channels');
     await check("document.documentElement.scrollWidth<=innerWidth+1",tag+': support page fits viewport');
     await check("(()=>{const bar=document.querySelector('.topbar-inner');return bar.scrollWidth<=bar.clientWidth+1})()",tag+': header tools fit the bar');
-    await check(`(()=>{const cta=document.querySelector('.topbar-cta');return cta.getAttribute('href')==='${locale==='zh'?'/zh':''}/examples'&&(getComputedStyle(cta).display==='none')===${width<=640}})()`,tag+': demo call to action, hidden only on phones');
+    await check("!document.querySelector('.topbar-tools a')",tag+': header tools hold only language and account');
     await screenshot(tag);
   }}
   for(const locale of ["en","zh"]){for(const width of [1440,390]){

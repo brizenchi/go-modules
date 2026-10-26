@@ -42,14 +42,15 @@ test("the discovery catalog accepts only public content paths matching their kin
   assert.deepEqual(latestGuides([entry("/docs/undated", "docs"), entry("/blog/invalid-date", "blog", "", "invalid")]), []);
 });
 
-test("header navigation receives only titles and order of published product pages", () => {
+test("header navigation receives only titles and order of published articles", () => {
   const entries = navigationEntries([
     { id: "1", path: "/features/credits", kind: "features", position: 3, translation: { title: "Credits", summary: "Long summary" }, links: ["/docs/payments"] },
     { id: "2", path: "/features/credits", kind: "features", position: 3, translation: { title: "Credits", summary: "Duplicate" } },
     { id: "3", path: "/docs/payments", kind: "docs", translation: { title: "Payments", summary: "" } },
     { id: "4", path: "/compare", kind: "compare", translation: { title: "Directory", summary: "" } }
   ]);
-  assert.deepEqual(entries, [{ path: "/features/credits", kind: "features", title: "Credits", position: 3 }]);
+  // A chosen menu may list any article, so documentation is included; directories and repeats are not.
+  assert.deepEqual(entries, [{ path: "/features/credits", kind: "features", title: "Credits", position: 3 }, { path: "/docs/payments", kind: "docs", title: "Payments", position: undefined }]);
 });
 
 test("a directory exists only with published pages, and Guides with docs or articles", () => {

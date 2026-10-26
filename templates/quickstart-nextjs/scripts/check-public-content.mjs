@@ -185,9 +185,11 @@ for (const path of new Set([...paths, ...shellPaths])) {
   const html = readFileSync(join(root, pageFile(path)), "utf8");
   const schemas = [...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(match => JSON.parse(match[1]));
   const breadcrumb = schemas.find(schema => schema["@type"] === "BreadcrumbList");
-  const guide = breadcrumb?.itemListElement[1];
-  assert.equal(new URL(guide?.item || "https://invalid.test").pathname, path.startsWith("/zh/") ? "/zh/resources" : "/resources", `${path}: belongs to Guides in breadcrumb structured data`);
-  assert.equal(guide.name, path.startsWith("/zh/") ? "指南" : "Guides", `${path}: localized Guides parent`);
+  // Home › section › page: the section is the page's own directory, whatever the menus show.
+  const directory = `${path.startsWith("/zh/") ? "/zh" : ""}/${base.split("/")[1]}`;
+  const items = breadcrumb?.itemListElement || [];
+  assert.equal(items.length, base.split("/").length === 2 ? 2 : 3, `${path}: two levels below home`);
+  assert.equal(new URL(items[1]?.item || "https://invalid.test").pathname, directory, `${path}: breadcrumb parent is its own section`);
   if (["/docs", "/blog", "/updates"].includes(base)) assert.match(html, /data-guide-navigation/, `${path}: sibling guide navigation in initial HTML`);
 }
-console.log("Guide hierarchy checks passed: Documentation, Articles and Updates belong to Guides.");
+console.log("Breadcrumb checks passed: documentation, articles and updates sit directly below home.");
