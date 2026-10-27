@@ -9,6 +9,9 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ### Fixed
 
+- Preserve the remaining trial across subscription plan and billing interval
+  changes, with no payment due until the original trial ends.
+
 - Subscription previews distinguish invoice collection from the next renewal
   date and expose unused-time credits in integer minor units when available.
 
