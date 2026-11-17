@@ -7,6 +7,8 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-17
+
 ### Added
 
 - `Config.Logging`: one slog record per attempt (method, host, path,

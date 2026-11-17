@@ -82,6 +82,46 @@ func TestAuthStoreOAuthLinksExistingEmail(t *testing.T) {
 	}
 }
 
+// A Google account whose e-mail changed after signup must reach its original
+// user through the linked subject; docs/migrate-from-saascore/user_identities.sql
+// creates that link for users from saascore, which matched by subject first.
+func TestAuthStoreOAuthPrefersLinkedSubjectOverEmail(t *testing.T) {
+	ctx := context.Background()
+	repo := newTestRepository(t)
+	store := NewAuthStore(repo)
+	legacy, err := store.FindOrCreateByEmail(ctx, "old-address@example.com")
+	if err != nil {
+		t.Fatalf("create legacy user: %v", err)
+	}
+	if err := repo.LinkIdentity(ctx, legacy.UserID, authdomain.ProviderGoogle, "google-sub-1"); err != nil {
+		t.Fatalf("LinkIdentity: %v", err)
+	}
+
+	identity, err := store.FindOrCreateFromOAuth(ctx, authdomain.OAuthProfile{
+		Provider: authdomain.ProviderGoogle,
+		Subject:  "google-sub-1",
+		Email:    "new-address@example.com",
+	})
+	if err != nil {
+		t.Fatalf("FindOrCreateFromOAuth: %v", err)
+	}
+	if identity.IsNew || identity.UserID != legacy.UserID || identity.Email != "new-address@example.com" {
+		t.Fatalf("linked subject did not reach the original account: %#v", identity)
+	}
+
+	unlinked, err := store.FindOrCreateFromOAuth(ctx, authdomain.OAuthProfile{
+		Provider: authdomain.ProviderGoogle,
+		Subject:  "google-sub-2",
+		Email:    "another-address@example.com",
+	})
+	if err != nil {
+		t.Fatalf("FindOrCreateFromOAuth without link: %v", err)
+	}
+	if !unlinked.IsNew {
+		t.Fatalf("an unlinked subject with an unknown e-mail must create a user: %#v", unlinked)
+	}
+}
+
 func TestAuthStoreReturnsAuthNotFound(t *testing.T) {
 	store := NewAuthStore(newTestRepository(t))
 	_, err := store.FindByEmail(context.Background(), "missing@example.com")

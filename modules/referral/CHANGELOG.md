@@ -7,6 +7,12 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-17
+
+### Breaking
+
+- `port.EventBus.Publish` and `eventbus.InProc.Publish` return `error`.
+
 ## [v0.1.0] — 2025
 
 ### Added

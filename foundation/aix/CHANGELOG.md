@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-17
+
 ### Added
 
 - Stateless `Generator` / `Client` for compatible text completions, with server-owned configuration, explicit inputs, context cancellation, bounded responses and sanitized errors.

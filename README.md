@@ -29,6 +29,9 @@ quickstart = 默认组合方式
 `modules/user`。认证模块通过 `auth/port.UserStore` 使用当前 SaaS 的用户表；
 支付模块通过 `billing/port.AccountLookup` 只读取用户 ID 和邮箱。
 
+仍在使用 `stacks/saascore` 的旧项目，按 [从 saascore 升级到新版模板](docs/MIGRATE_FROM_SAASCORE.md)
+迁移代码和数据；各版本的不兼容改动见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 模块清单
 
 | 目录 | 提供什么 | 不负责什么 |
