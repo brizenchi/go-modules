@@ -214,6 +214,9 @@ saascore 用 Google 返回的 subject 找用户，新模板先查 `user_identiti
 不跑这一步的话，邮箱没变过的用户仍能登进原账号；但注册后改过 Google 邮箱的用户，会被当成
 新用户，另建一个账号。邮箱验证码注册的用户不需要这一步。
 
+saascore 没有限制同一个 Google subject 只能属于一个账号。如果出现重复，最早注册的账号得到
+关联，脚本会打印 `could not be linked` 警告，其余账号在第 8 步 `verify.sql` 第 4 部分列出，需要人工判断。
+
 **第 6 步：迁移积分。**
 
 ```bash
@@ -289,6 +292,8 @@ scripts/saascore-rehearsal/run.sh          # KEEP=1 保留临时目录里的日�
 4. 启动新代码，用每个样例用户登录，比较账号、套餐、积分、角色和
    [`expected.tsv`](../scripts/saascore-rehearsal/expected.tsv) 是否一致；再检查旧 token 返回 401、
    邀请码还在、积分流水只有一条期初、迁移后管理员加积分正常、Google 身份已关联。
+5. 在旧库的副本上补测三种情况：两个 SQL 在新代码第一次启动前执行，新代码照样能启动；两个账号
+   共用一个 Google subject 时，旧账号保留关联、`verify.sql` 列出另一个；有负余额时积分脚本整体回滚。
 
 最近一次的结果：
 
@@ -311,6 +316,12 @@ erin keeps referral code INVERIN0001
 carol's history: one opening entry of 500
 admin grant after the upgrade works: carol now has 505
 dave's Google identity is linked
+
+shared subject: user_identities.sql warns
+SQL run before the first start: the application starts and carol has 500
+shared subject: dave keeps the link, verify.sql lists dave.alias
+negative balance: credit_ledger.sql stops and changes nothing
+
 REHEARSAL PASSED
 ```
 

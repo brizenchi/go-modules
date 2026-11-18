@@ -3,7 +3,7 @@
 Repository-level releases of the root module. Per-package details live in each
 package's `CHANGELOG.md`; versioning rules are in [VERSIONING.md](VERSIONING.md).
 
-## [v0.3.0] — 2026-11-17
+## [v0.3.0] — 2026-11-18
 
 First release of the single root module and of the template-owned composition
 from [ADR-0001](docs/adr/0001-template-owned-composition-and-user-schema.md).

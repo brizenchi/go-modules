@@ -34,10 +34,12 @@ BEGIN
   SELECT count(*) INTO candidates FROM users
   WHERE COALESCE(TRIM(provider), '') NOT IN ('', 'email') AND COALESCE(TRIM(provider_subject), '') <> '';
 
+  -- Oldest account first: if two legacy rows share a subject, the original keeps it.
   INSERT INTO user_identities(user_id, provider, subject, created_at, updated_at)
   SELECT id, TRIM(provider), TRIM(provider_subject), COALESCE(created_at, now()), now()
   FROM users
   WHERE COALESCE(TRIM(provider), '') NOT IN ('', 'email') AND COALESCE(TRIM(provider_subject), '') <> ''
+  ORDER BY created_at NULLS LAST, id
   ON CONFLICT DO NOTHING;
 
   SELECT count(*) INTO linked FROM users u

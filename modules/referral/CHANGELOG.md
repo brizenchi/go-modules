@@ -7,7 +7,7 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
-## [v0.3.0] — 2026-11-17
+## [v0.3.0] — 2026-11-18
 
 ### Breaking
 

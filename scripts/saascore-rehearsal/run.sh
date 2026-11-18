@@ -42,10 +42,10 @@ step() { printf '\n==> %s\n' "$*"; }
 fail() { echo "FAIL: $*"; FAILURES=$((FAILURES + 1)); }
 sql() { "$PG_BIN/psql" -X -q -v ON_ERROR_STOP=1 "$@"; }
 
-start_app() {
+start_app() { # [DATABASE], default app
 	(cd "$WORK" && exec env \
 		CONFIG="$WORK/config.yaml" APP_ENV=dev APP_SERVER_NAME="$SERVICE" APP_SERVER_PORT="$APP_PORT" APP_LOG_FORMAT=text \
-		APP_DB_HOST="$PGHOST" APP_DB_PORT="$PGPORT" APP_DB_USER=postgres APP_DB_PASSWORD=unused APP_DB_NAME=app APP_DB_SSL_MODE=disable \
+		APP_DB_HOST="$PGHOST" APP_DB_PORT="$PGPORT" APP_DB_USER=postgres APP_DB_PASSWORD=unused APP_DB_NAME="${1:-app}" APP_DB_SSL_MODE=disable \
 		APP_AUTH_USER_JWT_SECRET="$JWT_SECRET" APP_AUTH_EMAIL_DEBUG=true APP_EMAIL_PROVIDER=log \
 		APP_BILLING_ENABLED=true APP_BILLING_STRIPE_SECRET_KEY=sk_test_not-a-real-key \
 		APP_BILLING_STRIPE_WEBHOOK_SECRET=whsec_not-a-real-secret \
@@ -114,6 +114,7 @@ LEGACY_TOKEN=$(oldside token -secret "$JWT_SECRET" -service "$SERVICE" \
 	-user-id 00000000-0000-4000-8000-0000000000a1 -email alice@example.com)
 sql -At -F $'\t' -c "SELECT email, id, plan, credits FROM users ORDER BY email" >"$WORK/legacy_users.tsv"
 echo "$(wc -l <"$WORK/legacy_users.tsv" | tr -d ' ') legacy users loaded"
+sql -d postgres -c 'CREATE DATABASE legacy_copy TEMPLATE app' # for the extra checks at the end
 
 step "3/8 guide step 2: snapshot"
 sql -At -f "$GUIDE/snapshot.sql" >"$WORK/before.txt"
@@ -210,6 +211,37 @@ balance=$(api GET /credits "$(token_of carol@example.com)" | jq -r '.data.balanc
 if [ "$balance" = 505 ]; then echo "admin grant after the upgrade works: carol now has 505"; else fail "grant: $grant, balance $balance"; fi
 identity=$(sql -At -c "SELECT provider || ':' || subject FROM user_identities WHERE user_id = '00000000-0000-4000-8000-0000000000a4'")
 if [ "$identity" = google:google-sub-dave-0001 ]; then echo "dave's Google identity is linked"; else fail "dave's identity: $identity"; fi
+stop_app
+
+step "extra: SQL before the first start, a shared Google subject, a negative balance"
+sql -d postgres -c 'CREATE DATABASE order_check TEMPLATE legacy_copy' -c 'CREATE DATABASE negative_check TEMPLATE legacy_copy'
+# saascore's provider_subject index was not unique, so a second account could
+# carry dave's subject. The older account keeps the link; verify.sql lists the other.
+sql -d order_check -c "INSERT INTO users (id, email, email_verified, provider, provider_subject, role, plan, credits, created_at, updated_at)
+	VALUES ('00000000-0000-4000-8000-0000000000c1', 'dave.alias@example.com', true, 'google', 'google-sub-dave-0001', 'user', 'free', 0, now(), now())"
+out=$(sql -d order_check -f "$GUIDE/user_identities.sql" 2>&1)
+if grep -q "1 legacy oauth users could not be linked" <<<"$out"; then echo "shared subject: user_identities.sql warns"; else fail "no warning for a shared subject: $out"; fi
+sql -d order_check -f "$GUIDE/credit_ledger.sql"
+start_app order_check
+balance=$(api GET /credits "$(login carol@example.com)" | jq -r '.data.balance')
+if [ "$balance" = 500 ]; then echo "SQL run before the first start: the application starts and carol has 500"; else fail "SQL-first order: carol has $balance"; fi
+stop_app
+owner=$(sql -d order_check -At -c "SELECT u.email FROM user_identities i JOIN users u ON u.id = i.user_id WHERE i.subject = 'google-sub-dave-0001'")
+unlinked=$(sql -d order_check -At -F ' | ' -f "$GUIDE/verify.sql" | awk -F' [|] ' '/^== 4\./{f=1; next} /^== /{f=0} f {print $2}')
+if [ "$owner" = dave@example.com ] && [ "$unlinked" = dave.alias@example.com ]; then
+	echo "shared subject: dave keeps the link, verify.sql lists dave.alias"
+else
+	fail "shared subject: owner=$owner unlinked=$unlinked"
+fi
+
+sql -d negative_check -c "UPDATE users SET credits = -5 WHERE email = 'frank@example.com'"
+if sql -d negative_check -f "$GUIDE/credit_ledger.sql" >/dev/null 2>&1; then
+	fail "credit_ledger.sql accepted a negative balance"
+else
+	state=$(sql -d negative_check -At -c "SELECT to_regclass('user_credit_transactions') IS NULL,
+		(SELECT count(*) FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'credits_version')")
+	if [ "$state" = 't|0' ]; then echo "negative balance: credit_ledger.sql stops and changes nothing"; else fail "negative balance left changes: $state"; fi
+fi
 
 echo
 if [ "$FAILURES" -eq 0 ]; then
