@@ -44,7 +44,9 @@ func (p *Provider) GetCreditsCheckout(ctx context.Context, id string) (*port.Cre
 	if sess.Status != stripesdk.CheckoutSessionStatusComplete || sess.LineItems == nil {
 		return nil, domain.ErrInvalidInput
 	}
-	raw, err := json.Marshal(sess)
+	// The session (including its client_secret) is re-encoded only to reuse the
+	// webhook parser in memory; the bytes are never stored, logged or returned.
+	raw, err := json.Marshal(sess) //nolint:gosec // G117: in-memory re-encoding, see above
 	if err != nil {
 		return nil, fmt.Errorf("stripe: encode credits checkout: %w", err)
 	}
