@@ -11,9 +11,11 @@ import {
 } from "@/content/marketing";
 import { LocalizedLink } from "@/components/localized-link";
 import { StructuredData } from "@/components/structured-data";
-import { faqStructuredData } from "@/lib/structured-data";
+import { faqStructuredData, webPageStructuredData } from "@/lib/structured-data";
 import { SiteShell } from "@/components/site-shell";
+import { useSitePresentation } from "@/components/site-presentation";
 import { useI18n } from "@/lib/i18n";
+import { languageTags, localizeHref } from "@/lib/locale";
 import { getHomeContent } from "@/content/site";
 import { appEnv } from "@/lib/env";
 import styles from "./marketing.module.css";
@@ -147,7 +149,8 @@ export function MarketingIndex({ kind }: { kind: MarketingKind }) {
 }
 
 export function MarketingDetail({ page, entries }: { page: MarketingPage; entries: DiscoveryEntry[] }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const presentation = useSitePresentation();
   const category = marketingCategories.find((item) => item.kind === page.kind);
   const toc = [
     { id: "overview", label: t(labels.overview) },
@@ -171,6 +174,7 @@ export function MarketingDetail({ page, entries }: { page: MarketingPage; entrie
       actions={<LocalizedLink className="button primary" href={page.primaryCta.href}>{t(page.primaryCta.label)}</LocalizedLink>}
     >
       <ProductNavigation currentPath={page.path} />
+      <StructuredData data={webPageStructuredData({ title: t(page.title), description: t(page.description), path: localizeHref(page.path, locale), language: languageTags[locale], publisher: presentation?.brand_name || appEnv.appName, modifiedAt: page.updatedAt })} />
       <div className={`${styles.page} ${styles.detailLayout}`}>
         <div className={styles.readingBody}>
           <section className={styles.summary} id="overview">
