@@ -53,3 +53,4 @@
 
 旧的 `SAASCORE_GUIDE.md` 不再适用：组合代码已经进入 quickstart，代码入口是
 `templates/quickstart/internal/platform` 和 `internal/bootstrap/subscriptions.go`。
+仍在使用 saascore 的项目按 [从 saascore 升级到新版模板](./MIGRATE_FROM_SAASCORE.md) 迁移。

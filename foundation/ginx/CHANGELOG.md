@@ -7,6 +7,8 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-18
+
 ### Added
 
 - `AccessLog` records `user_agent`, `request_size`, `response_size` and

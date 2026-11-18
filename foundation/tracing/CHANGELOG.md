@@ -7,6 +7,8 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-18
+
 ### Added
 
 - `Middleware(MiddlewareConfig)` with `SkipPaths`; `Trace` now delegates to

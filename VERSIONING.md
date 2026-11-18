@@ -27,8 +27,9 @@ go test ./...
 - 向后兼容的新能力或适配器：次版本；
 - 删除包、修改端口或迁移所有权：主版本或升级说明明确的预发布版本。
 
-本次删除 `stacks/saascore` 和 `modules/user` 是有意的边界修正。旧项目应先迁出
-共享 User，再升级到采用 ADR-0001 的版本。
+v0.3.0 删除了 `stacks/saascore` 和 `modules/user`，这是有意的边界修正（ADR-0001）。
+仍在使用 saascore 的项目按 [从 saascore 升级到新版模板](docs/MIGRATE_FROM_SAASCORE.md)
+迁移代码和数据；每个版本的不兼容改动见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 每次发布前
 

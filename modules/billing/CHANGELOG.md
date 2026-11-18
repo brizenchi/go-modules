@@ -7,6 +7,17 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-18
+
+### Breaking
+
+- `port.EventBus.Publish` and `eventbus.InProc.Publish` return `error`.
+- `port.Provider` adds `FindCheckoutSession` and `GetCheckoutSession`.
+- `repo.NewCustomerStore` and `repo.NewUserResolver` take a `port.AccountLookup`;
+  `app.NewWebhookService` takes a `port.SubscriptionRepository`.
+- `repo.SubscriptionRepo.UpsertSnapshot` takes the event time and ID and reports
+  whether the snapshot was applied; older events no longer overwrite newer state.
+
 ### Fixed
 
 - Subscription previews distinguish invoice collection from the next renewal

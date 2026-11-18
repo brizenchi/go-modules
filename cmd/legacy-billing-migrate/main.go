@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	billingrepo "github.com/brizenchi/go-modules/modules/billing/adapter/repo"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // This one-off tool migrates Stripe columns from the pre-ADR-0001 users table
@@ -28,7 +30,14 @@ func main() {
 	if *dsn == "" {
 		log.Fatal("dsn required: pass --dsn or set DATABASE_URL")
 	}
-	db, err := gorm.Open(postgres.Open(*dsn), &gorm.Config{})
+	// stdout carries only the report so --json output stays machine-readable;
+	// expected lookups that find nothing are not logged at all.
+	dbLog := logger.New(log.New(os.Stderr, "", log.LstdFlags), logger.Config{
+		SlowThreshold:             time.Second,
+		LogLevel:                  logger.Warn,
+		IgnoreRecordNotFoundError: true,
+	})
+	db, err := gorm.Open(postgres.Open(*dsn), &gorm.Config{Logger: dbLog})
 	if err != nil {
 		log.Fatalf("open db: %v", err)
 	}

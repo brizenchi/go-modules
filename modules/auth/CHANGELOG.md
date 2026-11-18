@@ -7,6 +7,17 @@ top-level [VERSIONING.md](../../VERSIONING.md).
 
 ## [Unreleased]
 
+## [v0.3.0] — 2026-11-18
+
+### Breaking
+
+- Access tokens carry `token_type`; tokens issued by earlier versions are
+  rejected and users sign in again. `jwt.Config.Revocations` lets logout revoke
+  the submitted token.
+- `OAuthService.StartOAuth`, `OAuthCallback`, `ExchangeToken` and
+  `port.ExchangeCodeStore.Consume` take the browser challenge/verifier binding
+  described under Security.
+
 ### Added
 
 - `google.Config.HTTPClient` / `github.Config.HTTPClient`: inject an
