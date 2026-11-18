@@ -134,8 +134,8 @@ OAuth 登录按钮会先在当前 tab 的 `sessionStorage` 生成一次性 verif
   否则认证检查会返回 503。本次不改变启动迁移策略。
 - Stripe 退款、拒付只提供 [业务 hook](PAYMENT_HOOKS.md)，不自动扣积分、取消订阅或收回权限。
 - `go.mod` / `go.sum` 已补齐 S3 所需 AWS SDK 间接依赖。monorepo 部署使用根目录 Dockerfile。
-  复制为独立项目时，必须先发布包含本次 auth/event 接口的共享模块，再执行
-  `make pin-template-version VERSION=<已发布版本>`。当前锁定的旧版并不包含这些新接口。
+  `go.mod` 锁定在 `go-modules v0.3.0`，它包含本次 auth/event 接口，复制为独立项目后可以直接构建。
+  以后共享模块有新接口时，先发布，再执行 `make pin-template-version VERSION=<已发布版本>`。
   `make verify-template-copy` 只验证当前本地源码；不能替代发布版本验证。
   CI 分别运行 monorepo Linux 构建和脱离 `go.work` 的临时副本构建；后者只在临时目录
   使用本地 replace。发布后另运行 `make verify-template-release VERSION=<已发布版本>`。
