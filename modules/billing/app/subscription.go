@@ -291,6 +291,10 @@ func resolveChangeMode(current *domain.SubscriptionSnapshot, in domain.Subscript
 	if current == nil {
 		return domain.ChangeModeImmediateProrated
 	}
+	// Trial selections apply now, but paid billing starts at the original trial end.
+	if current.Status == domain.StatusTrialing {
+		return domain.ChangeModeImmediateProrated
+	}
 
 	if rankPlan(in.Plan) < rankPlan(current.Plan) {
 		return domain.ChangeModePeriodEnd

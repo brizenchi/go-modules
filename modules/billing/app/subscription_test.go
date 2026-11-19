@@ -432,3 +432,49 @@ func TestCancelScheduledChangeUsesCustomerSubscriptionAndRejectsMissingCapabilit
 		t.Fatalf("unsupported provider: %v", err)
 	}
 }
+
+func TestTrialPlanChangesPreserveCycle(t *testing.T) {
+	type selection struct {
+		plan     domain.PlanType
+		interval domain.BillingInterval
+	}
+	var selections []selection
+	for _, plan := range []domain.PlanType{domain.PlanStarter, domain.PlanPro, domain.PlanPremium} {
+		for _, interval := range []domain.BillingInterval{domain.IntervalMonthly, domain.IntervalYearly} {
+			selections = append(selections, selection{plan, interval})
+		}
+	}
+	for _, from := range selections {
+		for _, to := range selections {
+			t.Run(string(from.plan)+"/"+string(from.interval)+"/to/"+string(to.plan)+"/"+string(to.interval), func(t *testing.T) {
+				prov := newMockProvider()
+				prov.subSnapshot = &domain.SubscriptionSnapshot{
+					ProviderSubscriptionID: "sub_trial", Plan: from.plan,
+					Interval: from.interval, Status: domain.StatusTrialing,
+				}
+				store := newMockCustomerStore(port.Customer{
+					UserID: "u1", ProviderCustomerID: "cus_trial", ProviderSubscriptionID: "sub_trial",
+				})
+				service := NewSubscriptionService(prov, store, newMockBus())
+				preview, err := service.PreviewChange(t.Context(), "u1", domain.SubscriptionPreviewInput{
+					Plan: to.plan, Interval: to.interval,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if preview.Mode != domain.ChangeModeImmediateProrated {
+					t.Errorf("preview must preserve cycle, got %s", preview.Mode)
+				}
+				result, err := service.Change(t.Context(), "u1", domain.SubscriptionChangeInput{
+					Plan: to.plan, Interval: to.interval,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result.Mode != domain.ChangeModeImmediateProrated || prov.changeCalls != 1 || prov.scheduleCalls != 0 {
+					t.Errorf("must update in place preserving cycle: mode=%s changes=%d schedules=%d", result.Mode, prov.changeCalls, prov.scheduleCalls)
+				}
+			})
+		}
+	}
+}

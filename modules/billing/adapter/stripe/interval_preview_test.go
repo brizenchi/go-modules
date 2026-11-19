@@ -87,3 +87,85 @@ func TestMonthlyToYearlyUpdatesExistingSubscriptionAndWaitsForPayment(t *testing
 		})
 	}
 }
+
+func TestTrialPlanChangesPreserveTrial(t *testing.T) {
+	// The original three-day trial is already partly used: switching must not
+	// replace its remaining time with a fresh trial or end it immediately.
+	trialEnd := time.Now().Add(36 * time.Hour).Unix()
+	type selection struct {
+		plan           domain.PlanType
+		interval       domain.BillingInterval
+		stripeInterval string
+	}
+	var selections []selection
+	for _, plan := range []domain.PlanType{domain.PlanStarter, domain.PlanPro, domain.PlanPremium} {
+		selections = append(selections, selection{plan, domain.IntervalMonthly, "month"}, selection{plan, domain.IntervalYearly, "year"})
+	}
+	for _, from := range selections {
+		for _, to := range selections {
+			for _, action := range []string{"preview", "change"} {
+				t.Run(string(from.plan)+"/"+string(from.interval)+"/to/"+string(to.plan)+"/"+string(to.interval)+"/"+action, func(t *testing.T) {
+					writes := 0
+					var currentPrice, targetPrice string
+					p := stripeMock(t, func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						if r.URL.Path != "/v1/subscriptions/sub_trial" {
+							t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+							w.WriteHeader(http.StatusBadRequest)
+							return
+						}
+						price, interval := currentPrice, from.stripeInterval
+						if r.Method == http.MethodPost {
+							writes++
+							form := readForm(t, r)
+							if form.Get("items[0][id]") != "si_trial" || form.Get("items[0][price]") != targetPrice {
+								t.Errorf("must replace price on existing item: %v", form)
+							}
+							if form.Get("billing_cycle_anchor") != "" || form.Get("trial_end") != fmt.Sprint(trialEnd) || form.Get("trial_period_days") != "" {
+								t.Errorf("must preserve original trial end without resetting cycle: %v", form)
+							}
+							if form.Get("proration_behavior") != "none" || form.Get("payment_behavior") != "" {
+								t.Errorf("trial change must not request immediate or pending payment: %v", form)
+							}
+							price, interval = targetPrice, to.stripeInterval
+						}
+						fmt.Fprintf(w, `{"id":"sub_trial","customer":"cus_trial","status":"trialing","currency":"usd","trial_end":%d,"current_period_end":%d,"items":{"data":[{"id":"si_trial","price":{"id":%q,"recurring":{"interval":%q}}}]}}`, trialEnd, trialEnd, price, interval)
+					})
+					p.cfg.SubscriptionPrices[domain.PlanPro][domain.IntervalYearly] = "price_pro_y"
+					currentPrice = p.cfg.PriceFor(from.plan, from.interval)
+					targetPrice = p.cfg.PriceFor(to.plan, to.interval)
+					if action == "preview" {
+						preview, err := p.PreviewSubscriptionChange(t.Context(), "cus_trial", "sub_trial", domain.SubscriptionPreviewInput{
+							Plan: to.plan, Interval: to.interval, Mode: domain.ChangeModeImmediateProrated,
+						})
+						if err != nil {
+							t.Fatal(err)
+						}
+						if preview.AmountDueNow != 0 || preview.ImmediateCharge || preview.EffectiveAtPeriodEnd || writes != 0 {
+							t.Fatalf("preview must be read-only with nothing due now: %+v writes=%d", preview, writes)
+						}
+						if preview.NextBillingAt == nil || preview.NextBillingAt.Unix() != trialEnd || preview.CurrentPeriodEnd == nil || preview.CurrentPeriodEnd.Unix() != trialEnd {
+							t.Fatalf("first paid billing must remain at trial end: %+v", preview)
+						}
+						if preview.TargetPlan != to.plan || preview.TargetInterval != to.interval || preview.Mode != domain.ChangeModeImmediateProrated || preview.Currency != "usd" {
+							t.Fatalf("incorrect preview selection: %+v", preview)
+						}
+						return
+					}
+					snapshot, err := p.ChangeSubscription(t.Context(), "sub_trial", domain.SubscriptionChangeInput{
+						Plan: to.plan, Interval: to.interval, Mode: domain.ChangeModeImmediateProrated,
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if writes != 1 || snapshot.ProviderSubscriptionID != "sub_trial" || snapshot.Status != domain.StatusTrialing || snapshot.Interval != to.interval || snapshot.Plan != to.plan || snapshot.PendingPayment != nil {
+						t.Fatalf("must retain trial on existing subscription: %+v writes=%d", snapshot, writes)
+					}
+					if snapshot.PeriodEnd == nil || snapshot.PeriodEnd.Unix() != trialEnd {
+						t.Fatalf("trial end changed: %+v", snapshot.PeriodEnd)
+					}
+				})
+			}
+		}
+	}
+}
